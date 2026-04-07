@@ -1,0 +1,9 @@
+# Files to copy from the main repo into each new worktree.
+# Uses .gitignore syntax. Only gitignored files are copied.
+.env
+.env.local
+.env.*.local
+**/.env
+**/.env.local
+**/.env.*.local
+.claude/settings.local.json
