@@ -3,11 +3,23 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default [
-  { ignores: ['node_modules/**', 'dist/**', 'build/**', '**/*.generated.*', '**/*.d.ts'] },
+  {
+    ignores: [
+      'node_modules/**',
+      'dist/**',
+      'build/**',
+      '**/*.generated.*',
+      '**/*.d.ts',
+    ],
+  },
   {
     files: ['**/*.{js,mjs,cjs}'],
     ...eslint.configs.recommended,
-    languageOptions: { ecmaVersion: 'latest', sourceType: 'module', globals: { ...globals.node, ...globals.es2022 } },
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      globals: { ...globals.node, ...globals.es2022 },
+    },
   },
   ...tseslint.config(
     eslint.configs.recommended,
