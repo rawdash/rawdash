@@ -1,0 +1,31 @@
+{
+  "name": "@rawdash/core",
+  "version": "0.0.0",
+  "description": "Rawdash core — headless dashboard backend primitives",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    "./adapters/nextjs": {
+      "types": "./dist/adapters/nextjs.d.ts",
+      "import": "./dist/adapters/nextjs.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "typecheck": "tsc --project tsconfig.json --noEmit",
+    "lint": "eslint src"
+  },
+  "peerDependencies": {
+    "next": ">=14.0.0"
+  },
+  "peerDependenciesMeta": {
+    "next": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "next": "^15.0.0",
+    "typescript": "^5.7.2"
+  }
+}
