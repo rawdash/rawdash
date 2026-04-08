@@ -1,40 +1,13 @@
+import type { ConnectorRegistry, Rawdash } from '@rawdash/core';
 import type { NextRequest, NextResponse } from 'next/server';
-
-/**
- * A registry mapping connector IDs to their widget data shapes.
- *
- * Callers declare their registry when constructing a `Rawdash` instance so
- * that widget data is typed end-to-end:
- *
- * ```ts
- * type MyRegistry = {
- *   github: { pull_requests: PullRequestData; issues: IssueData };
- *   stripe: { mrr: MrrData };
- * };
- * const rawdash = createRawdash<MyRegistry>({ ... });
- * ```
- */
-export type ConnectorRegistry = Record<string, Record<string, unknown>>;
-
-/**
- * Phantom-typed Rawdash instance.  The generic `TRegistry` flows into handler
- * return types so callers get typed widget data without extra casts.
- *
- * Constructed via `createRawdash` (defined in a future ticket).
- */
-export interface Rawdash<
-  TRegistry extends ConnectorRegistry = ConnectorRegistry,
-> {
-  /** @internal — phantom field; never present at runtime */
-  readonly _registry: TRegistry;
-}
 
 /**
  * Shape of a successful widget-data response.
  *
  * Route: `GET /api/rawdash/[connector]/[widget]`
  *
- * @typeParam TData - The widget's data payload type, inferred from `TRegistry`.
+ * @typeParam TData - The widget's data payload type, inferred from the
+ *   `TRegistry` on the `Rawdash` instance.
  */
 export interface CachedWidgetResponse<TData = unknown> {
   /** Connector that owns this widget. */
@@ -88,7 +61,7 @@ export type RouteHandler = (
  *
  * ```ts
  * // app/api/rawdash/[...path]/route.ts
- * import { createNextHandler } from '@rawdash/core/adapters/nextjs';
+ * import { createNextHandler } from '@rawdash/nextjs';
  * import { rawdash } from '@/lib/rawdash';
  *
  * export const { GET, POST } = createNextHandler(rawdash);
@@ -138,7 +111,7 @@ export interface CreateNextHandlerOptions {
  * @example
  * ```ts
  * // app/api/rawdash/[...path]/route.ts
- * import { createNextHandler } from '@rawdash/core/adapters/nextjs';
+ * import { createNextHandler } from '@rawdash/nextjs';
  * import { rawdash } from '@/lib/rawdash';
  *
  * export const { GET, POST } = createNextHandler(rawdash);

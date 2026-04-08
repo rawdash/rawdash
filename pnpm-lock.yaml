@@ -93,9 +93,16 @@ importers:
 
   packages/core:
     devDependencies:
-      '@types/node':
-        specifier: ^22.0.0
-        version: 22.19.17
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+
+  packages/nextjs:
+    dependencies:
+      '@rawdash/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
       next:
         specifier: ^15.0.0
         version: 15.5.15(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
@@ -2563,6 +2570,7 @@ snapshots:
   '@types/node@22.19.17':
     dependencies:
       undici-types: 6.21.0
+    optional: true
 
   '@types/react-dom@19.2.3(@types/react@19.2.14)':
     dependencies:
@@ -3712,7 +3720,8 @@ snapshots:
 
   typescript@5.9.3: {}
 
-  undici-types@6.21.0: {}
+  undici-types@6.21.0:
+    optional: true
 
   universalify@0.1.2: {}
 
