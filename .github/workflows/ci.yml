@@ -48,14 +48,14 @@ jobs:
           fi
           echo "filter=...[${BASE}...HEAD]" >> $GITHUB_OUTPUT
 
-      - name: Build
-        run: pnpm turbo run build --filter="${{ steps.affected.outputs.filter }}"
-
       - name: Lint
         run: pnpm turbo run lint --filter="${{ steps.affected.outputs.filter }}"
 
       - name: Typecheck
         run: pnpm turbo run typecheck --filter="${{ steps.affected.outputs.filter }}"
+
+      - name: Build
+        run: pnpm turbo run build --filter="${{ steps.affected.outputs.filter }}"
 
       - name: Test
         run: pnpm turbo run test --filter="${{ steps.affected.outputs.filter }}"
