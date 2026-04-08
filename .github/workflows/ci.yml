@@ -18,6 +18,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -36,11 +38,26 @@ jobs:
       - name: Format check
         run: pnpm format:check
 
+      - name: Determine affected filter
+        id: affected
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+          elif [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ]; then
+            BASE="$(git rev-parse HEAD^1)"
+          else
+            BASE="${{ github.event.before }}"
+          fi
+          echo "filter=...[${BASE}...HEAD]" >> $GITHUB_OUTPUT
+
       - name: Lint
-        run: pnpm lint
+        run: pnpm turbo run lint --filter="${{ steps.affected.outputs.filter }}"
 
       - name: Typecheck
-        run: pnpm typecheck
+        run: pnpm turbo run typecheck --filter="${{ steps.affected.outputs.filter }}"
+
+      - name: Build
+        run: pnpm turbo run build --filter="${{ steps.affected.outputs.filter }}"
 
       - name: Test
-        run: pnpm test
+        run: pnpm turbo run test --filter="${{ steps.affected.outputs.filter }}"
