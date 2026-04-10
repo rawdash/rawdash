@@ -11,11 +11,12 @@
     }
   },
   "scripts": {
-    "build": "tsc --project tsconfig.json",
+    "build": "tsup",
     "typecheck": "tsc --project tsconfig.json --noEmit",
     "lint": "eslint src"
   },
   "devDependencies": {
+    "tsup": "^8.0.0",
     "typescript": "^5.7.2"
   }
 }
