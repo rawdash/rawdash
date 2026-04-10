@@ -14,6 +14,13 @@
  */
 export type ConnectorRegistry = Record<string, Record<string, unknown>>;
 
+export type {
+  ConnectorDef,
+  StorageHandle,
+  SyncContext,
+  WidgetDef,
+} from './connector.js';
+
 /**
  * Phantom-typed Rawdash instance.  The generic `TRegistry` flows into adapter
  * return types so callers get typed widget data without extra casts.
