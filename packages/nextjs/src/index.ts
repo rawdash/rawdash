@@ -49,10 +49,17 @@ export interface SyncTriggerResponse {
  *
  * Compatible with the catch-all route signature expected by Next.js ≥ 14:
  * `app/api/rawdash/[...path]/route.ts`
+ *
+ * `params` is a `Promise` in Next.js 15+ and a plain object in Next.js 14.
+ * The union covers both shapes so `@rawdash/nextjs` works with either version.
  */
 export type RouteHandler = (
   request: NextRequest,
-  context: { params: Promise<Record<string, string | string[]>> },
+  context: {
+    params:
+      | Promise<Record<string, string | string[]>>
+      | Record<string, string | string[]>;
+  },
 ) => Promise<NextResponse>;
 
 /**
@@ -101,12 +108,18 @@ export interface CreateNextHandlerOptions {
 /**
  * Creates Next.js App Router route handlers that expose the Rawdash HTTP API.
  *
+ * **This is a stub.**  The function signature and associated types
+ * (`CreateNextHandlerOptions`, `NextHandlers`) are stable, but the runtime
+ * implementation does not exist yet and will always throw.  Do not call this
+ * in production.
+ *
  * @param rawdash - A configured Rawdash instance carrying the connector
  *   registry.  The registry's type flows into widget-data responses so callers
  *   receive typed payloads.
  * @param options - Handler configuration.
- * @returns An object with `GET` and `POST` handlers ready for export from a
- *   Next.js catch-all route file.
+ * @returns An object with `GET` and `POST` handlers (`NextHandlers`) for
+ *   export from a Next.js catch-all route file.
+ * @throws {Error} Always — runtime implementation is not yet available.
  *
  * @example
  * ```ts
