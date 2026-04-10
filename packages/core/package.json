@@ -1,0 +1,21 @@
+{
+  "name": "@rawdash/core",
+  "version": "0.0.0",
+  "description": "Rawdash core — headless dashboard backend primitives",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "typecheck": "tsc --project tsconfig.json --noEmit",
+    "lint": "eslint src"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "name": "@rawdash/nextjs",
+  "version": "0.0.0",
+  "description": "Rawdash adapter for Next.js App Router",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "typecheck": "tsc --project tsconfig.json --noEmit",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@rawdash/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "next": ">=14.0.0"
+  },
+  "devDependencies": {
+    "next": "^15.0.0",
+    "typescript": "^5.7.2"
+  }
+}

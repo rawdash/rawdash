@@ -32,7 +32,13 @@ export default [
         globals: { ...globals.node, ...globals.es2022 },
         parserOptions: { tsconfigRootDir: import.meta.dirname },
       },
-      rules: { '@typescript-eslint/no-explicit-any': 'off' },
+      rules: {
+        '@typescript-eslint/no-explicit-any': 'off',
+        '@typescript-eslint/no-unused-vars': [
+          'error',
+          { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+        ],
+      },
     },
   ),
 ];
