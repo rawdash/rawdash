@@ -1,16 +1,16 @@
 import { serve as honoServe } from '@hono/node-server';
 
-import { createServer } from './server.js';
-import type { RawdashServerConfig, ServeOptions } from './types.js';
+import { createServer } from './server';
+import type { RawdashServerConfig, ServeOptions } from './types';
 
-export { createServer } from './server.js';
+export { createServer } from './server';
 export type {
   ConnectorEntry,
   RawdashServerConfig,
   ServeOptions,
   SyncState,
   WidgetEntry,
-} from './types.js';
+} from './types';
 
 export function serve(
   config: RawdashServerConfig,

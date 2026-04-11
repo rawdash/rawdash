@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 
-import { InMemoryStorage } from './storage.js';
-import type { RawdashServerConfig } from './types.js';
+import { InMemoryStorage } from './storage';
+import type { RawdashServerConfig } from './types';
 
 export function createServer(config: RawdashServerConfig): Hono {
   const storage = new InMemoryStorage();

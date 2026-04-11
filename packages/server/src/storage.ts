@@ -1,6 +1,6 @@
 import type { StorageHandle } from '@rawdash/core';
 
-import type { SyncState, WidgetEntry } from './types.js';
+import type { SyncState, WidgetEntry } from './types';
 
 export class InMemoryStorage {
   private widgets = new Map<string, WidgetEntry>();
