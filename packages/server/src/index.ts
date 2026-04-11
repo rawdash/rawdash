@@ -16,7 +16,7 @@ export function serve(
   config: RawdashServerConfig,
   options: ServeOptions = {},
 ): void {
-  const { port = 3001 } = options;
+  const { port = 8080 } = options;
   const app = createServer(config);
   honoServe({ fetch: app.fetch, port });
 }
