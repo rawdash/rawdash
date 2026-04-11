@@ -46,6 +46,24 @@ export default [
             message:
               'Do not use file extensions in relative import specifiers.',
           },
+          {
+            selector:
+              'ExportNamedDeclaration[source.value=/^\\.\\.?\\//][source.value=/\\.(js|ts|tsx|jsx|mjs|cjs)$/]',
+            message:
+              'Do not use file extensions in relative import specifiers.',
+          },
+          {
+            selector:
+              'ExportAllDeclaration[source.value=/^\\.\\.?\\//][source.value=/\\.(js|ts|tsx|jsx|mjs|cjs)$/]',
+            message:
+              'Do not use file extensions in relative import specifiers.',
+          },
+          {
+            selector:
+              'ImportExpression > Literal[value=/^\\.\\.?\\//][value=/\\.(js|ts|tsx|jsx|mjs|cjs)$/]',
+            message:
+              'Do not use file extensions in relative import specifiers.',
+          },
         ],
       },
     },
