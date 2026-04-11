@@ -16,7 +16,7 @@ export type {
   WidgetEntry,
 } from './types';
 
-export function serve<TEntry extends ConnectorEntry<any, any>>(
+export function serve<TEntry extends ConnectorEntry>(
   config: RawdashServerConfig<TEntry>,
   options: ServeOptions = {},
 ): void {

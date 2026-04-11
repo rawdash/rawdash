@@ -3,7 +3,7 @@ import { Hono } from 'hono';
 import { InMemoryStorage } from './storage';
 import type { ConnectorEntry, RawdashServerConfig } from './types';
 
-export function createServer<TEntry extends ConnectorEntry<any, any>>(
+export function createServer<TEntry extends ConnectorEntry>(
   config: RawdashServerConfig<TEntry>,
 ): Hono {
   const storage = new InMemoryStorage();

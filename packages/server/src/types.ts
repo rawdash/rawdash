@@ -9,7 +9,7 @@ export type ConnectorEntry<
 };
 
 export interface RawdashServerConfig<
-  TEntry extends ConnectorEntry<any, any> = ConnectorEntry<any, any>,
+  TEntry extends ConnectorEntry = ConnectorEntry,
 > {
   connectors: TEntry[];
 }
