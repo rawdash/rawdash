@@ -19,7 +19,7 @@ export type {
   StorageHandle,
   SyncContext,
   WidgetDef,
-} from './connector.js';
+} from './connector';
 
 /**
  * Phantom-typed Rawdash instance.  The generic `TRegistry` flows into adapter

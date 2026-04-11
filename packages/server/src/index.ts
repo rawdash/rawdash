@@ -1,7 +1,11 @@
 import { serve as honoServe } from '@hono/node-server';
 
 import { createServer } from './server';
-import type { RawdashServerConfig, ServeOptions } from './types';
+import type {
+  ConnectorEntry,
+  RawdashServerConfig,
+  ServeOptions,
+} from './types';
 
 export { createServer } from './server';
 export type {
@@ -12,8 +16,8 @@ export type {
   WidgetEntry,
 } from './types';
 
-export function serve(
-  config: RawdashServerConfig,
+export function serve<TEntry extends ConnectorEntry<any, any>>(
+  config: RawdashServerConfig<TEntry>,
   options: ServeOptions = {},
 ): void {
   const { port = 8080 } = options;

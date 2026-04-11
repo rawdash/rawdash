@@ -8,8 +8,10 @@ export type ConnectorEntry<
   config: TConfig;
 };
 
-export interface RawdashServerConfig {
-  connectors: ConnectorEntry<any, any>[];
+export interface RawdashServerConfig<
+  TEntry extends ConnectorEntry<any, any> = ConnectorEntry<any, any>,
+> {
+  connectors: TEntry[];
 }
 
 export interface WidgetEntry {

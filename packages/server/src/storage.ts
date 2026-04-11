@@ -3,7 +3,7 @@ import type { StorageHandle } from '@rawdash/core';
 import type { SyncState, WidgetEntry } from './types';
 
 export class InMemoryStorage {
-  private widgets = new Map<string, WidgetEntry>();
+  private widgets = new Map<string, Map<string, WidgetEntry>>();
   private syncState: SyncState = {
     status: 'idle',
     lastSyncAt: null,
@@ -15,11 +15,14 @@ export class InMemoryStorage {
   ): StorageHandle<Record<string, unknown>> {
     return {
       setWidget: async (widgetId, data) => {
-        const id = `${connectorId}.${String(widgetId)}`;
-        this.widgets.set(id, {
-          id,
+        const widgetIdStr = String(widgetId);
+        if (!this.widgets.has(connectorId)) {
+          this.widgets.set(connectorId, new Map());
+        }
+        this.widgets.get(connectorId)!.set(widgetIdStr, {
+          id: `${connectorId}:${widgetIdStr}`,
           connectorId,
-          widgetId: String(widgetId),
+          widgetId: widgetIdStr,
           data,
           cachedAt: new Date().toISOString(),
         });
@@ -28,11 +31,11 @@ export class InMemoryStorage {
   }
 
   getAllWidgets(): WidgetEntry[] {
-    return [...this.widgets.values()];
+    return [...this.widgets.values()].flatMap((m) => [...m.values()]);
   }
 
-  getWidget(id: string): WidgetEntry | undefined {
-    return this.widgets.get(id);
+  getWidget(connectorId: string, widgetId: string): WidgetEntry | undefined {
+    return this.widgets.get(connectorId)?.get(widgetId);
   }
 
   getSyncState(): SyncState {

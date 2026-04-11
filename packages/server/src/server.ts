@@ -1,9 +1,11 @@
 import { Hono } from 'hono';
 
 import { InMemoryStorage } from './storage';
-import type { RawdashServerConfig } from './types';
+import type { ConnectorEntry, RawdashServerConfig } from './types';
 
-export function createServer(config: RawdashServerConfig): Hono {
+export function createServer<TEntry extends ConnectorEntry<any, any>>(
+  config: RawdashServerConfig<TEntry>,
+): Hono {
   const storage = new InMemoryStorage();
   const app = new Hono();
 
@@ -31,7 +33,11 @@ export function createServer(config: RawdashServerConfig): Hono {
 
   app.get('/widgets/:id', (c) => {
     const id = c.req.param('id');
-    const widget = storage.getWidget(id);
+    const sep = id.indexOf(':');
+    if (sep === -1) {
+      return c.json({ error: 'Widget not found' }, 404);
+    }
+    const widget = storage.getWidget(id.slice(0, sep), id.slice(sep + 1));
     if (!widget) {
       return c.json({ error: 'Widget not found' }, 404);
     }
