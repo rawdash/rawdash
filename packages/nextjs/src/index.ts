@@ -155,6 +155,12 @@ export interface RawdashClientOptions {
   url: string;
   /** Optional API key sent as a `Bearer` token in the `Authorization` header. */
   apiKey?: string;
+  /**
+   * Timeout in milliseconds for each individual HTTP request.
+   *
+   * @default 5000
+   */
+  timeoutMs?: number;
 }
 
 /**
@@ -239,17 +245,31 @@ export interface RawdashClient {
 export function createRawdashClient(
   options: RawdashClientOptions,
 ): RawdashClient {
-  const { url, apiKey } = options;
+  const { url, apiKey, timeoutMs = 5000 } = options;
 
   const baseHeaders: Record<string, string> = apiKey
     ? { Authorization: `Bearer ${apiKey}` }
     : {};
 
+  async function fetchWithTimeout(
+    input: string,
+    init: NextFetchInit = {},
+  ): Promise<Response> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(input, {
+        ...init,
+        headers: { ...baseHeaders, ...(init.headers ?? {}) },
+        signal: controller.signal,
+      } as RequestInit);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   async function get<T>(path: string, init: NextFetchInit = {}): Promise<T> {
-    const res = await fetch(`${url}${path}`, {
-      ...init,
-      headers: { ...baseHeaders, ...(init.headers ?? {}) },
-    } as RequestInit);
+    const res = await fetchWithTimeout(`${url}${path}`, init);
     if (!res.ok) {
       throw new Error(`Rawdash API error ${res.status}: ${res.statusText}`);
     }
@@ -264,7 +284,7 @@ export function createRawdashClient(
     },
 
     getWidget(id) {
-      return get<CachedWidgetResponse>(`/widgets/${id}`, {
+      return get<CachedWidgetResponse>(`/widgets/${encodeURIComponent(id)}`, {
         next: { tags: [RAWDASH_CACHE_TAG] },
       });
     },
@@ -274,14 +294,17 @@ export function createRawdashClient(
     },
 
     async triggerSync() {
-      const res = await fetch(`${url}/sync`, {
-        method: 'POST',
-        headers: baseHeaders,
-      });
+      const res = await fetchWithTimeout(`${url}/sync`, { method: 'POST' });
       if (!res.ok) {
         throw new Error(`Rawdash sync error ${res.status}: ${res.statusText}`);
       }
       const result = (await res.json()) as SyncTriggerResponse;
+
+      let health = await get<HealthResponse>('/health');
+      while (health.status === 'syncing') {
+        await new Promise<void>((resolve) => setTimeout(resolve, 500));
+        health = await get<HealthResponse>('/health');
+      }
       revalidateTag(RAWDASH_CACHE_TAG);
       return result;
     },
