@@ -247,6 +247,12 @@ export function createRawdashClient(
 ): RawdashClient {
   const { url, apiKey, timeoutMs = 5000 } = options;
 
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    throw new Error(
+      `createRawdashClient: timeoutMs must be a finite positive number (received ${timeoutMs})`,
+    );
+  }
+
   const baseHeaders: Record<string, string> = apiKey
     ? { Authorization: `Bearer ${apiKey}` }
     : {};
