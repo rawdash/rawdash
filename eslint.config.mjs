@@ -20,6 +20,9 @@ export default [
       sourceType: 'module',
       globals: { ...globals.node, ...globals.es2022 },
     },
+    rules: {
+      curly: 'error',
+    },
   },
   ...tseslint.config(
     eslint.configs.recommended,
@@ -33,6 +36,7 @@ export default [
         parserOptions: { tsconfigRootDir: import.meta.dirname },
       },
       rules: {
+        curly: 'error',
         '@typescript-eslint/no-explicit-any': 'error',
         '@typescript-eslint/no-unused-vars': [
           'error',
