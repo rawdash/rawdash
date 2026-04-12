@@ -5,6 +5,13 @@ import type { NextRequest, NextResponse } from 'next/server';
 const RAWDASH_CACHE_TAG = 'rawdash';
 
 type NextFetchInit = RequestInit & {
+  cache?:
+    | 'default'
+    | 'force-cache'
+    | 'no-cache'
+    | 'no-store'
+    | 'only-if-cached'
+    | 'reload';
   next?: {
     revalidate?: number | false;
     tags?: string[];
@@ -296,7 +303,7 @@ export function createRawdashClient(
     },
 
     getHealth() {
-      return get<HealthResponse>('/health');
+      return get<HealthResponse>('/health', { cache: 'no-store' });
     },
 
     async triggerSync() {
@@ -308,7 +315,9 @@ export function createRawdashClient(
 
       const maxAttempts = 60;
       for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        const health = await get<HealthResponse>('/health');
+        const health = await get<HealthResponse>('/health', {
+          cache: 'no-store',
+        });
         if (health.status === 'error') {
           throw new Error(
             `Rawdash sync failed: ${health.lastError ?? 'unknown error'}`,
