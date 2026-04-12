@@ -1,4 +1,4 @@
-import type { ConnectorRegistry, Rawdash } from '@rawdash/core';
+import type { DashboardConfig } from '@rawdash/core';
 import { revalidateTag } from 'next/cache';
 import type { NextRequest, NextResponse } from 'next/server';
 
@@ -147,8 +147,8 @@ export interface CreateNextHandlerOptions {
  * export const { GET, POST } = createNextHandler(rawdash);
  * ```
  */
-export function createNextHandler<TRegistry extends ConnectorRegistry>(
-  _rawdash: Rawdash<TRegistry>,
+export function createNextHandler(
+  _config: DashboardConfig,
   _options?: CreateNextHandlerOptions,
 ): NextHandlers {
   throw new Error('Not implemented');

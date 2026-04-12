@@ -1,23 +1,8 @@
-import type { ConnectorDef } from '@rawdash/core';
-
-export type ConnectorEntry<
-  TConfig = unknown,
-  TWidgets extends Record<string, unknown> = Record<string, unknown>,
-> = {
-  connector: ConnectorDef<TConfig, TWidgets>;
-  config: TConfig;
-};
-
-export interface RawdashServerConfig<
-  TEntry extends ConnectorEntry = ConnectorEntry,
-> {
-  connectors: TEntry[];
-}
+export type { ConnectorConfigEntry, DashboardConfig } from '@rawdash/core';
 
 export interface WidgetEntry {
   id: string;
   connectorId: string;
-  widgetId: string;
   data: unknown;
   cachedAt: string;
 }

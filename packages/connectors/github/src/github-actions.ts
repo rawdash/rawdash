@@ -1,4 +1,4 @@
-import type { ConnectorDef } from '@rawdash/core';
+import { defineConnector } from '@rawdash/core';
 
 export type GitHubActionsConfig = {
   owner: string;
@@ -6,43 +6,34 @@ export type GitHubActionsConfig = {
   token: string;
 };
 
-export type DailyRunEntry = {
-  date: string;
-  count: number;
-};
-
-export type GitHubActionsWidgets = {
-  latest_run_conclusion: string;
-  run_count_7d: number;
-  success_rate_7d: number;
-  daily_runs: DailyRunEntry[];
-};
-
 type GitHubRunsResponse = {
   workflow_runs: Array<{
+    id: number;
+    name: string;
     conclusion: string | null;
+    status: string;
     created_at: string;
+    updated_at: string;
+    run_attempt: number;
   }>;
 };
 
-export const GitHubActionsConnector: ConnectorDef<
-  GitHubActionsConfig,
-  GitHubActionsWidgets
-> = {
+const MAX_LOOKBACK_DAYS = 90;
+
+export const GitHubActionsConnector = defineConnector<GitHubActionsConfig>()({
   id: 'github-actions',
 
-  widgets: {
-    latest_run_conclusion: {
-      description: 'Conclusion of the most recent workflow run',
-    },
-    run_count_7d: {
-      description: 'Number of workflow runs in the last 7 days',
-    },
-    success_rate_7d: {
-      description: 'Percentage of successful runs in the last 7 days (0–100)',
-    },
-    daily_runs: {
-      description: 'Workflow run counts per day for the last 7 days',
+  resources: {
+    workflow_run: {
+      fields: {
+        id: { type: 'number' },
+        name: { type: 'string' },
+        conclusion: { type: 'string' },
+        status: { type: 'string' },
+        created_at: { type: 'timestamp' },
+        updated_at: { type: 'timestamp' },
+        run_attempt: { type: 'number' },
+      },
     },
   },
 
@@ -55,8 +46,16 @@ export const GitHubActionsConnector: ConnectorDef<
       'X-GitHub-Api-Version': '2022-11-28',
     };
 
-    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    const allRuns: GitHubRunsResponse['workflow_runs'] = [];
+    const cutoff = Date.now() - MAX_LOOKBACK_DAYS * 24 * 60 * 60 * 1000;
+    const allRuns: Array<{
+      id: number;
+      name: string;
+      conclusion: string;
+      status: string;
+      created_at: string;
+      updated_at: string;
+      run_attempt: number;
+    }> = [];
     let page = 1;
 
     while (true) {
@@ -76,7 +75,17 @@ export const GitHubActionsConnector: ConnectorDef<
         break;
       }
 
-      allRuns.push(...runs);
+      for (const run of runs) {
+        allRuns.push({
+          id: run.id,
+          name: run.name,
+          conclusion: run.conclusion ?? 'unknown',
+          status: run.status,
+          created_at: run.created_at,
+          updated_at: run.updated_at,
+          run_attempt: run.run_attempt,
+        });
+      }
 
       if (new Date(runs.at(-1)!.created_at).getTime() < cutoff) {
         break;
@@ -85,37 +94,6 @@ export const GitHubActionsConnector: ConnectorDef<
       page++;
     }
 
-    const recentRuns = allRuns.filter(
-      (r) => new Date(r.created_at).getTime() >= cutoff,
-    );
-
-    await storage.setWidget(
-      'latest_run_conclusion',
-      allRuns[0]?.conclusion ?? 'unknown',
-    );
-
-    await storage.setWidget('run_count_7d', recentRuns.length);
-
-    const total = recentRuns.length;
-    const successful = recentRuns.filter(
-      (r) => r.conclusion === 'success',
-    ).length;
-    await storage.setWidget(
-      'success_rate_7d',
-      total > 0 ? Math.round((successful / total) * 100) : 0,
-    );
-
-    const entries: DailyRunEntry[] = [];
-    for (let i = 6; i >= 0; i--) {
-      const dayStart = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
-      dayStart.setHours(0, 0, 0, 0);
-      const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
-      const count = allRuns.filter((r) => {
-        const t = new Date(r.created_at).getTime();
-        return t >= dayStart.getTime() && t < dayEnd.getTime();
-      }).length;
-      entries.push({ date: dayStart.toISOString().slice(0, 10), count });
-    }
-    await storage.setWidget('daily_runs', entries);
+    await storage.upsert('workflow_run', allRuns);
   },
-};
+});
