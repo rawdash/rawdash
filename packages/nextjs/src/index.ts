@@ -300,13 +300,23 @@ export function createRawdashClient(
       }
       const result = (await res.json()) as SyncTriggerResponse;
 
-      let health = await get<HealthResponse>('/health');
-      while (health.status === 'syncing') {
+      const maxAttempts = 60;
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const health = await get<HealthResponse>('/health');
+        if (health.status === 'error') {
+          throw new Error(
+            `Rawdash sync failed: ${health.lastError ?? 'unknown error'}`,
+          );
+        }
+        if (health.status === 'idle') {
+          revalidateTag(RAWDASH_CACHE_TAG);
+          return result;
+        }
         await new Promise<void>((resolve) => setTimeout(resolve, 500));
-        health = await get<HealthResponse>('/health');
       }
-      revalidateTag(RAWDASH_CACHE_TAG);
-      return result;
+      throw new Error(
+        `Rawdash sync did not complete within ${maxAttempts * 500}ms`,
+      );
     },
   };
 }
