@@ -3,8 +3,8 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "dev": "concurrently -n server,web -c blue,green 'tsx --env-file=.env.local rawdash.config.ts' 'next dev --turbopack'",
-    "dev:server": "tsx --env-file=.env.local rawdash.config.ts",
+    "dev": "concurrently -n server,web -c blue,green 'tsx --env-file=.env.local rawdash.config.mts' 'next dev --turbopack'",
+    "dev:server": "tsx --env-file=.env.local rawdash.config.mts",
     "dev:web": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
