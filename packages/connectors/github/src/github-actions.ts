@@ -40,25 +40,38 @@ export const GitHubActionsConnector: ConnectorDef<
   async sync({ config, storage }) {
     const { owner, repo, token } = config;
 
-    const res = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/actions/runs?per_page=100`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: 'application/vnd.github+json',
-          'X-GitHub-Api-Version': '2022-11-28',
-        },
-      },
-    );
-
-    if (!res.ok) {
-      throw new Error(`GitHub API error: ${res.status} ${res.statusText}`);
-    }
-
-    const data = (await res.json()) as GitHubRunsResponse;
-    const allRuns = data.workflow_runs;
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+    };
 
     const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const allRuns: GitHubRunsResponse['workflow_runs'] = [];
+    let page = 1;
+
+    while (true) {
+      const res = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/actions/runs?per_page=100&page=${page}`,
+        { headers },
+      );
+
+      if (!res.ok) {
+        throw new Error(`GitHub API error: ${res.status} ${res.statusText}`);
+      }
+
+      const data = (await res.json()) as GitHubRunsResponse;
+      const runs = data.workflow_runs;
+
+      if (runs.length === 0) break;
+
+      allRuns.push(...runs);
+
+      if (new Date(runs.at(-1)!.created_at).getTime() < cutoff) break;
+
+      page++;
+    }
+
     const recentRuns = allRuns.filter(
       (r) => new Date(r.created_at).getTime() >= cutoff,
     );
