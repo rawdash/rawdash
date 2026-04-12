@@ -6,10 +6,16 @@ export type GitHubActionsConfig = {
   token: string;
 };
 
+export type DailyRunEntry = {
+  date: string;
+  count: number;
+};
+
 export type GitHubActionsWidgets = {
   latest_run_conclusion: string;
   run_count_7d: number;
   success_rate_7d: number;
+  daily_runs: DailyRunEntry[];
 };
 
 type GitHubRunsResponse = {
@@ -34,6 +40,9 @@ export const GitHubActionsConnector: ConnectorDef<
     },
     success_rate_7d: {
       description: 'Percentage of successful runs in the last 7 days (0–100)',
+    },
+    daily_runs: {
+      description: 'Workflow run counts per day for the last 7 days',
     },
   },
 
@@ -63,11 +72,15 @@ export const GitHubActionsConnector: ConnectorDef<
       const data = (await res.json()) as GitHubRunsResponse;
       const runs = data.workflow_runs;
 
-      if (runs.length === 0) break;
+      if (runs.length === 0) {
+        break;
+      }
 
       allRuns.push(...runs);
 
-      if (new Date(runs.at(-1)!.created_at).getTime() < cutoff) break;
+      if (new Date(runs.at(-1)!.created_at).getTime() < cutoff) {
+        break;
+      }
 
       page++;
     }
@@ -91,5 +104,18 @@ export const GitHubActionsConnector: ConnectorDef<
       'success_rate_7d',
       total > 0 ? Math.round((successful / total) * 100) : 0,
     );
+
+    const entries: DailyRunEntry[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const dayStart = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+      dayStart.setHours(0, 0, 0, 0);
+      const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+      const count = allRuns.filter((r) => {
+        const t = new Date(r.created_at).getTime();
+        return t >= dayStart.getTime() && t < dayEnd.getTime();
+      }).length;
+      entries.push({ date: dayStart.toISOString().slice(0, 10), count });
+    }
+    await storage.setWidget('daily_runs', entries);
   },
 };
