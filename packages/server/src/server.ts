@@ -33,7 +33,7 @@ export function createServer<TEntry extends ConnectorEntry>(
 
   app.get('/widgets/:id', (c) => {
     const id = c.req.param('id');
-    const sep = id.indexOf(':');
+    const sep = id.lastIndexOf(':');
     if (sep === -1) {
       return c.json({ error: 'Widget not found' }, 404);
     }

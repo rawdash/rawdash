@@ -54,7 +54,7 @@ Returns all cached widget entries.
 ```json
 [
   {
-    "id": "github.pull_requests",
+    "id": "github:pull_requests",
     "connectorId": "github",
     "widgetId": "pull_requests",
     "data": [...],
@@ -65,11 +65,11 @@ Returns all cached widget entries.
 
 ### `GET /widgets/:id`
 
-Returns a single widget by composite ID (`connectorId.widgetId`). Returns `404` if not found.
+Returns a single widget by composite ID (`connectorId:widgetId`). Returns `404` if not found.
 
 ```json
 {
-  "id": "github.pull_requests",
+  "id": "github:pull_requests",
   "connectorId": "github",
   "widgetId": "pull_requests",
   "data": [...],
