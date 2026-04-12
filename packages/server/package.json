@@ -1,0 +1,29 @@
+{
+  "name": "@rawdash/server",
+  "version": "0.0.0",
+  "description": "Rawdash standalone Hono server",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsx src/dev.ts",
+    "typecheck": "tsc --project tsconfig.json --noEmit",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.7",
+    "@rawdash/core": "workspace:*",
+    "hono": "^4.7.7"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
