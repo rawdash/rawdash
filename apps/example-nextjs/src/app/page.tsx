@@ -6,7 +6,11 @@ import { SyncButton } from './sync-button';
 export default async function DashboardPage() {
   const widgets = await rawdash.getWidgets().catch(() => []);
 
-  const cachedAt = widgets.find((w) => w.cachedAt)?.cachedAt;
+  const cachedAt = widgets.reduce<string | null>((max, w) => {
+    if (!w.cachedAt) return max;
+    if (!max || w.cachedAt > max) return w.cachedAt;
+    return max;
+  }, null);
 
   return (
     <div className="space-y-6">

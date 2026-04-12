@@ -8,6 +8,21 @@ function widgetLabel(widgetId: string): string {
   return widgetId.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+function isTimeseriesArray(
+  value: unknown,
+): value is Array<{ date: string; count: number }> {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (item) =>
+        typeof item === 'object' &&
+        item !== null &&
+        typeof (item as Record<string, unknown>)['date'] === 'string' &&
+        typeof (item as Record<string, unknown>)['count'] === 'number',
+    )
+  );
+}
+
 interface WidgetCardProps {
   widget: CachedWidgetResponse;
 }
@@ -24,13 +39,8 @@ export function WidgetCard({ widget }: WidgetCardProps) {
     return <StatWidget label={label} value={data} />;
   }
 
-  if (Array.isArray(data)) {
-    return (
-      <TimeseriesWidget
-        label={label}
-        entries={data as Array<{ date: string; count: number }>}
-      />
-    );
+  if (isTimeseriesArray(data)) {
+    return <TimeseriesWidget label={label} entries={data} />;
   }
 
   return null;
