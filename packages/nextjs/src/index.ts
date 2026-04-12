@@ -1,5 +1,15 @@
 import type { ConnectorRegistry, Rawdash } from '@rawdash/core';
+import { revalidateTag } from 'next/cache';
 import type { NextRequest, NextResponse } from 'next/server';
+
+const RAWDASH_CACHE_TAG = 'rawdash';
+
+type NextFetchInit = RequestInit & {
+  next?: {
+    revalidate?: number | false;
+    tags?: string[];
+  };
+};
 
 /**
  * Shape of a successful widget-data response.
@@ -135,4 +145,145 @@ export function createNextHandler<TRegistry extends ConnectorRegistry>(
   _options?: CreateNextHandlerOptions,
 ): NextHandlers {
   throw new Error('Not implemented');
+}
+
+/**
+ * Configuration for `createRawdashClient`.
+ */
+export interface RawdashClientOptions {
+  /** Base URL of the Rawdash API server (e.g. `https://api.example.com`). */
+  url: string;
+  /** Optional API key sent as a `Bearer` token in the `Authorization` header. */
+  apiKey?: string;
+}
+
+/**
+ * A configured Rawdash client for use in Next.js Server Components and Server
+ * Actions.
+ *
+ * Create one instance (e.g. in `lib/rawdash.ts`) and import it wherever
+ * widget data is needed:
+ *
+ * ```ts
+ * // lib/rawdash.ts
+ * import { createRawdashClient } from '@rawdash/nextjs';
+ *
+ * export const rawdash = createRawdashClient({
+ *   url: process.env.RAWDASH_URL!,
+ *   apiKey: process.env.RAWDASH_API_KEY,
+ * });
+ * ```
+ */
+export interface RawdashClient {
+  /**
+   * Fetch all cached widgets from the Rawdash API.
+   *
+   * The response is tagged with `'rawdash'` so that `triggerSync` can
+   * invalidate it via `revalidateTag`.
+   */
+  getWidgets(): Promise<CachedWidgetResponse[]>;
+
+  /**
+   * Fetch a single cached widget by its composite ID (`connectorId:widgetId`).
+   *
+   * The response is tagged with `'rawdash'` so that `triggerSync` can
+   * invalidate it via `revalidateTag`.
+   *
+   * @param id - Composite widget identifier, e.g. `'github:pull_requests'`.
+   */
+  getWidget(id: string): Promise<CachedWidgetResponse>;
+
+  /**
+   * Fetch the current sync health status from the Rawdash API.
+   */
+  getHealth(): Promise<HealthResponse>;
+
+  /**
+   * Trigger an immediate sync on the Rawdash API and invalidate the
+   * `'rawdash'` Next.js cache tag so Server Components re-fetch widget data.
+   *
+   * This must be called from a Server Action or Route Handler — contexts where
+   * `revalidateTag` is allowed by Next.js.
+   */
+  triggerSync(): Promise<SyncTriggerResponse>;
+}
+
+/**
+ * Creates a Rawdash client configured to talk to a specific Rawdash API
+ * server or cloud endpoint.
+ *
+ * The client is intentionally server-only: it uses `next/cache` for tag-based
+ * revalidation and relies on Next.js's extended `fetch` for cache tagging.
+ *
+ * @param options - Connection options (URL and optional API key).
+ * @returns A `RawdashClient` instance with server component helpers and a
+ *   sync trigger.
+ *
+ * @example
+ * ```ts
+ * import { createRawdashClient } from '@rawdash/nextjs';
+ *
+ * const client = createRawdashClient({
+ *   url: process.env.RAWDASH_URL!,
+ *   apiKey: process.env.RAWDASH_API_KEY,
+ * });
+ *
+ * // In a Server Component:
+ * const widgets = await client.getWidgets();
+ *
+ * // In a Server Action:
+ * 'use server';
+ * await client.triggerSync();
+ * ```
+ */
+export function createRawdashClient(
+  options: RawdashClientOptions,
+): RawdashClient {
+  const { url, apiKey } = options;
+
+  const baseHeaders: Record<string, string> = apiKey
+    ? { Authorization: `Bearer ${apiKey}` }
+    : {};
+
+  async function get<T>(path: string, init: NextFetchInit = {}): Promise<T> {
+    const res = await fetch(`${url}${path}`, {
+      ...init,
+      headers: { ...baseHeaders, ...(init.headers ?? {}) },
+    } as RequestInit);
+    if (!res.ok) {
+      throw new Error(`Rawdash API error ${res.status}: ${res.statusText}`);
+    }
+    return res.json() as Promise<T>;
+  }
+
+  return {
+    getWidgets() {
+      return get<CachedWidgetResponse[]>('/widgets', {
+        next: { tags: [RAWDASH_CACHE_TAG] },
+      });
+    },
+
+    getWidget(id) {
+      return get<CachedWidgetResponse>(`/widgets/${id}`, {
+        next: { tags: [RAWDASH_CACHE_TAG] },
+      });
+    },
+
+    getHealth() {
+      return get<HealthResponse>('/health');
+    },
+
+    async triggerSync() {
+      const res = await fetch(`${url}/sync`, {
+        method: 'POST',
+        headers: baseHeaders,
+      });
+      if (!res.ok) {
+        throw new Error(`Rawdash sync error ${res.status}: ${res.statusText}`);
+      }
+      const result = (await res.json()) as SyncTriggerResponse;
+      revalidateTag(RAWDASH_CACHE_TAG);
+      return result;
+    },
+  };
 }
