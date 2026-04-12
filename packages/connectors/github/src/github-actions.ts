@@ -72,11 +72,15 @@ export const GitHubActionsConnector: ConnectorDef<
       const data = (await res.json()) as GitHubRunsResponse;
       const runs = data.workflow_runs;
 
-      if (runs.length === 0) {break;}
+      if (runs.length === 0) {
+        break;
+      }
 
       allRuns.push(...runs);
 
-      if (new Date(runs.at(-1)!.created_at).getTime() < cutoff) {break;}
+      if (new Date(runs.at(-1)!.created_at).getTime() < cutoff) {
+        break;
+      }
 
       page++;
     }
