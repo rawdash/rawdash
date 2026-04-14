@@ -130,9 +130,8 @@ export interface CreateNextHandlerOptions {
  * implementation does not exist yet and will always throw.  Do not call this
  * in production.
  *
- * @param rawdash - A configured Rawdash instance carrying the connector
- *   registry.  The registry's type flows into widget-data responses so callers
- *   receive typed payloads.
+ * @param config - The `DashboardConfig` produced by `defineConfig`, declaring
+ *   connectors and widget metric definitions.
  * @param options - Handler configuration.
  * @returns An object with `GET` and `POST` handlers (`NextHandlers`) for
  *   export from a Next.js catch-all route file.
@@ -142,9 +141,9 @@ export interface CreateNextHandlerOptions {
  * ```ts
  * // app/api/rawdash/[...path]/route.ts
  * import { createNextHandler } from '@rawdash/nextjs';
- * import { rawdash } from '@/lib/rawdash';
+ * import config from '@/rawdash.config';
  *
- * export const { GET, POST } = createNextHandler(rawdash);
+ * export const { GET, POST } = createNextHandler(config);
  * ```
  */
 export function createNextHandler(

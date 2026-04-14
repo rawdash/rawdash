@@ -29,8 +29,10 @@ export function createServer(config: DashboardConfig): Hono {
     }
   }
 
-  function resolveWidget(widgetId: string): WidgetEntry | undefined {
-    const widget = config.widgets[widgetId];
+  function resolveWidget(input: string): WidgetEntry | undefined {
+    const sep = input.lastIndexOf(':');
+    const configKey = sep === -1 ? input : input.slice(sep + 1);
+    const widget = config.widgets[configKey];
     if (!widget) {
       return undefined;
     }
@@ -48,7 +50,8 @@ export function createServer(config: DashboardConfig): Hono {
     const records = storage.getRecords(connectorId, resource);
     const data = computeMetric(records, widget.metric, fields);
     return {
-      id: widgetId,
+      id: configKey,
+      widgetId: input,
       connectorId,
       data,
       cachedAt: storage.getSyncState().lastSyncAt ?? new Date().toISOString(),

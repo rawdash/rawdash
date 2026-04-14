@@ -148,10 +148,11 @@ function computeGroupBy(
   const groups = new Map<string, Record<string, unknown>[]>();
 
   for (const record of records) {
-    const key = truncateToGranularity(
-      new Date(record[field] as string),
-      granularity,
-    );
+    const d = new Date(record[field] as string);
+    if (isNaN(d.getTime())) {
+      continue;
+    }
+    const key = truncateToGranularity(d, granularity);
     if (!groups.has(key)) {
       groups.set(key, []);
     }

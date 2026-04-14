@@ -4,6 +4,12 @@ export type GitHubActionsConfig = {
   owner: string;
   repo: string;
   token: string;
+  /**
+   * How many days of workflow run history to fetch on each sync.
+   * When omitted, all available history is fetched (runs until the API
+   * returns no more pages).
+   */
+  lookbackDays?: number;
 };
 
 type GitHubRunsResponse = {
@@ -17,8 +23,6 @@ type GitHubRunsResponse = {
     run_attempt: number;
   }>;
 };
-
-const MAX_LOOKBACK_DAYS = 90;
 
 export const GitHubActionsConnector = defineConnector<GitHubActionsConfig>()({
   id: 'github-actions',
@@ -38,7 +42,7 @@ export const GitHubActionsConnector = defineConnector<GitHubActionsConfig>()({
   },
 
   async sync({ config, storage }) {
-    const { owner, repo, token } = config;
+    const { owner, repo, token, lookbackDays } = config;
 
     const headers = {
       Authorization: `Bearer ${token}`,
@@ -46,7 +50,10 @@ export const GitHubActionsConnector = defineConnector<GitHubActionsConfig>()({
       'X-GitHub-Api-Version': '2022-11-28',
     };
 
-    const cutoff = Date.now() - MAX_LOOKBACK_DAYS * 24 * 60 * 60 * 1000;
+    const cutoff =
+      lookbackDays !== undefined
+        ? Date.now() - lookbackDays * 24 * 60 * 60 * 1000
+        : null;
     const allRuns: Array<{
       id: number;
       name: string;
@@ -87,7 +94,10 @@ export const GitHubActionsConnector = defineConnector<GitHubActionsConfig>()({
         });
       }
 
-      if (new Date(runs.at(-1)!.created_at).getTime() < cutoff) {
+      if (
+        cutoff !== null &&
+        new Date(runs.at(-1)!.created_at).getTime() < cutoff
+      ) {
         break;
       }
 

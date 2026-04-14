@@ -2,6 +2,7 @@ export type { ConnectorConfigEntry, DashboardConfig } from '@rawdash/core';
 
 export interface WidgetEntry {
   id: string;
+  widgetId: string;
   connectorId: string;
   data: unknown;
   cachedAt: string;
