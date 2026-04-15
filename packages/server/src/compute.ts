@@ -140,6 +140,17 @@ function computeAgg(
   return null;
 }
 
+function sortByTimestamp(
+  records: Record<string, unknown>[],
+  timestampField: string,
+): Record<string, unknown>[] {
+  return [...records].sort((a, b) => {
+    const ta = new Date(a[timestampField] as string).getTime();
+    const tb = new Date(b[timestampField] as string).getTime();
+    return ta - tb;
+  });
+}
+
 function computeGroupBy(
   records: Record<string, unknown>[],
   metric: ResolvedMetricDef,
@@ -162,7 +173,11 @@ function computeGroupBy(
   return [...groups.entries()]
     .map(([key, groupRecords]) => ({
       [field]: key,
-      value: computeAgg(groupRecords, metric.field, metric.fn),
+      value: computeAgg(
+        sortByTimestamp(groupRecords, field),
+        metric.field,
+        metric.fn,
+      ),
     }))
     .sort((a, b) => (String(a[field]) < String(b[field]) ? -1 : 1));
 }
@@ -175,9 +190,16 @@ export function computeMetric(
   const windowed = applyWindow(records, metric, fields);
   const filtered = windowed.filter((r) => applyFilter(r, metric.filter));
 
+  const timestampField = Object.entries(fields).find(
+    ([, f]) => f.type === 'timestamp',
+  )?.[0];
+  const sorted = timestampField
+    ? sortByTimestamp(filtered, timestampField)
+    : filtered;
+
   if (metric.groupBy) {
-    return computeGroupBy(filtered, metric);
+    return computeGroupBy(sorted, metric);
   }
 
-  return computeAgg(filtered, metric.field, metric.fn);
+  return computeAgg(sorted, metric.field, metric.fn);
 }

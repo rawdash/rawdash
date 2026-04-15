@@ -83,6 +83,9 @@ export const GitHubActionsConnector = defineConnector<GitHubActionsConfig>()({
       }
 
       for (const run of runs) {
+        if (cutoff !== null && new Date(run.created_at).getTime() < cutoff) {
+          continue;
+        }
         allRuns.push({
           id: run.id,
           name: run.name,
