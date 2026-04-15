@@ -83,7 +83,11 @@ export const GitHubActionsConnector = defineConnector<GitHubActionsConfig>()({
       }
 
       for (const run of runs) {
-        if (cutoff !== null && new Date(run.created_at).getTime() < cutoff) {
+        if (
+          cutoff !== null &&
+          new Date(run.created_at).getTime() < cutoff &&
+          new Date(run.updated_at).getTime() < cutoff
+        ) {
           continue;
         }
         allRuns.push({
@@ -97,9 +101,11 @@ export const GitHubActionsConnector = defineConnector<GitHubActionsConfig>()({
         });
       }
 
+      const lastRun = runs.at(-1)!;
       if (
         cutoff !== null &&
-        new Date(runs.at(-1)!.created_at).getTime() < cutoff
+        new Date(lastRun.created_at).getTime() < cutoff &&
+        new Date(lastRun.updated_at).getTime() < cutoff
       ) {
         break;
       }

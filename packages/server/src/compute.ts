@@ -72,6 +72,7 @@ function applyWindow(
   const cutoff = Date.now() - ms;
 
   const timestampField =
+    (fields[metric.field]?.type === 'timestamp' ? metric.field : undefined) ??
     metric.groupBy?.field ??
     Object.entries(fields).find(([, f]) => f.type === 'timestamp')?.[0];
   if (!timestampField) {
@@ -87,19 +88,19 @@ function truncateToGranularity(date: Date, granularity: string): string {
   const d = new Date(date);
   switch (granularity) {
     case 'hour':
-      d.setMinutes(0, 0, 0);
+      d.setUTCMinutes(0, 0, 0);
       return d.toISOString();
     case 'day':
-      d.setHours(0, 0, 0, 0);
+      d.setUTCHours(0, 0, 0, 0);
       return d.toISOString().slice(0, 10);
     case 'week': {
-      d.setDate(d.getDate() - d.getDay());
-      d.setHours(0, 0, 0, 0);
+      d.setUTCDate(d.getUTCDate() - d.getUTCDay());
+      d.setUTCHours(0, 0, 0, 0);
       return d.toISOString().slice(0, 10);
     }
     case 'month':
-      d.setDate(1);
-      d.setHours(0, 0, 0, 0);
+      d.setUTCDate(1);
+      d.setUTCHours(0, 0, 0, 0);
       return d.toISOString().slice(0, 7);
     default:
       return d.toISOString().slice(0, 10);
@@ -190,9 +191,10 @@ export function computeMetric(
   const windowed = applyWindow(records, metric, fields);
   const filtered = windowed.filter((r) => applyFilter(r, metric.filter));
 
-  const timestampField = Object.entries(fields).find(
-    ([, f]) => f.type === 'timestamp',
-  )?.[0];
+  const timestampField =
+    (fields[metric.field]?.type === 'timestamp' ? metric.field : undefined) ??
+    metric.groupBy?.field ??
+    Object.entries(fields).find(([, f]) => f.type === 'timestamp')?.[0];
   const sorted = timestampField
     ? sortByTimestamp(filtered, timestampField)
     : filtered;
