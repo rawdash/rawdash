@@ -1,6 +1,6 @@
-import type { ResolvedMetricDef } from '@rawdash/core';
+import type { ResolvedMetric } from '@rawdash/core';
 
-type FilterClause = NonNullable<ResolvedMetricDef['filter']>[number];
+type FilterClause = NonNullable<ResolvedMetric['filter']>[number];
 type FilterCondition = Exclude<FilterClause, { or: unknown[] }>;
 
 function matchesCondition(
@@ -30,7 +30,7 @@ function matchesCondition(
 
 function applyFilter(
   record: Record<string, unknown>,
-  filter: ResolvedMetricDef['filter'],
+  filter: ResolvedMetric['filter'],
 ): boolean {
   if (!filter) {
     return true;
@@ -58,7 +58,7 @@ const WINDOW_MS: Record<string, number> = {
 
 function applyWindow(
   records: Record<string, unknown>[],
-  metric: ResolvedMetricDef,
+  metric: ResolvedMetric,
   fields: Record<string, { type: string }>,
 ): Record<string, unknown>[] {
   if (!metric.window) {
@@ -154,7 +154,7 @@ function sortByTimestamp(
 
 function computeGroupBy(
   records: Record<string, unknown>[],
-  metric: ResolvedMetricDef,
+  metric: ResolvedMetric,
 ): unknown {
   const { field, granularity } = metric.groupBy!;
   const groups = new Map<string, Record<string, unknown>[]>();
@@ -185,7 +185,7 @@ function computeGroupBy(
 
 export function computeMetric(
   records: Record<string, unknown>[],
-  metric: ResolvedMetricDef,
+  metric: ResolvedMetric,
   fields: Record<string, { type: string }>,
 ): unknown {
   const windowed = applyWindow(records, metric, fields);

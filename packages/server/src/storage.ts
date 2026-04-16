@@ -1,4 +1,4 @@
-import type { ConnectorResources, StorageHandle } from '@rawdash/core';
+import type { StorageHandle } from '@rawdash/core';
 
 import type { SyncState } from './types';
 
@@ -10,15 +10,13 @@ export class InMemoryStorage {
     lastError: null,
   };
 
-  getStorageHandle(connectorId: string): StorageHandle<ConnectorResources> {
+  getStorageHandle(connectorId: string): StorageHandle {
     return {
       upsert: async (resource, records) => {
         if (!this.records.has(connectorId)) {
           this.records.set(connectorId, new Map());
         }
-        this.records
-          .get(connectorId)!
-          .set(resource as string, records as Record<string, unknown>[]);
+        this.records.get(connectorId)!.set(resource, records);
       },
     };
   }

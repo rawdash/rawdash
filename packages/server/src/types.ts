@@ -1,4 +1,4 @@
-export type { ConnectorConfigEntry, DashboardConfig } from '@rawdash/core';
+export type { ConnectorEntry, DashboardConfig } from '@rawdash/core';
 
 export interface WidgetEntry {
   id: string;

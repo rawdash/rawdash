@@ -1,57 +1,31 @@
-/**
- * The set of primitive field types a connector resource can declare.
- *
- * - `string`    — arbitrary text (e.g. conclusion, status, name)
- * - `number`    — integer or float (e.g. run_attempt, duration_ms)
- * - `boolean`   — true/false flag
- * - `timestamp` — ISO 8601 date-time string; enables time-based windowing and groupBy
- */
 export type FieldType = 'string' | 'number' | 'boolean' | 'timestamp';
 
-/**
- * Schema for a single field within a resource.
- *
- * ```ts
- * const conclusionField: FieldDef = { type: 'string' };
- * const createdAtField: FieldDef = { type: 'timestamp' };
- * ```
- */
-export type FieldDef = { type: FieldType };
+export interface Field {
+  type: FieldType;
+  auth?: 'none' | 'optional' | 'required';
+}
 
-/**
- * Schema for a single resource — a table of homogeneous records a connector
- * can sync.  Each key in `fields` names a column with its type.
- *
- * ```ts
- * const workflowRunResource: ResourceSchema = {
- *   fields: {
- *     id:         { type: 'number' },
- *     conclusion: { type: 'string' },
- *     created_at: { type: 'timestamp' },
- *   },
- * };
- * ```
- */
-export type ResourceSchema = {
-  fields: Record<string, FieldDef>;
+export interface Resource {
+  fields: Record<string, Field>;
+  auth?: 'none' | 'optional' | 'required';
+}
+
+export type ConnectorResources = Record<string, Resource>;
+
+export interface CredentialEntry {
+  description: string;
+  auth?: 'none' | 'optional' | 'required';
+}
+
+export type CredentialSchema = Record<string, CredentialEntry>;
+
+export type InferCredentials<TCreds extends CredentialSchema> = {
+  [K in keyof TCreds]: TCreds[K] extends { auth: 'required' }
+    ? string
+    : string | undefined;
 };
 
-/**
- * The complete set of resources a connector declares, keyed by resource name.
- */
-export type ConnectorResources = Record<string, ResourceSchema>;
-
-/**
- * Derives the TypeScript value type for a `FieldDef` at the record level.
- *
- * | FieldDef              | Inferred value type |
- * |-----------------------|---------------------|
- * | `{ type: 'string' }`  | `string`            |
- * | `{ type: 'number' }`  | `number`            |
- * | `{ type: 'boolean' }` | `boolean`           |
- * | `{ type: 'timestamp'}`| `string` (ISO 8601) |
- */
-export type InferFieldValue<TField extends FieldDef> = TField extends {
+export type InferFieldValue<TField extends Field> = TField extends {
   type: 'string';
 }
   ? string
@@ -63,111 +37,94 @@ export type InferFieldValue<TField extends FieldDef> = TField extends {
         ? string
         : never;
 
-/**
- * Derives the TypeScript type for a full record of the given resource —
- * i.e. the shape of objects passed to `storage.upsert()`.
- */
-export type InferRecord<TResource extends ResourceSchema> = {
+export type InferRecord<TResource extends Resource> = {
   [K in keyof TResource['fields']]: InferFieldValue<TResource['fields'][K]>;
 };
 
-/**
- * Typed handle for writing raw records into storage during a sync run.
- *
- * Connectors call `upsert` once per resource to persist all fetched records.
- * The engine is responsible for deduplication, windowing, and metric
- * computation at query time.
- *
- * ```ts
- * await ctx.storage.upsert('workflow_run', [
- *   { id: 1, conclusion: 'success', created_at: '2024-01-01T00:00:00Z' },
- * ]);
- * ```
- */
-export type StorageHandle<TResources extends ConnectorResources> = {
-  upsert<TResource extends keyof TResources & string>(
-    resource: TResource,
-    records: InferRecord<TResources[TResource]>[],
-  ): Promise<void>;
-};
+export interface SyncRequest {
+  resource: string;
+  mode: 'full' | 'latest';
+  since?: string;
+}
 
-/**
- * Context passed to a connector's `sync` function on every sync run.
- *
- * - `config`  — resolved connector configuration (credentials, options, etc.)
- * - `storage` — typed handle for upserting raw resource records
- *
- * Connectors should signal failures by throwing; the engine catches and
- * records error state.
- */
-export type SyncContext<
-  TConfig = unknown,
-  TResources extends ConnectorResources = ConnectorResources,
-> = {
-  readonly config: TConfig;
-  readonly storage: StorageHandle<TResources>;
-};
+export interface StorageHandle {
+  upsert(resource: string, records: Record<string, unknown>[]): Promise<void>;
+}
 
-/**
- * The full definition of a connector: its identity, resource schemas, and
- * sync logic.
- *
- * Connectors are pure resource syncers — they fetch raw records and upsert
- * them into storage.  All metric computation happens at the widget level in
- * `defineConfig`.
- *
- * ```ts
- * const githubConnector: ConnectorDef<GithubConfig, GithubResources> = {
- *   id: 'github-actions',
- *   resources: {
- *     workflow_run: {
- *       fields: {
- *         id:         { type: 'number' },
- *         conclusion: { type: 'string' },
- *         created_at: { type: 'timestamp' },
- *       },
- *     },
- *   },
- *   async sync({ config, storage }) {
- *     const runs = await fetchRuns(config);
- *     await storage.upsert('workflow_run', runs);
- *   },
- * };
- * ```
- */
-export type ConnectorDef<
-  TConfig = unknown,
-  TResources extends ConnectorResources = ConnectorResources,
-> = {
+export interface Connector {
   readonly id: string;
-  readonly resources: TResources;
-  sync(ctx: SyncContext<TConfig, TResources>): Promise<void>;
-};
+  readonly resources: ConnectorResources;
+  readonly credentials?: CredentialSchema;
+  sync(request: SyncRequest, storage: StorageHandle): Promise<void>;
+}
 
-/**
- * Factory that creates a fully-typed `ConnectorDef` while preserving literal
- * field types for downstream inference in `defineMetric`.
- *
- * ```ts
- * export const GitHubActionsConnector = defineConnector<GitHubActionsConfig>()({
- *   id: 'github-actions',
- *   resources: {
- *     workflow_run: {
- *       fields: {
- *         id:         { type: 'number' },
- *         conclusion: { type: 'string' },
- *         created_at: { type: 'timestamp' },
- *       },
- *     },
- *   },
- *   async sync({ config, storage }) { ... },
- * });
- * ```
- */
-export function defineConnector<TConfig>() {
-  return function <TResources extends ConnectorResources>(
-    def: ConnectorDef<TConfig, TResources>,
-  ): ConnectorDef<TConfig, TResources> {
-    return def;
+export abstract class BaseConnector<
+  TSettings = unknown,
+  TCreds extends CredentialSchema = CredentialSchema,
+> implements Connector {
+  abstract readonly id: string;
+  abstract readonly resources: ConnectorResources;
+  readonly credentials?: TCreds;
+
+  protected settings: TSettings;
+  protected creds: InferCredentials<TCreds>;
+
+  constructor(settings: TSettings, creds?: InferCredentials<TCreds>) {
+    this.settings = settings;
+    this.creds = creds ?? ({} as InferCredentials<TCreds>);
+  }
+
+  abstract sync(request: SyncRequest, storage: StorageHandle): Promise<void>;
+}
+
+export function defineConnector<TSettings>() {
+  return function <
+    TResources extends ConnectorResources,
+    TCreds extends CredentialSchema = Record<string, never>,
+  >(def: {
+    id: string;
+    resources: TResources;
+    credentials?: TCreds;
+    sync: (
+      this: { settings: TSettings; creds: InferCredentials<TCreds> },
+      request: SyncRequest,
+      storage: StorageHandle,
+    ) => Promise<void>;
+  }): {
+    new (
+      settings: TSettings,
+      creds?: InferCredentials<TCreds>,
+    ): Connector & { readonly resources: TResources };
+    readonly id: string;
+    readonly resources: TResources;
+    readonly credentials: TCreds | undefined;
+  } {
+    class DynamicConnector extends BaseConnector<TSettings, TCreds> {
+      static readonly id = def.id;
+      static readonly resources = def.resources;
+      static readonly credentials = def.credentials;
+
+      readonly id = def.id;
+      readonly resources = def.resources;
+      override readonly credentials = def.credentials;
+
+      async sync(request: SyncRequest, storage: StorageHandle): Promise<void> {
+        return def.sync.call(
+          { settings: this.settings, creds: this.creds },
+          request,
+          storage,
+        );
+      }
+    }
+
+    return DynamicConnector as unknown as {
+      new (
+        settings: TSettings,
+        creds?: InferCredentials<TCreds>,
+      ): Connector & { readonly resources: TResources };
+      readonly id: string;
+      readonly resources: TResources;
+      readonly credentials: TCreds | undefined;
+    };
   };
 }

@@ -1,30 +1,33 @@
 export type {
-  ConnectorDef,
+  Connector,
   ConnectorResources,
-  FieldDef,
+  CredentialEntry,
+  CredentialSchema,
+  Field,
   FieldType,
+  InferCredentials,
   InferFieldValue,
   InferRecord,
-  ResourceSchema,
+  Resource,
   StorageHandle,
-  SyncContext,
+  SyncRequest,
 } from './connector';
 
-export { defineConnector } from './connector';
+export { BaseConnector, defineConnector } from './connector';
 
 export type {
   AggFnForType,
-  ConnectorConfigEntry,
+  ConnectorEntry,
   DashboardConfig,
   FilterClause,
   FilterCondition,
   FilterOperator,
-  GroupByDef,
-  MetricDef,
+  GroupBy,
+  Metric,
   NumberAggFn,
-  ResolvedMetricDef,
+  ResolvedMetric,
   ScalarAggFn,
-  WidgetDef,
+  Widget,
 } from './config';
 
 export { defineConfig, defineMetric } from './config';

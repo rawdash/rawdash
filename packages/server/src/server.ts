@@ -9,6 +9,16 @@ export function createServer(config: DashboardConfig): Hono {
   const storage = new InMemoryStorage();
   const app = new Hono();
 
+  function getResourcesForConnector(connectorId: string): Set<string> {
+    const resources = new Set<string>();
+    for (const widget of Object.values(config.widgets)) {
+      if (widget.metric.connectorId === connectorId) {
+        resources.add(widget.metric.resource);
+      }
+    }
+    return resources;
+  }
+
   async function runSync(): Promise<void> {
     if (storage.getSyncState().status === 'syncing') {
       return;
@@ -16,12 +26,13 @@ export function createServer(config: DashboardConfig): Hono {
     storage.setSyncing();
     try {
       await Promise.all(
-        config.connectors.map(({ connector, config: connectorConfig }) =>
-          connector.sync({
-            config: connectorConfig,
-            storage: storage.getStorageHandle(connector.id),
-          }),
-        ),
+        config.connectors.map(async ({ connector }) => {
+          const resources = getResourcesForConnector(connector.id);
+          const handle = storage.getStorageHandle(connector.id);
+          for (const resource of resources) {
+            await connector.sync({ resource, mode: 'full' }, handle);
+          }
+        }),
       );
       storage.setSyncSuccess();
     } catch (err) {
