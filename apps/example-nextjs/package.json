@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@rawdash/core": "workspace:*",
     "@rawdash/github": "workspace:*",
     "@rawdash/nextjs": "workspace:*",
     "@rawdash/server": "workspace:*",

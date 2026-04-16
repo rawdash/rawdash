@@ -47,6 +47,9 @@ importers:
 
   apps/example-nextjs:
     dependencies:
+      '@rawdash/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@rawdash/github':
         specifier: workspace:*
         version: link:../../packages/connectors/github
