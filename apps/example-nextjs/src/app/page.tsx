@@ -3,7 +3,10 @@ import { rawdash } from '@/lib/rawdash';
 
 import { SyncButton } from './sync-button';
 
+export const dynamic = 'force-dynamic';
+
 export default async function DashboardPage() {
+  await rawdash.ensureFresh().catch(() => {});
   const widgets = await rawdash.getWidgets().catch(() => []);
 
   const cachedAt = widgets.reduce<string | null>((max, w) => {

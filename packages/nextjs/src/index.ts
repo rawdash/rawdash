@@ -211,6 +211,18 @@ export interface RawdashClient {
   getHealth(): Promise<HealthResponse>;
 
   /**
+   * Ensure the Rawdash API has fresh data.  Checks health and, if the last
+   * sync is older than `maxAgeMs` (or has never run), triggers a sync and
+   * waits for it to complete.  Does NOT call `revalidateTag`, so it is safe
+   * to call from Server Components during render.
+   *
+   * @param maxAgeMs - Maximum age of the last sync in milliseconds before
+   *   a new sync is triggered.  Defaults to 5 minutes.
+   * @returns `true` if a sync was triggered, `false` if data was already fresh.
+   */
+  ensureFresh(maxAgeMs?: number): Promise<boolean>;
+
+  /**
    * Trigger an immediate sync on the Rawdash API and invalidate the
    * `'rawdash'` Next.js cache tag so Server Components re-fetch widget data.
    *
@@ -303,6 +315,49 @@ export function createRawdashClient(
 
     getHealth() {
       return get<HealthResponse>('/health', { cache: 'no-store' });
+    },
+
+    async ensureFresh(maxAgeMs = 5 * 60 * 1000) {
+      const health = await get<HealthResponse>('/health', {
+        cache: 'no-store',
+      });
+
+      if (health.status === 'syncing') {
+        return false;
+      }
+
+      const lastSyncMs = health.lastSyncAt
+        ? new Date(health.lastSyncAt).getTime()
+        : null;
+      const isFresh = lastSyncMs !== null && Date.now() - lastSyncMs < maxAgeMs;
+
+      if (isFresh) {
+        return false;
+      }
+
+      const res = await fetchWithTimeout(`${url}/sync`, { method: 'POST' });
+      if (!res.ok) {
+        throw new Error(`Rawdash sync error ${res.status}: ${res.statusText}`);
+      }
+
+      const maxAttempts = 60;
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const h = await get<HealthResponse>('/health', {
+          cache: 'no-store',
+        });
+        if (h.status === 'error') {
+          throw new Error(
+            `Rawdash sync failed: ${h.lastError ?? 'unknown error'}`,
+          );
+        }
+        if (h.status === 'idle') {
+          return true;
+        }
+        await new Promise<void>((resolve) => setTimeout(resolve, 500));
+      }
+      throw new Error(
+        `Rawdash sync did not complete within ${maxAttempts * 500}ms`,
+      );
     },
 
     async triggerSync() {
