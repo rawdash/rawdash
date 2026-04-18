@@ -1,3 +1,3 @@
 import { serve } from './index';
 
-serve({ connectors: [] });
+serve({ connectors: [], widgets: {} });

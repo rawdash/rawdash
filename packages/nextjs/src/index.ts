@@ -1,4 +1,4 @@
-import type { ConnectorRegistry, Rawdash } from '@rawdash/core';
+import type { DashboardConfig } from '@rawdash/core';
 import { revalidateTag } from 'next/cache';
 import type { NextRequest, NextResponse } from 'next/server';
 
@@ -130,9 +130,8 @@ export interface CreateNextHandlerOptions {
  * implementation does not exist yet and will always throw.  Do not call this
  * in production.
  *
- * @param rawdash - A configured Rawdash instance carrying the connector
- *   registry.  The registry's type flows into widget-data responses so callers
- *   receive typed payloads.
+ * @param config - The `DashboardConfig` produced by `defineConfig`, declaring
+ *   connectors and widget metric definitions.
  * @param options - Handler configuration.
  * @returns An object with `GET` and `POST` handlers (`NextHandlers`) for
  *   export from a Next.js catch-all route file.
@@ -142,13 +141,13 @@ export interface CreateNextHandlerOptions {
  * ```ts
  * // app/api/rawdash/[...path]/route.ts
  * import { createNextHandler } from '@rawdash/nextjs';
- * import { rawdash } from '@/lib/rawdash';
+ * import config from '@/rawdash.config';
  *
- * export const { GET, POST } = createNextHandler(rawdash);
+ * export const { GET, POST } = createNextHandler(config);
  * ```
  */
-export function createNextHandler<TRegistry extends ConnectorRegistry>(
-  _rawdash: Rawdash<TRegistry>,
+export function createNextHandler(
+  _config: DashboardConfig,
   _options?: CreateNextHandlerOptions,
 ): NextHandlers {
   throw new Error('Not implemented');
@@ -210,6 +209,18 @@ export interface RawdashClient {
    * Fetch the current sync health status from the Rawdash API.
    */
   getHealth(): Promise<HealthResponse>;
+
+  /**
+   * Ensure the Rawdash API has fresh data.  Checks health and, if the last
+   * sync is older than `maxAgeMs` (or has never run), triggers a sync and
+   * waits for it to complete.  Does NOT call `revalidateTag`, so it is safe
+   * to call from Server Components during render.
+   *
+   * @param maxAgeMs - Maximum age of the last sync in milliseconds before
+   *   a new sync is triggered.  Defaults to 5 minutes.
+   * @returns `true` if a sync was triggered, `false` if data was already fresh.
+   */
+  ensureFresh(maxAgeMs?: number): Promise<boolean>;
 
   /**
    * Trigger an immediate sync on the Rawdash API and invalidate the
@@ -304,6 +315,49 @@ export function createRawdashClient(
 
     getHealth() {
       return get<HealthResponse>('/health', { cache: 'no-store' });
+    },
+
+    async ensureFresh(maxAgeMs = 5 * 60 * 1000) {
+      const health = await get<HealthResponse>('/health', {
+        cache: 'no-store',
+      });
+
+      if (health.status === 'syncing') {
+        return false;
+      }
+
+      const lastSyncMs = health.lastSyncAt
+        ? new Date(health.lastSyncAt).getTime()
+        : null;
+      const isFresh = lastSyncMs !== null && Date.now() - lastSyncMs < maxAgeMs;
+
+      if (isFresh) {
+        return false;
+      }
+
+      const res = await fetchWithTimeout(`${url}/sync`, { method: 'POST' });
+      if (!res.ok) {
+        throw new Error(`Rawdash sync error ${res.status}: ${res.statusText}`);
+      }
+
+      const maxAttempts = 60;
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const h = await get<HealthResponse>('/health', {
+          cache: 'no-store',
+        });
+        if (h.status === 'error') {
+          throw new Error(
+            `Rawdash sync failed: ${h.lastError ?? 'unknown error'}`,
+          );
+        }
+        if (h.status === 'idle') {
+          return true;
+        }
+        await new Promise<void>((resolve) => setTimeout(resolve, 500));
+      }
+      throw new Error(
+        `Rawdash sync did not complete within ${maxAttempts * 500}ms`,
+      );
     },
 
     async triggerSync() {

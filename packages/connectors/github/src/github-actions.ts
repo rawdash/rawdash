@@ -1,62 +1,101 @@
-import type { ConnectorDef } from '@rawdash/core';
+import {
+  BaseConnector,
+  type CredentialSchema,
+  type StorageHandle,
+  type SyncRequest,
+} from '@rawdash/core';
 
-export type GitHubActionsConfig = {
+export interface GitHubActionsSettings {
   owner: string;
   repo: string;
-  token: string;
-};
+}
 
-export type DailyRunEntry = {
-  date: string;
-  count: number;
-};
-
-export type GitHubActionsWidgets = {
-  latest_run_conclusion: string;
-  run_count_7d: number;
-  success_rate_7d: number;
-  daily_runs: DailyRunEntry[];
-};
-
-type GitHubRunsResponse = {
+interface GitHubRunsResponse {
   workflow_runs: Array<{
+    id: number;
+    name: string;
     conclusion: string | null;
+    status: string;
     created_at: string;
+    updated_at: string;
+    run_attempt: number;
   }>;
-};
+}
 
-export const GitHubActionsConnector: ConnectorDef<
-  GitHubActionsConfig,
-  GitHubActionsWidgets
-> = {
-  id: 'github-actions',
-
-  widgets: {
-    latest_run_conclusion: {
-      description: 'Conclusion of the most recent workflow run',
-    },
-    run_count_7d: {
-      description: 'Number of workflow runs in the last 7 days',
-    },
-    success_rate_7d: {
-      description: 'Percentage of successful runs in the last 7 days (0–100)',
-    },
-    daily_runs: {
-      description: 'Workflow run counts per day for the last 7 days',
-    },
+const githubCredentials = {
+  token: {
+    description: 'GitHub personal access token',
+    auth: 'optional' as const,
   },
+} satisfies CredentialSchema;
 
-  async sync({ config, storage }) {
-    const { owner, repo, token } = config;
+type GitHubCredentials = typeof githubCredentials;
 
-    const headers = {
-      Authorization: `Bearer ${token}`,
+export class GitHubActionsConnector extends BaseConnector<
+  GitHubActionsSettings,
+  GitHubCredentials
+> {
+  readonly id = 'github-actions';
+
+  override readonly credentials = githubCredentials;
+
+  readonly resources = {
+    workflow_run: {
+      fields: {
+        id: { type: 'number' as const },
+        name: { type: 'string' as const },
+        conclusion: { type: 'string' as const },
+        status: { type: 'string' as const },
+        created_at: { type: 'timestamp' as const },
+        updated_at: { type: 'timestamp' as const },
+        run_attempt: { type: 'number' as const },
+      },
+    },
+  };
+
+  async sync(request: SyncRequest, storage: StorageHandle): Promise<void> {
+    if (request.resource !== 'workflow_run') {
+      return;
+    }
+
+    const { owner, repo } = this.settings;
+    const headers: Record<string, string> = {
       Accept: 'application/vnd.github+json',
       'X-GitHub-Api-Version': '2022-11-28',
     };
 
-    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    const allRuns: GitHubRunsResponse['workflow_runs'] = [];
+    if (this.creds.token) {
+      headers['Authorization'] = `Bearer ${this.creds.token}`;
+    }
+
+    if (request.mode === 'latest') {
+      const res = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/actions/runs?per_page=1`,
+        { headers },
+      );
+      if (!res.ok) {
+        throw new Error(`GitHub API error: ${res.status} ${res.statusText}`);
+      }
+      const data = (await res.json()) as GitHubRunsResponse;
+      const run = data.workflow_runs[0];
+      if (run) {
+        await storage.upsert('workflow_run', [
+          {
+            id: run.id,
+            name: run.name,
+            conclusion: run.conclusion ?? 'unknown',
+            status: run.status,
+            created_at: run.created_at,
+            updated_at: run.updated_at,
+            run_attempt: run.run_attempt,
+          },
+        ]);
+      }
+      return;
+    }
+
+    const cutoff = request.since ? new Date(request.since).getTime() : null;
+    const allRuns: Array<Record<string, unknown>> = [];
     let page = 1;
 
     while (true) {
@@ -76,46 +115,37 @@ export const GitHubActionsConnector: ConnectorDef<
         break;
       }
 
-      allRuns.push(...runs);
+      for (const run of runs) {
+        if (
+          cutoff !== null &&
+          new Date(run.created_at).getTime() < cutoff &&
+          new Date(run.updated_at).getTime() < cutoff
+        ) {
+          continue;
+        }
+        allRuns.push({
+          id: run.id,
+          name: run.name,
+          conclusion: run.conclusion ?? 'unknown',
+          status: run.status,
+          created_at: run.created_at,
+          updated_at: run.updated_at,
+          run_attempt: run.run_attempt,
+        });
+      }
 
-      if (new Date(runs.at(-1)!.created_at).getTime() < cutoff) {
+      const lastRun = runs.at(-1)!;
+      if (
+        cutoff !== null &&
+        new Date(lastRun.created_at).getTime() < cutoff &&
+        new Date(lastRun.updated_at).getTime() < cutoff
+      ) {
         break;
       }
 
       page++;
     }
 
-    const recentRuns = allRuns.filter(
-      (r) => new Date(r.created_at).getTime() >= cutoff,
-    );
-
-    await storage.setWidget(
-      'latest_run_conclusion',
-      allRuns[0]?.conclusion ?? 'unknown',
-    );
-
-    await storage.setWidget('run_count_7d', recentRuns.length);
-
-    const total = recentRuns.length;
-    const successful = recentRuns.filter(
-      (r) => r.conclusion === 'success',
-    ).length;
-    await storage.setWidget(
-      'success_rate_7d',
-      total > 0 ? Math.round((successful / total) * 100) : 0,
-    );
-
-    const entries: DailyRunEntry[] = [];
-    for (let i = 6; i >= 0; i--) {
-      const dayStart = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
-      dayStart.setHours(0, 0, 0, 0);
-      const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
-      const count = allRuns.filter((r) => {
-        const t = new Date(r.created_at).getTime();
-        return t >= dayStart.getTime() && t < dayEnd.getTime();
-      }).length;
-      entries.push({ date: dayStart.toISOString().slice(0, 10), count });
-    }
-    await storage.setWidget('daily_runs', entries);
-  },
-};
+    await storage.upsert('workflow_run', allRuns);
+  }
+}

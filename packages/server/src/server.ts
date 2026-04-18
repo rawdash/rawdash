@@ -1,25 +1,38 @@
+import type { DashboardConfig } from '@rawdash/core';
 import { Hono } from 'hono';
 
+import { computeMetric } from './compute';
 import { InMemoryStorage } from './storage';
-import type { ConnectorEntry, RawdashServerConfig } from './types';
+import type { WidgetEntry } from './types';
 
-export function createServer<TEntry extends ConnectorEntry>(
-  config: RawdashServerConfig<TEntry>,
-): Hono {
+export function createServer(config: DashboardConfig): Hono {
   const storage = new InMemoryStorage();
   const app = new Hono();
 
+  function getResourcesForConnector(connectorId: string): Set<string> {
+    const resources = new Set<string>();
+    for (const widget of Object.values(config.widgets)) {
+      if (widget.metric.connectorId === connectorId) {
+        resources.add(widget.metric.resource);
+      }
+    }
+    return resources;
+  }
+
   async function runSync(): Promise<void> {
-    if (storage.getSyncState().status === 'syncing') return;
+    if (storage.getSyncState().status === 'syncing') {
+      return;
+    }
     storage.setSyncing();
     try {
       await Promise.all(
-        config.connectors.map(({ connector, config: connectorConfig }) =>
-          connector.sync({
-            config: connectorConfig,
-            storage: storage.getStorageHandle(connector.id),
-          }),
-        ),
+        config.connectors.map(async ({ connector }) => {
+          const resources = getResourcesForConnector(connector.id);
+          const handle = storage.getStorageHandle(connector.id);
+          for (const resource of resources) {
+            await connector.sync({ resource, mode: 'full' }, handle);
+          }
+        }),
       );
       storage.setSyncSuccess();
     } catch (err) {
@@ -27,17 +40,44 @@ export function createServer<TEntry extends ConnectorEntry>(
     }
   }
 
+  function resolveWidget(input: string): WidgetEntry | undefined {
+    const sep = input.lastIndexOf(':');
+    const configKey = sep === -1 ? input : input.slice(sep + 1);
+    const widget = config.widgets[configKey];
+    if (!widget) {
+      return undefined;
+    }
+    const { connectorId, resource } = widget.metric;
+    const connectorEntry = config.connectors.find(
+      (e) => e.connector.id === connectorId,
+    );
+    if (!connectorEntry) {
+      return undefined;
+    }
+    const fields = connectorEntry.connector.resources[resource]?.fields;
+    if (!fields) {
+      return undefined;
+    }
+    const records = storage.getRecords(connectorId, resource);
+    const data = computeMetric(records, widget.metric, fields);
+    return {
+      id: configKey,
+      widgetId: input,
+      connectorId,
+      data,
+      cachedAt: storage.getSyncState().lastSyncAt ?? new Date().toISOString(),
+    };
+  }
+
   app.get('/widgets', (c) => {
-    return c.json(storage.getAllWidgets());
+    const widgets = Object.keys(config.widgets)
+      .map(resolveWidget)
+      .filter((w): w is WidgetEntry => w !== undefined);
+    return c.json(widgets);
   });
 
   app.get('/widgets/:id', (c) => {
-    const id = c.req.param('id');
-    const sep = id.lastIndexOf(':');
-    if (sep === -1) {
-      return c.json({ error: 'Widget not found' }, 404);
-    }
-    const widget = storage.getWidget(id.slice(0, sep), id.slice(sep + 1));
+    const widget = resolveWidget(c.req.param('id'));
     if (!widget) {
       return c.json({ error: 'Widget not found' }, 404);
     }
