@@ -41,10 +41,13 @@ interface TimeseriesWidgetProps {
 }
 
 export function TimeseriesWidget({ label, entries }: TimeseriesWidgetProps) {
-  const data = entries.map((e) => ({
-    date: e.date.slice(5),
-    Runs: e.count,
-  }));
+  const data = entries.map((e) => {
+    const d = new Date(e.date);
+    const formatted = !isNaN(d.getTime())
+      ? `${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
+      : e.date.slice(5, 10);
+    return { date: formatted, Runs: e.count };
+  });
 
   return (
     <div className="col-span-full rounded-xl border border-gray-100 bg-white px-6 py-5 shadow-sm">
@@ -77,10 +80,7 @@ export function TimeseriesWidget({ label, entries }: TimeseriesWidgetProps) {
               width={28}
               allowDecimals={false}
             />
-            <Tooltip
-              content={<CustomTooltip />}
-              cursor={{ fill: '#f5f5ff', radius: 4 }}
-            />
+            <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f5f5ff' }} />
             <Bar
               dataKey="Runs"
               fill="#6366f1"

@@ -40,7 +40,12 @@
     "onlyBuiltDependencies": [
       "esbuild",
       "sharp"
-    ]
+    ],
+    "peerDependencyRules": {
+      "allowedVersions": {
+        "@tremor/react>react": "19"
+      }
+    }
   },
   "lint-staged": {
     "**/*.{ts,tsx}": [
