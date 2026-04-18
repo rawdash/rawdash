@@ -1,6 +1,4 @@
-import type { StorageHandle } from '@rawdash/core';
-
-import type { SyncState } from './types';
+import type { StorageHandle, SyncState } from '@rawdash/core';
 
 export class InMemoryStorage {
   private records = new Map<string, Map<string, Record<string, unknown>[]>>();
