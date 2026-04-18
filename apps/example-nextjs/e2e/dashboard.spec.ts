@@ -20,6 +20,6 @@ test('dashboard shows correct widget values', async ({ page }) => {
   await page.goto('/');
 
   await expect(page.getByText('success', { exact: true })).toBeVisible();
-  await expect(page.getByText('7')).toBeVisible();
-  await expect(page.getByText('5')).toBeVisible();
+  await expect(page.getByText('7', { exact: true })).toBeVisible();
+  await expect(page.getByText('5', { exact: true })).toBeVisible();
 });
