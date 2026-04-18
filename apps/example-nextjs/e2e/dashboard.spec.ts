@@ -19,7 +19,7 @@ test('dashboard renders widgets without JS errors', async ({ page }) => {
 test('dashboard shows correct widget values', async ({ page }) => {
   await page.goto('/');
 
-  await expect(page.getByText('success')).toBeVisible();
+  await expect(page.getByText('success', { exact: true })).toBeVisible();
   await expect(page.getByText('7')).toBeVisible();
   await expect(page.getByText('5')).toBeVisible();
 });
