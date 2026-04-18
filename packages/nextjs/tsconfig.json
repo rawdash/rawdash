@@ -1,8 +1,11 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "lib": ["ES2022", "DOM"],
     "outDir": "./dist",
-    "rootDir": "./src"
+    "paths": {
+      "@rawdash/core": ["../core/src/index.ts"]
+    }
   },
   "include": ["src"],
   "exclude": ["node_modules", "dist"]

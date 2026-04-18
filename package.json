@@ -46,14 +46,5 @@
         "@tremor/react>react": "19"
       }
     }
-  },
-  "lint-staged": {
-    "**/*.{ts,tsx}": [
-      "prettier --write",
-      "eslint --fix"
-    ],
-    "**/*.{js,mjs,cjs,json,md,yml,yaml}": [
-      "prettier --write"
-    ]
   }
 }
