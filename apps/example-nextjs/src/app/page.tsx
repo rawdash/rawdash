@@ -21,15 +21,17 @@ export default async function DashboardPage() {
   }, null);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Dashboard</h2>
-          <p className="text-muted-foreground">
+          <h2 className="text-xl font-bold tracking-tight text-gray-900 sm:text-2xl">
+            Dashboard
+          </h2>
+          <p className="text-sm text-gray-500">
             GitHub Actions — rawdash/rawdash
           </p>
           {cachedAt && (
-            <p className="mt-1 text-xs text-muted-foreground">
+            <p className="mt-0.5 text-xs text-gray-400">
               Last synced: {new Date(cachedAt).toLocaleString()}
             </p>
           )}
@@ -38,13 +40,13 @@ export default async function DashboardPage() {
       </div>
 
       {widgets.length === 0 ? (
-        <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-border bg-muted/30">
-          <span className="text-sm text-muted-foreground">
+        <div className="flex h-40 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50">
+          <span className="text-sm text-gray-400">
             No data yet — start the Rawdash server and click Sync.
           </span>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {widgets.map((w) => (
             <WidgetCard key={`${w.connectorId}:${w.widgetId}`} widget={w} />
           ))}

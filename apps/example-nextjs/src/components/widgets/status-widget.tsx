@@ -17,13 +17,15 @@ export function StatusWidget({ label, value }: StatusWidgetProps) {
   };
 
   return (
-    <div className="flex min-h-[120px] flex-col justify-between rounded-lg border border-gray-200 bg-white px-6 py-5 shadow-sm">
-      <span className="text-xs font-semibold uppercase tracking-widest text-gray-400">
+    <div className="flex flex-col justify-between gap-3 rounded-xl border border-gray-100 bg-white px-5 py-4 shadow-sm sm:px-6 sm:py-5">
+      <span className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">
         {label}
       </span>
       <div className="flex items-center gap-2.5">
-        <span className={`h-3 w-3 shrink-0 rounded-full ${styles.dot}`} />
-        <span className={`text-3xl font-bold capitalize ${styles.text}`}>
+        <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${styles.dot}`} />
+        <span
+          className={`text-3xl font-extrabold capitalize tracking-tight sm:text-4xl ${styles.text}`}
+        >
           {value.replace(/_/g, ' ')}
         </span>
       </div>
