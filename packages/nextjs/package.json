@@ -1,7 +1,7 @@
 {
   "name": "@rawdash/nextjs",
   "version": "0.0.0",
-  "description": "Rawdash adapter for Next.js App Router",
+  "description": "Rawdash client SDK for Next.js App Router (Server Components and Server Actions)",
   "license": "Apache-2.0",
   "type": "module",
   "exports": {
