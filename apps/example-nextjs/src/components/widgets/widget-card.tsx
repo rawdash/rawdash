@@ -8,6 +8,17 @@ function widgetLabel(widgetId: string): string {
   return widgetId.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+function isStatWithDelta(
+  value: unknown,
+): value is { value: number; delta: number } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as Record<string, unknown>)['value'] === 'number' &&
+    typeof (value as Record<string, unknown>)['delta'] === 'number'
+  );
+}
+
 function isTimeseriesArray(
   value: unknown,
 ): value is Array<{ date: string; count: number }> {
@@ -37,6 +48,10 @@ export function WidgetCard({ widget }: WidgetCardProps) {
 
   if (typeof data === 'number') {
     return <StatWidget label={label} value={data} />;
+  }
+
+  if (isStatWithDelta(data)) {
+    return <StatWidget label={label} value={data.value} trend={data.delta} />;
   }
 
   if (isTimeseriesArray(data)) {
