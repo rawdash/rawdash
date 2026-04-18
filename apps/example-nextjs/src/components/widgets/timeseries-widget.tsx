@@ -1,4 +1,4 @@
-import { BarChart, Card, Text } from '@tremor/react';
+import { BarChart } from '@tremor/react';
 
 interface TimeseriesEntry {
   date: string;
@@ -13,22 +13,27 @@ interface TimeseriesWidgetProps {
 export function TimeseriesWidget({ label, entries }: TimeseriesWidgetProps) {
   const data = entries.map((e) => ({
     date: e.date.slice(5),
-    count: e.count,
+    Runs: e.count,
   }));
 
   return (
-    <Card className="col-span-full">
-      <Text>{label}</Text>
+    <div className="col-span-full rounded-lg border border-gray-200 bg-white px-6 py-5 shadow-sm">
+      <span className="text-xs font-semibold uppercase tracking-widest text-gray-400">
+        {label}
+      </span>
       <BarChart
-        className="mt-4 h-40"
+        className="mt-4 h-36"
         data={data}
         index="date"
-        categories={['count']}
-        colors={['blue']}
+        categories={['Runs']}
+        colors={['indigo']}
         showLegend={false}
-        showYAxis={false}
-        showGridLines={false}
+        showYAxis={true}
+        showGridLines={true}
+        showAnimation={true}
+        yAxisWidth={32}
+        minValue={0}
       />
-    </Card>
+    </div>
   );
 }

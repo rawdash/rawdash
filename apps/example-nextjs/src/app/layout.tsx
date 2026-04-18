@@ -31,7 +31,7 @@ export default function RootLayout({
         <header className="border-b px-6 py-4">
           <span className="text-lg font-semibold tracking-tight">RawDash</span>
         </header>
-        <main className="p-6">{children}</main>
+        <main className="mx-auto max-w-7xl px-6 py-8">{children}</main>
       </body>
     </html>
   );
