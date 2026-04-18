@@ -16,6 +16,7 @@
     "@rawdash/github": "workspace:*",
     "@rawdash/nextjs": "workspace:*",
     "@rawdash/server": "workspace:*",
+    "@tremor/react": "^3.18.7",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.475.0",

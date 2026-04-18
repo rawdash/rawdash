@@ -1,8 +1,10 @@
-const STATUS_COLORS: Record<string, string> = {
-  success: 'text-green-600',
-  failure: 'text-red-600',
-  cancelled: 'text-yellow-600',
-  skipped: 'text-muted-foreground',
+import { Badge, Card, Text } from '@tremor/react';
+
+const STATUS_COLORS: Record<string, 'green' | 'red' | 'yellow' | 'gray'> = {
+  success: 'green',
+  failure: 'red',
+  cancelled: 'yellow',
+  skipped: 'gray',
 };
 
 interface StatusWidgetProps {
@@ -11,18 +13,17 @@ interface StatusWidgetProps {
 }
 
 export function StatusWidget({ label, value }: StatusWidgetProps) {
-  const colorClass = STATUS_COLORS[value] ?? 'text-foreground';
+  const color = STATUS_COLORS[value] ?? 'gray';
+  const display = value.replace(/_/g, ' ');
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-border bg-card p-5 shadow-sm">
-      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        {label}
-      </span>
-      <span
-        className={`text-2xl font-bold capitalize leading-none ${colorClass}`}
-      >
-        {value.replace(/_/g, ' ')}
-      </span>
-    </div>
+    <Card>
+      <Text>{label}</Text>
+      <div className="mt-2">
+        <Badge color={color} size="xl">
+          {display}
+        </Badge>
+      </div>
+    </Card>
   );
 }
