@@ -6,8 +6,13 @@ import { SyncButton } from './sync-button';
 export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
-  await rawdash.ensureFresh().catch(() => {});
-  const widgets = await rawdash.getWidgets().catch(() => []);
+  await rawdash.ensureFresh().catch((err: unknown) => {
+    console.error('rawdash.ensureFresh failed', err);
+  });
+  const widgets = await rawdash.getWidgets().catch((err: unknown) => {
+    console.error('rawdash.getWidgets failed', err);
+    return [];
+  });
 
   const cachedAt = widgets.reduce<string | null>((max, w) => {
     if (!w.cachedAt) return max;

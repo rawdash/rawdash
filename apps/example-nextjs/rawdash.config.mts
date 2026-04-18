@@ -2,6 +2,21 @@ import { defineConfig, defineMetric } from '@rawdash/core';
 import { GitHubActionsConnector } from '@rawdash/github';
 import { serve } from '@rawdash/server';
 
+function resolvePort(): number {
+  const raw = process.env['PORT'];
+  if (raw === undefined || raw === '') {
+    return 8080;
+  }
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0 || parsed > 65535) {
+    console.warn(
+      `Invalid PORT env var "${raw}" — falling back to default port 8080`,
+    );
+    return 8080;
+  }
+  return parsed;
+}
+
 const github = new GitHubActionsConnector(
   {
     owner: process.env['GITHUB_OWNER'] ?? 'rawdash',
@@ -59,5 +74,5 @@ serve(
       },
     },
   }),
-  { port: Number(process.env['PORT'] ?? 8080) },
+  { port: resolvePort() },
 );
