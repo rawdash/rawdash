@@ -29,5 +29,6 @@ function buildTypecheckCommand(stagedFiles) {
 
 export default {
   '**/*.{ts,tsx}': ['prettier --write', 'eslint --fix', buildTypecheckCommand],
-  '**/*.{js,mjs,cjs,json,md,yml,yaml}': ['prettier --write'],
+  '**/*.{js,mjs,cjs}': ['prettier --write', 'eslint --fix'],
+  '**/*.{json,md,yml,yaml}': ['prettier --write'],
 };
