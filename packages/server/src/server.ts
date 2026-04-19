@@ -1,11 +1,11 @@
 import { Hono } from 'hono';
 
-import type { RawdashPlugin } from './plugin';
+import type { RawdashRouter } from './router';
 
-export function createServer(plugins: RawdashPlugin[]): Hono {
+export function createServer(routers: RawdashRouter[]): Hono {
   const app = new Hono();
-  for (const plugin of plugins) {
-    plugin.mount(app);
+  for (const router of routers) {
+    router.mount(app);
   }
   return app;
 }

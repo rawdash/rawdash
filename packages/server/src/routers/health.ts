@@ -1,9 +1,9 @@
 import type { Hono } from 'hono';
 
-import type { RawdashPlugin } from '../plugin';
+import type { RawdashRouter } from '../router';
 import type { InMemoryStorage } from '../storage';
 
-export class HealthPlugin implements RawdashPlugin {
+export class HealthRouter implements RawdashRouter {
   constructor(private storage: InMemoryStorage) {}
 
   mount(app: Hono): void {

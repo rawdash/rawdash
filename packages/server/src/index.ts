@@ -1,12 +1,12 @@
 import { serve as honoServe } from '@hono/node-server';
 
-import { createEnginePlugins } from './engine-plugin';
+import { createEngineRouters } from './engine-router';
 import { createServer } from './server';
 import type { DashboardConfig, ServeOptions } from './types';
 
 export { createServer } from './server';
-export { createEnginePlugins } from './engine-plugin';
-export type { RawdashPlugin } from './plugin';
+export { createEngineRouters } from './engine-router';
+export type { RawdashRouter } from './router';
 export type { SyncState, WidgetEntry } from '@rawdash/core';
 export type { DashboardConfig, ServeOptions } from './types';
 
@@ -15,6 +15,6 @@ export function serve(
   options: ServeOptions = {},
 ): void {
   const { port = 8080 } = options;
-  const app = createServer(createEnginePlugins(config));
+  const app = createServer(createEngineRouters(config));
   honoServe({ fetch: app.fetch, port });
 }
