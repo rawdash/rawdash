@@ -1,7 +1,7 @@
 import { createClient } from '@libsql/client';
 import type { Client } from '@libsql/client';
-import type { StorageHandle } from '@rawdash/core';
-import type { ServerStorage, SyncState } from '@rawdash/server';
+import type { StorageHandle, SyncState } from '@rawdash/core';
+import type { ServerStorage } from '@rawdash/server';
 
 export interface TursoStorageOptions {
   url: string;

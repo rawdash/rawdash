@@ -31,3 +31,5 @@ export type {
 } from './config';
 
 export { defineConfig, defineMetric } from './config';
+
+export type { SyncState, WidgetEntry } from './engine';

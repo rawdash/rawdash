@@ -30,8 +30,8 @@ export interface CachedWidgetResponse<TData = unknown> {
   widgetId: string;
   /** The cached data payload. */
   data: TData;
-  /** ISO 8601 timestamp of when the data was last cached. */
-  cachedAt: string;
+  /** ISO 8601 timestamp of when the data was last cached, or `null` if never synced. */
+  cachedAt: string | null;
 }
 
 /**
