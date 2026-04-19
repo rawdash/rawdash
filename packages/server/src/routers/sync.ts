@@ -4,6 +4,8 @@ import type { Hono } from 'hono';
 import type { RawdashRouter } from '../router';
 import type { InMemoryStorage } from '../storage';
 
+const SYNC_TIMEOUT_MS = 30_000;
+
 export class SyncRouter implements RawdashRouter {
   constructor(
     private config: DashboardConfig,
@@ -20,6 +22,24 @@ export class SyncRouter implements RawdashRouter {
     return resources;
   }
 
+  private async withTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () =>
+          reject(new Error(`${label} timed out after ${SYNC_TIMEOUT_MS}ms`)),
+        SYNC_TIMEOUT_MS,
+      );
+    });
+    try {
+      return await Promise.race([promise, timeout]);
+    } finally {
+      if (timer !== undefined) {
+        clearTimeout(timer);
+      }
+    }
+  }
+
   async runSync(): Promise<void> {
     if (this.storage.getSyncState().status === 'syncing') {
       return;
@@ -32,7 +52,10 @@ export class SyncRouter implements RawdashRouter {
         const handle = this.storage.getStorageHandle(connector.id);
         for (const resource of resources) {
           try {
-            await connector.sync({ resource, mode: 'full' }, handle);
+            await this.withTimeout(
+              connector.sync({ resource, mode: 'full' }, handle),
+              `${connector.id}/${resource}`,
+            );
           } catch (err) {
             errors.push(err instanceof Error ? err.message : String(err));
           }

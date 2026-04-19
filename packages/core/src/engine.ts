@@ -3,7 +3,7 @@ export interface WidgetEntry {
   widgetId: string;
   connectorId: string;
   data: unknown;
-  cachedAt: string;
+  cachedAt: string | null;
 }
 
 export interface SyncState {
