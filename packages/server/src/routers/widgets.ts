@@ -11,9 +11,10 @@ export class WidgetsRouter implements RawdashRouter {
     private storage: InMemoryStorage,
   ) {}
 
-  private resolveWidget(input: string): WidgetEntry | undefined {
-    const sep = input.lastIndexOf(':');
-    const configKey = sep === -1 ? input : input.slice(sep + 1);
+  private resolveWidget(
+    configKey: string,
+    widgetId: string = configKey,
+  ): WidgetEntry | undefined {
     const widget = Object.prototype.hasOwnProperty.call(
       this.config.widgets,
       configKey,
@@ -38,7 +39,7 @@ export class WidgetsRouter implements RawdashRouter {
     const data = computeMetric(records, widget.metric, fields);
     return {
       id: configKey,
-      widgetId: input,
+      widgetId,
       connectorId,
       data,
       cachedAt:
@@ -55,7 +56,10 @@ export class WidgetsRouter implements RawdashRouter {
     });
 
     app.get('/widgets/:id', (c) => {
-      const widget = this.resolveWidget(c.req.param('id'));
+      const input = c.req.param('id');
+      const sep = input.lastIndexOf(':');
+      const configKey = sep === -1 ? input : input.slice(sep + 1);
+      const widget = this.resolveWidget(configKey, input);
       if (!widget) {
         return c.json({ error: 'Widget not found' }, 404);
       }

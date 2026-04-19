@@ -20,23 +20,6 @@ export class SyncRouter implements RawdashRouter {
     return resources;
   }
 
-  private syncTimeoutMs = 30_000;
-
-  private withTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
-    return Promise.race([
-      promise,
-      new Promise<T>((_, reject) =>
-        setTimeout(
-          () =>
-            reject(
-              new Error(`${label} timed out after ${this.syncTimeoutMs}ms`),
-            ),
-          this.syncTimeoutMs,
-        ),
-      ),
-    ]);
-  }
-
   async runSync(): Promise<void> {
     if (this.storage.getSyncState().status === 'syncing') {
       return;
@@ -49,10 +32,7 @@ export class SyncRouter implements RawdashRouter {
         const handle = this.storage.getStorageHandle(connector.id);
         for (const resource of resources) {
           try {
-            await this.withTimeout(
-              connector.sync({ resource, mode: 'full' }, handle),
-              `${connector.id}/${resource}`,
-            );
+            await connector.sync({ resource, mode: 'full' }, handle);
           } catch (err) {
             errors.push(err instanceof Error ? err.message : String(err));
           }
