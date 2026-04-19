@@ -8,8 +8,18 @@ export interface TursoStorageOptions {
   authToken?: string;
 }
 
+function fingerprint(name: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < name.length; i++) {
+    h ^= name.charCodeAt(i);
+    h = (h * 0x01000193) >>> 0;
+  }
+  return h.toString(16).padStart(8, '0');
+}
+
 function sanitizeName(name: string): string {
-  return name.replace(/[^a-zA-Z0-9]/g, '_');
+  const readable = name.replace(/[^a-zA-Z0-9]/g, '_');
+  return `${readable}_${fingerprint(name)}`;
 }
 
 function tableName(connectorId: string, resource: string): string {
@@ -62,8 +72,11 @@ export class TursoStorage implements ServerStorage {
       return result.rows.map(
         (row) => JSON.parse(row['data'] as string) as Record<string, unknown>,
       );
-    } catch {
-      return [];
+    } catch (error) {
+      if (error instanceof Error && /no such table/i.test(error.message)) {
+        return [];
+      }
+      throw error;
     }
   }
 
