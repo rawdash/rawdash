@@ -14,7 +14,12 @@ export class WidgetsIntegration implements RawdashIntegration {
   private resolveWidget(input: string): WidgetEntry | undefined {
     const sep = input.lastIndexOf(':');
     const configKey = sep === -1 ? input : input.slice(sep + 1);
-    const widget = this.config.widgets[configKey];
+    const widget = Object.prototype.hasOwnProperty.call(
+      this.config.widgets,
+      configKey,
+    )
+      ? this.config.widgets[configKey]
+      : undefined;
     if (!widget) {
       return undefined;
     }

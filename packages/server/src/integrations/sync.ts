@@ -20,26 +20,49 @@ export class SyncIntegration implements RawdashIntegration {
     return resources;
   }
 
+  private syncTimeoutMs = 30_000;
+
+  private withTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
+    return Promise.race([
+      promise,
+      new Promise<T>((_, reject) =>
+        setTimeout(
+          () =>
+            reject(
+              new Error(`${label} timed out after ${this.syncTimeoutMs}ms`),
+            ),
+          this.syncTimeoutMs,
+        ),
+      ),
+    ]);
+  }
+
   async runSync(): Promise<void> {
     if (this.storage.getSyncState().status === 'syncing') {
       return;
     }
     this.storage.setSyncing();
-    try {
-      await Promise.all(
-        this.config.connectors.map(async ({ connector }) => {
-          const resources = this.getResourcesForConnector(connector.id);
-          const handle = this.storage.getStorageHandle(connector.id);
-          for (const resource of resources) {
-            await connector.sync({ resource, mode: 'full' }, handle);
+    const errors: string[] = [];
+    await Promise.allSettled(
+      this.config.connectors.map(async ({ connector }) => {
+        const resources = this.getResourcesForConnector(connector.id);
+        const handle = this.storage.getStorageHandle(connector.id);
+        for (const resource of resources) {
+          try {
+            await this.withTimeout(
+              connector.sync({ resource, mode: 'full' }, handle),
+              `${connector.id}/${resource}`,
+            );
+          } catch (err) {
+            errors.push(err instanceof Error ? err.message : String(err));
           }
-        }),
-      );
+        }
+      }),
+    );
+    if (errors.length > 0) {
+      this.storage.setSyncError(errors.join('; '));
+    } else {
       this.storage.setSyncSuccess();
-    } catch (err) {
-      this.storage.setSyncError(
-        err instanceof Error ? err.message : String(err),
-      );
     }
   }
 
