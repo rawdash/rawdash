@@ -1,11 +1,11 @@
 import { Hono } from 'hono';
 
-import type { RawdashIntegration } from './integration';
+import type { RawdashPlugin } from './plugin';
 
-export function createServer(integrations: RawdashIntegration[]): Hono {
+export function createServer(plugins: RawdashPlugin[]): Hono {
   const app = new Hono();
-  for (const integration of integrations) {
-    integration.mount(app);
+  for (const plugin of plugins) {
+    plugin.mount(app);
   }
   return app;
 }

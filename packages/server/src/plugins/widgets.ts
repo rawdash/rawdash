@@ -2,10 +2,10 @@ import type { DashboardConfig, WidgetEntry } from '@rawdash/core';
 import type { Hono } from 'hono';
 
 import { computeMetric } from '../compute';
-import type { RawdashIntegration } from '../integration';
+import type { RawdashPlugin } from '../plugin';
 import type { InMemoryStorage } from '../storage';
 
-export class WidgetsIntegration implements RawdashIntegration {
+export class WidgetsPlugin implements RawdashPlugin {
   constructor(
     private config: DashboardConfig,
     private storage: InMemoryStorage,

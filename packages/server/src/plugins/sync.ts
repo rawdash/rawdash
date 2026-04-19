@@ -1,10 +1,10 @@
 import type { DashboardConfig } from '@rawdash/core';
 import type { Hono } from 'hono';
 
-import type { RawdashIntegration } from '../integration';
+import type { RawdashPlugin } from '../plugin';
 import type { InMemoryStorage } from '../storage';
 
-export class SyncIntegration implements RawdashIntegration {
+export class SyncPlugin implements RawdashPlugin {
   constructor(
     private config: DashboardConfig,
     private storage: InMemoryStorage,

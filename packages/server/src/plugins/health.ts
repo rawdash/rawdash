@@ -1,9 +1,9 @@
 import type { Hono } from 'hono';
 
-import type { RawdashIntegration } from '../integration';
+import type { RawdashPlugin } from '../plugin';
 import type { InMemoryStorage } from '../storage';
 
-export class HealthIntegration implements RawdashIntegration {
+export class HealthPlugin implements RawdashPlugin {
   constructor(private storage: InMemoryStorage) {}
 
   mount(app: Hono): void {

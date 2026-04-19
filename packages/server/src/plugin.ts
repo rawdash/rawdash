@@ -1,5 +1,5 @@
 import type { Hono } from 'hono';
 
-export interface RawdashIntegration {
+export interface RawdashPlugin {
   mount(app: Hono): void;
 }
