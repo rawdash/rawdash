@@ -46,7 +46,7 @@ export class SyncRouter implements RawdashRouter {
     }
     this.storage.setSyncing();
     const errors: string[] = [];
-    await Promise.allSettled(
+    const results = await Promise.allSettled(
       this.config.connectors.map(async ({ connector }) => {
         const resources = this.getResourcesForConnector(connector.id);
         const handle = this.storage.getStorageHandle(connector.id);
@@ -62,6 +62,15 @@ export class SyncRouter implements RawdashRouter {
         }
       }),
     );
+    for (const result of results) {
+      if (result.status === 'rejected') {
+        errors.push(
+          result.reason instanceof Error
+            ? result.reason.message
+            : String(result.reason),
+        );
+      }
+    }
     if (errors.length > 0) {
       this.storage.setSyncError(errors.join('; '));
     } else {
