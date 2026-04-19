@@ -61,3 +61,9 @@ jobs:
 
       - name: Test
         run: pnpm turbo run test --filter="${{ steps.affected.outputs.filter }}"
+
+      - name: Install Playwright browsers
+        run: pnpm --filter example-nextjs exec playwright install --with-deps chromium
+
+      - name: E2E tests
+        run: pnpm turbo run test:e2e --filter="${{ steps.affected.outputs.filter }}"
