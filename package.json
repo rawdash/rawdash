@@ -40,6 +40,12 @@
     "onlyBuiltDependencies": [
       "esbuild",
       "sharp"
-    ]
+    ],
+    "peerDependencyRules": {
+      "allowedVersions": {
+        "@tremor/react>react": "19",
+        "react-day-picker>react": "19"
+      }
+    }
   }
 }

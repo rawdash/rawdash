@@ -1,3 +1,35 @@
+'use client';
+
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
+
+interface TooltipPayloadItem {
+  value: number;
+}
+
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: TooltipPayloadItem[];
+  label?: string;
+}
+
+function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-lg border border-gray-100 bg-white px-3 py-2 shadow-lg">
+      <p className="text-xs text-gray-400">{label}</p>
+      <p className="text-sm font-semibold text-gray-900">{payload[0]?.value}</p>
+    </div>
+  );
+}
+
 interface TimeseriesEntry {
   date: string;
   count: number;
@@ -9,44 +41,54 @@ interface TimeseriesWidgetProps {
 }
 
 export function TimeseriesWidget({ label, entries }: TimeseriesWidgetProps) {
-  const maxCount = Math.max(...entries.map((e) => e.count), 1);
+  const data = entries.map((e) => {
+    const d = new Date(e.date);
+    const formatted = !isNaN(d.getTime())
+      ? `${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
+      : e.date.slice(5, 10);
+    return { date: formatted, Runs: e.count };
+  });
 
   return (
-    <div className="col-span-full flex flex-col gap-3 rounded-lg border border-border bg-card p-5 shadow-sm">
-      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+    <div className="col-span-full rounded-xl border border-gray-100 bg-white px-6 py-5 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">
         {label}
-      </span>
-      <div className="flex flex-col gap-1">
-        <div className="flex items-end gap-2" style={{ height: '64px' }}>
-          {entries.map((entry) => {
-            const barHeight = Math.max(
-              2,
-              Math.round((entry.count / maxCount) * 64),
-            );
-            return (
-              <div
-                key={entry.date}
-                className="relative flex flex-1 justify-center"
-                title={String(entry.count)}
-              >
-                <div
-                  className="w-full rounded-t bg-primary transition-all"
-                  style={{ height: `${barHeight}px` }}
-                />
-              </div>
-            );
-          })}
-        </div>
-        <div className="flex gap-2">
-          {entries.map((entry) => (
-            <span
-              key={entry.date}
-              className="flex-1 text-center text-[10px] text-muted-foreground"
-            >
-              {entry.date.slice(5)}
-            </span>
-          ))}
-        </div>
+      </p>
+      <div className="mt-4">
+        <ResponsiveContainer width="100%" height={160}>
+          <BarChart
+            data={data}
+            barCategoryGap="40%"
+            margin={{ top: 4, right: 4, bottom: 0, left: 0 }}
+          >
+            <CartesianGrid
+              vertical={false}
+              stroke="#f3f4f6"
+              strokeDasharray="0"
+            />
+            <XAxis
+              dataKey="date"
+              axisLine={false}
+              tickLine={false}
+              tick={{ fill: '#9ca3af', fontSize: 11, fontFamily: 'inherit' }}
+              dy={6}
+            />
+            <YAxis
+              axisLine={false}
+              tickLine={false}
+              tick={{ fill: '#9ca3af', fontSize: 11, fontFamily: 'inherit' }}
+              width={28}
+              allowDecimals={false}
+            />
+            <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f5f5ff' }} />
+            <Bar
+              dataKey="Runs"
+              fill="#6366f1"
+              radius={[4, 4, 0, 0]}
+              isAnimationActive={false}
+            />
+          </BarChart>
+        </ResponsiveContainer>
       </div>
     </div>
   );

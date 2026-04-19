@@ -17,12 +17,14 @@
     "@rawdash/github": "workspace:*",
     "@rawdash/nextjs": "workspace:*",
     "@rawdash/server": "workspace:*",
+    "@tremor/react": "^3.18.7",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.475.0",
     "next": "15.2.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "recharts": "^3.8.1",
     "tailwind-merge": "^2.6.0"
   },
   "devDependencies": {
