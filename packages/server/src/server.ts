@@ -3,10 +3,12 @@ import { Hono } from 'hono';
 
 import { computeMetric } from './compute';
 import { InMemoryStorage } from './storage';
-import type { WidgetEntry } from './types';
+import type { ServerStorage, WidgetEntry } from './types';
 
-export function createServer(config: DashboardConfig): Hono {
-  const storage = new InMemoryStorage();
+export function createServer(
+  config: DashboardConfig,
+  storage: ServerStorage = new InMemoryStorage(),
+): Hono {
   const app = new Hono();
 
   function getResourcesForConnector(connectorId: string): Set<string> {
@@ -40,7 +42,9 @@ export function createServer(config: DashboardConfig): Hono {
     }
   }
 
-  function resolveWidget(input: string): WidgetEntry | undefined {
+  async function resolveWidget(
+    input: string,
+  ): Promise<WidgetEntry | undefined> {
     const sep = input.lastIndexOf(':');
     const configKey = sep === -1 ? input : input.slice(sep + 1);
     const widget = config.widgets[configKey];
@@ -58,7 +62,7 @@ export function createServer(config: DashboardConfig): Hono {
     if (!fields) {
       return undefined;
     }
-    const records = storage.getRecords(connectorId, resource);
+    const records = await storage.getRecords(connectorId, resource);
     const data = computeMetric(records, widget.metric, fields);
     return {
       id: configKey,
@@ -69,15 +73,15 @@ export function createServer(config: DashboardConfig): Hono {
     };
   }
 
-  app.get('/widgets', (c) => {
-    const widgets = Object.keys(config.widgets)
-      .map(resolveWidget)
-      .filter((w): w is WidgetEntry => w !== undefined);
+  app.get('/widgets', async (c) => {
+    const widgets = (
+      await Promise.all(Object.keys(config.widgets).map(resolveWidget))
+    ).filter((w): w is WidgetEntry => w !== undefined);
     return c.json(widgets);
   });
 
-  app.get('/widgets/:id', (c) => {
-    const widget = resolveWidget(c.req.param('id'));
+  app.get('/widgets/:id', async (c) => {
+    const widget = await resolveWidget(c.req.param('id'));
     if (!widget) {
       return c.json({ error: 'Widget not found' }, 404);
     }

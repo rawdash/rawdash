@@ -1,0 +1,27 @@
+{
+  "name": "@rawdash/turso",
+  "version": "0.0.0",
+  "description": "Rawdash Turso/libsql storage adapter",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.14.0",
+    "@rawdash/core": "workspace:*",
+    "@rawdash/server": "workspace:*"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5.7.2"
+  }
+}

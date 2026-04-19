@@ -1,8 +1,8 @@
 import type { StorageHandle } from '@rawdash/core';
 
-import type { SyncState } from './types';
+import type { ServerStorage, SyncState } from './types';
 
-export class InMemoryStorage {
+export class InMemoryStorage implements ServerStorage {
   private records = new Map<string, Map<string, Record<string, unknown>[]>>();
   private syncState: SyncState = {
     status: 'idle',
@@ -21,7 +21,10 @@ export class InMemoryStorage {
     };
   }
 
-  getRecords(connectorId: string, resource: string): Record<string, unknown>[] {
+  async getRecords(
+    connectorId: string,
+    resource: string,
+  ): Promise<Record<string, unknown>[]> {
     return this.records.get(connectorId)?.get(resource) ?? [];
   }
 
