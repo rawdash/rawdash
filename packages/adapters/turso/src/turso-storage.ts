@@ -52,7 +52,13 @@ export class TursoStorage implements ServerStorage {
   }
 
   private async init(): Promise<void> {
-    await migrate(this.db, { migrationsFolder: MIGRATIONS_FOLDER });
+    try {
+      await migrate(this.db, { migrationsFolder: MIGRATIONS_FOLDER });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.setSyncError(`init failed: ${message}`);
+      throw err;
+    }
   }
 
   getStorageHandle(connectorId: string): StorageHandle {
