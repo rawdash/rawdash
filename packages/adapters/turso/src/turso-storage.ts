@@ -1,33 +1,36 @@
-import { createClient } from '@libsql/client';
-import type { Client } from '@libsql/client';
-import type { StorageHandle, SyncState } from '@rawdash/core';
+import { type Client, createClient } from '@libsql/client';
+import type {
+  Distribution,
+  DistributionQuery,
+  Edge,
+  EdgeQuery,
+  Entity,
+  EntityQuery,
+  Event,
+  EventQuery,
+  JSONValue,
+  Metric,
+  MetricQuery,
+  StorageHandle,
+  SyncState,
+} from '@rawdash/core';
 import type { ServerStorage } from '@rawdash/server';
+import { and, eq, gte, inArray, lte } from 'drizzle-orm';
+import { type LibSQLDatabase, drizzle } from 'drizzle-orm/libsql';
+
+import { DDL, distributions, edges, entities, events, metrics } from './schema';
 
 export interface TursoStorageOptions {
   url: string;
   authToken?: string;
 }
 
-function fingerprint(name: string): string {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < name.length; i++) {
-    h ^= name.charCodeAt(i);
-    h = Math.imul(h, 0x01000193) >>> 0;
-  }
-  return h.toString(16).padStart(8, '0');
-}
-
-function sanitizeName(name: string): string {
-  const readable = name.replace(/[^a-zA-Z0-9]/g, '_');
-  return `${readable}_${fingerprint(name)}`;
-}
-
-function tableName(connectorId: string, resource: string): string {
-  return `records_${sanitizeName(connectorId)}_${sanitizeName(resource)}`;
-}
+type Attrs = Record<string, JSONValue>;
 
 export class TursoStorage implements ServerStorage {
   private client: Client;
+  private db: LibSQLDatabase<Record<string, never>>;
+  private ready: Promise<void>;
   private syncState: SyncState = {
     status: 'idle',
     lastSyncAt: null,
@@ -39,45 +42,433 @@ export class TursoStorage implements ServerStorage {
       url: options.url,
       authToken: options.authToken,
     });
+    this.db = drizzle(this.client);
+    this.ready = this.init();
+  }
+
+  private async init(): Promise<void> {
+    for (const stmt of DDL) {
+      await this.client.execute(stmt);
+    }
   }
 
   getStorageHandle(connectorId: string): StorageHandle {
+    const ready = this.ready;
+    const db = this.db;
+
     return {
-      upsert: async (resource, records) => {
-        const table = tableName(connectorId, resource);
-        await this.client.execute(
-          `CREATE TABLE IF NOT EXISTS ${table} (id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT NOT NULL, ingested_at TEXT NOT NULL)`,
+      event: async (e) => {
+        await ready;
+        await db.insert(events).values({
+          connector_id: connectorId,
+          name: e.name,
+          start_ts: e.start_ts,
+          end_ts: e.end_ts,
+          attributes: e.attributes,
+        });
+      },
+
+      entity: async (e) => {
+        await ready;
+        await db
+          .insert(entities)
+          .values({
+            connector_id: connectorId,
+            type: e.type,
+            id: e.id,
+            attributes: e.attributes,
+            updated_at: e.updated_at,
+          })
+          .onConflictDoUpdate({
+            target: [entities.connector_id, entities.type, entities.id],
+            set: {
+              attributes: e.attributes,
+              updated_at: e.updated_at,
+            },
+          });
+      },
+
+      metric: async (m) => {
+        await ready;
+        await db.insert(metrics).values({
+          connector_id: connectorId,
+          name: m.name,
+          ts: m.ts,
+          value: m.value,
+          attributes: m.attributes,
+        });
+      },
+
+      edge: async (e) => {
+        await ready;
+        await db
+          .insert(edges)
+          .values({
+            connector_id: connectorId,
+            from_type: e.from_type,
+            from_id: e.from_id,
+            kind: e.kind,
+            to_type: e.to_type,
+            to_id: e.to_id,
+            attributes: e.attributes,
+            updated_at: e.updated_at,
+          })
+          .onConflictDoUpdate({
+            target: [
+              edges.connector_id,
+              edges.from_type,
+              edges.from_id,
+              edges.kind,
+              edges.to_type,
+              edges.to_id,
+            ],
+            set: {
+              attributes: e.attributes,
+              updated_at: e.updated_at,
+            },
+          });
+      },
+
+      distribution: async (d) => {
+        await ready;
+        await db.insert(distributions).values({
+          connector_id: connectorId,
+          name: d.name,
+          ts: d.ts,
+          kind: d.kind,
+          data: d.data as unknown as Attrs,
+          attributes: d.attributes,
+        });
+      },
+
+      events: async (es, scope) => {
+        await ready;
+        const names = Array.from(
+          new Set(scope?.names ?? es.map((e) => e.name)),
         );
-        await this.client.batch(
-          [
-            { sql: `DELETE FROM ${table}`, args: [] },
-            ...records.map((record) => ({
-              sql: `INSERT INTO ${table} (data, ingested_at) VALUES (?, ?)`,
-              args: [JSON.stringify(record), new Date().toISOString()],
+        if (names.length > 0) {
+          await db
+            .delete(events)
+            .where(
+              and(
+                eq(events.connector_id, connectorId),
+                inArray(events.name, names),
+              ),
+            );
+        }
+        if (es.length > 0) {
+          await db.insert(events).values(
+            es.map((e) => ({
+              connector_id: connectorId,
+              name: e.name,
+              start_ts: e.start_ts,
+              end_ts: e.end_ts,
+              attributes: e.attributes,
             })),
-          ],
-          'write',
+          );
+        }
+      },
+
+      entities: async (es, scope) => {
+        await ready;
+        const types = Array.from(
+          new Set(scope?.types ?? es.map((e) => e.type)),
+        );
+        if (types.length > 0) {
+          await db
+            .delete(entities)
+            .where(
+              and(
+                eq(entities.connector_id, connectorId),
+                inArray(entities.type, types),
+              ),
+            );
+        }
+        if (es.length > 0) {
+          await db.insert(entities).values(
+            es.map((e) => ({
+              connector_id: connectorId,
+              type: e.type,
+              id: e.id,
+              attributes: e.attributes,
+              updated_at: e.updated_at,
+            })),
+          );
+        }
+      },
+
+      metrics: async (ms, scope) => {
+        await ready;
+        const names = Array.from(
+          new Set(scope?.names ?? ms.map((m) => m.name)),
+        );
+        if (names.length > 0) {
+          await db
+            .delete(metrics)
+            .where(
+              and(
+                eq(metrics.connector_id, connectorId),
+                inArray(metrics.name, names),
+              ),
+            );
+        }
+        if (ms.length > 0) {
+          await db.insert(metrics).values(
+            ms.map((m) => ({
+              connector_id: connectorId,
+              name: m.name,
+              ts: m.ts,
+              value: m.value,
+              attributes: m.attributes,
+            })),
+          );
+        }
+      },
+
+      edges: async (es, scope) => {
+        await ready;
+        const kinds = Array.from(
+          new Set(scope?.kinds ?? es.map((e) => e.kind)),
+        );
+        if (kinds.length > 0) {
+          await db
+            .delete(edges)
+            .where(
+              and(
+                eq(edges.connector_id, connectorId),
+                inArray(edges.kind, kinds),
+              ),
+            );
+        }
+        for (const e of es) {
+          await db
+            .insert(edges)
+            .values({
+              connector_id: connectorId,
+              from_type: e.from_type,
+              from_id: e.from_id,
+              kind: e.kind,
+              to_type: e.to_type,
+              to_id: e.to_id,
+              attributes: e.attributes,
+              updated_at: e.updated_at,
+            })
+            .onConflictDoUpdate({
+              target: [
+                edges.connector_id,
+                edges.from_type,
+                edges.from_id,
+                edges.kind,
+                edges.to_type,
+                edges.to_id,
+              ],
+              set: {
+                attributes: e.attributes,
+                updated_at: e.updated_at,
+              },
+            });
+        }
+      },
+
+      distributions: async (ds, scope) => {
+        await ready;
+        const names = Array.from(
+          new Set(scope?.names ?? ds.map((d) => d.name)),
+        );
+        if (names.length > 0) {
+          await db
+            .delete(distributions)
+            .where(
+              and(
+                eq(distributions.connector_id, connectorId),
+                inArray(distributions.name, names),
+              ),
+            );
+        }
+        if (ds.length > 0) {
+          await db.insert(distributions).values(
+            ds.map((d) => ({
+              connector_id: connectorId,
+              name: d.name,
+              ts: d.ts,
+              kind: d.kind,
+              data: d.data as unknown as Attrs,
+              attributes: d.attributes,
+            })),
+          );
+        }
+      },
+
+      queryEvents: async (q: EventQuery) => {
+        await ready;
+        const conds = [eq(events.connector_id, connectorId)];
+        if (q.name !== undefined) {
+          conds.push(eq(events.name, q.name));
+        }
+        if (q.start !== undefined) {
+          conds.push(gte(events.start_ts, q.start));
+        }
+        if (q.end !== undefined) {
+          conds.push(lte(events.start_ts, q.end));
+        }
+        const rows = await db
+          .select()
+          .from(events)
+          .where(and(...conds));
+        return rows.map(
+          (r): Event => ({
+            name: r.name,
+            start_ts: r.start_ts,
+            end_ts: r.end_ts,
+            attributes: (r.attributes ?? {}) as Attrs,
+          }),
         );
       },
-    };
-  }
 
-  async getRecords(
-    connectorId: string,
-    resource: string,
-  ): Promise<Record<string, unknown>[]> {
-    const table = tableName(connectorId, resource);
-    try {
-      const result = await this.client.execute(`SELECT data FROM ${table}`);
-      return result.rows.map(
-        (row) => JSON.parse(row['data'] as string) as Record<string, unknown>,
-      );
-    } catch (error) {
-      if (error instanceof Error && /no such table/i.test(error.message)) {
-        return [];
-      }
-      throw error;
-    }
+      getEntity: async (type, id) => {
+        await ready;
+        const rows = await db
+          .select()
+          .from(entities)
+          .where(
+            and(
+              eq(entities.connector_id, connectorId),
+              eq(entities.type, type),
+              eq(entities.id, id),
+            ),
+          )
+          .limit(1);
+        const r = rows[0];
+        if (!r) {
+          return null;
+        }
+        return {
+          type: r.type,
+          id: r.id,
+          attributes: (r.attributes ?? {}) as Attrs,
+          updated_at: r.updated_at,
+        };
+      },
+
+      queryEntities: async (q: EntityQuery) => {
+        await ready;
+        const rows = await db
+          .select()
+          .from(entities)
+          .where(
+            and(
+              eq(entities.connector_id, connectorId),
+              eq(entities.type, q.type),
+            ),
+          );
+        return rows.map(
+          (r): Entity => ({
+            type: r.type,
+            id: r.id,
+            attributes: (r.attributes ?? {}) as Attrs,
+            updated_at: r.updated_at,
+          }),
+        );
+      },
+
+      queryMetrics: async (q: MetricQuery) => {
+        await ready;
+        const conds = [eq(metrics.connector_id, connectorId)];
+        if (q.name !== undefined) {
+          conds.push(eq(metrics.name, q.name));
+        }
+        if (q.start !== undefined) {
+          conds.push(gte(metrics.ts, q.start));
+        }
+        if (q.end !== undefined) {
+          conds.push(lte(metrics.ts, q.end));
+        }
+        const rows = await db
+          .select()
+          .from(metrics)
+          .where(and(...conds));
+        return rows.map(
+          (r): Metric => ({
+            name: r.name,
+            ts: r.ts,
+            value: r.value,
+            attributes: (r.attributes ?? {}) as Attrs,
+          }),
+        );
+      },
+
+      traverse: async (q: EdgeQuery) => {
+        await ready;
+        const conds = [eq(edges.connector_id, connectorId)];
+        if (q.fromType !== undefined) {
+          conds.push(eq(edges.from_type, q.fromType));
+        }
+        if (q.fromId !== undefined) {
+          conds.push(eq(edges.from_id, q.fromId));
+        }
+        if (q.kind !== undefined) {
+          conds.push(eq(edges.kind, q.kind));
+        }
+        if (q.toType !== undefined) {
+          conds.push(eq(edges.to_type, q.toType));
+        }
+        if (q.toId !== undefined) {
+          conds.push(eq(edges.to_id, q.toId));
+        }
+        const rows = await db
+          .select()
+          .from(edges)
+          .where(and(...conds));
+        return rows.map(
+          (r): Edge => ({
+            from_type: r.from_type,
+            from_id: r.from_id,
+            kind: r.kind,
+            to_type: r.to_type,
+            to_id: r.to_id,
+            attributes: (r.attributes ?? {}) as Attrs,
+            updated_at: r.updated_at,
+          }),
+        );
+      },
+
+      queryDistributions: async (q: DistributionQuery) => {
+        await ready;
+        const conds = [eq(distributions.connector_id, connectorId)];
+        if (q.name !== undefined) {
+          conds.push(eq(distributions.name, q.name));
+        }
+        if (q.start !== undefined) {
+          conds.push(gte(distributions.ts, q.start));
+        }
+        if (q.end !== undefined) {
+          conds.push(lte(distributions.ts, q.end));
+        }
+        const rows = await db
+          .select()
+          .from(distributions)
+          .where(and(...conds));
+        return rows.map((r) => {
+          const base = {
+            name: r.name,
+            ts: r.ts,
+            attributes: (r.attributes ?? {}) as Attrs,
+          };
+          if (r.kind === 'histogram') {
+            return {
+              ...base,
+              kind: 'histogram',
+              data: r.data as Distribution['data'],
+            } as Distribution;
+          }
+          return {
+            ...base,
+            kind: 'summary',
+            data: r.data as Distribution['data'],
+          } as Distribution;
+        });
+      },
+    };
   }
 
   getSyncState(): SyncState {
@@ -102,5 +493,14 @@ export class TursoStorage implements ServerStorage {
       lastSyncAt: this.syncState.lastSyncAt,
       lastError: error,
     };
+  }
+
+  async close(): Promise<void> {
+    await this.ready.catch(() => undefined);
+    this.client.close();
+  }
+
+  async waitUntilReady(): Promise<void> {
+    return this.ready;
   }
 }

@@ -1,14 +1,19 @@
 export type {
   Connector,
-  ConnectorResources,
   CredentialEntry,
   CredentialSchema,
-  Field,
-  FieldType,
+  Distribution,
+  DistributionQuery,
+  Edge,
+  EdgeQuery,
+  Entity,
+  EntityQuery,
+  Event,
+  EventQuery,
   InferCredentials,
-  InferFieldValue,
-  InferRecord,
-  Resource,
+  JSONValue,
+  Metric,
+  MetricQuery,
   StorageHandle,
   SyncRequest,
 } from './connector';
@@ -16,17 +21,16 @@ export type {
 export { BaseConnector, defineConnector } from './connector';
 
 export type {
-  AggFnForType,
+  AggFn,
   ConnectorEntry,
   DashboardConfig,
   FilterClause,
   FilterCondition,
   FilterOperator,
   GroupBy,
-  Metric,
-  NumberAggFn,
+  MetricDef,
   ResolvedMetric,
-  ScalarAggFn,
+  Shape,
   Widget,
 } from './config';
 

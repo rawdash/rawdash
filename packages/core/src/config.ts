@@ -1,10 +1,10 @@
-import type { Connector, ConnectorResources, FieldType } from './connector';
+import type { Connector } from './connector';
 
 // ---------------------------------------------------------------------------
 // Aggregation functions
 // ---------------------------------------------------------------------------
 
-export type NumberAggFn =
+export type AggFn =
   | 'count'
   | 'sum'
   | 'avg'
@@ -13,11 +13,11 @@ export type NumberAggFn =
   | 'latest'
   | 'first';
 
-export type ScalarAggFn = 'count' | 'latest' | 'first';
+// ---------------------------------------------------------------------------
+// Shape
+// ---------------------------------------------------------------------------
 
-export type AggFnForType<T extends FieldType> = T extends 'number'
-  ? NumberAggFn
-  : ScalarAggFn;
+export type Shape = 'event' | 'entity' | 'metric' | 'edge' | 'distribution';
 
 // ---------------------------------------------------------------------------
 // Filters
@@ -32,31 +32,20 @@ export type FilterOperator =
   | 'lte'
   | 'contains';
 
-export interface FilterCondition<
-  TResources extends ConnectorResources,
-  TResource extends keyof TResources & string,
-> {
-  field: keyof TResources[TResource]['fields'] & string;
+export interface FilterCondition {
+  field: string;
   op: FilterOperator;
   value: string | number | boolean;
 }
 
-export type FilterClause<
-  TResources extends ConnectorResources,
-  TResource extends keyof TResources & string,
-> =
-  | FilterCondition<TResources, TResource>
-  | { or: FilterCondition<TResources, TResource>[] };
+export type FilterClause = FilterCondition | { or: FilterCondition[] };
 
 // ---------------------------------------------------------------------------
 // GroupBy
 // ---------------------------------------------------------------------------
 
-export interface GroupBy<
-  TResources extends ConnectorResources,
-  TResource extends keyof TResources & string,
-> {
-  field: keyof TResources[TResource]['fields'] & string;
+export interface GroupBy {
+  field: string;
   granularity: 'hour' | 'day' | 'week' | 'month';
 }
 
@@ -64,39 +53,28 @@ export interface GroupBy<
 // Metric definition
 // ---------------------------------------------------------------------------
 
-export interface Metric<
-  TConnector extends { resources: ConnectorResources; id: string },
-  TResource extends keyof TConnector['resources'] & string,
-  TField extends keyof TConnector['resources'][TResource]['fields'] & string,
-> {
-  connector: TConnector;
-  resource: TResource;
-  field: TField;
-  fn: AggFnForType<
-    TConnector['resources'][TResource]['fields'][TField]['type']
-  >;
+export interface MetricDef {
+  connector: { id: string };
+  shape: Shape;
+  name?: string;
+  entityType?: string;
+  field: string;
+  fn: AggFn;
   window?: string;
-  filter?: Array<FilterClause<TConnector['resources'], TResource>>;
-  groupBy?: GroupBy<TConnector['resources'], TResource>;
+  filter?: FilterClause[];
+  groupBy?: GroupBy;
 }
 
 export interface ResolvedMetric {
   readonly connectorId: string;
-  readonly resource: string;
+  readonly shape: Shape;
+  readonly name?: string;
+  readonly entityType?: string;
   readonly field: string;
   readonly fn: string;
   readonly window?: string;
-  readonly filter?: Array<
-    | { field: string; op: FilterOperator; value: string | number | boolean }
-    | {
-        or: Array<{
-          field: string;
-          op: FilterOperator;
-          value: string | number | boolean;
-        }>;
-      }
-  >;
-  readonly groupBy?: { field: string; granularity: string };
+  readonly filter?: FilterClause[];
+  readonly groupBy?: GroupBy;
 }
 
 // ---------------------------------------------------------------------------
@@ -125,19 +103,17 @@ export interface DashboardConfig {
 // defineMetric
 // ---------------------------------------------------------------------------
 
-export function defineMetric<
-  TConnector extends { resources: ConnectorResources; id: string },
-  TResource extends keyof TConnector['resources'] & string,
-  TField extends keyof TConnector['resources'][TResource]['fields'] & string,
->(options: Metric<TConnector, TResource, TField>): ResolvedMetric {
+export function defineMetric(options: MetricDef): ResolvedMetric {
   return {
     connectorId: options.connector.id,
-    resource: options.resource,
+    shape: options.shape,
+    name: options.name,
+    entityType: options.entityType,
     field: options.field,
-    fn: options.fn as string,
+    fn: options.fn,
     window: options.window,
-    filter: options.filter as ResolvedMetric['filter'],
-    groupBy: options.groupBy as ResolvedMetric['groupBy'],
+    filter: options.filter,
+    groupBy: options.groupBy,
   };
 }
 
@@ -145,71 +121,41 @@ export function defineMetric<
 // defineConfig
 // ---------------------------------------------------------------------------
 
-const VALID_FNS: Record<string, string[]> = {
-  string: ['count', 'latest', 'first'],
-  number: ['count', 'sum', 'avg', 'min', 'max', 'latest', 'first'],
-  boolean: ['count', 'latest', 'first'],
-  timestamp: ['count', 'latest', 'first'],
-};
+const VALID_SHAPES = new Set<string>([
+  'event',
+  'entity',
+  'metric',
+  'edge',
+  'distribution',
+]);
+const VALID_FNS = new Set<string>([
+  'count',
+  'sum',
+  'avg',
+  'min',
+  'max',
+  'latest',
+  'first',
+]);
 
 function validateConfig(config: DashboardConfig): void {
-  const connectorMap = new Map(
-    config.connectors.map((entry) => [entry.connector.id, entry.connector]),
-  );
+  const connectorIds = new Set(config.connectors.map((e) => e.connector.id));
 
   for (const [widgetId, widget] of Object.entries(config.widgets)) {
-    const { connectorId, resource, field, fn } = widget.metric;
+    const { connectorId, shape, fn } = widget.metric;
 
-    const connector = connectorMap.get(connectorId);
-    if (!connector) {
+    if (!connectorIds.has(connectorId)) {
       throw new Error(
         `Widget "${widgetId}": connector "${connectorId}" is not listed in connectors`,
       );
     }
 
-    const resourceSchema = connector.resources[resource];
-    if (!resourceSchema) {
-      throw new Error(
-        `Widget "${widgetId}": resource "${resource}" does not exist on connector "${connectorId}"`,
-      );
+    if (!VALID_SHAPES.has(shape)) {
+      throw new Error(`Widget "${widgetId}": invalid shape "${shape}"`);
     }
 
-    const fieldSchema = resourceSchema.fields[field];
-    if (!fieldSchema) {
-      throw new Error(
-        `Widget "${widgetId}": field "${field}" does not exist on resource "${resource}" of connector "${connectorId}"`,
-      );
-    }
-
-    if (!VALID_FNS[fieldSchema.type]?.includes(fn)) {
-      throw new Error(
-        `Widget "${widgetId}": fn "${fn}" is not valid for field type "${fieldSchema.type}" — valid fns: ${VALID_FNS[fieldSchema.type]?.join(', ')}`,
-      );
-    }
-
-    if (widget.metric.groupBy) {
-      const groupByField = resourceSchema.fields[widget.metric.groupBy.field];
-      if (!groupByField) {
-        throw new Error(
-          `Widget "${widgetId}": groupBy field "${widget.metric.groupBy.field}" does not exist on resource "${resource}"`,
-        );
-      }
-      if (groupByField.type !== 'timestamp') {
-        throw new Error(
-          `Widget "${widgetId}": groupBy field "${widget.metric.groupBy.field}" must be a timestamp field (got "${groupByField.type}")`,
-        );
-      }
-    }
-
-    for (const clause of widget.metric.filter ?? []) {
-      const conditions = 'or' in clause ? clause.or : [clause];
-      for (const condition of conditions) {
-        if (!resourceSchema.fields[condition.field]) {
-          throw new Error(
-            `Widget "${widgetId}": filter field "${condition.field}" does not exist on resource "${resource}"`,
-          );
-        }
-      }
+    if (!VALID_FNS.has(fn)) {
+      throw new Error(`Widget "${widgetId}": invalid fn "${fn}"`);
     }
   }
 }

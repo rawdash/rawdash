@@ -24,19 +24,15 @@ export class WidgetsRouter implements RawdashRouter {
     if (!widget) {
       return undefined;
     }
-    const { connectorId, resource } = widget.metric;
+    const { connectorId } = widget.metric;
     const connectorEntry = this.config.connectors.find(
       (e) => e.connector.id === connectorId,
     );
     if (!connectorEntry) {
       return undefined;
     }
-    const fields = connectorEntry.connector.resources[resource]?.fields;
-    if (!fields) {
-      return undefined;
-    }
-    const records = await this.storage.getRecords(connectorId, resource);
-    const data = computeMetric(records, widget.metric, fields);
+    const handle = this.storage.getStorageHandle(connectorId);
+    const data = await computeMetric(handle, widget.metric);
     return {
       id: configKey,
       widgetId,
@@ -48,13 +44,10 @@ export class WidgetsRouter implements RawdashRouter {
 
   mount(app: Hono): void {
     app.get('/widgets', async (c) => {
-      const widgets = (
-        await Promise.all(
-          Object.keys(this.config.widgets).map((key) =>
-            this.resolveWidget(key),
-          ),
-        )
-      ).filter((w): w is WidgetEntry => w !== undefined);
+      const resolved = await Promise.all(
+        Object.keys(this.config.widgets).map((key) => this.resolveWidget(key)),
+      );
+      const widgets = resolved.filter((w): w is WidgetEntry => w !== undefined);
       return c.json(widgets);
     });
 
