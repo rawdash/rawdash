@@ -121,6 +121,31 @@ importers:
         specifier: ^5
         version: 5.9.3
 
+  apps/example-server:
+    dependencies:
+      '@rawdash/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@rawdash/github':
+        specifier: workspace:*
+        version: link:../../packages/connectors/github
+      '@rawdash/server':
+        specifier: workspace:*
+        version: link:../../packages/server
+      '@rawdash/turso':
+        specifier: workspace:*
+        version: link:../../packages/adapters/turso
+    devDependencies:
+      '@types/node':
+        specifier: ^22
+        version: 22.19.17
+      tsx:
+        specifier: ^4.19.2
+        version: 4.21.0
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+
   packages/adapters/turso:
     dependencies:
       '@libsql/client':

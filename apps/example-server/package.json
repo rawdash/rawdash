@@ -1,0 +1,22 @@
+{
+  "name": "example-server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx --env-file=.env.local rawdash.config.ts",
+    "start": "tsx rawdash.config.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@rawdash/core": "workspace:*",
+    "@rawdash/github": "workspace:*",
+    "@rawdash/server": "workspace:*",
+    "@rawdash/turso": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "tsx": "^4.19.2",
+    "typescript": "^5"
+  }
+}
