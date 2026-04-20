@@ -512,11 +512,16 @@ export class TursoStorage implements ServerStorage {
               data: r.data as Distribution['data'],
             } as Distribution;
           }
-          return {
-            ...base,
-            kind: 'summary',
-            data: r.data as Distribution['data'],
-          } as Distribution;
+          if (r.kind === 'summary') {
+            return {
+              ...base,
+              kind: 'summary',
+              data: r.data as Distribution['data'],
+            } as Distribution;
+          }
+          throw new Error(
+            `Unknown distribution kind: ${r.kind} (name=${r.name})`,
+          );
         });
       },
     };
