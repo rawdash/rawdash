@@ -41,23 +41,29 @@ export interface Edge {
   updated_at: number;
 }
 
-export interface Distribution {
-  name: string;
-  ts: number;
-  kind: 'histogram' | 'summary';
-  data:
-    | {
+export type Distribution =
+  | {
+      name: string;
+      ts: number;
+      kind: 'histogram';
+      data: {
         buckets: Array<{ le: number; count: number }>;
         count: number;
         sum: number;
-      }
-    | {
+      };
+      attributes: Record<string, JSONValue>;
+    }
+  | {
+      name: string;
+      ts: number;
+      kind: 'summary';
+      data: {
         quantiles: Array<{ q: number; value: number }>;
         count: number;
         sum: number;
       };
-  attributes: Record<string, JSONValue>;
-}
+      attributes: Record<string, JSONValue>;
+    };
 
 // ---------------------------------------------------------------------------
 // Storage query types

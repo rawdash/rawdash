@@ -216,7 +216,7 @@ describe('InMemoryStorage — metrics', () => {
 });
 
 describe('InMemoryStorage — edges', () => {
-  it('upserts by (from_type, from_id, kind, to_id)', async () => {
+  it('upserts by (from_type, from_id, kind, to_type, to_id)', async () => {
     const { handle } = makeStorage();
     const base = {
       from_type: 'pr',
