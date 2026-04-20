@@ -87,6 +87,13 @@ export const edges = sqliteTable(
   ],
 );
 
+export const syncState = sqliteTable('sync_state', {
+  id: integer('id').primaryKey(),
+  status: text('status').notNull(),
+  last_sync_at: text('last_sync_at'),
+  last_error: text('last_error'),
+});
+
 export const distributions = sqliteTable(
   'distributions',
   {

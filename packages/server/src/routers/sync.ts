@@ -34,10 +34,10 @@ export class SyncRouter implements RawdashRouter {
   }
 
   async runSync(): Promise<void> {
-    if (this.storage.getSyncState().status === 'syncing') {
+    const acquired = await this.storage.setSyncing();
+    if (!acquired) {
       return;
     }
-    this.storage.setSyncing();
     const errors: string[] = [];
     const results = await Promise.allSettled(
       this.config.connectors.map(async ({ connector }) => {
@@ -63,15 +63,16 @@ export class SyncRouter implements RawdashRouter {
       }
     }
     if (errors.length > 0) {
-      this.storage.setSyncError(errors.join('; '));
+      await this.storage.setSyncError(errors.join('; '));
     } else {
-      this.storage.setSyncSuccess();
+      await this.storage.setSyncSuccess();
     }
   }
 
   mount(app: Hono): void {
     app.post('/sync', async (c) => {
-      if (this.storage.getSyncState().status === 'syncing') {
+      const state = await this.storage.getSyncState();
+      if (state.status === 'syncing') {
         return c.json({ triggered: false });
       }
       void this.runSync();

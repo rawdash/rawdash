@@ -21,7 +21,14 @@ import { type LibSQLDatabase, drizzle } from 'drizzle-orm/libsql';
 import { migrate } from 'drizzle-orm/libsql/migrator';
 import { fileURLToPath } from 'node:url';
 
-import { distributions, edges, entities, events, metrics } from './schema';
+import {
+  distributions,
+  edges,
+  entities,
+  events,
+  metrics,
+  syncState,
+} from './schema';
 
 const MIGRATIONS_FOLDER = fileURLToPath(new URL('../drizzle', import.meta.url));
 
@@ -32,15 +39,13 @@ export interface TursoStorageOptions {
 
 type Attrs = Record<string, JSONValue>;
 
+const SYNC_STATE_ID = 1;
+
 export class TursoStorage implements ServerStorage {
   private client: Client;
   private db: LibSQLDatabase<Record<string, never>>;
   private ready: Promise<void>;
-  private syncState: SyncState = {
-    status: 'idle',
-    lastSyncAt: null,
-    lastError: null,
-  };
+  private initError: string | null = null;
 
   constructor(options: TursoStorageOptions) {
     this.client = createClient({
@@ -54,9 +59,18 @@ export class TursoStorage implements ServerStorage {
   private async init(): Promise<void> {
     try {
       await migrate(this.db, { migrationsFolder: MIGRATIONS_FOLDER });
+      await this.db
+        .insert(syncState)
+        .values({
+          id: SYNC_STATE_ID,
+          status: 'idle',
+          last_sync_at: null,
+          last_error: null,
+        })
+        .onConflictDoNothing();
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      this.setSyncError(`init failed: ${message}`);
+      this.initError = `init failed: ${message}`;
       throw err;
     }
   }
@@ -535,28 +549,54 @@ export class TursoStorage implements ServerStorage {
     };
   }
 
-  getSyncState(): SyncState {
-    return { ...this.syncState };
-  }
-
-  setSyncing(): void {
-    this.syncState = { ...this.syncState, status: 'syncing' };
-  }
-
-  setSyncSuccess(): void {
-    this.syncState = {
-      status: 'idle',
-      lastSyncAt: new Date().toISOString(),
-      lastError: null,
+  async getSyncState(): Promise<SyncState> {
+    if (this.initError !== null) {
+      return { status: 'error', lastSyncAt: null, lastError: this.initError };
+    }
+    await this.ready;
+    const rows = await this.db
+      .select()
+      .from(syncState)
+      .where(eq(syncState.id, SYNC_STATE_ID))
+      .limit(1);
+    const r = rows[0];
+    if (!r) {
+      return { status: 'idle', lastSyncAt: null, lastError: null };
+    }
+    return {
+      status: r.status as SyncState['status'],
+      lastSyncAt: r.last_sync_at,
+      lastError: r.last_error,
     };
   }
 
-  setSyncError(error: string): void {
-    this.syncState = {
-      status: 'error',
-      lastSyncAt: this.syncState.lastSyncAt,
-      lastError: error,
-    };
+  async setSyncing(): Promise<boolean> {
+    await this.ready;
+    const result = await this.client.execute({
+      sql: "UPDATE sync_state SET status = 'syncing' WHERE id = ? AND status != 'syncing'",
+      args: [SYNC_STATE_ID],
+    });
+    return result.rowsAffected > 0;
+  }
+
+  async setSyncSuccess(): Promise<void> {
+    await this.ready;
+    await this.db
+      .update(syncState)
+      .set({
+        status: 'idle',
+        last_sync_at: new Date().toISOString(),
+        last_error: null,
+      })
+      .where(eq(syncState.id, SYNC_STATE_ID));
+  }
+
+  async setSyncError(error: string): Promise<void> {
+    await this.ready;
+    await this.db
+      .update(syncState)
+      .set({ status: 'error', last_error: error })
+      .where(eq(syncState.id, SYNC_STATE_ID));
   }
 
   async close(): Promise<void> {

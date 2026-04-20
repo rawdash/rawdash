@@ -216,15 +216,19 @@ export class InMemoryStorage implements ServerStorage {
     };
   }
 
-  getSyncState(): SyncState {
+  async getSyncState(): Promise<SyncState> {
     return { ...this.syncState };
   }
 
-  setSyncing(): void {
+  async setSyncing(): Promise<boolean> {
+    if (this.syncState.status === 'syncing') {
+      return false;
+    }
     this.syncState = { ...this.syncState, status: 'syncing' };
+    return true;
   }
 
-  setSyncSuccess(): void {
+  async setSyncSuccess(): Promise<void> {
     this.syncState = {
       status: 'idle',
       lastSyncAt: new Date().toISOString(),
@@ -232,7 +236,7 @@ export class InMemoryStorage implements ServerStorage {
     };
   }
 
-  setSyncError(error: string): void {
+  async setSyncError(error: string): Promise<void> {
     this.syncState = {
       status: 'error',
       lastSyncAt: this.syncState.lastSyncAt,

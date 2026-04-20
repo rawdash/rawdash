@@ -4,10 +4,10 @@ export type { ConnectorEntry, DashboardConfig } from '@rawdash/core';
 
 export interface ServerStorage {
   getStorageHandle(connectorId: string): StorageHandle;
-  getSyncState(): SyncState;
-  setSyncing(): void;
-  setSyncSuccess(): void;
-  setSyncError(error: string): void;
+  getSyncState(): Promise<SyncState>;
+  setSyncing(): Promise<boolean>;
+  setSyncSuccess(): Promise<void>;
+  setSyncError(error: string): Promise<void>;
 }
 
 export interface ServeOptions {

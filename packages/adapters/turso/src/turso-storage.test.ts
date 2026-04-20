@@ -245,17 +245,29 @@ describe('TursoStorage — isolation + sync state', () => {
     await s.close();
   });
 
-  it('tracks sync lifecycle', async () => {
+  it('sync state is durable across storage instances sharing a file', async () => {
+    const tmp = `/tmp/rawdash-sync-${Date.now()}-${Math.random()}.db`;
+    const s1 = new TursoStorage({ url: `file:${tmp}` });
+    expect(await s1.setSyncing()).toBe(true);
+    await s1.close();
+    const s2 = new TursoStorage({ url: `file:${tmp}` });
+    expect((await s2.getSyncState()).status).toBe('syncing');
+    expect(await s2.setSyncing()).toBe(false);
+    await s2.close();
+  });
+
+  it('tracks sync lifecycle with durable CAS lock', async () => {
     const s = makeStorage();
-    expect(s.getSyncState().status).toBe('idle');
-    s.setSyncing();
-    expect(s.getSyncState().status).toBe('syncing');
-    s.setSyncSuccess();
-    expect(s.getSyncState().status).toBe('idle');
-    expect(s.getSyncState().lastSyncAt).not.toBeNull();
-    s.setSyncError('boom');
-    expect(s.getSyncState().status).toBe('error');
-    expect(s.getSyncState().lastError).toBe('boom');
+    expect((await s.getSyncState()).status).toBe('idle');
+    expect(await s.setSyncing()).toBe(true);
+    expect((await s.getSyncState()).status).toBe('syncing');
+    expect(await s.setSyncing()).toBe(false);
+    await s.setSyncSuccess();
+    expect((await s.getSyncState()).status).toBe('idle');
+    expect((await s.getSyncState()).lastSyncAt).not.toBeNull();
+    await s.setSyncError('boom');
+    expect((await s.getSyncState()).status).toBe('error');
+    expect((await s.getSyncState()).lastError).toBe('boom');
     await s.close();
   });
 });

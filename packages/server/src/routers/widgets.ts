@@ -38,7 +38,7 @@ export class WidgetsRouter implements RawdashRouter {
       widgetId,
       connectorId,
       data,
-      cachedAt: this.storage.getSyncState().lastSyncAt,
+      cachedAt: (await this.storage.getSyncState()).lastSyncAt,
     };
   }
 
