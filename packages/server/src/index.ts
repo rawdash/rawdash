@@ -8,13 +8,13 @@ export { createServer } from './server';
 export { createEngineRouters } from './engine-router';
 export type { RawdashRouter } from './router';
 export type { SyncState, WidgetEntry } from '@rawdash/core';
-export type { DashboardConfig, ServeOptions } from './types';
+export type { DashboardConfig, ServeOptions, ServerStorage } from './types';
 
 export function serve(
   config: DashboardConfig,
   options: ServeOptions = {},
 ): void {
-  const { port = 8080 } = options;
-  const app = createServer(createEngineRouters(config));
+  const { port = 8080, storage } = options;
+  const app = createServer(createEngineRouters(config, storage));
   honoServe({ fetch: app.fetch, port });
 }

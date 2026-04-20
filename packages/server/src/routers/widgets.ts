@@ -3,12 +3,12 @@ import type { Hono } from 'hono';
 
 import { computeMetric } from '../compute';
 import type { RawdashRouter } from '../router';
-import type { InMemoryStorage } from '../storage';
+import type { ServerStorage } from '../types';
 
 export class WidgetsRouter implements RawdashRouter {
   constructor(
     private config: DashboardConfig,
-    private storage: InMemoryStorage,
+    private storage: ServerStorage,
   ) {}
 
   private async resolveWidget(
@@ -38,7 +38,7 @@ export class WidgetsRouter implements RawdashRouter {
       widgetId,
       connectorId,
       data,
-      cachedAt: this.storage.getSyncState().lastSyncAt,
+      cachedAt: (await this.storage.getSyncState()).lastSyncAt,
     };
   }
 

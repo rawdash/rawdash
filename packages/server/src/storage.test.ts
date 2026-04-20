@@ -371,17 +371,18 @@ describe('InMemoryStorage — distributions', () => {
 });
 
 describe('InMemoryStorage — sync state', () => {
-  it('tracks sync lifecycle', () => {
+  it('tracks sync lifecycle', async () => {
     const { storage } = makeStorage();
-    expect(storage.getSyncState().status).toBe('idle');
-    storage.setSyncing();
-    expect(storage.getSyncState().status).toBe('syncing');
-    storage.setSyncSuccess();
-    expect(storage.getSyncState().status).toBe('idle');
-    expect(storage.getSyncState().lastSyncAt).not.toBeNull();
-    storage.setSyncError('oops');
-    expect(storage.getSyncState().status).toBe('error');
-    expect(storage.getSyncState().lastError).toBe('oops');
+    expect((await storage.getSyncState()).status).toBe('idle');
+    expect(await storage.setSyncing()).toBe(true);
+    expect((await storage.getSyncState()).status).toBe('syncing');
+    expect(await storage.setSyncing()).toBe(false);
+    await storage.setSyncSuccess();
+    expect((await storage.getSyncState()).status).toBe('idle');
+    expect((await storage.getSyncState()).lastSyncAt).not.toBeNull();
+    await storage.setSyncError('oops');
+    expect((await storage.getSyncState()).status).toBe('error');
+    expect((await storage.getSyncState()).lastError).toBe('oops');
   });
 
   it('isolates connectors', async () => {

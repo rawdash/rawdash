@@ -13,7 +13,9 @@ import type {
   SyncState,
 } from '@rawdash/core';
 
-export class InMemoryStorage {
+import type { ServerStorage } from './types';
+
+export class InMemoryStorage implements ServerStorage {
   private eventStore = new Map<string, Event[]>();
   private entityStore = new Map<string, Map<string, Map<string, Entity>>>();
   private metricStore = new Map<string, Metric[]>();
@@ -214,15 +216,19 @@ export class InMemoryStorage {
     };
   }
 
-  getSyncState(): SyncState {
+  async getSyncState(): Promise<SyncState> {
     return { ...this.syncState };
   }
 
-  setSyncing(): void {
+  async setSyncing(): Promise<boolean> {
+    if (this.syncState.status === 'syncing') {
+      return false;
+    }
     this.syncState = { ...this.syncState, status: 'syncing' };
+    return true;
   }
 
-  setSyncSuccess(): void {
+  async setSyncSuccess(): Promise<void> {
     this.syncState = {
       status: 'idle',
       lastSyncAt: new Date().toISOString(),
@@ -230,7 +236,7 @@ export class InMemoryStorage {
     };
   }
 
-  setSyncError(error: string): void {
+  async setSyncError(error: string): Promise<void> {
     this.syncState = {
       status: 'error',
       lastSyncAt: this.syncState.lastSyncAt,
