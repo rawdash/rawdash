@@ -58,7 +58,9 @@ const WINDOW_MS: Record<string, number> = {
 
 function parseWindowMs(window: string): number | null {
   const match = /^(\d+)(h|d|w|m)$/.exec(window);
-  if (!match) {return null;}
+  if (!match) {
+    return null;
+  }
   return parseInt(match[1]!) * (WINDOW_MS[match[2]!] ?? 0);
 }
 
@@ -138,9 +140,13 @@ function computeGroupBy(
 
   for (const record of records) {
     const ts = record[field] as number | undefined;
-    if (ts === undefined || typeof ts !== 'number') {continue;}
+    if (ts === undefined || typeof ts !== 'number') {
+      continue;
+    }
     const key = truncateToGranularity(ts, granularity);
-    if (!groups.has(key)) {groups.set(key, []);}
+    if (!groups.has(key)) {
+      groups.set(key, []);
+    }
     groups.get(key)!.push(record);
   }
 
@@ -257,6 +263,7 @@ export async function computeMetric(
         name: d.name,
         ts: d.ts,
         kind: d.kind,
+        data: d.data,
         ...d.attributes,
       }));
       break;

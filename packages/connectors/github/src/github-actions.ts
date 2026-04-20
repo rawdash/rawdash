@@ -118,7 +118,9 @@ export class GitHubActionsConnector extends BaseConnector<
       }
       const data = (await res.json()) as GitHubRunsResponse;
       const runs = data.workflow_runs;
-      if (runs.length === 0) {break;}
+      if (runs.length === 0) {
+        break;
+      }
 
       for (const run of runs) {
         const createdMs = new Date(run.created_at).getTime();
@@ -171,9 +173,13 @@ export class GitHubActionsConnector extends BaseConnector<
         throw new Error(`GitHub API error: ${res.status} ${res.statusText}`);
       }
       const prs = (await res.json()) as GitHubPR[];
-      if (prs.length === 0) {break;}
+      if (prs.length === 0) {
+        break;
+      }
       allPRs.push(...prs);
-      if (prs.length < 100) {break;}
+      if (prs.length < 100) {
+        break;
+      }
       page++;
     }
 
@@ -193,16 +199,19 @@ export class GitHubActionsConnector extends BaseConnector<
     );
 
     const reviewEdges: Parameters<StorageHandle['edges']>[0] = [];
-    const reviewBatch = allPRs.slice(0, 20);
-    for (const pr of reviewBatch) {
+    for (const pr of allPRs) {
       const res = await fetch(
         `https://api.github.com/repos/${owner}/${repo}/pulls/${pr.number}/reviews`,
         { headers },
       );
-      if (!res.ok) {continue;}
+      if (!res.ok) {
+        continue;
+      }
       const reviews = (await res.json()) as GitHubReview[];
       for (const review of reviews) {
-        if (!review.user) {continue;}
+        if (!review.user) {
+          continue;
+        }
         reviewEdges.push({
           from_type: 'pull_request',
           from_id: String(pr.number),

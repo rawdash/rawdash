@@ -48,10 +48,13 @@ export class InMemoryStorage {
       const index = new Map<string, number>();
       for (let i = 0; i < existing.length; i++) {
         const e = existing[i]!;
-        index.set(`${e.from_type}:${e.from_id}:${e.kind}:${e.to_id}`, i);
+        index.set(
+          `${e.from_type}:${e.from_id}:${e.kind}:${e.to_type}:${e.to_id}`,
+          i,
+        );
       }
       for (const e of es) {
-        const key = `${e.from_type}:${e.from_id}:${e.kind}:${e.to_id}`;
+        const key = `${e.from_type}:${e.from_id}:${e.kind}:${e.to_type}:${e.to_id}`;
         const idx = index.get(key);
         if (idx !== undefined) {
           existing[idx] = e;
@@ -98,7 +101,11 @@ export class InMemoryStorage {
       },
 
       entities: async (es) => {
-        this.entityStore.set(connectorId, new Map());
+        const byType = getEntityMap();
+        const typesInBatch = new Set(es.map((e) => e.type));
+        for (const type of typesInBatch) {
+          byType.set(type, new Map());
+        }
         upsertEntities(es);
       },
 
@@ -135,7 +142,9 @@ export class InMemoryStorage {
 
       queryEntities: async (q: EntityQuery) => {
         const byType = getEntityMap().get(q.type);
-        if (!byType) {return [];}
+        if (!byType) {
+          return [];
+        }
         return Array.from(byType.values());
       },
 

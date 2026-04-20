@@ -111,6 +111,23 @@ describe('InMemoryStorage — entities', () => {
     expect(results[0]!.id).toBe('2');
   });
 
+  it('entities() preserves entity types not in the batch', async () => {
+    const { handle } = makeStorage();
+    await handle.entity({
+      type: 'user',
+      id: 'alice',
+      attributes: {},
+      updated_at: 1000,
+    });
+    await handle.entities([
+      { type: 'pr', id: '1', attributes: {}, updated_at: 2000 },
+    ]);
+    const users = await handle.queryEntities({ type: 'user' });
+    expect(users).toHaveLength(1);
+    const prs = await handle.queryEntities({ type: 'pr' });
+    expect(prs).toHaveLength(1);
+  });
+
   it('getEntity returns correct entity', async () => {
     const { handle } = makeStorage();
     await handle.entity({
