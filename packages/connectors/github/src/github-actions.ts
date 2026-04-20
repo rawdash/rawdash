@@ -231,8 +231,6 @@ export class GitHubActionsConnector extends BaseConnector<
 
   async sync(request: SyncRequest, storage: StorageHandle): Promise<void> {
     await this.syncWorkflowRuns(storage, request);
-    if (request.mode === 'full') {
-      await this.syncPullRequests(storage);
-    }
+    await this.syncPullRequests(storage);
   }
 }

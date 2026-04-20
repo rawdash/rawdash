@@ -61,7 +61,11 @@ function parseWindowMs(window: string): number | null {
   if (!match) {
     return null;
   }
-  return parseInt(match[1]!) * (WINDOW_MS[match[2]!] ?? 0);
+  const unitMs = WINDOW_MS[match[2]!];
+  if (unitMs === undefined) {
+    return null;
+  }
+  return parseInt(match[1]!) * unitMs;
 }
 
 function truncateToGranularity(ts: number, granularity: string): string {
@@ -101,9 +105,16 @@ function computeAgg(
   if (fn === 'first') {
     return records[0]?.[field] ?? null;
   }
-  const numbers = records
+  const values = records
     .map((r) => r[field])
-    .filter((v): v is number => typeof v === 'number');
+    .filter((v) => v !== undefined && v !== null);
+  const nonNumeric = values.find((v) => typeof v !== 'number');
+  if (nonNumeric !== undefined) {
+    throw new Error(
+      `computeAgg: fn "${fn}" requires numeric values for field "${field}", got ${typeof nonNumeric} (${String(nonNumeric)})`,
+    );
+  }
+  const numbers = values as number[];
   if (fn === 'sum') {
     return numbers.reduce((a, b) => a + b, 0);
   }
@@ -183,13 +194,8 @@ export async function computeMetric(
 ): Promise<unknown> {
   const tsField = getTimestampField(metric.shape);
 
-  const windowStart =
-    metric.window !== null && metric.window !== undefined
-      ? (() => {
-          const ms = parseWindowMs(metric.window);
-          return ms !== null ? Date.now() - ms : undefined;
-        })()
-      : undefined;
+  const windowMs = metric.window ? parseWindowMs(metric.window) : null;
+  const windowStart = windowMs !== null ? Date.now() - windowMs : undefined;
 
   let records: Record<string, unknown>[];
 
@@ -200,10 +206,10 @@ export async function computeMetric(
         start: windowStart,
       });
       records = events.map((e) => ({
+        ...e.attributes,
         name: e.name,
         start_ts: e.start_ts,
         end_ts: e.end_ts,
-        ...e.attributes,
       }));
       break;
     }
@@ -212,10 +218,10 @@ export async function computeMetric(
       const type = metric.entityType ?? metric.name ?? '';
       const entities = await storage.queryEntities({ type });
       records = entities.map((e) => ({
+        ...e.attributes,
         type: e.type,
         id: e.id,
         updated_at: e.updated_at,
-        ...e.attributes,
       }));
       if (windowStart !== undefined) {
         records = records.filter((r) => (r[tsField] as number) >= windowStart);
@@ -229,24 +235,24 @@ export async function computeMetric(
         start: windowStart,
       });
       records = metrics.map((m) => ({
+        ...m.attributes,
         name: m.name,
         ts: m.ts,
         value: m.value,
-        ...m.attributes,
       }));
       break;
     }
 
     case 'edge': {
-      const edges = await storage.traverse({});
+      const edges = await storage.traverse({ kind: metric.name });
       records = edges.map((e) => ({
+        ...e.attributes,
         from_type: e.from_type,
         from_id: e.from_id,
         kind: e.kind,
         to_type: e.to_type,
         to_id: e.to_id,
         updated_at: e.updated_at,
-        ...e.attributes,
       }));
       if (windowStart !== undefined) {
         records = records.filter((r) => (r[tsField] as number) >= windowStart);
@@ -260,11 +266,11 @@ export async function computeMetric(
         start: windowStart,
       });
       records = distributions.map((d) => ({
+        ...d.attributes,
         name: d.name,
         ts: d.ts,
         kind: d.kind,
         data: d.data,
-        ...d.attributes,
       }));
       break;
     }

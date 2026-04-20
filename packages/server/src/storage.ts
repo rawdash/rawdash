@@ -97,7 +97,11 @@ export class InMemoryStorage {
       },
 
       events: async (es) => {
-        this.eventStore.set(connectorId, [...es]);
+        const namesInBatch = new Set(es.map((e) => e.name));
+        const kept = (this.eventStore.get(connectorId) ?? []).filter(
+          (e) => !namesInBatch.has(e.name),
+        );
+        this.eventStore.set(connectorId, [...kept, ...es]);
       },
 
       entities: async (es) => {
@@ -110,16 +114,28 @@ export class InMemoryStorage {
       },
 
       metrics: async (ms) => {
-        this.metricStore.set(connectorId, [...ms]);
+        const namesInBatch = new Set(ms.map((m) => m.name));
+        const kept = (this.metricStore.get(connectorId) ?? []).filter(
+          (m) => !namesInBatch.has(m.name),
+        );
+        this.metricStore.set(connectorId, [...kept, ...ms]);
       },
 
       edges: async (es) => {
-        this.edgeStore.set(connectorId, []);
+        const kindsInBatch = new Set(es.map((e) => e.kind));
+        const kept = (this.edgeStore.get(connectorId) ?? []).filter(
+          (e) => !kindsInBatch.has(e.kind),
+        );
+        this.edgeStore.set(connectorId, kept);
         upsertEdges(es);
       },
 
       distributions: async (ds) => {
-        this.distributionStore.set(connectorId, [...ds]);
+        const namesInBatch = new Set(ds.map((d) => d.name));
+        const kept = (this.distributionStore.get(connectorId) ?? []).filter(
+          (d) => !namesInBatch.has(d.name),
+        );
+        this.distributionStore.set(connectorId, [...kept, ...ds]);
       },
 
       queryEvents: async (q: EventQuery) => {

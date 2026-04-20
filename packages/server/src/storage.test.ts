@@ -53,6 +53,20 @@ describe('InMemoryStorage — events', () => {
     expect(results[0]!.name).toBe('run');
   });
 
+  it('events() preserves other names across calls', async () => {
+    const { handle } = makeStorage();
+    await handle.events([
+      { name: 'run', start_ts: 1000, end_ts: null, attributes: {} },
+    ]);
+    await handle.events([
+      { name: 'deploy', start_ts: 2000, end_ts: null, attributes: {} },
+    ]);
+    const runs = await handle.queryEvents({ name: 'run' });
+    const deploys = await handle.queryEvents({ name: 'deploy' });
+    expect(runs).toHaveLength(1);
+    expect(deploys).toHaveLength(1);
+  });
+
   it('filters by start window', async () => {
     const { handle } = makeStorage();
     await handle.events([
@@ -183,6 +197,62 @@ describe('InMemoryStorage — edges', () => {
     const results = await handle.traverse({ fromId: '1', kind: 'reviewed_by' });
     expect(results).toHaveLength(1);
     expect(results[0]!.attributes['state']).toBe('APPROVED');
+  });
+
+  it('edges() preserves other kinds across calls', async () => {
+    const { handle } = makeStorage();
+    await handle.edges([
+      {
+        from_type: 'pr',
+        from_id: '1',
+        kind: 'reviewed_by',
+        to_type: 'user',
+        to_id: 'alice',
+        attributes: {},
+        updated_at: 1000,
+      },
+    ]);
+    await handle.edges([
+      {
+        from_type: 'pr',
+        from_id: '1',
+        kind: 'labeled',
+        to_type: 'label',
+        to_id: 'bug',
+        attributes: {},
+        updated_at: 1000,
+      },
+    ]);
+    const reviews = await handle.traverse({ kind: 'reviewed_by' });
+    const labels = await handle.traverse({ kind: 'labeled' });
+    expect(reviews).toHaveLength(1);
+    expect(labels).toHaveLength(1);
+  });
+
+  it('edges() upserts existing keys with to_type distinct', async () => {
+    const { handle } = makeStorage();
+    await handle.edges([
+      {
+        from_type: 'pr',
+        from_id: '1',
+        kind: 'reviewed_by',
+        to_type: 'user',
+        to_id: 'alice',
+        attributes: { state: 'PENDING' },
+        updated_at: 1000,
+      },
+      {
+        from_type: 'pr',
+        from_id: '1',
+        kind: 'reviewed_by',
+        to_type: 'team',
+        to_id: 'alice',
+        attributes: { state: 'REQUESTED' },
+        updated_at: 1000,
+      },
+    ]);
+    const all = await handle.traverse({ kind: 'reviewed_by' });
+    expect(all).toHaveLength(2);
   });
 
   it('traverses by kind', async () => {
