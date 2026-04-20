@@ -18,8 +18,12 @@ import type { ServerStorage } from '@rawdash/server';
 import { and, eq, gte, inArray, lte } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import { type LibSQLDatabase, drizzle } from 'drizzle-orm/libsql';
+import { migrate } from 'drizzle-orm/libsql/migrator';
+import { fileURLToPath } from 'node:url';
 
-import { DDL, distributions, edges, entities, events, metrics } from './schema';
+import { distributions, edges, entities, events, metrics } from './schema';
+
+const MIGRATIONS_FOLDER = fileURLToPath(new URL('../drizzle', import.meta.url));
 
 export interface TursoStorageOptions {
   url: string;
@@ -48,9 +52,7 @@ export class TursoStorage implements ServerStorage {
   }
 
   private async init(): Promise<void> {
-    for (const stmt of DDL) {
-      await this.client.execute(stmt);
-    }
+    await migrate(this.db, { migrationsFolder: MIGRATIONS_FOLDER });
   }
 
   getStorageHandle(connectorId: string): StorageHandle {

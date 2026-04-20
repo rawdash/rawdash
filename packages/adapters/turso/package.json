@@ -10,11 +10,16 @@
       "import": "./dist/index.js"
     }
   },
+  "files": [
+    "dist",
+    "drizzle"
+  ],
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
-    "test": "vitest run"
+    "test": "vitest run",
+    "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
     "@libsql/client": "^0.14.0",
@@ -23,6 +28,8 @@
     "drizzle-orm": "^0.38.4"
   },
   "devDependencies": {
+    "@types/node": "^22.19.17",
+    "drizzle-kit": "^0.31.10",
     "tsup": "^8.0.0",
     "typescript": "^5.7.2",
     "vitest": "^4.1.4"
