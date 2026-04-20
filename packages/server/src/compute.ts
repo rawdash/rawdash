@@ -1,4 +1,4 @@
-import type { ResolvedMetric } from '@rawdash/core';
+import type { ResolvedMetric, StorageHandle } from '@rawdash/core';
 
 type FilterClause = NonNullable<ResolvedMetric['filter']>[number];
 type FilterCondition = Exclude<FilterClause, { or: unknown[] }>;
@@ -56,36 +56,20 @@ const WINDOW_MS: Record<string, number> = {
   m: 2_592_000_000,
 };
 
-function applyWindow(
-  records: Record<string, unknown>[],
-  metric: ResolvedMetric,
-  fields: Record<string, { type: string }>,
-): Record<string, unknown>[] {
-  if (!metric.window) {
-    return records;
-  }
-  const match = /^(\d+)(h|d|w|m)$/.exec(metric.window);
+function parseWindowMs(window: string): number | null {
+  const match = /^(\d+)(h|d|w|m)$/.exec(window);
   if (!match) {
-    return records;
+    return null;
   }
-  const ms = parseInt(match[1]!) * (WINDOW_MS[match[2]!] ?? 0);
-  const cutoff = Date.now() - ms;
-
-  const timestampField =
-    (fields[metric.field]?.type === 'timestamp' ? metric.field : undefined) ??
-    metric.groupBy?.field ??
-    Object.entries(fields).find(([, f]) => f.type === 'timestamp')?.[0];
-  if (!timestampField) {
-    return records;
+  const unitMs = WINDOW_MS[match[2]!];
+  if (unitMs === undefined) {
+    return null;
   }
-
-  return records.filter(
-    (r) => new Date(r[timestampField] as string).getTime() >= cutoff,
-  );
+  return parseInt(match[1]!) * unitMs;
 }
 
-function truncateToGranularity(date: Date, granularity: string): string {
-  const d = new Date(date);
+function truncateToGranularity(ts: number, granularity: string): string {
+  const d = new Date(ts);
   switch (granularity) {
     case 'hour':
       d.setUTCMinutes(0, 0, 0);
@@ -121,9 +105,16 @@ function computeAgg(
   if (fn === 'first') {
     return records[0]?.[field] ?? null;
   }
-  const numbers = records
+  const values = records
     .map((r) => r[field])
-    .filter((v): v is number => typeof v === 'number');
+    .filter((v) => v !== undefined && v !== null);
+  const nonNumeric = values.find((v) => typeof v !== 'number');
+  if (nonNumeric !== undefined) {
+    throw new Error(
+      `computeAgg: fn "${fn}" requires numeric values for field "${field}", got ${typeof nonNumeric} (${String(nonNumeric)})`,
+    );
+  }
+  const numbers = values as number[];
   if (fn === 'sum') {
     return numbers.reduce((a, b) => a + b, 0);
   }
@@ -141,30 +132,29 @@ function computeAgg(
   return null;
 }
 
-function sortByTimestamp(
+function sortByTs(
   records: Record<string, unknown>[],
-  timestampField: string,
+  tsField: string,
 ): Record<string, unknown>[] {
   return [...records].sort((a, b) => {
-    const ta = new Date(a[timestampField] as string).getTime();
-    const tb = new Date(b[timestampField] as string).getTime();
-    return ta - tb;
+    return (a[tsField] as number) - (b[tsField] as number);
   });
 }
 
 function computeGroupBy(
   records: Record<string, unknown>[],
   metric: ResolvedMetric,
+  tsField: string,
 ): unknown {
   const { field, granularity } = metric.groupBy!;
   const groups = new Map<string, Record<string, unknown>[]>();
 
   for (const record of records) {
-    const d = new Date(record[field] as string);
-    if (isNaN(d.getTime())) {
+    const ts = record[field] as number | undefined;
+    if (ts === undefined || typeof ts !== 'number') {
       continue;
     }
-    const key = truncateToGranularity(d, granularity);
+    const key = truncateToGranularity(ts, granularity);
     if (!groups.has(key)) {
       groups.set(key, []);
     }
@@ -173,34 +163,127 @@ function computeGroupBy(
 
   return [...groups.entries()]
     .map(([key, groupRecords]) => ({
-      [field]: key,
+      date: key,
       value: computeAgg(
-        sortByTimestamp(groupRecords, field),
+        sortByTs(groupRecords, tsField),
         metric.field,
         metric.fn,
       ),
     }))
-    .sort((a, b) => (String(a[field]) < String(b[field]) ? -1 : 1));
+    .sort((a, b) => (a.date < b.date ? -1 : 1));
 }
 
-export function computeMetric(
-  records: Record<string, unknown>[],
-  metric: ResolvedMetric,
-  fields: Record<string, { type: string }>,
-): unknown {
-  const windowed = applyWindow(records, metric, fields);
-  const filtered = windowed.filter((r) => applyFilter(r, metric.filter));
+function getTimestampField(shape: string): string {
+  switch (shape) {
+    case 'event':
+      return 'start_ts';
+    case 'metric':
+    case 'distribution':
+      return 'ts';
+    case 'entity':
+    case 'edge':
+      return 'updated_at';
+    default:
+      return 'start_ts';
+  }
+}
 
-  const timestampField =
-    (fields[metric.field]?.type === 'timestamp' ? metric.field : undefined) ??
-    metric.groupBy?.field ??
-    Object.entries(fields).find(([, f]) => f.type === 'timestamp')?.[0];
-  const sorted = timestampField
-    ? sortByTimestamp(filtered, timestampField)
-    : filtered;
+export async function computeMetric(
+  storage: StorageHandle,
+  metric: ResolvedMetric,
+): Promise<unknown> {
+  const tsField = getTimestampField(metric.shape);
+
+  const windowMs = metric.window ? parseWindowMs(metric.window) : null;
+  const windowStart = windowMs !== null ? Date.now() - windowMs : undefined;
+
+  let records: Record<string, unknown>[];
+
+  switch (metric.shape) {
+    case 'event': {
+      const events = await storage.queryEvents({
+        name: metric.name,
+        start: windowStart,
+      });
+      records = events.map((e) => ({
+        ...e.attributes,
+        name: e.name,
+        start_ts: e.start_ts,
+        end_ts: e.end_ts,
+      }));
+      break;
+    }
+
+    case 'entity': {
+      const type = metric.entityType ?? metric.name ?? '';
+      const entities = await storage.queryEntities({ type });
+      records = entities.map((e) => ({
+        ...e.attributes,
+        type: e.type,
+        id: e.id,
+        updated_at: e.updated_at,
+      }));
+      if (windowStart !== undefined) {
+        records = records.filter((r) => (r[tsField] as number) >= windowStart);
+      }
+      break;
+    }
+
+    case 'metric': {
+      const metrics = await storage.queryMetrics({
+        name: metric.name,
+        start: windowStart,
+      });
+      records = metrics.map((m) => ({
+        ...m.attributes,
+        name: m.name,
+        ts: m.ts,
+        value: m.value,
+      }));
+      break;
+    }
+
+    case 'edge': {
+      const edges = await storage.traverse({ kind: metric.name });
+      records = edges.map((e) => ({
+        ...e.attributes,
+        from_type: e.from_type,
+        from_id: e.from_id,
+        kind: e.kind,
+        to_type: e.to_type,
+        to_id: e.to_id,
+        updated_at: e.updated_at,
+      }));
+      if (windowStart !== undefined) {
+        records = records.filter((r) => (r[tsField] as number) >= windowStart);
+      }
+      break;
+    }
+
+    case 'distribution': {
+      const distributions = await storage.queryDistributions({
+        name: metric.name,
+        start: windowStart,
+      });
+      records = distributions.map((d) => ({
+        ...d.attributes,
+        name: d.name,
+        ts: d.ts,
+        kind: d.kind,
+        data: d.data,
+      }));
+      break;
+    }
+
+    default:
+      return null;
+  }
+
+  const filtered = records.filter((r) => applyFilter(r, metric.filter));
+  const sorted = sortByTs(filtered, tsField);
 
   if (metric.groupBy) {
-    return computeGroupBy(sorted, metric);
+    return computeGroupBy(sorted, metric, tsField);
   }
 
   return computeAgg(sorted, metric.field, metric.fn);

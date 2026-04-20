@@ -4,7 +4,7 @@ import type { Hono } from 'hono';
 import type { RawdashRouter } from '../router';
 import type { InMemoryStorage } from '../storage';
 
-const SYNC_TIMEOUT_MS = 30_000;
+const FULL_SYNC_TIMEOUT_MS = 300_000;
 
 export class SyncRouter implements RawdashRouter {
   constructor(
@@ -12,23 +12,16 @@ export class SyncRouter implements RawdashRouter {
     private storage: InMemoryStorage,
   ) {}
 
-  private getResourcesForConnector(connectorId: string): Set<string> {
-    const resources = new Set<string>();
-    for (const widget of Object.values(this.config.widgets)) {
-      if (widget.metric.connectorId === connectorId) {
-        resources.add(widget.metric.resource);
-      }
-    }
-    return resources;
-  }
-
-  private async withTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
+  private async withTimeout<T>(
+    promise: Promise<T>,
+    label: string,
+    timeoutMs: number,
+  ): Promise<T> {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<never>((_, reject) => {
       timer = setTimeout(
-        () =>
-          reject(new Error(`${label} timed out after ${SYNC_TIMEOUT_MS}ms`)),
-        SYNC_TIMEOUT_MS,
+        () => reject(new Error(`${label} timed out after ${timeoutMs}ms`)),
+        timeoutMs,
       );
     });
     try {
@@ -48,17 +41,15 @@ export class SyncRouter implements RawdashRouter {
     const errors: string[] = [];
     const results = await Promise.allSettled(
       this.config.connectors.map(async ({ connector }) => {
-        const resources = this.getResourcesForConnector(connector.id);
         const handle = this.storage.getStorageHandle(connector.id);
-        for (const resource of resources) {
-          try {
-            await this.withTimeout(
-              connector.sync({ resource, mode: 'full' }, handle),
-              `${connector.id}/${resource}`,
-            );
-          } catch (err) {
-            errors.push(err instanceof Error ? err.message : String(err));
-          }
+        try {
+          await this.withTimeout(
+            connector.sync({ mode: 'full' }, handle),
+            connector.id,
+            FULL_SYNC_TIMEOUT_MS,
+          );
+        } catch (err) {
+          errors.push(err instanceof Error ? err.message : String(err));
         }
       }),
     );

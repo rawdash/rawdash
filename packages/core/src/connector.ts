@@ -1,16 +1,135 @@
-export type FieldType = 'string' | 'number' | 'boolean' | 'timestamp';
+export type JSONValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JSONValue[]
+  | { [key: string]: JSONValue };
 
-export interface Field {
-  type: FieldType;
-  auth?: 'none' | 'optional' | 'required';
+// ---------------------------------------------------------------------------
+// Five storage shapes
+// ---------------------------------------------------------------------------
+
+export interface Event {
+  name: string;
+  start_ts: number;
+  end_ts: number | null;
+  attributes: Record<string, JSONValue>;
 }
 
-export interface Resource {
-  fields: Record<string, Field>;
-  auth?: 'none' | 'optional' | 'required';
+export interface Entity {
+  type: string;
+  id: string;
+  attributes: Record<string, JSONValue>;
+  updated_at: number;
 }
 
-export type ConnectorResources = Record<string, Resource>;
+export interface Metric {
+  name: string;
+  ts: number;
+  value: number;
+  attributes: Record<string, JSONValue>;
+}
+
+export interface Edge {
+  from_type: string;
+  from_id: string;
+  kind: string;
+  to_type: string;
+  to_id: string;
+  attributes: Record<string, JSONValue>;
+  updated_at: number;
+}
+
+export type Distribution =
+  | {
+      name: string;
+      ts: number;
+      kind: 'histogram';
+      data: {
+        buckets: Array<{ le: number; count: number }>;
+        count: number;
+        sum: number;
+      };
+      attributes: Record<string, JSONValue>;
+    }
+  | {
+      name: string;
+      ts: number;
+      kind: 'summary';
+      data: {
+        quantiles: Array<{ q: number; value: number }>;
+        count: number;
+        sum: number;
+      };
+      attributes: Record<string, JSONValue>;
+    };
+
+// ---------------------------------------------------------------------------
+// Storage query types
+// ---------------------------------------------------------------------------
+
+export interface EventQuery {
+  name?: string;
+  start?: number;
+  end?: number;
+}
+
+export interface EntityQuery {
+  type: string;
+}
+
+export interface MetricQuery {
+  name?: string;
+  start?: number;
+  end?: number;
+}
+
+export interface EdgeQuery {
+  fromType?: string;
+  fromId?: string;
+  kind?: string;
+  toType?: string;
+  toId?: string;
+}
+
+export interface DistributionQuery {
+  name?: string;
+  start?: number;
+  end?: number;
+}
+
+// ---------------------------------------------------------------------------
+// StorageHandle — write and read surface
+// ---------------------------------------------------------------------------
+
+export interface StorageHandle {
+  event(e: Event): Promise<void>;
+  entity(e: Entity): Promise<void>;
+  metric(m: Metric): Promise<void>;
+  edge(e: Edge): Promise<void>;
+  distribution(d: Distribution): Promise<void>;
+
+  events(es: Event[], scope?: { names?: string[] }): Promise<void>;
+  entities(es: Entity[], scope?: { types?: string[] }): Promise<void>;
+  metrics(ms: Metric[], scope?: { names?: string[] }): Promise<void>;
+  edges(es: Edge[], scope?: { kinds?: string[] }): Promise<void>;
+  distributions(
+    ds: Distribution[],
+    scope?: { names?: string[] },
+  ): Promise<void>;
+
+  queryEvents(q: EventQuery): Promise<Event[]>;
+  getEntity(type: string, id: string): Promise<Entity | null>;
+  queryEntities(q: EntityQuery): Promise<Entity[]>;
+  queryMetrics(q: MetricQuery): Promise<Metric[]>;
+  traverse(q: EdgeQuery): Promise<Edge[]>;
+  queryDistributions(q: DistributionQuery): Promise<Distribution[]>;
+}
+
+// ---------------------------------------------------------------------------
+// Credentials
+// ---------------------------------------------------------------------------
 
 export interface CredentialEntry {
   description: string;
@@ -25,35 +144,17 @@ export type InferCredentials<TCreds extends CredentialSchema> = {
     : string | undefined;
 };
 
-export type InferFieldValue<TField extends Field> = TField extends {
-  type: 'string';
-}
-  ? string
-  : TField extends { type: 'number' }
-    ? number
-    : TField extends { type: 'boolean' }
-      ? boolean
-      : TField extends { type: 'timestamp' }
-        ? string
-        : never;
-
-export type InferRecord<TResource extends Resource> = {
-  [K in keyof TResource['fields']]: InferFieldValue<TResource['fields'][K]>;
-};
+// ---------------------------------------------------------------------------
+// Sync + Connector
+// ---------------------------------------------------------------------------
 
 export interface SyncRequest {
-  resource: string;
   mode: 'full' | 'latest';
   since?: string;
 }
 
-export interface StorageHandle {
-  upsert(resource: string, records: Record<string, unknown>[]): Promise<void>;
-}
-
 export interface Connector {
   readonly id: string;
-  readonly resources: ConnectorResources;
   readonly credentials?: CredentialSchema;
   sync(request: SyncRequest, storage: StorageHandle): Promise<void>;
 }
@@ -63,7 +164,6 @@ export abstract class BaseConnector<
   TCreds extends CredentialSchema = CredentialSchema,
 > implements Connector {
   abstract readonly id: string;
-  abstract readonly resources: ConnectorResources;
   readonly credentials?: TCreds;
 
   protected settings: TSettings;
@@ -79,11 +179,9 @@ export abstract class BaseConnector<
 
 export function defineConnector<TSettings>() {
   return function <
-    TResources extends ConnectorResources,
     TCreds extends CredentialSchema = Record<string, never>,
   >(def: {
     id: string;
-    resources: TResources;
     credentials?: TCreds;
     sync: (
       this: { settings: TSettings; creds: InferCredentials<TCreds> },
@@ -91,21 +189,15 @@ export function defineConnector<TSettings>() {
       storage: StorageHandle,
     ) => Promise<void>;
   }): {
-    new (
-      settings: TSettings,
-      creds?: InferCredentials<TCreds>,
-    ): Connector & { readonly resources: TResources };
+    new (settings: TSettings, creds?: InferCredentials<TCreds>): Connector;
     readonly id: string;
-    readonly resources: TResources;
     readonly credentials: TCreds | undefined;
   } {
     class DynamicConnector extends BaseConnector<TSettings, TCreds> {
       static readonly id = def.id;
-      static readonly resources = def.resources;
       static readonly credentials = def.credentials;
 
       readonly id = def.id;
-      readonly resources = def.resources;
       override readonly credentials = def.credentials;
 
       async sync(request: SyncRequest, storage: StorageHandle): Promise<void> {
@@ -118,12 +210,8 @@ export function defineConnector<TSettings>() {
     }
 
     return DynamicConnector as unknown as {
-      new (
-        settings: TSettings,
-        creds?: InferCredentials<TCreds>,
-      ): Connector & { readonly resources: TResources };
+      new (settings: TSettings, creds?: InferCredentials<TCreds>): Connector;
       readonly id: string;
-      readonly resources: TResources;
       readonly credentials: TCreds | undefined;
     };
   };
