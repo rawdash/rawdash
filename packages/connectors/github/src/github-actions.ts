@@ -155,7 +155,7 @@ export class GitHubActionsConnector extends BaseConnector<
       page++;
     }
 
-    await storage.events(allEvents);
+    await storage.events(allEvents, { names: ['workflow_run'] });
   }
 
   private async syncPullRequests(storage: StorageHandle): Promise<void> {
@@ -196,6 +196,7 @@ export class GitHubActionsConnector extends BaseConnector<
         },
         updated_at: new Date(pr.updated_at).getTime(),
       })),
+      { types: ['pull_request'] },
     );
 
     const reviewEdges: Parameters<StorageHandle['edges']>[0] = [];
@@ -205,7 +206,9 @@ export class GitHubActionsConnector extends BaseConnector<
         { headers },
       );
       if (!res.ok) {
-        continue;
+        throw new Error(
+          `GitHub API error fetching reviews for PR #${pr.number}: ${res.status} ${res.statusText}`,
+        );
       }
       const reviews = (await res.json()) as GitHubReview[];
       for (const review of reviews) {
@@ -226,7 +229,7 @@ export class GitHubActionsConnector extends BaseConnector<
       }
     }
 
-    await storage.edges(reviewEdges);
+    await storage.edges(reviewEdges, { kinds: ['reviewed_by'] });
   }
 
   async sync(request: SyncRequest, storage: StorageHandle): Promise<void> {

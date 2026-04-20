@@ -104,11 +104,14 @@ export interface StorageHandle {
   edge(e: Edge): Promise<void>;
   distribution(d: Distribution): Promise<void>;
 
-  events(es: Event[]): Promise<void>;
-  entities(es: Entity[]): Promise<void>;
-  metrics(ms: Metric[]): Promise<void>;
-  edges(es: Edge[]): Promise<void>;
-  distributions(ds: Distribution[]): Promise<void>;
+  events(es: Event[], scope?: { names?: string[] }): Promise<void>;
+  entities(es: Entity[], scope?: { types?: string[] }): Promise<void>;
+  metrics(ms: Metric[], scope?: { names?: string[] }): Promise<void>;
+  edges(es: Edge[], scope?: { kinds?: string[] }): Promise<void>;
+  distributions(
+    ds: Distribution[],
+    scope?: { names?: string[] },
+  ): Promise<void>;
 
   queryEvents(q: EventQuery): Promise<Event[]>;
   getEntity(type: string, id: string): Promise<Entity | null>;

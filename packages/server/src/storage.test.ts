@@ -53,6 +53,19 @@ describe('InMemoryStorage — events', () => {
     expect(results[0]!.name).toBe('run');
   });
 
+  it('events([], { names }) clears the named scope', async () => {
+    const { handle } = makeStorage();
+    await handle.events([
+      { name: 'run', start_ts: 1000, end_ts: null, attributes: {} },
+      { name: 'deploy', start_ts: 2000, end_ts: null, attributes: {} },
+    ]);
+    await handle.events([], { names: ['run'] });
+    const runs = await handle.queryEvents({ name: 'run' });
+    const deploys = await handle.queryEvents({ name: 'deploy' });
+    expect(runs).toHaveLength(0);
+    expect(deploys).toHaveLength(1);
+  });
+
   it('events() preserves other names across calls', async () => {
     const { handle } = makeStorage();
     await handle.events([
@@ -123,6 +136,27 @@ describe('InMemoryStorage — entities', () => {
     const results = await handle.queryEntities({ type: 'pr' });
     expect(results).toHaveLength(1);
     expect(results[0]!.id).toBe('2');
+  });
+
+  it('entities([], { types }) clears the type scope', async () => {
+    const { handle } = makeStorage();
+    await handle.entity({
+      type: 'pr',
+      id: '1',
+      attributes: {},
+      updated_at: 1000,
+    });
+    await handle.entity({
+      type: 'user',
+      id: 'alice',
+      attributes: {},
+      updated_at: 1000,
+    });
+    await handle.entities([], { types: ['pr'] });
+    const prs = await handle.queryEntities({ type: 'pr' });
+    const users = await handle.queryEntities({ type: 'user' });
+    expect(prs).toHaveLength(0);
+    expect(users).toHaveLength(1);
   });
 
   it('entities() preserves entity types not in the batch', async () => {
@@ -197,6 +231,35 @@ describe('InMemoryStorage — edges', () => {
     const results = await handle.traverse({ fromId: '1', kind: 'reviewed_by' });
     expect(results).toHaveLength(1);
     expect(results[0]!.attributes['state']).toBe('APPROVED');
+  });
+
+  it('edges([], { kinds }) clears the kind scope', async () => {
+    const { handle } = makeStorage();
+    await handle.edges([
+      {
+        from_type: 'pr',
+        from_id: '1',
+        kind: 'reviewed_by',
+        to_type: 'user',
+        to_id: 'alice',
+        attributes: {},
+        updated_at: 1000,
+      },
+      {
+        from_type: 'pr',
+        from_id: '1',
+        kind: 'labeled',
+        to_type: 'label',
+        to_id: 'bug',
+        attributes: {},
+        updated_at: 1000,
+      },
+    ]);
+    await handle.edges([], { kinds: ['reviewed_by'] });
+    const reviews = await handle.traverse({ kind: 'reviewed_by' });
+    const labels = await handle.traverse({ kind: 'labeled' });
+    expect(reviews).toHaveLength(0);
+    expect(labels).toHaveLength(1);
   });
 
   it('edges() preserves other kinds across calls', async () => {

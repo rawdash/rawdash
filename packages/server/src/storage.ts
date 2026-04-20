@@ -96,44 +96,44 @@ export class InMemoryStorage {
         this.distributionStore.get(connectorId)!.push(d);
       },
 
-      events: async (es) => {
-        const namesInBatch = new Set(es.map((e) => e.name));
+      events: async (es, scope) => {
+        const names = new Set(scope?.names ?? es.map((e) => e.name));
         const kept = (this.eventStore.get(connectorId) ?? []).filter(
-          (e) => !namesInBatch.has(e.name),
+          (e) => !names.has(e.name),
         );
         this.eventStore.set(connectorId, [...kept, ...es]);
       },
 
-      entities: async (es) => {
+      entities: async (es, scope) => {
         const byType = getEntityMap();
-        const typesInBatch = new Set(es.map((e) => e.type));
-        for (const type of typesInBatch) {
+        const types = new Set(scope?.types ?? es.map((e) => e.type));
+        for (const type of types) {
           byType.set(type, new Map());
         }
         upsertEntities(es);
       },
 
-      metrics: async (ms) => {
-        const namesInBatch = new Set(ms.map((m) => m.name));
+      metrics: async (ms, scope) => {
+        const names = new Set(scope?.names ?? ms.map((m) => m.name));
         const kept = (this.metricStore.get(connectorId) ?? []).filter(
-          (m) => !namesInBatch.has(m.name),
+          (m) => !names.has(m.name),
         );
         this.metricStore.set(connectorId, [...kept, ...ms]);
       },
 
-      edges: async (es) => {
-        const kindsInBatch = new Set(es.map((e) => e.kind));
+      edges: async (es, scope) => {
+        const kinds = new Set(scope?.kinds ?? es.map((e) => e.kind));
         const kept = (this.edgeStore.get(connectorId) ?? []).filter(
-          (e) => !kindsInBatch.has(e.kind),
+          (e) => !kinds.has(e.kind),
         );
         this.edgeStore.set(connectorId, kept);
         upsertEdges(es);
       },
 
-      distributions: async (ds) => {
-        const namesInBatch = new Set(ds.map((d) => d.name));
+      distributions: async (ds, scope) => {
+        const names = new Set(scope?.names ?? ds.map((d) => d.name));
         const kept = (this.distributionStore.get(connectorId) ?? []).filter(
-          (d) => !namesInBatch.has(d.name),
+          (d) => !names.has(d.name),
         );
         this.distributionStore.set(connectorId, [...kept, ...ds]);
       },
