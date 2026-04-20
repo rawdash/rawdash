@@ -16,6 +16,7 @@ import type {
 } from '@rawdash/core';
 import type { ServerStorage } from '@rawdash/server';
 import { and, eq, gte, inArray, lte } from 'drizzle-orm';
+import type { BatchItem } from 'drizzle-orm/batch';
 import { type LibSQLDatabase, drizzle } from 'drizzle-orm/libsql';
 
 import { DDL, distributions, edges, entities, events, metrics } from './schema';
@@ -146,25 +147,35 @@ export class TursoStorage implements ServerStorage {
         const names = Array.from(
           new Set(scope?.names ?? es.map((e) => e.name)),
         );
+        const batch: BatchItem<'sqlite'>[] = [];
         if (names.length > 0) {
-          await db
-            .delete(events)
-            .where(
-              and(
-                eq(events.connector_id, connectorId),
-                inArray(events.name, names),
+          batch.push(
+            db
+              .delete(events)
+              .where(
+                and(
+                  eq(events.connector_id, connectorId),
+                  inArray(events.name, names),
+                ),
               ),
-            );
+          );
         }
         if (es.length > 0) {
-          await db.insert(events).values(
-            es.map((e) => ({
-              connector_id: connectorId,
-              name: e.name,
-              start_ts: e.start_ts,
-              end_ts: e.end_ts,
-              attributes: e.attributes,
-            })),
+          batch.push(
+            db.insert(events).values(
+              es.map((e) => ({
+                connector_id: connectorId,
+                name: e.name,
+                start_ts: e.start_ts,
+                end_ts: e.end_ts,
+                attributes: e.attributes,
+              })),
+            ),
+          );
+        }
+        if (batch.length > 0) {
+          await db.batch(
+            batch as [BatchItem<'sqlite'>, ...BatchItem<'sqlite'>[]],
           );
         }
       },
@@ -174,25 +185,35 @@ export class TursoStorage implements ServerStorage {
         const types = Array.from(
           new Set(scope?.types ?? es.map((e) => e.type)),
         );
+        const batch: BatchItem<'sqlite'>[] = [];
         if (types.length > 0) {
-          await db
-            .delete(entities)
-            .where(
-              and(
-                eq(entities.connector_id, connectorId),
-                inArray(entities.type, types),
+          batch.push(
+            db
+              .delete(entities)
+              .where(
+                and(
+                  eq(entities.connector_id, connectorId),
+                  inArray(entities.type, types),
+                ),
               ),
-            );
+          );
         }
         if (es.length > 0) {
-          await db.insert(entities).values(
-            es.map((e) => ({
-              connector_id: connectorId,
-              type: e.type,
-              id: e.id,
-              attributes: e.attributes,
-              updated_at: e.updated_at,
-            })),
+          batch.push(
+            db.insert(entities).values(
+              es.map((e) => ({
+                connector_id: connectorId,
+                type: e.type,
+                id: e.id,
+                attributes: e.attributes,
+                updated_at: e.updated_at,
+              })),
+            ),
+          );
+        }
+        if (batch.length > 0) {
+          await db.batch(
+            batch as [BatchItem<'sqlite'>, ...BatchItem<'sqlite'>[]],
           );
         }
       },
@@ -202,25 +223,35 @@ export class TursoStorage implements ServerStorage {
         const names = Array.from(
           new Set(scope?.names ?? ms.map((m) => m.name)),
         );
+        const batch: BatchItem<'sqlite'>[] = [];
         if (names.length > 0) {
-          await db
-            .delete(metrics)
-            .where(
-              and(
-                eq(metrics.connector_id, connectorId),
-                inArray(metrics.name, names),
+          batch.push(
+            db
+              .delete(metrics)
+              .where(
+                and(
+                  eq(metrics.connector_id, connectorId),
+                  inArray(metrics.name, names),
+                ),
               ),
-            );
+          );
         }
         if (ms.length > 0) {
-          await db.insert(metrics).values(
-            ms.map((m) => ({
-              connector_id: connectorId,
-              name: m.name,
-              ts: m.ts,
-              value: m.value,
-              attributes: m.attributes,
-            })),
+          batch.push(
+            db.insert(metrics).values(
+              ms.map((m) => ({
+                connector_id: connectorId,
+                name: m.name,
+                ts: m.ts,
+                value: m.value,
+                attributes: m.attributes,
+              })),
+            ),
+          );
+        }
+        if (batch.length > 0) {
+          await db.batch(
+            batch as [BatchItem<'sqlite'>, ...BatchItem<'sqlite'>[]],
           );
         }
       },
@@ -230,43 +261,53 @@ export class TursoStorage implements ServerStorage {
         const kinds = Array.from(
           new Set(scope?.kinds ?? es.map((e) => e.kind)),
         );
+        const batch: BatchItem<'sqlite'>[] = [];
         if (kinds.length > 0) {
-          await db
-            .delete(edges)
-            .where(
-              and(
-                eq(edges.connector_id, connectorId),
-                inArray(edges.kind, kinds),
+          batch.push(
+            db
+              .delete(edges)
+              .where(
+                and(
+                  eq(edges.connector_id, connectorId),
+                  inArray(edges.kind, kinds),
+                ),
               ),
-            );
+          );
         }
         for (const e of es) {
-          await db
-            .insert(edges)
-            .values({
-              connector_id: connectorId,
-              from_type: e.from_type,
-              from_id: e.from_id,
-              kind: e.kind,
-              to_type: e.to_type,
-              to_id: e.to_id,
-              attributes: e.attributes,
-              updated_at: e.updated_at,
-            })
-            .onConflictDoUpdate({
-              target: [
-                edges.connector_id,
-                edges.from_type,
-                edges.from_id,
-                edges.kind,
-                edges.to_type,
-                edges.to_id,
-              ],
-              set: {
+          batch.push(
+            db
+              .insert(edges)
+              .values({
+                connector_id: connectorId,
+                from_type: e.from_type,
+                from_id: e.from_id,
+                kind: e.kind,
+                to_type: e.to_type,
+                to_id: e.to_id,
                 attributes: e.attributes,
                 updated_at: e.updated_at,
-              },
-            });
+              })
+              .onConflictDoUpdate({
+                target: [
+                  edges.connector_id,
+                  edges.from_type,
+                  edges.from_id,
+                  edges.kind,
+                  edges.to_type,
+                  edges.to_id,
+                ],
+                set: {
+                  attributes: e.attributes,
+                  updated_at: e.updated_at,
+                },
+              }),
+          );
+        }
+        if (batch.length > 0) {
+          await db.batch(
+            batch as [BatchItem<'sqlite'>, ...BatchItem<'sqlite'>[]],
+          );
         }
       },
 
@@ -275,26 +316,36 @@ export class TursoStorage implements ServerStorage {
         const names = Array.from(
           new Set(scope?.names ?? ds.map((d) => d.name)),
         );
+        const batch: BatchItem<'sqlite'>[] = [];
         if (names.length > 0) {
-          await db
-            .delete(distributions)
-            .where(
-              and(
-                eq(distributions.connector_id, connectorId),
-                inArray(distributions.name, names),
+          batch.push(
+            db
+              .delete(distributions)
+              .where(
+                and(
+                  eq(distributions.connector_id, connectorId),
+                  inArray(distributions.name, names),
+                ),
               ),
-            );
+          );
         }
         if (ds.length > 0) {
-          await db.insert(distributions).values(
-            ds.map((d) => ({
-              connector_id: connectorId,
-              name: d.name,
-              ts: d.ts,
-              kind: d.kind,
-              data: d.data as unknown as Attrs,
-              attributes: d.attributes,
-            })),
+          batch.push(
+            db.insert(distributions).values(
+              ds.map((d) => ({
+                connector_id: connectorId,
+                name: d.name,
+                ts: d.ts,
+                kind: d.kind,
+                data: d.data as unknown as Attrs,
+                attributes: d.attributes,
+              })),
+            ),
+          );
+        }
+        if (batch.length > 0) {
+          await db.batch(
+            batch as [BatchItem<'sqlite'>, ...BatchItem<'sqlite'>[]],
           );
         }
       },
