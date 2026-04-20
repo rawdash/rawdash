@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "dev": "concurrently -n server,web -c blue,green 'tsx --env-file=.env.local rawdash.config.mts' 'wait-on http://localhost:8080/health && next dev --turbopack'",
+    "dev": "concurrently -n server,web -c blue,green 'tsx --env-file=.env.local rawdash.config.mts' 'tsx --env-file=.env.local dev-web.mts'",
     "dev:server": "tsx --env-file=.env.local rawdash.config.mts",
     "dev:web": "next dev --turbopack",
     "build": "next build",
@@ -33,7 +33,6 @@
     "@types/react-dom": "^19",
     "autoprefixer": "^10.4.21",
     "concurrently": "^9.0.0",
-    "wait-on": "^8.0.3",
     "postcss": "^8",
     "tailwindcss": "^3.4.17",
     "@playwright/test": "^1.52.0",
