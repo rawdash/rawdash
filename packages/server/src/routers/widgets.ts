@@ -11,10 +11,10 @@ export class WidgetsRouter implements RawdashRouter {
     private storage: InMemoryStorage,
   ) {}
 
-  private resolveWidget(
+  private async resolveWidget(
     configKey: string,
     widgetId: string = configKey,
-  ): WidgetEntry | undefined {
+  ): Promise<WidgetEntry | undefined> {
     const widget = Object.prototype.hasOwnProperty.call(
       this.config.widgets,
       configKey,
@@ -24,19 +24,15 @@ export class WidgetsRouter implements RawdashRouter {
     if (!widget) {
       return undefined;
     }
-    const { connectorId, resource } = widget.metric;
+    const { connectorId } = widget.metric;
     const connectorEntry = this.config.connectors.find(
       (e) => e.connector.id === connectorId,
     );
     if (!connectorEntry) {
       return undefined;
     }
-    const fields = connectorEntry.connector.resources[resource]?.fields;
-    if (!fields) {
-      return undefined;
-    }
-    const records = this.storage.getRecords(connectorId, resource);
-    const data = computeMetric(records, widget.metric, fields);
+    const handle = this.storage.getStorageHandle(connectorId);
+    const data = await computeMetric(handle, widget.metric);
     return {
       id: configKey,
       widgetId,
@@ -47,18 +43,19 @@ export class WidgetsRouter implements RawdashRouter {
   }
 
   mount(app: Hono): void {
-    app.get('/widgets', (c) => {
-      const widgets = Object.keys(this.config.widgets)
-        .map((key) => this.resolveWidget(key))
-        .filter((w): w is WidgetEntry => w !== undefined);
+    app.get('/widgets', async (c) => {
+      const resolved = await Promise.all(
+        Object.keys(this.config.widgets).map((key) => this.resolveWidget(key)),
+      );
+      const widgets = resolved.filter((w): w is WidgetEntry => w !== undefined);
       return c.json(widgets);
     });
 
-    app.get('/widgets/:id', (c) => {
+    app.get('/widgets/:id', async (c) => {
       const input = c.req.param('id');
       const sep = input.lastIndexOf(':');
       const configKey = sep === -1 ? input : input.slice(sep + 1);
-      const widget = this.resolveWidget(configKey, input);
+      const widget = await this.resolveWidget(configKey, input);
       if (!widget) {
         return c.json({ error: 'Widget not found' }, 404);
       }
