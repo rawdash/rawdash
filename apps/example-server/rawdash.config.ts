@@ -1,7 +1,7 @@
+import { TursoStorage } from '@rawdash/adapter-turso';
+import { GitHubActionsConnector } from '@rawdash/connector-github';
 import { defineConfig, defineMetric } from '@rawdash/core';
-import { GitHubActionsConnector } from '@rawdash/github';
 import { serve } from '@rawdash/server';
-import { TursoStorage } from '@rawdash/turso';
 
 function resolvePort(): number {
   const raw = process.env['PORT'];

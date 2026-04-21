@@ -10,9 +10,9 @@
   },
   "dependencies": {
     "@rawdash/core": "workspace:*",
-    "@rawdash/github": "workspace:*",
+    "@rawdash/connector-github": "workspace:*",
     "@rawdash/server": "workspace:*",
-    "@rawdash/turso": "workspace:*"
+    "@rawdash/adapter-turso": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22",
