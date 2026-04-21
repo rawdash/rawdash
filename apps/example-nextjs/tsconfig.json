@@ -14,7 +14,9 @@
       "@rawdash/core": ["../../packages/core/src/index.ts"],
       "@rawdash/nextjs": ["../../packages/nextjs/src/index.ts"],
       "@rawdash/server": ["../../packages/server/src/index.ts"],
-      "@rawdash/github": ["../../packages/connectors/github/src/index.ts"]
+      "@rawdash/connector-github": [
+        "../../packages/connectors/github/src/index.ts"
+      ]
     },
     "noEmit": true
   },

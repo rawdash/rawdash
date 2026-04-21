@@ -7,8 +7,8 @@
       "@rawdash/core",
       "@rawdash/server",
       "@rawdash/nextjs",
-      "@rawdash/github",
-      "@rawdash/turso"
+      "@rawdash/connector-github",
+      "@rawdash/adapter-turso"
     ]
   ],
   "linked": [],

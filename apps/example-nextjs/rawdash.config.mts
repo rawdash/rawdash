@@ -1,5 +1,5 @@
 import { defineConfig, defineMetric } from '@rawdash/core';
-import { GitHubActionsConnector } from '@rawdash/github';
+import { GitHubActionsConnector } from '@rawdash/connector-github';
 import { serve } from '@rawdash/server';
 
 function resolvePort(): number {
