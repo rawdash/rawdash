@@ -10,13 +10,7 @@
     "incremental": true,
     "plugins": [{ "name": "next" }],
     "paths": {
-      "@/*": ["./src/*"],
-      "@rawdash/core": ["../../packages/core/src/index.ts"],
-      "@rawdash/nextjs": ["../../packages/nextjs/src/index.ts"],
-      "@rawdash/server": ["../../packages/server/src/index.ts"],
-      "@rawdash/connector-github": [
-        "../../packages/connectors/github/src/index.ts"
-      ]
+      "@/*": ["./src/*"]
     },
     "noEmit": true
   },

@@ -123,18 +123,18 @@ importers:
 
   apps/example-server:
     dependencies:
+      '@rawdash/adapter-turso':
+        specifier: workspace:*
+        version: link:../../packages/adapters/turso
+      '@rawdash/connector-github':
+        specifier: workspace:*
+        version: link:../../packages/connectors/github
       '@rawdash/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@rawdash/github':
-        specifier: workspace:*
-        version: link:../../packages/connectors/github
       '@rawdash/server':
         specifier: workspace:*
         version: link:../../packages/server
-      '@rawdash/turso':
-        specifier: workspace:*
-        version: link:../../packages/adapters/turso
     devDependencies:
       '@types/node':
         specifier: ^22

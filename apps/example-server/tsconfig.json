@@ -1,12 +1,6 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "paths": {
-      "@rawdash/core": ["../../packages/core/src/index.ts"],
-      "@rawdash/server": ["../../packages/server/src/index.ts"],
-      "@rawdash/github": ["../../packages/connectors/github/src/index.ts"],
-      "@rawdash/turso": ["../../packages/adapters/turso/src/index.ts"]
-    },
     "noEmit": true
   },
   "include": ["**/*.ts"],
