@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@rawdash/core": "workspace:*",
-    "@rawdash/github": "workspace:*",
+    "@rawdash/connector-github": "workspace:*",
     "@rawdash/nextjs": "workspace:*",
     "@rawdash/server": "workspace:*",
     "@tremor/react": "^3.18.7",

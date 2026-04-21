@@ -50,12 +50,12 @@ importers:
 
   apps/example-nextjs:
     dependencies:
+      '@rawdash/connector-github':
+        specifier: workspace:*
+        version: link:../../packages/connectors/github
       '@rawdash/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@rawdash/github':
-        specifier: workspace:*
-        version: link:../../packages/connectors/github
       '@rawdash/nextjs':
         specifier: workspace:*
         version: link:../../packages/nextjs

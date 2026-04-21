@@ -1,7 +1,7 @@
 {
-  "name": "@rawdash/turso",
+  "name": "@rawdash/adapter-turso",
   "version": "0.0.0",
-  "description": "Rawdash Turso/libsql storage adapter",
+  "description": "Rawdash Turso/libsql adapter",
   "license": "Apache-2.0",
   "type": "module",
   "exports": {
