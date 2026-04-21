@@ -71,6 +71,7 @@ export class GitHubActionsConnector extends BaseConnector<
   private async syncWorkflowRuns(
     storage: StorageHandle,
     request: SyncRequest,
+    signal?: AbortSignal,
   ): Promise<void> {
     const { owner, repo } = this.settings;
     const headers = this.buildHeaders();
@@ -78,7 +79,7 @@ export class GitHubActionsConnector extends BaseConnector<
     if (request.mode === 'latest') {
       const res = await fetch(
         `https://api.github.com/repos/${owner}/${repo}/actions/runs?per_page=1`,
-        { headers },
+        { headers, signal },
       );
       if (!res.ok) {
         throw new Error(`GitHub API error: ${res.status} ${res.statusText}`);
@@ -109,9 +110,10 @@ export class GitHubActionsConnector extends BaseConnector<
     let page = 1;
 
     while (true) {
+      signal?.throwIfAborted();
       const res = await fetch(
         `https://api.github.com/repos/${owner}/${repo}/actions/runs?per_page=100&page=${page}`,
-        { headers },
+        { headers, signal },
       );
       if (!res.ok) {
         throw new Error(`GitHub API error: ${res.status} ${res.statusText}`);
@@ -158,16 +160,20 @@ export class GitHubActionsConnector extends BaseConnector<
     await storage.events(allEvents, { names: ['workflow_run'] });
   }
 
-  private async syncPullRequests(storage: StorageHandle): Promise<void> {
+  private async syncPullRequests(
+    storage: StorageHandle,
+    signal?: AbortSignal,
+  ): Promise<void> {
     const { owner, repo } = this.settings;
     const headers = this.buildHeaders();
     const allPRs: GitHubPR[] = [];
     let page = 1;
 
     while (true) {
+      signal?.throwIfAborted();
       const res = await fetch(
         `https://api.github.com/repos/${owner}/${repo}/pulls?state=open&per_page=100&page=${page}`,
-        { headers },
+        { headers, signal },
       );
       if (!res.ok) {
         throw new Error(`GitHub API error: ${res.status} ${res.statusText}`);
@@ -201,9 +207,10 @@ export class GitHubActionsConnector extends BaseConnector<
 
     const reviewEdges: Parameters<StorageHandle['edges']>[0] = [];
     for (const pr of allPRs) {
+      signal?.throwIfAborted();
       const res = await fetch(
         `https://api.github.com/repos/${owner}/${repo}/pulls/${pr.number}/reviews`,
-        { headers },
+        { headers, signal },
       );
       if (!res.ok) {
         throw new Error(
@@ -232,8 +239,12 @@ export class GitHubActionsConnector extends BaseConnector<
     await storage.edges(reviewEdges, { kinds: ['reviewed_by'] });
   }
 
-  async sync(request: SyncRequest, storage: StorageHandle): Promise<void> {
-    await this.syncWorkflowRuns(storage, request);
-    await this.syncPullRequests(storage);
+  async sync(
+    request: SyncRequest,
+    storage: StorageHandle,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    await this.syncWorkflowRuns(storage, request, signal);
+    await this.syncPullRequests(storage, signal);
   }
 }
