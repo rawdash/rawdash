@@ -156,7 +156,11 @@ export interface SyncRequest {
 export interface Connector {
   readonly id: string;
   readonly credentials?: CredentialSchema;
-  sync(request: SyncRequest, storage: StorageHandle): Promise<void>;
+  sync(
+    request: SyncRequest,
+    storage: StorageHandle,
+    signal?: AbortSignal,
+  ): Promise<void>;
 }
 
 export abstract class BaseConnector<
@@ -174,7 +178,11 @@ export abstract class BaseConnector<
     this.creds = creds ?? ({} as InferCredentials<TCreds>);
   }
 
-  abstract sync(request: SyncRequest, storage: StorageHandle): Promise<void>;
+  abstract sync(
+    request: SyncRequest,
+    storage: StorageHandle,
+    signal?: AbortSignal,
+  ): Promise<void>;
 }
 
 export function defineConnector<TSettings>() {
@@ -187,6 +195,7 @@ export function defineConnector<TSettings>() {
       this: { settings: TSettings; creds: InferCredentials<TCreds> },
       request: SyncRequest,
       storage: StorageHandle,
+      signal?: AbortSignal,
     ) => Promise<void>;
   }): {
     new (settings: TSettings, creds?: InferCredentials<TCreds>): Connector;
@@ -200,11 +209,16 @@ export function defineConnector<TSettings>() {
       readonly id = def.id;
       override readonly credentials = def.credentials;
 
-      async sync(request: SyncRequest, storage: StorageHandle): Promise<void> {
+      async sync(
+        request: SyncRequest,
+        storage: StorageHandle,
+        signal?: AbortSignal,
+      ): Promise<void> {
         return def.sync.call(
           { settings: this.settings, creds: this.creds },
           request,
           storage,
+          signal,
         );
       }
     }
