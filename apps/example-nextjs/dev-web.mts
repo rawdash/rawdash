@@ -6,18 +6,16 @@ const healthUrl = `http://localhost:${port}/health`;
 async function waitForServer(): Promise<void> {
   const timeoutMs = 30_000;
   const deadline = Date.now() + timeoutMs;
-  for (;;) {
+  while (Date.now() < deadline) {
     try {
       const res = await fetch(healthUrl);
       if (res.ok) return;
-    } catch (_e) {
-      void _e;
-    }
-    if (Date.now() >= deadline) {
-      throw new Error(`Timed out waiting for ${healthUrl} after ${timeoutMs}ms`);
+    } catch (err) {
+      console.debug(`[wait] ${healthUrl} not ready:`, err instanceof Error ? err.message : err);
     }
     await new Promise((r) => setTimeout(r, 500));
   }
+  throw new Error(`Timed out waiting for ${healthUrl} after ${timeoutMs}ms`);
 }
 
 await waitForServer().catch((err: unknown) => {
