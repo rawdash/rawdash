@@ -56,8 +56,9 @@ describe('WidgetsRouter — cachedAt', () => {
     await storage.setSyncSuccess();
     const res = await app.request('/widgets');
     const widgets = (await res.json()) as Array<{ cachedAt: string | null }>;
-    expect(widgets[0]!.cachedAt).not.toBeNull();
-    expect(typeof widgets[0]!.cachedAt).toBe('string');
+    const cachedAt = widgets[0]!.cachedAt;
+    expect(cachedAt).not.toBeNull();
+    expect(new Date(cachedAt!).toISOString()).toBe(cachedAt);
   });
 
   it('cachedAt is stable across multiple reads before any sync', async () => {
