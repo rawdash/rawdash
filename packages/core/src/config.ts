@@ -94,9 +94,23 @@ export interface ConnectorEntry {
   connector: Connector;
 }
 
+export interface Dashboard {
+  widgets: Record<string, Widget>;
+}
+
 export interface DashboardConfig {
   connectors: ConnectorEntry[];
+  dashboards: Record<string, Dashboard>;
+}
+
+// ---------------------------------------------------------------------------
+// defineDashboard
+// ---------------------------------------------------------------------------
+
+export function defineDashboard(options: {
   widgets: Record<string, Widget>;
+}): Dashboard {
+  return { widgets: options.widgets };
 }
 
 // ---------------------------------------------------------------------------
@@ -141,21 +155,24 @@ const VALID_FNS = new Set<string>([
 function validateConfig(config: DashboardConfig): void {
   const connectorIds = new Set(config.connectors.map((e) => e.connector.id));
 
-  for (const [widgetId, widget] of Object.entries(config.widgets)) {
-    const { connectorId, shape, fn } = widget.metric;
+  for (const [dashboardKey, dashboard] of Object.entries(config.dashboards)) {
+    for (const [widgetKey, widget] of Object.entries(dashboard.widgets)) {
+      const ref = `Dashboard "${dashboardKey}", widget "${widgetKey}"`;
+      const { connectorId, shape, fn } = widget.metric;
 
-    if (!connectorIds.has(connectorId)) {
-      throw new Error(
-        `Widget "${widgetId}": connector "${connectorId}" is not listed in connectors`,
-      );
-    }
+      if (!connectorIds.has(connectorId)) {
+        throw new Error(
+          `${ref}: connector "${connectorId}" is not listed in connectors`,
+        );
+      }
 
-    if (!VALID_SHAPES.has(shape)) {
-      throw new Error(`Widget "${widgetId}": invalid shape "${shape}"`);
-    }
+      if (!VALID_SHAPES.has(shape)) {
+        throw new Error(`${ref}: invalid shape "${shape}"`);
+      }
 
-    if (!VALID_FNS.has(fn)) {
-      throw new Error(`Widget "${widgetId}": invalid fn "${fn}"`);
+      if (!VALID_FNS.has(fn)) {
+        throw new Error(`${ref}: invalid fn "${fn}"`);
+      }
     }
   }
 }

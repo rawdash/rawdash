@@ -13,14 +13,18 @@ const mockConnector = {
 
 const config = {
   connectors: [{ connector: mockConnector }],
-  widgets: {
-    my_widget: {
-      metric: {
-        connectorId: CONNECTOR_ID,
-        shape: 'event' as const,
-        name: 'run',
-        field: 'start_ts',
-        fn: 'count' as const,
+  dashboards: {
+    main: {
+      widgets: {
+        my_widget: {
+          metric: {
+            connectorId: CONNECTOR_ID,
+            shape: 'event' as const,
+            name: 'run',
+            field: 'start_ts',
+            fn: 'count' as const,
+          },
+        },
       },
     },
   },
@@ -45,7 +49,7 @@ describe('WidgetsRouter — cachedAt', () => {
   it('GET /widgets/:id returns cachedAt: null before any sync', async () => {
     const storage = new InMemoryStorage();
     const app = makeApp(storage);
-    const res = await app.request('/widgets/my_widget');
+    const res = await app.request('/widgets/main:my_widget');
     const widget = (await res.json()) as { cachedAt: string | null };
     expect(widget.cachedAt).toBeNull();
   });
