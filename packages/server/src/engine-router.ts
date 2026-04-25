@@ -11,8 +11,13 @@ export function createEngineRouters(
   config: DashboardConfig,
   storage: ServerStorage = new InMemoryStorage(),
 ): RawdashRouter[] {
+  const widgetRouters = Object.entries(config.dashboards).map(
+    ([dashboardId, dashboard]) =>
+      new WidgetsRouter(dashboardId, dashboard, config.connectors, storage),
+  );
+
   return [
-    new WidgetsRouter(config, storage),
+    ...widgetRouters,
     new SyncRouter(config, storage),
     new HealthRouter(storage),
   ];
