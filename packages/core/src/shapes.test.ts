@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { defineConfig, defineMetric } from './config';
+import { defineConfig, defineDashboard, defineMetric } from './config';
 import type { Distribution, Edge, Entity, Event, Metric } from './connector';
 
 describe('shape types', () => {
@@ -144,15 +144,19 @@ describe('defineConfig validation', () => {
     expect(() =>
       defineConfig({
         connectors: [],
-        widgets: {
-          w: {
-            metric: defineMetric({
-              connector,
-              shape: 'event',
-              field: 'start_ts',
-              fn: 'count',
-            }),
-          },
+        dashboards: {
+          main: defineDashboard({
+            widgets: {
+              w: {
+                metric: defineMetric({
+                  connector,
+                  shape: 'event',
+                  field: 'start_ts',
+                  fn: 'count',
+                }),
+              },
+            },
+          }),
         },
       }),
     ).toThrow('connector "c" is not listed');
@@ -162,15 +166,19 @@ describe('defineConfig validation', () => {
     expect(() =>
       defineConfig({
         connectors: [{ connector }],
-        widgets: {
-          w: {
-            metric: {
-              connectorId: 'c',
-              shape: 'invalid' as never,
-              field: 'x',
-              fn: 'count',
+        dashboards: {
+          main: defineDashboard({
+            widgets: {
+              w: {
+                metric: {
+                  connectorId: 'c',
+                  shape: 'invalid' as never,
+                  field: 'x',
+                  fn: 'count',
+                },
+              },
             },
-          },
+          }),
         },
       }),
     ).toThrow('invalid shape');
@@ -180,15 +188,19 @@ describe('defineConfig validation', () => {
     expect(() =>
       defineConfig({
         connectors: [{ connector }],
-        widgets: {
-          w: {
-            metric: {
-              connectorId: 'c',
-              shape: 'event',
-              field: 'x',
-              fn: 'badFn' as never,
+        dashboards: {
+          main: defineDashboard({
+            widgets: {
+              w: {
+                metric: {
+                  connectorId: 'c',
+                  shape: 'event',
+                  field: 'x',
+                  fn: 'badFn' as never,
+                },
+              },
             },
-          },
+          }),
         },
       }),
     ).toThrow('invalid fn');
@@ -198,16 +210,20 @@ describe('defineConfig validation', () => {
     expect(() =>
       defineConfig({
         connectors: [{ connector }],
-        widgets: {
-          w: {
-            metric: defineMetric({
-              connector,
-              shape: 'event',
-              name: 'run',
-              field: 'conclusion',
-              fn: 'latest',
-            }),
-          },
+        dashboards: {
+          main: defineDashboard({
+            widgets: {
+              w: {
+                metric: defineMetric({
+                  connector,
+                  shape: 'event',
+                  name: 'run',
+                  field: 'conclusion',
+                  fn: 'latest',
+                }),
+              },
+            },
+          }),
         },
       }),
     ).not.toThrow();

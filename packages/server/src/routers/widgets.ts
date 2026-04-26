@@ -1,4 +1,9 @@
-import type { DashboardConfig, WidgetEntry } from '@rawdash/core';
+import type {
+  ConnectorEntry,
+  Dashboard,
+  Widget,
+  WidgetEntry,
+} from '@rawdash/core';
 import type { Hono } from 'hono';
 
 import { computeMetric } from '../compute';
@@ -7,25 +12,18 @@ import type { ServerStorage } from '../types';
 
 export class WidgetsRouter implements RawdashRouter {
   constructor(
-    private config: DashboardConfig,
+    private dashboardId: string,
+    private dashboard: Dashboard,
+    private connectors: ConnectorEntry[],
     private storage: ServerStorage,
   ) {}
 
   private async resolveWidget(
-    configKey: string,
-    widgetId: string = configKey,
+    id: string,
+    widget: Widget,
   ): Promise<WidgetEntry | undefined> {
-    const widget = Object.prototype.hasOwnProperty.call(
-      this.config.widgets,
-      configKey,
-    )
-      ? this.config.widgets[configKey]
-      : undefined;
-    if (!widget) {
-      return undefined;
-    }
     const { connectorId } = widget.metric;
-    const connectorEntry = this.config.connectors.find(
+    const connectorEntry = this.connectors.find(
       (e) => e.connector.id === connectorId,
     );
     if (!connectorEntry) {
@@ -34,8 +32,8 @@ export class WidgetsRouter implements RawdashRouter {
     const handle = this.storage.getStorageHandle(connectorId);
     const data = await computeMetric(handle, widget.metric);
     return {
-      id: configKey,
-      widgetId,
+      id,
+      widgetId: id,
       connectorId,
       data,
       cachedAt: (await this.storage.getSyncState()).lastSyncAt,
@@ -43,23 +41,28 @@ export class WidgetsRouter implements RawdashRouter {
   }
 
   mount(app: Hono): void {
-    app.get('/widgets', async (c) => {
+    const base = `/dashboards/${this.dashboardId}/widgets`;
+
+    app.get(base, async (c) => {
+      const entries = Object.entries(this.dashboard.widgets);
       const resolved = await Promise.all(
-        Object.keys(this.config.widgets).map((key) => this.resolveWidget(key)),
+        entries.map(([key, widget]) => this.resolveWidget(key, widget)),
       );
       const widgets = resolved.filter((w): w is WidgetEntry => w !== undefined);
       return c.json(widgets);
     });
 
-    app.get('/widgets/:id', async (c) => {
-      const input = c.req.param('id');
-      const sep = input.lastIndexOf(':');
-      const configKey = sep === -1 ? input : input.slice(sep + 1);
-      const widget = await this.resolveWidget(configKey, input);
+    app.get(`${base}/:widgetId`, async (c) => {
+      const widgetId = c.req.param('widgetId');
+      const widget = this.dashboard.widgets[widgetId];
       if (!widget) {
         return c.json({ error: 'Widget not found' }, 404);
       }
-      return c.json(widget);
+      const result = await this.resolveWidget(widgetId, widget);
+      if (!result) {
+        return c.json({ error: 'Widget not found' }, 404);
+      }
+      return c.json(result);
     });
   }
 }

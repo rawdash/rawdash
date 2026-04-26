@@ -23,6 +23,7 @@ export { BaseConnector, defineConnector } from './connector';
 export type {
   AggFn,
   ConnectorEntry,
+  Dashboard,
   DashboardConfig,
   FilterClause,
   FilterCondition,
@@ -34,6 +35,6 @@ export type {
   Widget,
 } from './config';
 
-export { defineConfig, defineMetric } from './config';
+export { defineConfig, defineDashboard, defineMetric } from './config';
 
 export type { SyncState, WidgetEntry } from './engine';
