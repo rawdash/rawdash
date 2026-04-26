@@ -31,4 +31,4 @@ defineConfig({
 });
 ```
 
-Widget IDs served by `GET /widgets` and `GET /widgets/:id` are now namespaced as `dashboardKey:widgetKey` (e.g. `github:run_count`).
+The widgets HTTP API is now dashboard-scoped: `GET /widgets` and `GET /widgets/:id` have been replaced by `GET /dashboards/:dashboardId/widgets` and `GET /dashboards/:dashboardId/widgets/:widgetId`. Widget IDs remain bare keys within their dashboard (e.g. `run_count_7d`); the dashboard is expressed via the URL path.
