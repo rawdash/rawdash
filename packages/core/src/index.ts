@@ -37,3 +37,7 @@ export type {
 export { defineConfig, defineMetric } from './config';
 
 export type { SyncState, WidgetEntry } from './engine';
+
+export type { RetentionCandidates, RetentionConfig } from './retention';
+
+export { computeRetention, selectForDeletion } from './retention';
