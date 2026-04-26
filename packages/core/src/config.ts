@@ -1,4 +1,5 @@
 import type { Connector } from './connector';
+import type { RetentionConfig } from './retention';
 
 // ---------------------------------------------------------------------------
 // Aggregation functions
@@ -101,6 +102,7 @@ export interface Dashboard {
 export interface DashboardConfig {
   connectors: ConnectorEntry[];
   dashboards: Record<string, Dashboard>;
+  retention?: RetentionConfig;
 }
 
 // ---------------------------------------------------------------------------
