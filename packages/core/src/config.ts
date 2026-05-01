@@ -155,9 +155,29 @@ const VALID_FNS = new Set<string>([
 const SAFE_KEY_RE = /^[a-zA-Z0-9_-]+$/;
 
 function validateConfig(config: DashboardConfig): void {
+  if (
+    !config.dashboards ||
+    typeof config.dashboards !== 'object' ||
+    Array.isArray(config.dashboards)
+  ) {
+    throw new Error(
+      'defineConfig: config must include a "dashboards" record — did you mean to migrate from the old flat "widgets" shape?',
+    );
+  }
+
   const connectorIds = new Set(config.connectors.map((e) => e.connector.id));
 
   for (const [dashboardKey, dashboard] of Object.entries(config.dashboards)) {
+    if (
+      !dashboard.widgets ||
+      typeof dashboard.widgets !== 'object' ||
+      Array.isArray(dashboard.widgets)
+    ) {
+      throw new Error(
+        `Dashboard "${dashboardKey}" must define a "widgets" record`,
+      );
+    }
+
     if (!SAFE_KEY_RE.test(dashboardKey)) {
       throw new Error(
         `Dashboard key "${dashboardKey}" contains URL-unsafe characters; use only letters, digits, hyphens, and underscores`,

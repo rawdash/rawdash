@@ -181,7 +181,7 @@ describe('defineConfig validation', () => {
           }),
         },
       }),
-    ).toThrow('invalid shape');
+    ).toThrow('Dashboard "main", widget "w": invalid shape "invalid"');
   });
 
   it('throws for invalid fn', () => {
@@ -203,7 +203,7 @@ describe('defineConfig validation', () => {
           }),
         },
       }),
-    ).toThrow('invalid fn');
+    ).toThrow('Dashboard "main", widget "w": invalid fn "badFn"');
   });
 
   it('throws for dashboard key with URL-unsafe characters', () => {
@@ -214,7 +214,7 @@ describe('defineConfig validation', () => {
           'bad/key': defineDashboard({ widgets: {} }),
         },
       }),
-    ).toThrow('URL-unsafe');
+    ).toThrow('Dashboard key "bad/key" contains URL-unsafe characters');
   });
 
   it('throws for widget key with URL-unsafe characters', () => {
@@ -236,7 +236,9 @@ describe('defineConfig validation', () => {
           }),
         },
       }),
-    ).toThrow('URL-unsafe');
+    ).toThrow(
+      'Dashboard "main", widget "bad:key": widget key contains URL-unsafe characters',
+    );
   });
 
   it('passes for valid config', () => {
