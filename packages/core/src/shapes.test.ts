@@ -206,6 +206,39 @@ describe('defineConfig validation', () => {
     ).toThrow('invalid fn');
   });
 
+  it('throws for dashboard key with URL-unsafe characters', () => {
+    expect(() =>
+      defineConfig({
+        connectors: [{ connector }],
+        dashboards: {
+          'bad/key': defineDashboard({ widgets: {} }),
+        },
+      }),
+    ).toThrow('URL-unsafe');
+  });
+
+  it('throws for widget key with URL-unsafe characters', () => {
+    expect(() =>
+      defineConfig({
+        connectors: [{ connector }],
+        dashboards: {
+          main: defineDashboard({
+            widgets: {
+              'bad:key': {
+                metric: defineMetric({
+                  connector,
+                  shape: 'event',
+                  field: 'start_ts',
+                  fn: 'count',
+                }),
+              },
+            },
+          }),
+        },
+      }),
+    ).toThrow('URL-unsafe');
+  });
+
   it('passes for valid config', () => {
     expect(() =>
       defineConfig({

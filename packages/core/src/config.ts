@@ -152,12 +152,27 @@ const VALID_FNS = new Set<string>([
   'first',
 ]);
 
+const SAFE_KEY_RE = /^[a-zA-Z0-9_-]+$/;
+
 function validateConfig(config: DashboardConfig): void {
   const connectorIds = new Set(config.connectors.map((e) => e.connector.id));
 
   for (const [dashboardKey, dashboard] of Object.entries(config.dashboards)) {
+    if (!SAFE_KEY_RE.test(dashboardKey)) {
+      throw new Error(
+        `Dashboard key "${dashboardKey}" contains URL-unsafe characters; use only letters, digits, hyphens, and underscores`,
+      );
+    }
+
     for (const [widgetKey, widget] of Object.entries(dashboard.widgets)) {
       const ref = `Dashboard "${dashboardKey}", widget "${widgetKey}"`;
+
+      if (!SAFE_KEY_RE.test(widgetKey)) {
+        throw new Error(
+          `${ref}: widget key contains URL-unsafe characters; use only letters, digits, hyphens, and underscores`,
+        );
+      }
+
       const { connectorId, shape, fn } = widget.metric;
 
       if (!connectorIds.has(connectorId)) {

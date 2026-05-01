@@ -19,14 +19,14 @@ type NextFetchInit = RequestInit & {
 /**
  * Shape of a successful widget-data response.
  *
- * Route: `GET /widgets/:id`
+ * Route: `GET /dashboards/:dashboardId/widgets/:widgetId`
  *
  * @typeParam TData - The widget's data payload type.
  */
 export interface CachedWidgetResponse<TData = unknown> {
   /** Connector that owns this widget. */
   connectorId: string;
-  /** Widget identifier within the connector. */
+  /** Widget identifier within its dashboard. */
   widgetId: string;
   /** The cached data payload. */
   data: TData;
@@ -169,7 +169,7 @@ export interface RawdashClient {
  * });
  *
  * // In a Server Component:
- * const widgets = await client.getWidgets();
+ * const widgets = await client.getWidgets('main');
  *
  * // In a Server Action:
  * 'use server';
