@@ -273,7 +273,19 @@ describe('defineConfig validation', () => {
     it('throws for negative maxAge', () => {
       expect(() =>
         defineConfig({ ...base, retention: { maxAge: -1 } }),
-      ).toThrow('retention.maxAge must be >= 0');
+      ).toThrow('retention.maxAge must be a finite number >= 0');
+    });
+
+    it('throws for NaN maxAge', () => {
+      expect(() =>
+        defineConfig({ ...base, retention: { maxAge: NaN } }),
+      ).toThrow('retention.maxAge must be a finite number >= 0');
+    });
+
+    it('throws for Infinity maxAge', () => {
+      expect(() =>
+        defineConfig({ ...base, retention: { maxAge: Infinity } }),
+      ).toThrow('retention.maxAge must be a finite number >= 0');
     });
 
     it('throws for negative maxSize', () => {
@@ -297,7 +309,22 @@ describe('defineConfig validation', () => {
     it('throws for non-positive intervalMs', () => {
       expect(() =>
         defineConfig({ ...base, retention: { maxAge: 1000, intervalMs: 0 } }),
-      ).toThrow('retention.intervalMs must be > 0');
+      ).toThrow('retention.intervalMs must be a finite number > 0');
+    });
+
+    it('throws for NaN intervalMs', () => {
+      expect(() =>
+        defineConfig({ ...base, retention: { maxAge: 1000, intervalMs: NaN } }),
+      ).toThrow('retention.intervalMs must be a finite number > 0');
+    });
+
+    it('throws for Infinity intervalMs', () => {
+      expect(() =>
+        defineConfig({
+          ...base,
+          retention: { maxAge: 1000, intervalMs: Infinity },
+        }),
+      ).toThrow('retention.intervalMs must be a finite number > 0');
     });
 
     it('passes for valid retention config', () => {

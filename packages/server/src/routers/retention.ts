@@ -13,6 +13,7 @@ function hasPruningPolicy(config: RetentionConfig): boolean {
 
 export class RetentionRouter implements RawdashRouter {
   private interval: ReturnType<typeof setInterval> | null = null;
+  private inFlight: Promise<void> | null = null;
 
   constructor(
     private config: DashboardConfig,
@@ -20,6 +21,18 @@ export class RetentionRouter implements RawdashRouter {
   ) {}
 
   async runRetention(): Promise<void> {
+    if (this.inFlight) {
+      return this.inFlight;
+    }
+
+    this.inFlight = this.runRetentionOnce().finally(() => {
+      this.inFlight = null;
+    });
+
+    return this.inFlight;
+  }
+
+  private async runRetentionOnce(): Promise<void> {
     const retentionConfig = this.config.retention;
     if (!retentionConfig || !hasPruningPolicy(retentionConfig)) {
       return;
