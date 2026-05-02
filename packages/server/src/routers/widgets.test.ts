@@ -13,14 +13,18 @@ const mockConnector = {
 
 const config = {
   connectors: [{ connector: mockConnector }],
-  widgets: {
-    my_widget: {
-      metric: {
-        connectorId: CONNECTOR_ID,
-        shape: 'event' as const,
-        name: 'run',
-        field: 'start_ts',
-        fn: 'count' as const,
+  dashboards: {
+    main: {
+      widgets: {
+        my_widget: {
+          metric: {
+            connectorId: CONNECTOR_ID,
+            shape: 'event' as const,
+            name: 'run',
+            field: 'start_ts',
+            fn: 'count' as const,
+          },
+        },
       },
     },
   },
@@ -28,33 +32,38 @@ const config = {
 
 function makeApp(storage: InMemoryStorage): Hono {
   const app = new Hono();
-  new WidgetsRouter(config, storage).mount(app);
+  new WidgetsRouter(
+    'main',
+    config.dashboards.main,
+    config.connectors,
+    storage,
+  ).mount(app);
   return app;
 }
 
 describe('WidgetsRouter — cachedAt', () => {
-  it('GET /widgets returns cachedAt: null before any sync', async () => {
+  it('GET /dashboards/main/widgets returns cachedAt: null before any sync', async () => {
     const storage = new InMemoryStorage();
     const app = makeApp(storage);
-    const res = await app.request('/widgets');
+    const res = await app.request('/dashboards/main/widgets');
     const widgets = (await res.json()) as Array<{ cachedAt: string | null }>;
     expect(widgets).toHaveLength(1);
     expect(widgets[0]!.cachedAt).toBeNull();
   });
 
-  it('GET /widgets/:id returns cachedAt: null before any sync', async () => {
+  it('GET /dashboards/main/widgets/:widgetId returns cachedAt: null before any sync', async () => {
     const storage = new InMemoryStorage();
     const app = makeApp(storage);
-    const res = await app.request('/widgets/my_widget');
+    const res = await app.request('/dashboards/main/widgets/my_widget');
     const widget = (await res.json()) as { cachedAt: string | null };
     expect(widget.cachedAt).toBeNull();
   });
 
-  it('GET /widgets returns non-null cachedAt after setSyncSuccess', async () => {
+  it('GET /dashboards/main/widgets returns non-null cachedAt after setSyncSuccess', async () => {
     const storage = new InMemoryStorage();
     const app = makeApp(storage);
     await storage.setSyncSuccess();
-    const res = await app.request('/widgets');
+    const res = await app.request('/dashboards/main/widgets');
     const widgets = (await res.json()) as Array<{ cachedAt: string | null }>;
     const cachedAt = widgets[0]!.cachedAt;
     expect(cachedAt).not.toBeNull();
@@ -64,8 +73,8 @@ describe('WidgetsRouter — cachedAt', () => {
   it('cachedAt is stable across multiple reads before any sync', async () => {
     const storage = new InMemoryStorage();
     const app = makeApp(storage);
-    const res1 = await app.request('/widgets');
-    const res2 = await app.request('/widgets');
+    const res1 = await app.request('/dashboards/main/widgets');
+    const res2 = await app.request('/dashboards/main/widgets');
     const w1 = (await res1.json()) as Array<{ cachedAt: string | null }>;
     const w2 = (await res2.json()) as Array<{ cachedAt: string | null }>;
     expect(w1[0]!.cachedAt).toBeNull();

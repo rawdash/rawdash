@@ -94,9 +94,23 @@ export interface ConnectorEntry {
   connector: Connector;
 }
 
+export interface Dashboard {
+  widgets: Record<string, Widget>;
+}
+
 export interface DashboardConfig {
   connectors: ConnectorEntry[];
+  dashboards: Record<string, Dashboard>;
+}
+
+// ---------------------------------------------------------------------------
+// defineDashboard
+// ---------------------------------------------------------------------------
+
+export function defineDashboard(options: {
   widgets: Record<string, Widget>;
+}): Dashboard {
+  return { widgets: options.widgets };
 }
 
 // ---------------------------------------------------------------------------
@@ -138,24 +152,62 @@ const VALID_FNS = new Set<string>([
   'first',
 ]);
 
+const SAFE_KEY_RE = /^[a-zA-Z0-9_-]+$/;
+
 function validateConfig(config: DashboardConfig): void {
+  if (
+    !config.dashboards ||
+    typeof config.dashboards !== 'object' ||
+    Array.isArray(config.dashboards)
+  ) {
+    throw new Error(
+      'defineConfig: config must include a "dashboards" record — did you mean to migrate from the old flat "widgets" shape?',
+    );
+  }
+
   const connectorIds = new Set(config.connectors.map((e) => e.connector.id));
 
-  for (const [widgetId, widget] of Object.entries(config.widgets)) {
-    const { connectorId, shape, fn } = widget.metric;
-
-    if (!connectorIds.has(connectorId)) {
+  for (const [dashboardKey, dashboard] of Object.entries(config.dashboards)) {
+    if (
+      !dashboard.widgets ||
+      typeof dashboard.widgets !== 'object' ||
+      Array.isArray(dashboard.widgets)
+    ) {
       throw new Error(
-        `Widget "${widgetId}": connector "${connectorId}" is not listed in connectors`,
+        `Dashboard "${dashboardKey}" must define a "widgets" record`,
       );
     }
 
-    if (!VALID_SHAPES.has(shape)) {
-      throw new Error(`Widget "${widgetId}": invalid shape "${shape}"`);
+    if (!SAFE_KEY_RE.test(dashboardKey)) {
+      throw new Error(
+        `Dashboard key "${dashboardKey}" contains URL-unsafe characters; use only letters, digits, hyphens, and underscores`,
+      );
     }
 
-    if (!VALID_FNS.has(fn)) {
-      throw new Error(`Widget "${widgetId}": invalid fn "${fn}"`);
+    for (const [widgetKey, widget] of Object.entries(dashboard.widgets)) {
+      const ref = `Dashboard "${dashboardKey}", widget "${widgetKey}"`;
+
+      if (!SAFE_KEY_RE.test(widgetKey)) {
+        throw new Error(
+          `${ref}: widget key contains URL-unsafe characters; use only letters, digits, hyphens, and underscores`,
+        );
+      }
+
+      const { connectorId, shape, fn } = widget.metric;
+
+      if (!connectorIds.has(connectorId)) {
+        throw new Error(
+          `${ref}: connector "${connectorId}" is not listed in connectors`,
+        );
+      }
+
+      if (!VALID_SHAPES.has(shape)) {
+        throw new Error(`${ref}: invalid shape "${shape}"`);
+      }
+
+      if (!VALID_FNS.has(fn)) {
+        throw new Error(`${ref}: invalid fn "${fn}"`);
+      }
     }
   }
 }

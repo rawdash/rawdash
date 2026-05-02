@@ -9,7 +9,7 @@ export default async function DashboardPage() {
   await rawdash.ensureFresh().catch((err: unknown) => {
     console.error('rawdash.ensureFresh failed', err);
   });
-  const widgets = await rawdash.getWidgets().catch((err: unknown) => {
+  const widgets = await rawdash.getWidgets('github').catch((err: unknown) => {
     console.error('rawdash.getWidgets failed', err);
     return [];
   });

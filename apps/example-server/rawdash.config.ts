@@ -1,6 +1,6 @@
 import { TursoStorage } from '@rawdash/adapter-turso';
 import { GitHubActionsConnector } from '@rawdash/connector-github';
-import { defineConfig, defineMetric } from '@rawdash/core';
+import { defineConfig, defineDashboard, defineMetric } from '@rawdash/core';
 import { serve } from '@rawdash/server';
 
 function resolvePort(): number {
@@ -36,52 +36,56 @@ const storage = new TursoStorage({
 serve(
   defineConfig({
     connectors: [{ connector: github }],
-    widgets: {
-      latest_run_conclusion: {
-        label: 'Latest Run Conclusion',
-        metric: defineMetric({
-          connector: github,
-          shape: 'event',
-          name: 'workflow_run',
-          field: 'conclusion',
-          fn: 'latest',
-        }),
-      },
-      run_count_7d: {
-        label: 'Run Count 7d',
-        metric: defineMetric({
-          connector: github,
-          shape: 'event',
-          name: 'workflow_run',
-          field: 'start_ts',
-          fn: 'count',
-          window: '7d',
-        }),
-      },
-      successful_runs_7d: {
-        label: 'Successful Runs 7d',
-        metric: defineMetric({
-          connector: github,
-          shape: 'event',
-          name: 'workflow_run',
-          field: 'start_ts',
-          fn: 'count',
-          window: '7d',
-          filter: [{ field: 'conclusion', op: 'eq', value: 'success' }],
-        }),
-      },
-      daily_runs: {
-        label: 'Daily Runs',
-        metric: defineMetric({
-          connector: github,
-          shape: 'event',
-          name: 'workflow_run',
-          field: 'start_ts',
-          fn: 'count',
-          window: '7d',
-          groupBy: { field: 'start_ts', granularity: 'day' },
-        }),
-      },
+    dashboards: {
+      github: defineDashboard({
+        widgets: {
+          latest_run_conclusion: {
+            label: 'Latest Run Conclusion',
+            metric: defineMetric({
+              connector: github,
+              shape: 'event',
+              name: 'workflow_run',
+              field: 'conclusion',
+              fn: 'latest',
+            }),
+          },
+          run_count_7d: {
+            label: 'Run Count 7d',
+            metric: defineMetric({
+              connector: github,
+              shape: 'event',
+              name: 'workflow_run',
+              field: 'start_ts',
+              fn: 'count',
+              window: '7d',
+            }),
+          },
+          successful_runs_7d: {
+            label: 'Successful Runs 7d',
+            metric: defineMetric({
+              connector: github,
+              shape: 'event',
+              name: 'workflow_run',
+              field: 'start_ts',
+              fn: 'count',
+              window: '7d',
+              filter: [{ field: 'conclusion', op: 'eq', value: 'success' }],
+            }),
+          },
+          daily_runs: {
+            label: 'Daily Runs',
+            metric: defineMetric({
+              connector: github,
+              shape: 'event',
+              name: 'workflow_run',
+              field: 'start_ts',
+              fn: 'count',
+              window: '7d',
+              groupBy: { field: 'start_ts', granularity: 'day' },
+            }),
+          },
+        },
+      }),
     },
   }),
   { port: resolvePort(), storage },

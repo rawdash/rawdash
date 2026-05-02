@@ -19,14 +19,14 @@ type NextFetchInit = RequestInit & {
 /**
  * Shape of a successful widget-data response.
  *
- * Route: `GET /widgets/:id`
+ * Route: `GET /dashboards/:dashboardId/widgets/:widgetId`
  *
  * @typeParam TData - The widget's data payload type.
  */
 export interface CachedWidgetResponse<TData = unknown> {
   /** Connector that owns this widget. */
   connectorId: string;
-  /** Widget identifier within the connector. */
+  /** Widget identifier within its dashboard. */
   widgetId: string;
   /** The cached data payload. */
   data: TData;
@@ -93,22 +93,28 @@ export interface RawdashClientOptions {
  */
 export interface RawdashClient {
   /**
-   * Fetch all cached widgets from the Rawdash API.
+   * Fetch all cached widgets for a dashboard from the Rawdash API.
    *
    * The response is tagged with `'rawdash'` so that `triggerSync` can
    * invalidate it via `revalidateTag`.
+   *
+   * @param dashboardId - The dashboard key to fetch widgets for.
    */
-  getWidgets(): Promise<CachedWidgetResponse[]>;
+  getWidgets(dashboardId: string): Promise<CachedWidgetResponse[]>;
 
   /**
-   * Fetch a single cached widget by its composite ID (`connectorId:widgetId`).
+   * Fetch a single cached widget by its ID within a dashboard.
    *
    * The response is tagged with `'rawdash'` so that `triggerSync` can
    * invalidate it via `revalidateTag`.
    *
-   * @param id - Composite widget identifier, e.g. `'github:pull_requests'`.
+   * @param dashboardId - The dashboard key the widget belongs to.
+   * @param widgetId - The widget identifier within the dashboard.
    */
-  getWidget(id: string): Promise<CachedWidgetResponse>;
+  getWidget(
+    dashboardId: string,
+    widgetId: string,
+  ): Promise<CachedWidgetResponse>;
 
   /**
    * Fetch the current sync health status from the Rawdash API.
@@ -163,7 +169,7 @@ export interface RawdashClient {
  * });
  *
  * // In a Server Component:
- * const widgets = await client.getWidgets();
+ * const widgets = await client.getWidgets('main');
  *
  * // In a Server Action:
  * 'use server';
@@ -211,16 +217,18 @@ export function createRawdashClient(
   }
 
   return {
-    getWidgets() {
-      return get<CachedWidgetResponse[]>('/widgets', {
-        next: { tags: [RAWDASH_CACHE_TAG] },
-      });
+    getWidgets(dashboardId) {
+      return get<CachedWidgetResponse[]>(
+        `/dashboards/${encodeURIComponent(dashboardId)}/widgets`,
+        { next: { tags: [RAWDASH_CACHE_TAG] } },
+      );
     },
 
-    getWidget(id) {
-      return get<CachedWidgetResponse>(`/widgets/${encodeURIComponent(id)}`, {
-        next: { tags: [RAWDASH_CACHE_TAG] },
-      });
+    getWidget(dashboardId, widgetId) {
+      return get<CachedWidgetResponse>(
+        `/dashboards/${encodeURIComponent(dashboardId)}/widgets/${encodeURIComponent(widgetId)}`,
+        { next: { tags: [RAWDASH_CACHE_TAG] } },
+      );
     },
 
     getHealth() {
