@@ -7,6 +7,10 @@ import type { ServerStorage } from '../types';
 
 const DEFAULT_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 
+function hasPruningPolicy(config: RetentionConfig): boolean {
+  return config.maxAge !== undefined || config.maxSize !== undefined;
+}
+
 export class RetentionRouter implements RawdashRouter {
   private interval: ReturnType<typeof setInterval> | null = null;
 
@@ -17,13 +21,13 @@ export class RetentionRouter implements RawdashRouter {
 
   async runRetention(): Promise<void> {
     const retentionConfig = this.config.retention;
-    if (!retentionConfig) {
+    if (!retentionConfig || !hasPruningPolicy(retentionConfig)) {
       return;
     }
 
     const nowMs = Date.now();
 
-    await Promise.allSettled(
+    const results = await Promise.allSettled(
       this.config.connectors.map(async ({ connector }) => {
         const handle = this.storage.getStorageHandle(connector.id);
 
@@ -58,19 +62,35 @@ export class RetentionRouter implements RawdashRouter {
         );
       }),
     );
+
+    const failures = results.filter(
+      (r): r is PromiseRejectedResult => r.status === 'rejected',
+    );
+    if (failures.length > 0) {
+      throw new Error(
+        `Retention failed for ${failures.length} connector(s): ${failures.map((f) => String(f.reason)).join('; ')}`,
+      );
+    }
   }
 
   mount(app: Hono): void {
     app.post('/retain', async (c) => {
-      void this.runRetention();
-      return c.json({ triggered: true });
+      try {
+        await this.runRetention();
+        return c.json({ triggered: true });
+      } catch (err) {
+        console.error('retention run failed', err);
+        return c.json({ triggered: false }, 500);
+      }
     });
 
-    if (this.config.retention) {
-      const intervalMs =
-        this.config.retention.intervalMs ?? DEFAULT_INTERVAL_MS;
+    const retentionConfig = this.config.retention;
+    if (retentionConfig && hasPruningPolicy(retentionConfig)) {
+      const intervalMs = retentionConfig.intervalMs ?? DEFAULT_INTERVAL_MS;
       this.interval = setInterval(() => {
-        void this.runRetention();
+        void this.runRetention().catch((err) => {
+          console.error('retention run failed', err);
+        });
       }, intervalMs);
     }
   }

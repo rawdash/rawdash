@@ -263,4 +263,59 @@ describe('defineConfig validation', () => {
       }),
     ).not.toThrow();
   });
+
+  describe('retention validation', () => {
+    const base = {
+      connectors: [{ connector }],
+      dashboards: { main: defineDashboard({ widgets: {} }) },
+    };
+
+    it('throws for negative maxAge', () => {
+      expect(() =>
+        defineConfig({ ...base, retention: { maxAge: -1 } }),
+      ).toThrow('retention.maxAge must be >= 0');
+    });
+
+    it('throws for negative maxSize', () => {
+      expect(() =>
+        defineConfig({ ...base, retention: { maxSize: -1 } }),
+      ).toThrow('retention.maxSize must be an integer >= 0');
+    });
+
+    it('throws for fractional maxSize', () => {
+      expect(() =>
+        defineConfig({ ...base, retention: { maxSize: 1.5 } }),
+      ).toThrow('retention.maxSize must be an integer >= 0');
+    });
+
+    it('throws for negative floor', () => {
+      expect(() =>
+        defineConfig({ ...base, retention: { maxAge: 1000, floor: -1 } }),
+      ).toThrow('retention.floor must be an integer >= 0');
+    });
+
+    it('throws for non-positive intervalMs', () => {
+      expect(() =>
+        defineConfig({ ...base, retention: { maxAge: 1000, intervalMs: 0 } }),
+      ).toThrow('retention.intervalMs must be > 0');
+    });
+
+    it('passes for valid retention config', () => {
+      expect(() =>
+        defineConfig({
+          ...base,
+          retention: {
+            maxAge: 86400000,
+            maxSize: 1000,
+            floor: 10,
+            intervalMs: 3600000,
+          },
+        }),
+      ).not.toThrow();
+    });
+
+    it('passes when retention is omitted', () => {
+      expect(() => defineConfig(base)).not.toThrow();
+    });
+  });
 });

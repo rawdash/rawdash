@@ -157,6 +157,22 @@ const VALID_FNS = new Set<string>([
 const SAFE_KEY_RE = /^[a-zA-Z0-9_-]+$/;
 
 function validateConfig(config: DashboardConfig): void {
+  if (config.retention) {
+    const { maxAge, maxSize, floor, intervalMs } = config.retention;
+    if (maxAge !== undefined && maxAge < 0) {
+      throw new Error('retention.maxAge must be >= 0');
+    }
+    if (maxSize !== undefined && (!Number.isInteger(maxSize) || maxSize < 0)) {
+      throw new Error('retention.maxSize must be an integer >= 0');
+    }
+    if (floor !== undefined && (!Number.isInteger(floor) || floor < 0)) {
+      throw new Error('retention.floor must be an integer >= 0');
+    }
+    if (intervalMs !== undefined && intervalMs <= 0) {
+      throw new Error('retention.intervalMs must be > 0');
+    }
+  }
+
   if (
     !config.dashboards ||
     typeof config.dashboards !== 'object' ||
