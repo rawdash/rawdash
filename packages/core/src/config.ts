@@ -1,4 +1,5 @@
 import type { Connector } from './connector';
+import type { RetentionConfig } from './retention';
 
 // ---------------------------------------------------------------------------
 // Aggregation functions
@@ -101,6 +102,7 @@ export interface Dashboard {
 export interface DashboardConfig {
   connectors: ConnectorEntry[];
   dashboards: Record<string, Dashboard>;
+  retention?: RetentionConfig;
 }
 
 // ---------------------------------------------------------------------------
@@ -155,6 +157,25 @@ const VALID_FNS = new Set<string>([
 const SAFE_KEY_RE = /^[a-zA-Z0-9_-]+$/;
 
 function validateConfig(config: DashboardConfig): void {
+  if (config.retention) {
+    const { maxAge, maxSize, floor, intervalMs } = config.retention;
+    if (maxAge !== undefined && (!Number.isFinite(maxAge) || maxAge < 0)) {
+      throw new Error('retention.maxAge must be a finite number >= 0');
+    }
+    if (maxSize !== undefined && (!Number.isInteger(maxSize) || maxSize < 0)) {
+      throw new Error('retention.maxSize must be an integer >= 0');
+    }
+    if (floor !== undefined && (!Number.isInteger(floor) || floor < 0)) {
+      throw new Error('retention.floor must be an integer >= 0');
+    }
+    if (
+      intervalMs !== undefined &&
+      (!Number.isFinite(intervalMs) || intervalMs <= 0)
+    ) {
+      throw new Error('retention.intervalMs must be a finite number > 0');
+    }
+  }
+
   if (
     !config.dashboards ||
     typeof config.dashboards !== 'object' ||
