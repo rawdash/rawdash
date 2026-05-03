@@ -23,7 +23,7 @@ export default defineConfig({
           label: 'Getting Started',
           items: [
             { label: 'Introduction', slug: 'docs/getting-started' },
-            { label: 'OSS Quickstart', slug: 'docs/quickstart' },
+            { label: 'Quickstart', slug: 'docs/quickstart' },
           ],
         },
         {
@@ -37,15 +37,10 @@ export default defineConfig({
           label: 'Reference',
           items: [{ label: 'API Reference', slug: 'docs/api-reference' }],
         },
-        {
-          label: 'Cloud',
-          items: [
-            { label: 'Overview', slug: 'docs/cloud' },
-            { label: 'Cloud Quickstart', slug: 'docs/cloud/quickstart' },
-            { label: 'Billing', slug: 'docs/cloud/billing' },
-          ],
-        },
       ],
+      components: {
+        Pagination: './src/components/Pagination.astro',
+      },
       customCss: ['./src/styles/custom.css'],
     }),
   ],
