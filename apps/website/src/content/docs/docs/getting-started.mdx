@@ -1,0 +1,84 @@
+---
+title: Introduction
+description: What Rawdash is and how it fits into your stack.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## What is Rawdash?
+
+Rawdash is an open-source **headless dashboard backend** — a TypeScript library you embed in your existing server to handle the data side of dashboards as a solved problem.
+
+It provides:
+
+- **Pre-built connectors** for SaaS tools (GitHub, Slack, Linear, and more)
+- A **background sync engine** that keeps data fresh automatically
+- A **pluggable storage layer** (ships with a Turso/libSQL adapter)
+- A **clean HTTP API** any frontend can query
+
+You bring the UI. Rawdash handles the plumbing.
+
+## Architecture overview
+
+```
+┌─────────────────────────────────────────────┐
+│                 Your server                  │
+│                                              │
+│  rawdash.config.ts                           │
+│  ├── connectors  ──► background sync         │
+│  ├── storage     ──► Turso / custom adapter  │
+│  └── dashboards  ──► widget definitions      │
+│                                              │
+│  Mount: app.use('/api/rawdash', handler)     │
+└──────────────────┬──────────────────────────┘
+                   │  REST / MCP
+        ┌──────────▼──────────┐
+        │   Your frontend /   │
+        │   Claude / any client│
+        └─────────────────────┘
+```
+
+## When to use Rawdash
+
+Rawdash is a good fit when you:
+
+- Need a dashboard that aggregates data from multiple SaaS tools
+- Want synced, cached data rather than live API calls on every page load
+- Prefer a TypeScript-first, code-defined config over a YAML/JSON schema
+- Want to self-host on your own infra
+
+<Aside type="tip">
+  If you'd rather not run your own infrastructure, check out
+  [Rawdash Cloud](https://cloud.rawdash.dev) — managed hosting with automatic
+  syncs and a hosted UI.
+</Aside>
+
+## Core concepts
+
+### Connectors
+
+A connector wraps a third-party API. It knows how to fetch data, what shape to
+store it in, and how often to refresh. You configure connectors in your
+`defineConfig` call.
+
+### Dashboards
+
+A dashboard groups one or more connectors under a single ID. Your frontend
+queries dashboards by ID.
+
+### Storage adapter
+
+The storage adapter persists synced data. The built-in adapter uses
+[Turso](https://turso.tech) (libSQL), but the interface is small enough to
+implement for any database.
+
+### Retention
+
+Each connector can declare a retention policy — how long to keep historical
+snapshots before pruning old rows.
+
+## Next steps
+
+- **[OSS Quickstart](/docs/quickstart/)** — scaffold a working Rawdash backend in five minutes
+- **[Connector Author Guide](/docs/connector-guide/)** — build your own connector
+- **[MCP Setup](/docs/mcp-setup/)** — wire up Claude Code and Claude Desktop

@@ -1,0 +1,136 @@
+---
+title: OSS Quickstart
+description: Get a Rawdash backend running in under five minutes.
+---
+
+import { Steps, Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+This guide walks you through installing Rawdash, configuring a GitHub connector,
+and mounting the request handler in a Node.js server.
+
+<Steps>
+
+1. **Install packages**
+
+   <Tabs>
+     <TabItem label="npm">
+       ```sh
+       npm install @rawdash/core @rawdash/server @rawdash/connector-github @rawdash/adapter-turso
+       ```
+     </TabItem>
+     <TabItem label="pnpm">
+       ```sh
+       pnpm add @rawdash/core @rawdash/server @rawdash/connector-github @rawdash/adapter-turso
+       ```
+     </TabItem>
+     <TabItem label="yarn">
+       ```sh
+       yarn add @rawdash/core @rawdash/server @rawdash/connector-github @rawdash/adapter-turso
+       ```
+     </TabItem>
+   </Tabs>
+
+   If you are mounting Rawdash inside a Next.js app, also install `@rawdash/nextjs`:
+
+   <Tabs>
+     <TabItem label="npm">
+       ```sh
+       npm install @rawdash/nextjs
+       ```
+     </TabItem>
+     <TabItem label="pnpm">
+       ```sh
+       pnpm add @rawdash/nextjs
+       ```
+     </TabItem>
+     <TabItem label="yarn">
+       ```sh
+       yarn add @rawdash/nextjs
+       ```
+     </TabItem>
+   </Tabs>
+
+2. **Create your config file**
+
+   ```ts title="rawdash.config.ts"
+   import { defineConfig, defineDashboard } from '@rawdash/core';
+   import { GitHubActionsConnector } from '@rawdash/connector-github';
+   import { TursoStorage } from '@rawdash/adapter-turso';
+   import { serve } from '@rawdash/server';
+
+   const github = new GitHubActionsConnector(
+     { owner: 'myorg', repo: 'backend' },
+     { token: process.env.GITHUB_TOKEN },
+   );
+
+   serve(
+     defineConfig({
+       connectors: [{ connector: github }],
+       dashboards: {
+         eng: defineDashboard({ widgets: {} }),
+       },
+     }),
+     {
+       storage: new TursoStorage({
+         url: process.env.TURSO_URL ?? 'file:rawdash.db',
+         authToken: process.env.TURSO_AUTH_TOKEN,
+       }),
+     },
+   );
+   ```
+
+3. **Connect your frontend**
+
+   The config file from Step 2 starts a standalone HTTP server when run with
+   `tsx`. From your frontend (React, Next.js, etc.) use `@rawdash/nextjs` to
+   query it:
+
+   ```ts title="lib/rawdash.ts"
+   import { createRawdashClient } from '@rawdash/nextjs';
+
+   export const rawdash = createRawdashClient({
+     url: process.env.RAWDASH_URL ?? 'http://localhost:8080',
+   });
+   ```
+
+4. **Set environment variables**
+
+   ```sh title=".env.local"
+   GITHUB_TOKEN=ghp_...
+   TURSO_URL=libsql://your-db.turso.io
+   TURSO_AUTH_TOKEN=ey...
+   ```
+
+   <Aside type="tip">
+     For local development without Turso, use an in-memory SQLite URL:
+     `TURSO_URL=file::memory:?cache=shared`
+   </Aside>
+
+5. **Start the server and verify**
+
+   ```sh
+   npx tsx rawdash.config.ts
+   ```
+
+   Rawdash will start on port 8080, run the initial sync, then enter the
+   background polling loop. Check the health endpoint:
+
+   ```sh
+   curl http://localhost:8080/health
+   # {"status":"idle","lastSyncAt":"2025-04-25T10:00:00.000Z","lastError":null}
+   ```
+
+6. **Query from your frontend**
+
+   ```ts
+   const res = await fetch('http://localhost:8080/dashboards/eng/widgets');
+   const widgets = await res.json(); // WidgetEntry[]
+   ```
+
+</Steps>
+
+## Next steps
+
+- **[Connector Author Guide](/docs/connector-guide/)** — build a custom connector for any API
+- **[MCP Setup](/docs/mcp-setup/)** — query your data from Claude Code
+- **[API Reference](/docs/api-reference/)** — full HTTP endpoint docs

@@ -1,0 +1,119 @@
+---
+title: API Reference
+description: Full HTTP endpoint reference for the Rawdash server.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+All endpoints are served by the Rawdash standalone server (started via `serve()`
+from `@rawdash/server`). The examples below use the default base path `/`.
+
+## Authentication
+
+Rawdash does not apply authentication by default. Place an authenticating reverse
+proxy in front of the Rawdash server if you need to restrict access.
+
+For Rawdash Cloud, pass your API key as a `Bearer` token:
+
+```
+Authorization: Bearer <api-key>
+```
+
+---
+
+## Health
+
+### `GET /health`
+
+Returns the current sync state for the server.
+
+**Response**
+
+```json
+{
+  "status": "idle",
+  "lastSyncAt": "2025-04-25T10:00:00.000Z",
+  "lastError": null
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `status` | `"idle" \| "syncing" \| "error"` | Current sync lifecycle status |
+| `lastSyncAt` | ISO 8601 string \| `null` | Timestamp of the last successful sync |
+| `lastError` | string \| `null` | Last sync error message, if any |
+
+---
+
+## Widgets
+
+### `GET /dashboards/:dashboardId/widgets`
+
+Fetch all widget data for a dashboard.
+
+**Path parameters**
+
+| Parameter | Description |
+|-----------|-------------|
+| `dashboardId` | Dashboard ID as defined in `defineConfig({ dashboards })` |
+
+**Response**
+
+Returns a JSON array of widget entries:
+
+```json
+[
+  {
+    "id": "open_prs",
+    "widgetId": "open_prs",
+    "connectorId": "github",
+    "data": { "value": 12 },
+    "cachedAt": "2025-04-25T10:00:00.000Z"
+  }
+]
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` / `widgetId` | string | Widget key from your dashboard config |
+| `connectorId` | string | ID of the connector that sourced this widget |
+| `data` | object | Computed metric result |
+| `cachedAt` | ISO 8601 string \| `null` | Timestamp of the sync that produced this data |
+
+---
+
+## Sync
+
+### `POST /sync`
+
+Trigger an immediate full sync across all configured connectors.
+
+<Aside type="caution">
+  Sync runs asynchronously. The response confirms whether a new sync was
+  triggered. Poll the health endpoint to observe completion.
+</Aside>
+
+**Response**
+
+```json
+{ "triggered": true }
+```
+
+Returns `triggered: false` if a sync is already in progress.
+
+---
+
+### `GET /dashboards/:dashboardId/widgets/:widgetId`
+
+Fetch data for a single widget.
+
+**Response (200)**
+
+Returns a single widget entry object (same shape as an array item above).
+
+**Response (404)**
+
+```json
+{ "error": "Widget not found" }
+```
+

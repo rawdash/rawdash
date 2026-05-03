@@ -1,0 +1,164 @@
+---
+title: Connector Author Guide
+description: Build a custom connector to sync any third-party API into Rawdash.
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+A **connector** tells Rawdash how to fetch data from a third-party service,
+what shape to store it in, and when to refresh. This guide walks you through
+authoring a connector from scratch.
+
+## Anatomy of a connector
+
+Every connector implements the `Connector` interface from `@rawdash/core`:
+
+```ts
+import type { Connector, SyncRequest, StorageHandle } from '@rawdash/core';
+
+export class MyConnector implements Connector {
+  readonly id = 'my-connector';
+
+  async sync(request: SyncRequest, storage: StorageHandle, signal?: AbortSignal): Promise<void> {
+    // Fetch data and write to storage
+  }
+}
+```
+
+The `sync()` method is called by the background sync engine. It writes fetched
+data into `storage` using typed write methods (`storage.events()`,
+`storage.entities()`, etc.) and returns `Promise<void>`.
+
+## Full example: a custom connector
+
+<Steps>
+
+1. **Install the core package**
+
+   ```sh
+   pnpm add @rawdash/core
+   ```
+
+2. **Define your settings type**
+
+   TypeScript settings are passed as the generic to `defineConnector`:
+
+   ```ts title="src/connectors/my-api/index.ts"
+   interface MyConnectorSettings {
+     apiKey: string;
+     baseUrl?: string;
+   }
+   ```
+
+3. **Implement the connector**
+
+   `defineConnector` is curried — call it with the settings type first, then
+   pass the definition object. The `sync` function receives `(request, storage,
+   signal?)` and writes data using `storage` methods:
+
+   ```ts title="src/connectors/my-api/index.ts"
+   import { defineConnector } from '@rawdash/core';
+
+   interface MyConnectorSettings {
+     apiKey: string;
+     baseUrl?: string;
+   }
+
+   export const MyConnector = defineConnector<MyConnectorSettings>()({
+     id: 'my-api',
+     async sync(request, storage, signal) {
+       const res = await fetch(
+         `${this.settings.baseUrl ?? 'https://api.example.com'}/items`,
+         {
+           headers: { Authorization: `Bearer ${this.settings.apiKey}` },
+           signal,
+         },
+       );
+
+       if (!res.ok) {
+         throw new Error(`My API returned ${res.status}`);
+       }
+
+       const data = (await res.json()) as Array<{
+         id: string;
+         name: string;
+         value: number;
+         createdAt: string;
+       }>;
+
+       await storage.entities(
+         data.map((item) => ({
+           type: 'my-item',
+           id: item.id,
+           attributes: { name: item.name, value: item.value },
+           updated_at: Date.parse(item.createdAt),
+         })),
+         { types: ['my-item'] },
+       );
+     },
+   });
+   ```
+
+4. **Declare a retention policy (optional)**
+
+   Pass a retention config when registering the connector in `defineConfig`:
+
+   ```ts title="rawdash.config.ts"
+   import { retainLast } from '@rawdash/core';
+
+   defineConfig({
+     connectors: [
+       {
+         connector: new MyConnector({ apiKey: process.env.MY_API_KEY! }),
+         retention: retainLast(90, 'days'),
+       },
+     ],
+     // ...
+   });
+   ```
+
+5. **Register it in your config**
+
+   ```ts title="rawdash.config.ts"
+   import { defineConfig, defineDashboard } from '@rawdash/core';
+   import { serve } from '@rawdash/server';
+   import { MyConnector } from './src/connectors/my-api';
+
+   const myConnector = new MyConnector({ apiKey: process.env.MY_API_KEY! });
+
+   serve(
+     defineConfig({
+       connectors: [{ connector: myConnector }],
+       dashboards: {
+         'my-dashboard': defineDashboard({ widgets: {} }),
+       },
+     }),
+   );
+   ```
+
+</Steps>
+
+## Error handling
+
+If `sync()` throws, Rawdash logs the error and schedules a retry with
+exponential back-off. The last successful snapshot remains available to clients
+during a degraded sync.
+
+<Aside type="caution">
+  Never swallow errors silently. Let them propagate — Rawdash will handle
+  retries and surface them in the health endpoint.
+</Aside>
+
+## Publishing your connector
+
+If you'd like your connector listed on the rawdash.dev site, open a PR to
+[rawdash/rawdash](https://github.com/rawdash/rawdash) with:
+
+- Your connector package under `packages/connectors/<name>/`
+- A `README.md` with install instructions and a usage example
+- Tests with at least the happy-path sync covered
+
+## Related
+
+- [OSS Quickstart](/docs/quickstart/) — mount a working backend end-to-end
+- [API Reference](/docs/api-reference/) — `Connector` interface typedefs
