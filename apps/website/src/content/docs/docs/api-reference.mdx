@@ -1,0 +1,147 @@
+---
+title: API Reference
+description: Full HTTP endpoint reference for the Rawdash server.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+All endpoints are mounted under the path you pass to `createHandler`. In these
+docs that path is `/api/rawdash`.
+
+## Authentication
+
+Rawdash does not apply authentication by default. Add middleware in your host
+framework before the Rawdash handler.
+
+For Rawdash Cloud, pass your API key as a `Bearer` token:
+
+```
+Authorization: Bearer <api-key>
+```
+
+---
+
+## Health
+
+### `GET /api/rawdash/health`
+
+Returns the server status and per-connector sync state.
+
+**Response**
+
+```json
+{
+  "status": "ok",
+  "dashboards": [
+    {
+      "id": "eng",
+      "connectors": [
+        {
+          "id": "github",
+          "lastSyncedAt": "2025-04-25T10:00:00.000Z",
+          "status": "ok"
+        }
+      ]
+    }
+  ]
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `status` | `"ok" \| "degraded"` | `"degraded"` if any connector last sync failed |
+| `dashboards[].connectors[].lastSyncedAt` | ISO 8601 string | Timestamp of the last successful sync |
+| `dashboards[].connectors[].status` | `"ok" \| "error"` | Status of the most recent sync attempt |
+
+---
+
+## Dashboards
+
+### `GET /api/rawdash/dashboards`
+
+List all configured dashboards.
+
+**Response**
+
+```json
+{
+  "dashboards": [
+    { "id": "eng", "connectors": ["github"] }
+  ]
+}
+```
+
+### `GET /api/rawdash/dashboards/:dashboardId/widgets`
+
+Fetch all widget data for a dashboard.
+
+**Path parameters**
+
+| Parameter | Description |
+|-----------|-------------|
+| `dashboardId` | Dashboard ID as defined in `defineDashboard({ id })` |
+
+**Query parameters**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `since` | ISO 8601 string | Return only data updated after this timestamp |
+
+**Response**
+
+```json
+{
+  "dashboardId": "eng",
+  "cachedAt": "2025-04-25T10:00:00.000Z",
+  "widgets": [
+    {
+      "connectorId": "github",
+      "type": "pull_requests",
+      "data": { ... }
+    }
+  ]
+}
+```
+
+### `POST /api/rawdash/dashboards/:dashboardId/sync`
+
+Trigger an immediate sync for all connectors in a dashboard.
+
+<Aside type="caution">
+  Sync runs asynchronously. The response confirms the sync was enqueued, not
+  that it completed. Poll the health endpoint or subscribe to webhooks to
+  observe completion.
+</Aside>
+
+**Response**
+
+```json
+{ "enqueued": true }
+```
+
+---
+
+## Widgets
+
+### `GET /api/rawdash/dashboards/:dashboardId/widgets/:widgetId`
+
+Fetch data for a single widget.
+
+**Response**
+
+Same shape as a single entry from the `widgets` array above.
+
+---
+
+## MCP
+
+### `GET /api/rawdash/mcp`
+
+MCP server endpoint used by `@rawdash/mcp`. Returns the MCP manifest describing
+available tools and their input schemas.
+
+<Aside>
+  You don't call this endpoint directly — the `@rawdash/mcp` package handles
+  the MCP transport layer. See [MCP Setup](/docs/mcp-setup/) for wiring
+  instructions.
+</Aside>

@@ -1,0 +1,51 @@
+---
+title: Billing
+description: Plans, limits, and how Rawdash Cloud usage is measured.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside>
+  Rawdash Cloud is in **Beta**. Billing is not yet active. All Beta users have
+  full access free of charge until General Availability.
+</Aside>
+
+## Plans
+
+Pricing details will be published before General Availability. The planned
+tiers are:
+
+| | Free | Pro | Team |
+|--|------|-----|------|
+| Dashboards | 1 | 5 | Unlimited |
+| Connectors per dashboard | 2 | 10 | Unlimited |
+| Sync frequency | 1 hour | 5 minutes | 1 minute |
+| Data retention | 7 days | 90 days | 1 year |
+| Team members | 1 | 3 | Unlimited |
+| MCP access | ✅ | ✅ | ✅ |
+
+## How usage is measured
+
+Rawdash Cloud bills on **sync operations**:
+
+- Each connector sync counts as one operation
+- Failed syncs do not count
+- Manual syncs triggered via the API count the same as scheduled syncs
+
+## Data retention
+
+Data older than your plan's retention window is automatically pruned. If you
+downgrade to a lower-retention plan, older data is removed on the next
+scheduled pruning run (up to 24 hours).
+
+## Cancellation and data export
+
+You can cancel your plan at any time from **Settings → Billing**. After
+cancellation, your data remains accessible for 30 days. Before the 30-day
+window closes, you can export a full JSON dump of all synced data from the
+**Settings → Export** page.
+
+## Questions?
+
+For billing questions during the Beta, email
+[billing@rawdash.dev](mailto:billing@rawdash.dev).

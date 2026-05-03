@@ -1,0 +1,127 @@
+---
+title: MCP Setup
+description: Wire Rawdash into Claude Code and Claude Desktop via the Model Context Protocol.
+---
+
+import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+Rawdash exposes a [Model Context Protocol](https://modelcontextprotocol.io/)
+(MCP) server so Claude-powered tools can query your dashboard data as context.
+
+## Prerequisites
+
+- A running Rawdash server (see [OSS Quickstart](/docs/quickstart/))
+- [Claude Code](https://claude.ai/code) or [Claude Desktop](https://claude.ai/download)
+
+## Claude Code
+
+<Steps>
+
+1. **Open your project settings**
+
+   In your project root, open (or create) `.claude/settings.json`.
+
+2. **Add the Rawdash MCP server**
+
+   ```json title=".claude/settings.json"
+   {
+     "mcpServers": {
+       "rawdash": {
+         "command": "npx",
+         "args": ["-y", "@rawdash/mcp"],
+         "env": {
+           "RAWDASH_URL": "http://localhost:3000/api/rawdash"
+         }
+       }
+     }
+   }
+   ```
+
+   Replace `RAWDASH_URL` with the URL of your Rawdash server.
+
+3. **Restart Claude Code**
+
+   Claude Code picks up MCP server changes on restart. After restarting, type
+   `/mcp` to verify the `rawdash` server is listed.
+
+4. **Ask questions about your data**
+
+   Once connected, Claude can query your dashboards directly:
+
+   > "What were the most active repos last week?"
+   >
+   > "Show me open PRs older than 7 days across all repos."
+
+</Steps>
+
+## Claude Desktop
+
+<Steps>
+
+1. **Open the Claude Desktop config file**
+
+   <Tabs>
+     <TabItem label="macOS">
+       ```sh
+       open ~/Library/Application\ Support/Claude/claude_desktop_config.json
+       ```
+     </TabItem>
+     <TabItem label="Windows">
+       ```
+       %APPDATA%\Claude\claude_desktop_config.json
+       ```
+     </TabItem>
+   </Tabs>
+
+2. **Add the Rawdash MCP server**
+
+   ```json
+   {
+     "mcpServers": {
+       "rawdash": {
+         "command": "npx",
+         "args": ["-y", "@rawdash/mcp"],
+         "env": {
+           "RAWDASH_URL": "https://your-rawdash-server.example.com/api/rawdash"
+         }
+       }
+     }
+   }
+   ```
+
+3. **Restart Claude Desktop**
+
+   The Rawdash tools will appear in the Claude Desktop tools panel after restart.
+
+</Steps>
+
+## Available MCP tools
+
+Once connected, Claude has access to these tools:
+
+| Tool | Description |
+|------|-------------|
+| `rawdash_list_dashboards` | List all configured dashboards |
+| `rawdash_get_widgets` | Fetch widget data for a dashboard |
+| `rawdash_query` | Run a structured query against a dashboard's data |
+| `rawdash_health` | Check sync status and last-synced timestamps |
+
+## Scoping access
+
+By default, the MCP server exposes all dashboards. To restrict access to
+specific dashboards, pass a `RAWDASH_DASHBOARD_IDS` env var:
+
+```json
+{
+  "env": {
+    "RAWDASH_URL": "http://localhost:3000/api/rawdash",
+    "RAWDASH_DASHBOARD_IDS": "eng,design"
+  }
+}
+```
+
+<Aside type="tip">
+  For Rawdash Cloud, use your **Cloud API key** as `RAWDASH_API_KEY` instead
+  of pointing at a local server. See the
+  [Cloud Quickstart](/docs/cloud/quickstart/) for details.
+</Aside>

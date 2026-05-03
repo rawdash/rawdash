@@ -1,0 +1,161 @@
+---
+title: Connector Author Guide
+description: Build a custom connector to sync any third-party API into Rawdash.
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+A **connector** tells Rawdash how to fetch data from a third-party service,
+what shape to store it in, and when to refresh. This guide walks you through
+authoring a connector from scratch.
+
+## Anatomy of a connector
+
+Every connector implements the `Connector` interface from `@rawdash/core`:
+
+```ts
+import type { Connector, SyncResult } from '@rawdash/core';
+
+export class MyConnector implements Connector {
+  readonly id = 'my-connector';
+
+  async sync(): Promise<SyncResult> {
+    // Fetch data, return rows
+  }
+}
+```
+
+The `sync()` method is called by the background sync engine on a configurable
+interval. It must return a `SyncResult` — an array of typed rows to upsert into
+storage.
+
+## Full example: a custom connector
+
+<Steps>
+
+1. **Install the core package**
+
+   ```sh
+   pnpm add @rawdash/core
+   ```
+
+2. **Define your data shape**
+
+   Use `z` from Zod (re-exported by `@rawdash/core`) to declare the shape of
+   each row your connector produces:
+
+   ```ts title="src/connectors/my-api/schema.ts"
+   import { z } from '@rawdash/core';
+
+   export const MyRowSchema = z.object({
+     id: z.string(),
+     name: z.string(),
+     value: z.number(),
+     createdAt: z.string().datetime(),
+   });
+
+   export type MyRow = z.infer<typeof MyRowSchema>;
+   ```
+
+3. **Implement the connector class**
+
+   ```ts title="src/connectors/my-api/index.ts"
+   import { defineConnector } from '@rawdash/core';
+   import { MyRowSchema } from './schema';
+
+   interface MyConnectorOptions {
+     apiKey: string;
+     baseUrl?: string;
+   }
+
+   export const MyConnector = defineConnector({
+     id: 'my-api',
+     schema: MyRowSchema,
+     options: {} as MyConnectorOptions,
+     async sync({ options, logger }) {
+       logger.info('Syncing from My API…');
+
+       const res = await fetch(`${options.baseUrl ?? 'https://api.example.com'}/items`, {
+         headers: { Authorization: `Bearer ${options.apiKey}` },
+       });
+
+       if (!res.ok) {
+         throw new Error(`My API returned ${res.status}`);
+       }
+
+       const data = await res.json() as unknown[];
+       const rows = data.map((item) => MyRowSchema.parse(item));
+       return { rows };
+     },
+   });
+   ```
+
+4. **Declare a retention policy (optional)**
+
+   Attach a retention policy to prune old snapshots automatically:
+
+   ```ts
+   import { defineConnector, retainLast } from '@rawdash/core';
+
+   export const MyConnector = defineConnector({
+     id: 'my-api',
+     schema: MyRowSchema,
+     retention: retainLast(90, 'days'),
+     // ...
+   });
+   ```
+
+5. **Register it in your config**
+
+   ```ts title="rawdash.config.ts"
+   import { MyConnector } from './src/connectors/my-api';
+
+   export default defineConfig({
+     dashboards: [
+       defineDashboard({
+         id: 'my-dashboard',
+         connectors: [
+           new MyConnector({ apiKey: process.env.MY_API_KEY! }),
+         ],
+       }),
+     ],
+   });
+   ```
+
+</Steps>
+
+## Sync interval
+
+By default each connector syncs every 5 minutes. Override it:
+
+```ts
+new MyConnector({
+  apiKey: process.env.MY_API_KEY!,
+  syncInterval: '15m',  // '30s' | '5m' | '1h' | cron string
+})
+```
+
+## Error handling
+
+If `sync()` throws, Rawdash logs the error and schedules a retry with
+exponential back-off. The last successful snapshot remains available to clients
+during a degraded sync.
+
+<Aside type="caution">
+  Never swallow errors silently. Let them propagate — Rawdash will handle
+  retries and surface them in the health endpoint.
+</Aside>
+
+## Publishing your connector
+
+If you'd like your connector listed on the rawdash.dev site, open a PR to
+[rawdash/rawdash](https://github.com/rawdash/rawdash) with:
+
+- Your connector package under `packages/connectors/<name>/`
+- A `README.md` with install instructions and a usage example
+- Tests with at least the happy-path sync covered
+
+## Related
+
+- [OSS Quickstart](/docs/quickstart/) — mount a working backend end-to-end
+- [API Reference](/docs/api-reference/) — `Connector` interface typedefs
