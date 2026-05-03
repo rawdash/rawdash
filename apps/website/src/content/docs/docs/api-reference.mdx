@@ -5,13 +5,13 @@ description: Full HTTP endpoint reference for the Rawdash server.
 
 import { Aside } from '@astrojs/starlight/components';
 
-All endpoints are mounted under the path you pass to `createHandler`. In these
-docs that path is `/api/rawdash`.
+All endpoints are served by the Rawdash standalone server (started via `serve()`
+from `@rawdash/server`). The examples below use the default base path `/`.
 
 ## Authentication
 
-Rawdash does not apply authentication by default. Add middleware in your host
-framework before the Rawdash handler.
+Rawdash does not apply authentication by default. Place an authenticating reverse
+proxy in front of the Rawdash server if you need to restrict access.
 
 For Rawdash Cloud, pass your API key as a `Bearer` token:
 
@@ -23,7 +23,7 @@ Authorization: Bearer <api-key>
 
 ## Health
 
-### `GET /api/rawdash/health`
+### `GET /health`
 
 Returns the current sync state for the server.
 
@@ -47,7 +47,7 @@ Returns the current sync state for the server.
 
 ## Widgets
 
-### `GET /api/rawdash/dashboards/:dashboardId/widgets`
+### `GET /dashboards/:dashboardId/widgets`
 
 Fetch all widget data for a dashboard.
 
@@ -84,7 +84,7 @@ Returns a JSON array of widget entries:
 
 ## Sync
 
-### `POST /api/rawdash/sync`
+### `POST /sync`
 
 Trigger an immediate full sync across all configured connectors.
 
@@ -103,21 +103,7 @@ Returns `triggered: false` if a sync is already in progress.
 
 ---
 
-### `GET /api/rawdash/dashboards/:dashboardId/widgets/:widgetId`
+### `GET /dashboards/:dashboardId/widgets/:widgetId`
 
 Fetch data for a single widget. Returns a single widget entry object (same shape as an array item above), or `404` if the widget ID is not found.
 
----
-
-## MCP
-
-### `GET /api/rawdash/mcp`
-
-MCP server endpoint used by `@rawdash/mcp`. Returns the MCP manifest describing
-available tools and their input schemas.
-
-<Aside>
-  You don't call this endpoint directly — the `@rawdash/mcp` package handles
-  the MCP transport layer. See [MCP Setup](/docs/mcp-setup/) for wiring
-  instructions.
-</Aside>

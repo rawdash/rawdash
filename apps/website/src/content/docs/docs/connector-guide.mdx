@@ -14,20 +14,20 @@ authoring a connector from scratch.
 Every connector implements the `Connector` interface from `@rawdash/core`:
 
 ```ts
-import type { Connector, SyncResult } from '@rawdash/core';
+import type { Connector, SyncRequest, StorageHandle } from '@rawdash/core';
 
 export class MyConnector implements Connector {
   readonly id = 'my-connector';
 
-  async sync(): Promise<SyncResult> {
-    // Fetch data, return rows
+  async sync(request: SyncRequest, storage: StorageHandle, signal?: AbortSignal): Promise<void> {
+    // Fetch data and write to storage
   }
 }
 ```
 
-The `sync()` method is called by the background sync engine on a configurable
-interval. It must return a `SyncResult` — an array of typed rows to upsert into
-storage.
+The `sync()` method is called by the background sync engine. It writes fetched
+data into `storage` using typed write methods (`storage.events()`,
+`storage.entities()`, etc.) and returns `Promise<void>`.
 
 ## Full example: a custom connector
 
@@ -39,68 +39,80 @@ storage.
    pnpm add @rawdash/core
    ```
 
-2. **Define your data shape**
+2. **Define your settings type**
 
-   Use `z` from Zod (re-exported by `@rawdash/core`) to declare the shape of
-   each row your connector produces:
+   TypeScript settings are passed as the generic to `defineConnector`:
 
-   ```ts title="src/connectors/my-api/schema.ts"
-   import { z } from '@rawdash/core';
-
-   export const MyRowSchema = z.object({
-     id: z.string(),
-     name: z.string(),
-     value: z.number(),
-     createdAt: z.string().datetime(),
-   });
-
-   export type MyRow = z.infer<typeof MyRowSchema>;
+   ```ts title="src/connectors/my-api/index.ts"
+   interface MyConnectorSettings {
+     apiKey: string;
+     baseUrl?: string;
+   }
    ```
 
-3. **Implement the connector class**
+3. **Implement the connector**
+
+   `defineConnector` is curried — call it with the settings type first, then
+   pass the definition object. The `sync` function receives `(request, storage,
+   signal?)` and writes data using `storage` methods:
 
    ```ts title="src/connectors/my-api/index.ts"
    import { defineConnector } from '@rawdash/core';
-   import { MyRowSchema } from './schema';
 
-   interface MyConnectorOptions {
+   interface MyConnectorSettings {
      apiKey: string;
      baseUrl?: string;
    }
 
-   export const MyConnector = defineConnector({
+   export const MyConnector = defineConnector<MyConnectorSettings>()({
      id: 'my-api',
-     schema: MyRowSchema,
-     options: {} as MyConnectorOptions,
-     async sync({ options, logger }) {
-       logger.info('Syncing from My API…');
-
-       const res = await fetch(`${options.baseUrl ?? 'https://api.example.com'}/items`, {
-         headers: { Authorization: `Bearer ${options.apiKey}` },
-       });
+     async sync(request, storage, signal) {
+       const res = await fetch(
+         `${this.settings.baseUrl ?? 'https://api.example.com'}/items`,
+         {
+           headers: { Authorization: `Bearer ${this.settings.apiKey}` },
+           signal,
+         },
+       );
 
        if (!res.ok) {
          throw new Error(`My API returned ${res.status}`);
        }
 
-       const data = await res.json() as unknown[];
-       const rows = data.map((item) => MyRowSchema.parse(item));
-       return { rows };
+       const data = (await res.json()) as Array<{
+         id: string;
+         name: string;
+         value: number;
+         createdAt: string;
+       }>;
+
+       await storage.entities(
+         data.map((item) => ({
+           type: 'my-item',
+           id: item.id,
+           attributes: { name: item.name, value: item.value },
+           updated_at: Date.parse(item.createdAt),
+         })),
+         { types: ['my-item'] },
+       );
      },
    });
    ```
 
 4. **Declare a retention policy (optional)**
 
-   Attach a retention policy to prune old snapshots automatically:
+   Pass a retention config when registering the connector in `defineConfig`:
 
-   ```ts
-   import { defineConnector, retainLast } from '@rawdash/core';
+   ```ts title="rawdash.config.ts"
+   import { retainLast } from '@rawdash/core';
 
-   export const MyConnector = defineConnector({
-     id: 'my-api',
-     schema: MyRowSchema,
-     retention: retainLast(90, 'days'),
+   defineConfig({
+     connectors: [
+       {
+         connector: new MyConnector({ apiKey: process.env.MY_API_KEY! }),
+         retention: retainLast(90, 'days'),
+       },
+     ],
      // ...
    });
    ```
@@ -108,32 +120,23 @@ storage.
 5. **Register it in your config**
 
    ```ts title="rawdash.config.ts"
+   import { defineConfig, defineDashboard } from '@rawdash/core';
+   import { serve } from '@rawdash/server';
    import { MyConnector } from './src/connectors/my-api';
 
-   export default defineConfig({
-     dashboards: [
-       defineDashboard({
-         id: 'my-dashboard',
-         connectors: [
-           new MyConnector({ apiKey: process.env.MY_API_KEY! }),
-         ],
-       }),
-     ],
-   });
+   const myConnector = new MyConnector({ apiKey: process.env.MY_API_KEY! });
+
+   serve(
+     defineConfig({
+       connectors: [{ connector: myConnector }],
+       dashboards: {
+         'my-dashboard': defineDashboard({ widgets: {} }),
+       },
+     }),
+   );
    ```
 
 </Steps>
-
-## Sync interval
-
-By default each connector syncs every 5 minutes. Override it:
-
-```ts
-new MyConnector({
-  apiKey: process.env.MY_API_KEY!,
-  syncInterval: '15m',  // '30s' | '5m' | '1h' | cron string
-})
-```
 
 ## Error handling
 

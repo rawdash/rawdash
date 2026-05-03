@@ -15,37 +15,37 @@ and mounting the request handler in a Node.js server.
    <Tabs>
      <TabItem label="npm">
        ```sh
-       npm install @rawdash/core @rawdash/server @rawdash/connector-github
+       npm install @rawdash/core @rawdash/server @rawdash/connector-github @rawdash/adapter-turso
        ```
      </TabItem>
      <TabItem label="pnpm">
        ```sh
-       pnpm add @rawdash/core @rawdash/server @rawdash/connector-github
+       pnpm add @rawdash/core @rawdash/server @rawdash/connector-github @rawdash/adapter-turso
        ```
      </TabItem>
      <TabItem label="yarn">
        ```sh
-       yarn add @rawdash/core @rawdash/server @rawdash/connector-github
+       yarn add @rawdash/core @rawdash/server @rawdash/connector-github @rawdash/adapter-turso
        ```
      </TabItem>
    </Tabs>
 
-   To persist data locally, add the Turso adapter:
+   If you are mounting Rawdash inside a Next.js app, also install `@rawdash/nextjs`:
 
    <Tabs>
      <TabItem label="npm">
        ```sh
-       npm install @rawdash/adapter-turso
+       npm install @rawdash/nextjs
        ```
      </TabItem>
      <TabItem label="pnpm">
        ```sh
-       pnpm add @rawdash/adapter-turso
+       pnpm add @rawdash/nextjs
        ```
      </TabItem>
      <TabItem label="yarn">
        ```sh
-       yarn add @rawdash/adapter-turso
+       yarn add @rawdash/nextjs
        ```
      </TabItem>
    </Tabs>
@@ -54,54 +54,44 @@ and mounting the request handler in a Node.js server.
 
    ```ts title="rawdash.config.ts"
    import { defineConfig, defineDashboard } from '@rawdash/core';
-   import { GitHubConnector } from '@rawdash/connector-github';
-   import { TursoAdapter } from '@rawdash/adapter-turso';
+   import { GitHubActionsConnector } from '@rawdash/connector-github';
+   import { TursoStorage } from '@rawdash/adapter-turso';
+   import { serve } from '@rawdash/server';
 
-   export default defineConfig({
-     storage: new TursoAdapter({
-       url: process.env.TURSO_URL!,
-       authToken: process.env.TURSO_AUTH_TOKEN,
+   const github = new GitHubActionsConnector(
+     { owner: 'myorg', repo: 'backend' },
+     { token: process.env.GITHUB_TOKEN },
+   );
+
+   serve(
+     defineConfig({
+       connectors: [{ connector: github }],
+       dashboards: {
+         eng: defineDashboard({ widgets: {} }),
+       },
      }),
-     dashboards: [
-       defineDashboard({
-         id: 'eng',
-         connectors: [
-           new GitHubConnector({
-             token: process.env.GITHUB_TOKEN!,
-             repos: ['myorg/backend', 'myorg/frontend'],
-           }),
-         ],
+     {
+       storage: new TursoStorage({
+         url: process.env.TURSO_URL ?? 'file:rawdash.db',
+         authToken: process.env.TURSO_AUTH_TOKEN,
        }),
-     ],
-   });
+     },
+   );
    ```
 
-3. **Mount the handler**
+3. **Connect your frontend**
 
-   Rawdash ships a framework-agnostic handler. Here's how to mount it in
-   common frameworks:
+   The config file from Step 2 starts a standalone HTTP server when run with
+   `tsx`. From your frontend (React, Next.js, etc.) use `@rawdash/nextjs` to
+   query it:
 
-   <Tabs>
-     <TabItem label="Express">
-       ```ts title="server.ts"
-       import express from 'express';
-       import { createHandler } from '@rawdash/server';
-       import config from './rawdash.config';
+   ```ts title="lib/rawdash.ts"
+   import { createRawdashClient } from '@rawdash/nextjs';
 
-       const app = express();
-       app.use('/api/rawdash', createHandler(config));
-       app.listen(3000);
-       ```
-     </TabItem>
-     <TabItem label="Next.js">
-       ```ts title="app/api/rawdash/[...rawdash]/route.ts"
-       import { createNextHandler } from '@rawdash/nextjs';
-       import config from '@/rawdash.config';
-
-       export const { GET, POST } = createNextHandler(config);
-       ```
-     </TabItem>
-   </Tabs>
+   export const rawdash = createRawdashClient({
+     url: process.env.RAWDASH_URL ?? 'http://localhost:8080',
+   });
+   ```
 
 4. **Set environment variables**
 
@@ -122,19 +112,19 @@ and mounting the request handler in a Node.js server.
    npx tsx rawdash.config.ts
    ```
 
-   Rawdash will run the initial sync, then start the background polling loop.
-   Check the health endpoint:
+   Rawdash will start on port 8080, run the initial sync, then enter the
+   background polling loop. Check the health endpoint:
 
    ```sh
-   curl http://localhost:3000/api/rawdash/health
-   # {"status":"ok","dashboards":["eng"]}
+   curl http://localhost:8080/health
+   # {"status":"idle","lastSyncAt":"2025-04-25T10:00:00.000Z","lastError":null}
    ```
 
 6. **Query from your frontend**
 
    ```ts
-   const res = await fetch('/api/rawdash/dashboards/eng/widgets');
-   const { widgets } = await res.json();
+   const res = await fetch('http://localhost:8080/dashboards/eng/widgets');
+   const widgets = await res.json(); // WidgetEntry[]
    ```
 
 </Steps>
