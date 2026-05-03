@@ -105,5 +105,15 @@ Returns `triggered: false` if a sync is already in progress.
 
 ### `GET /dashboards/:dashboardId/widgets/:widgetId`
 
-Fetch data for a single widget. Returns a single widget entry object (same shape as an array item above), or `404` if the widget ID is not found.
+Fetch data for a single widget.
+
+**Response (200)**
+
+Returns a single widget entry object (same shape as an array item above).
+
+**Response (404)**
+
+```json
+{ "error": "Widget not found" }
+```
 
