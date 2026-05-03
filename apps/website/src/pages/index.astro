@@ -123,22 +123,19 @@ import '../styles/landing.css';
         </div>
         <pre><code><span class="kw">import</span> &#123; <span class="fn">defineConfig</span>, <span class="fn">defineDashboard</span> &#125; <span class="kw">from</span> <span class="str">'@rawdash/core'</span>;
 <span class="kw">import</span> &#123; <span class="fn">GitHubConnector</span> &#125; <span class="kw">from</span> <span class="str">'@rawdash/connector-github'</span>;
-<span class="kw">import</span> &#123; <span class="fn">TursoAdapter</span> &#125; <span class="kw">from</span> <span class="str">'@rawdash/adapter-turso'</span>;
+<span class="kw">import</span> &#123; <span class="fn">TursoStorage</span> &#125; <span class="kw">from</span> <span class="str">'@rawdash/adapter-turso'</span>;
+<span class="kw">import</span> &#123; <span class="fn">serve</span> &#125; <span class="kw">from</span> <span class="str">'@rawdash/server'</span>;
 
-<span class="kw">export default</span> <span class="fn">defineConfig</span>(&#123;
-  storage: <span class="kw">new</span> <span class="fn">TursoAdapter</span>(&#123; url: process.env.<span class="fn">TURSO_URL</span> &#125;),
-  dashboards: [
-    <span class="fn">defineDashboard</span>(&#123;
-      id: <span class="str">'eng-health'</span>,
-      connectors: [
-        <span class="kw">new</span> <span class="fn">GitHubConnector</span>(&#123;
-          token: process.env.<span class="fn">GITHUB_TOKEN</span>,
-          repos: [<span class="str">'myorg/backend'</span>, <span class="str">'myorg/frontend'</span>],
-        &#125;),
-      ],
-    &#125;),
-  ],
-&#125;);</code></pre>
+<span class="kw">const</span> github = <span class="kw">new</span> <span class="fn">GitHubConnector</span>(&#123;
+  token: process.env.<span class="fn">GITHUB_TOKEN</span>,
+&#125;);
+
+<span class="fn">serve</span>(<span class="fn">defineConfig</span>(&#123;
+  connectors: [&#123; connector: github &#125;],
+  dashboards: &#123;
+    <span class="str">'eng-health'</span>: <span class="fn">defineDashboard</span>(&#123; widgets: &#123;&#125; &#125;),
+  &#125;,
+&#125;), &#123; storage: <span class="kw">new</span> <span class="fn">TursoStorage</span>(&#123; url: process.env.<span class="fn">TURSO_URL</span> &#125;) &#125;);</code></pre>
       </div>
     </section>
 
@@ -229,7 +226,7 @@ import '../styles/landing.css';
 
     <!-- Footer -->
     <footer>
-      <span>© 2025 Rawdash. Apache 2.0 licensed.</span>
+      <span>© {new Date().getFullYear()} Rawdash. Apache 2.0 licensed.</span>
       <ul class="footer-links">
         <li><a href="/docs/getting-started/">Docs</a></li>
         <li><a href="https://github.com/rawdash/rawdash">GitHub</a></li>

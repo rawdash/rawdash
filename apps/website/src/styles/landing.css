@@ -19,10 +19,10 @@
   --code-bg: #1a0a36;
   --radius: 8px;
   --font-mono:
-    ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas,
+    ui-monospace, 'Cascadia Code', 'Source Code Pro', 'Menlo', 'Consolas',
     'DejaVu Sans Mono', monospace;
   --font-sans:
-    system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    system-ui, -apple-system, 'BlinkMacSystemFont', 'Segoe UI', sans-serif;
 }
 
 body {

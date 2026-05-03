@@ -25,51 +25,27 @@ Authorization: Bearer <api-key>
 
 ### `GET /api/rawdash/health`
 
-Returns the server status and per-connector sync state.
+Returns the current sync state for the server.
 
 **Response**
 
 ```json
 {
-  "status": "ok",
-  "dashboards": [
-    {
-      "id": "eng",
-      "connectors": [
-        {
-          "id": "github",
-          "lastSyncedAt": "2025-04-25T10:00:00.000Z",
-          "status": "ok"
-        }
-      ]
-    }
-  ]
+  "status": "idle",
+  "lastSyncAt": "2025-04-25T10:00:00.000Z",
+  "lastError": null
 }
 ```
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `status` | `"ok" \| "degraded"` | `"degraded"` if any connector last sync failed |
-| `dashboards[].connectors[].lastSyncedAt` | ISO 8601 string | Timestamp of the last successful sync |
-| `dashboards[].connectors[].status` | `"ok" \| "error"` | Status of the most recent sync attempt |
+| `status` | `"idle" \| "syncing" \| "error"` | Current sync lifecycle status |
+| `lastSyncAt` | ISO 8601 string \| `null` | Timestamp of the last successful sync |
+| `lastError` | string \| `null` | Last sync error message, if any |
 
 ---
 
-## Dashboards
-
-### `GET /api/rawdash/dashboards`
-
-List all configured dashboards.
-
-**Response**
-
-```json
-{
-  "dashboards": [
-    { "id": "eng", "connectors": ["github"] }
-  ]
-}
-```
+## Widgets
 
 ### `GET /api/rawdash/dashboards/:dashboardId/widgets`
 
@@ -79,57 +55,57 @@ Fetch all widget data for a dashboard.
 
 | Parameter | Description |
 |-----------|-------------|
-| `dashboardId` | Dashboard ID as defined in `defineDashboard({ id })` |
-
-**Query parameters**
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `since` | ISO 8601 string | Return only data updated after this timestamp |
+| `dashboardId` | Dashboard ID as defined in `defineConfig({ dashboards })` |
 
 **Response**
 
+Returns a JSON array of widget entries:
+
 ```json
-{
-  "dashboardId": "eng",
-  "cachedAt": "2025-04-25T10:00:00.000Z",
-  "widgets": [
-    {
-      "connectorId": "github",
-      "type": "pull_requests",
-      "data": { ... }
-    }
-  ]
-}
+[
+  {
+    "id": "open_prs",
+    "widgetId": "open_prs",
+    "connectorId": "github",
+    "data": { "value": 12 },
+    "cachedAt": "2025-04-25T10:00:00.000Z"
+  }
+]
 ```
 
-### `POST /api/rawdash/dashboards/:dashboardId/sync`
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` / `widgetId` | string | Widget key from your dashboard config |
+| `connectorId` | string | ID of the connector that sourced this widget |
+| `data` | object | Computed metric result |
+| `cachedAt` | ISO 8601 string \| `null` | Timestamp of the sync that produced this data |
 
-Trigger an immediate sync for all connectors in a dashboard.
+---
+
+## Sync
+
+### `POST /api/rawdash/sync`
+
+Trigger an immediate full sync across all configured connectors.
 
 <Aside type="caution">
-  Sync runs asynchronously. The response confirms the sync was enqueued, not
-  that it completed. Poll the health endpoint or subscribe to webhooks to
-  observe completion.
+  Sync runs asynchronously. The response confirms whether a new sync was
+  triggered. Poll the health endpoint to observe completion.
 </Aside>
 
 **Response**
 
 ```json
-{ "enqueued": true }
+{ "triggered": true }
 ```
+
+Returns `triggered: false` if a sync is already in progress.
 
 ---
 
-## Widgets
-
 ### `GET /api/rawdash/dashboards/:dashboardId/widgets/:widgetId`
 
-Fetch data for a single widget.
-
-**Response**
-
-Same shape as a single entry from the `widgets` array above.
+Fetch data for a single widget. Returns a single widget entry object (same shape as an array item above), or `404` if the widget ID is not found.
 
 ---
 
