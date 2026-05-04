@@ -1,2 +1,0 @@
-@CLAUDE.local.md
-@TICKET_POLICY.md
