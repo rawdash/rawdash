@@ -12,6 +12,11 @@
   --sl-color-black: #0c081e;
 }
 
+.expressive-code {
+  --ec-frm-trmTtbDotsFg: #c0b4f5;
+  --ec-frm-trmTtbDotsOpa: 0.7;
+}
+
 :root[data-theme='light'] {
   --sl-color-accent-low: #ede9fe;
   --sl-color-accent: #7c3aed;
