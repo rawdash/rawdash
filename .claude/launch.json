@@ -1,0 +1,25 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "rawdash-server",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "cd apps/example-nextjs && node --env-file-if-exists=.env.local node_modules/tsx/dist/cli.mjs rawdash.config.mts"
+      ],
+      "port": 8080
+    },
+    {
+      "name": "example-nextjs",
+      "runtimeExecutable": "/opt/homebrew/bin/node",
+      "runtimeArgs": [
+        "apps/example-nextjs/node_modules/next/dist/bin/next",
+        "dev",
+        "apps/example-nextjs",
+        "--turbopack"
+      ],
+      "port": 3000
+    }
+  ]
+}

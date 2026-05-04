@@ -1,0 +1,13 @@
+{
+  "worktree": {
+    "symlinkDirectories": [".claude/hooks", "node_modules"]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": ".claude/hooks/check-branch-name.sh"
+      }
+    ]
+  }
+}
