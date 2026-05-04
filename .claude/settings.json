@@ -1,0 +1,5 @@
+{
+  "worktree": {
+    "symlinkDirectories": [".claude/hooks", "node_modules"]
+  }
+}
