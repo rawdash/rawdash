@@ -1,4 +1,4 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp';
 
 import { RuntimeConfig } from './runtime-config';
 import { registerAddConnector } from './tools/add-connector';
