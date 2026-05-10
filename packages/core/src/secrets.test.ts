@@ -100,9 +100,17 @@ describe('EnvSecretsResolver', () => {
     const resolver = new EnvSecretsResolver();
     const g = globalThis as unknown as NodeLike;
     g.process ??= { env: {} };
-    g.process.env!['__TEST_SECRET__'] = 'test-value';
-    expect(resolver.resolve('__TEST_SECRET__')).toBe('test-value');
-    delete g.process.env!['__TEST_SECRET__'];
+    const prev = g.process.env!['__TEST_SECRET__'];
+    try {
+      g.process.env!['__TEST_SECRET__'] = 'test-value';
+      expect(resolver.resolve('__TEST_SECRET__')).toBe('test-value');
+    } finally {
+      if (prev === undefined) {
+        delete g.process.env!['__TEST_SECRET__'];
+      } else {
+        g.process.env!['__TEST_SECRET__'] = prev;
+      }
+    }
   });
 
   it('returns undefined for missing keys', () => {

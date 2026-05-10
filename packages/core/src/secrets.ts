@@ -49,7 +49,12 @@ export function resolveSecretRefs<T>(obj: T, resolver: SecretsResolver): T {
   if (typeof obj === 'object' && obj !== null) {
     const result: Record<string, unknown> = {};
     for (const [key, val] of Object.entries(obj as object)) {
-      result[key] = resolveSecretRefs(val, resolver);
+      Object.defineProperty(result, key, {
+        value: resolveSecretRefs(val, resolver),
+        enumerable: true,
+        configurable: true,
+        writable: true,
+      });
     }
     return result as T;
   }
