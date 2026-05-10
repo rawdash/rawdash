@@ -2,6 +2,7 @@ export type {
   Connector,
   CredentialEntry,
   CredentialSchema,
+  InferCredentialInput,
   Distribution,
   DistributionQuery,
   Edge,
@@ -42,3 +43,12 @@ export type { SyncState, WidgetEntry } from './engine';
 export type { RetentionCandidates, RetentionConfig } from './retention';
 
 export { computeRetention, selectForDeletion } from './retention';
+
+export type { SecretRef, SecretsResolver } from './secrets';
+
+export {
+  EnvSecretsResolver,
+  isSecretRef,
+  resolveSecretRefs,
+  secret,
+} from './secrets';

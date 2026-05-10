@@ -1,3 +1,9 @@
+import {
+  EnvSecretsResolver,
+  type SecretRef,
+  resolveSecretRefs,
+} from './secrets';
+
 export type JSONValue =
   | string
   | number
@@ -144,6 +150,12 @@ export type InferCredentials<TCreds extends CredentialSchema> = {
     : string | undefined;
 };
 
+export type InferCredentialInput<TCreds extends CredentialSchema> = {
+  [K in keyof TCreds]: TCreds[K] extends { auth: 'required' }
+    ? string | SecretRef
+    : string | SecretRef | undefined;
+};
+
 // ---------------------------------------------------------------------------
 // Sync + Connector
 // ---------------------------------------------------------------------------
@@ -173,9 +185,14 @@ export abstract class BaseConnector<
   protected settings: TSettings;
   protected creds: InferCredentials<TCreds>;
 
-  constructor(settings: TSettings, creds?: InferCredentials<TCreds>) {
+  constructor(settings: TSettings, creds?: InferCredentialInput<TCreds>) {
     this.settings = settings;
-    this.creds = creds ?? ({} as InferCredentials<TCreds>);
+    this.creds = creds
+      ? (resolveSecretRefs(
+          creds,
+          new EnvSecretsResolver(),
+        ) as InferCredentials<TCreds>)
+      : ({} as InferCredentials<TCreds>);
   }
 
   abstract sync(
@@ -198,7 +215,7 @@ export function defineConnector<TSettings>() {
       signal?: AbortSignal,
     ) => Promise<void>;
   }): {
-    new (settings: TSettings, creds?: InferCredentials<TCreds>): Connector;
+    new (settings: TSettings, creds?: InferCredentialInput<TCreds>): Connector;
     readonly id: string;
     readonly credentials: TCreds | undefined;
   } {
@@ -224,7 +241,10 @@ export function defineConnector<TSettings>() {
     }
 
     return DynamicConnector as unknown as {
-      new (settings: TSettings, creds?: InferCredentials<TCreds>): Connector;
+      new (
+        settings: TSettings,
+        creds?: InferCredentialInput<TCreds>,
+      ): Connector;
       readonly id: string;
       readonly credentials: TCreds | undefined;
     };
