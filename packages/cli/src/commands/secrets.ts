@@ -1,6 +1,5 @@
 import { spinner } from '@clack/prompts';
 import { Command } from 'commander';
-import { createInterface } from 'node:readline';
 
 import {
   ApiError,
@@ -91,13 +90,13 @@ secretsCommand
   });
 
 async function readStdin(): Promise<string> {
-  return new Promise((resolve) => {
-    let data = '';
-    const rl = createInterface({ input: process.stdin });
-    rl.on('line', (line) => {
-      data += line;
-    });
-    rl.on('close', () => resolve(data.trim()));
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    process.stdin.on('data', (chunk: Buffer) => chunks.push(chunk));
+    process.stdin.on('end', () =>
+      resolve(Buffer.concat(chunks).toString('utf8')),
+    );
+    process.stdin.on('error', reject);
   });
 }
 

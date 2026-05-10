@@ -1,5 +1,7 @@
 import { getEnv } from './env';
 
+const DEFAULT_TIMEOUT_MS = 10_000;
+
 export interface DeploySuccess {
   ok: true;
   version: number;
@@ -50,11 +52,17 @@ export async function postConfig(
         Authorization: `Bearer ${apiKey ?? ''}`,
       },
       body: JSON.stringify(config),
+      signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
     });
   } catch (err) {
+    const isTimeout =
+      err instanceof Error &&
+      (err.name === 'AbortError' || err.name === 'TimeoutError');
     return {
       ok: false,
-      error: `Network error: ${err instanceof Error ? err.message : String(err)}`,
+      error: isTimeout
+        ? 'Request timed out'
+        : `Network error: ${err instanceof Error ? err.message : String(err)}`,
       status: 0,
     };
   }
@@ -104,12 +112,10 @@ export async function setSecret(name: string, value: string): Promise<void> {
         Authorization: `Bearer ${apiKey ?? ''}`,
       },
       body: JSON.stringify({ name, value }),
+      signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
     });
   } catch (err) {
-    throw new ApiError(
-      `Network error: ${err instanceof Error ? err.message : String(err)}`,
-      0,
-    );
+    throw new ApiError(wrapFetchError(err), 0);
   }
 
   if (!res.ok) {
@@ -124,12 +130,10 @@ export async function listSecrets(): Promise<SecretEntry[]> {
   try {
     res = await fetch(`${url}/secrets`, {
       headers: { Authorization: `Bearer ${apiKey ?? ''}` },
+      signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
     });
   } catch (err) {
-    throw new ApiError(
-      `Network error: ${err instanceof Error ? err.message : String(err)}`,
-      0,
-    );
+    throw new ApiError(wrapFetchError(err), 0);
   }
 
   if (!res.ok) {
@@ -146,17 +150,25 @@ export async function removeSecret(name: string): Promise<void> {
     res = await fetch(`${url}/secrets/${encodeURIComponent(name)}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${apiKey ?? ''}` },
+      signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
     });
   } catch (err) {
-    throw new ApiError(
-      `Network error: ${err instanceof Error ? err.message : String(err)}`,
-      0,
-    );
+    throw new ApiError(wrapFetchError(err), 0);
   }
 
   if (!res.ok) {
     await throwApiError(res);
   }
+}
+
+function wrapFetchError(err: unknown): string {
+  if (
+    err instanceof Error &&
+    (err.name === 'AbortError' || err.name === 'TimeoutError')
+  ) {
+    return 'Request timed out';
+  }
+  return `Network error: ${err instanceof Error ? err.message : String(err)}`;
 }
 
 async function throwApiError(res: Response): Promise<never> {

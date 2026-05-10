@@ -8,10 +8,7 @@
     "rawdash": "./dist/bin.js"
   },
   "exports": {
-    ".": {
-      "types": "./dist/bin.d.ts",
-      "import": "./dist/bin.js"
-    }
+    ".": "./dist/bin.js"
   },
   "scripts": {
     "build": "tsup",

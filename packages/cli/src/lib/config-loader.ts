@@ -1,4 +1,4 @@
-import type { DashboardConfig } from '@rawdash/core';
+import { type DashboardConfig, defineConfig } from '@rawdash/core';
 import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { tsImport } from 'tsx/esm/api';
@@ -40,5 +40,5 @@ export async function loadConfig(configPath: string): Promise<DashboardConfig> {
       `${configPath} must export a default config (result of defineConfig())`,
     );
   }
-  return config as DashboardConfig;
+  return defineConfig(config as Parameters<typeof defineConfig>[0]);
 }
