@@ -1,4 +1,4 @@
-import { defineConfig, defineDashboard, defineMetric } from '@rawdash/core';
+import { defineConfig, defineDashboard, defineMetric, secret } from '@rawdash/core';
 import { GitHubActionsConnector } from '@rawdash/connector-github';
 import { serve } from '@rawdash/server';
 
@@ -23,7 +23,7 @@ const github = new GitHubActionsConnector(
     repo: process.env['GITHUB_REPO'] ?? 'rawdash',
   },
   {
-    token: process.env['GITHUB_TOKEN'],
+    token: secret('GITHUB_TOKEN'),
   },
 );
 
