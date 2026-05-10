@@ -2,7 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp';
 
 import type { RuntimeConfig } from '../runtime-config';
 import type { McpServerOptions } from '../types';
-import { text } from './shared';
+import { err, text } from './shared';
 
 export function registerListConnectors(
   server: McpServer,
@@ -14,17 +14,24 @@ export function registerListConnectors(
     'List all configured connectors and their sync status.',
     {},
     async () => {
-      const syncState = await storage.getSyncState();
-      const connectors = runtime.getConnectors().map((entry) => ({
-        id: entry.connector.id,
-        syncStatus: syncState.status,
-        lastSyncAt: syncState.lastSyncAt,
-        lastError: syncState.lastError,
-        hasCredentials:
-          Object.keys(entry.connector.credentials ?? {}).length > 0,
-        credentialKeys: Object.keys(entry.connector.credentials ?? {}),
-      }));
-      return text({ connectors, overallSyncStatus: syncState.status });
+      try {
+        const syncState = await storage.getSyncState();
+        const connectors = runtime.getConnectors().map((entry) => ({
+          id: entry.connector.id,
+          syncStatus: syncState.status,
+          lastSyncAt: syncState.lastSyncAt,
+          lastError: syncState.lastError,
+          hasCredentials:
+            Object.keys(entry.connector.credentials ?? {}).length > 0,
+          credentialKeys: Object.keys(entry.connector.credentials ?? {}),
+        }));
+        return text({ connectors, overallSyncStatus: syncState.status });
+      } catch (e) {
+        return err(
+          'LIST_CONNECTORS_FAILED',
+          e instanceof Error ? e.message : String(e),
+        );
+      }
     },
   );
 }
