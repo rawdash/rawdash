@@ -230,6 +230,100 @@ describe('TursoStorage — distributions', () => {
   });
 });
 
+describe('TursoStorage — deleteOlderThan (events)', () => {
+  it('deletes events with start_ts strictly less than threshold', async () => {
+    const s = makeStorage();
+    const h = s.getStorageHandle('c');
+    await h.events([
+      { name: 'e', start_ts: 1000, end_ts: null, attributes: {} },
+      { name: 'e', start_ts: 2000, end_ts: null, attributes: {} },
+      { name: 'e', start_ts: 3000, end_ts: null, attributes: {} },
+    ]);
+    const { rowsDeleted } = await h.deleteOlderThan('events', 2000);
+    expect(rowsDeleted).toBe(1);
+    const remaining = await h.queryEvents({});
+    expect(remaining).toHaveLength(2);
+    expect(remaining.every((r) => r.start_ts >= 2000)).toBe(true);
+    await s.close();
+  });
+
+  it('returns zero when nothing is old enough', async () => {
+    const s = makeStorage();
+    const h = s.getStorageHandle('c');
+    await h.event({ name: 'e', start_ts: 5000, end_ts: null, attributes: {} });
+    const { rowsDeleted } = await h.deleteOlderThan('events', 1000);
+    expect(rowsDeleted).toBe(0);
+    expect(await h.queryEvents({})).toHaveLength(1);
+    await s.close();
+  });
+
+  it('is scoped to the connector — does not delete other connectors rows', async () => {
+    const s = makeStorage();
+    const h1 = s.getStorageHandle('c1');
+    const h2 = s.getStorageHandle('c2');
+    await h1.event({ name: 'e', start_ts: 500, end_ts: null, attributes: {} });
+    await h2.event({ name: 'e', start_ts: 500, end_ts: null, attributes: {} });
+    const { rowsDeleted } = await h1.deleteOlderThan('events', 1000);
+    expect(rowsDeleted).toBe(1);
+    expect(await h2.queryEvents({})).toHaveLength(1);
+    await s.close();
+  });
+});
+
+describe('TursoStorage — deleteOlderThan (metrics)', () => {
+  it('deletes metrics with ts strictly less than threshold', async () => {
+    const s = makeStorage();
+    const h = s.getStorageHandle('c');
+    await h.metrics([
+      { name: 'm', ts: 100, value: 1, attributes: {} },
+      { name: 'm', ts: 200, value: 2, attributes: {} },
+      { name: 'm', ts: 300, value: 3, attributes: {} },
+    ]);
+    const { rowsDeleted } = await h.deleteOlderThan('metrics', 200);
+    expect(rowsDeleted).toBe(1);
+    const remaining = await h.queryMetrics({});
+    expect(remaining).toHaveLength(2);
+    expect(remaining.every((r) => r.ts >= 200)).toBe(true);
+    await s.close();
+  });
+});
+
+describe('TursoStorage — deleteOlderThan (distributions)', () => {
+  it('deletes distributions with ts strictly less than threshold', async () => {
+    const s = makeStorage();
+    const h = s.getStorageHandle('c');
+    await h.distributions([
+      {
+        name: 'lat',
+        ts: 100,
+        kind: 'histogram',
+        data: { buckets: [], count: 0, sum: 0 },
+        attributes: {},
+      },
+      {
+        name: 'lat',
+        ts: 200,
+        kind: 'histogram',
+        data: { buckets: [], count: 0, sum: 0 },
+        attributes: {},
+      },
+      {
+        name: 'lat',
+        ts: 300,
+        kind: 'histogram',
+        data: { buckets: [], count: 0, sum: 0 },
+        attributes: {},
+      },
+    ]);
+    const { rowsDeleted } = await h.deleteOlderThan('distributions', 250);
+    expect(rowsDeleted).toBe(2);
+    const remaining = await h.queryDistributions({});
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0]!.ts).toBe(300);
+    await s.close();
+  });
+});
+
 describe('TursoStorage — isolation + sync state', () => {
   it('isolates connectors', async () => {
     const s = makeStorage();

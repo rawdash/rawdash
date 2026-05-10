@@ -15,7 +15,7 @@ import type {
   SyncState,
 } from '@rawdash/core';
 import type { ServerStorage } from '@rawdash/server';
-import { and, eq, gte, inArray, lte } from 'drizzle-orm';
+import { and, eq, gte, inArray, lt, lte } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import { type LibSQLDatabase, drizzle } from 'drizzle-orm/libsql';
 import { migrate } from 'drizzle-orm/libsql/migrator';
@@ -503,6 +503,43 @@ export class TursoStorage implements ServerStorage {
             updated_at: r.updated_at,
           }),
         );
+      },
+
+      deleteOlderThan: async (shape, tsUnixMs) => {
+        await ready;
+        let rowsAffected: number;
+        if (shape === 'events') {
+          const result = await db
+            .delete(events)
+            .where(
+              and(
+                eq(events.connector_id, connectorId),
+                lt(events.start_ts, tsUnixMs),
+              ),
+            );
+          rowsAffected = result.rowsAffected;
+        } else if (shape === 'metrics') {
+          const result = await db
+            .delete(metrics)
+            .where(
+              and(
+                eq(metrics.connector_id, connectorId),
+                lt(metrics.ts, tsUnixMs),
+              ),
+            );
+          rowsAffected = result.rowsAffected;
+        } else {
+          const result = await db
+            .delete(distributions)
+            .where(
+              and(
+                eq(distributions.connector_id, connectorId),
+                lt(distributions.ts, tsUnixMs),
+              ),
+            );
+          rowsAffected = result.rowsAffected;
+        }
+        return { rowsDeleted: rowsAffected };
       },
 
       queryDistributions: async (q: DistributionQuery) => {
