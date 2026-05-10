@@ -180,14 +180,19 @@ export const configFields = defineConfigFields(
 is a secret reference resolved at runtime, not the raw credential.
 
 Add a static `create` factory to your connector class so callers get
-`configFields` validation automatically:
+`configFields` validation automatically. If your connector extends `BaseConnector`
+(settings + credentials constructor), split the parsed fields accordingly:
 
 ```ts
 static create(input: unknown): MyConnector {
   const parsed = configFields.parse(input);
+  // First arg: plain settings; second arg: credentials (SecretRef values)
   return new MyConnector({ baseUrl: parsed.baseUrl }, { apiKey: parsed.apiKey });
 }
 ```
+
+Adapt the `new MyConnector(...)` call to match your constructor's shape if it
+differs from the `(settings, credentials)` convention.
 
 `defineConfigFields` validates the schema shape at module load time — a
 malformed schema throws immediately rather than failing silently at form-render

@@ -19,7 +19,7 @@ export const configFields = defineConfigFields(
       description: 'Repository name.',
       placeholder: 'rawdash',
     }),
-    token: z.object({ $secret: z.string() }).meta({
+    token: z.object({ $secret: z.string() }).optional().meta({
       label: 'Personal access token',
       description: 'GitHub PAT with `repo` scope.',
       secret: true,
