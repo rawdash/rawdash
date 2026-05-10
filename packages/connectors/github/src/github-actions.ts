@@ -3,7 +3,29 @@ import {
   type CredentialSchema,
   type StorageHandle,
   type SyncRequest,
+  defineConfigFields,
 } from '@rawdash/core';
+import { z } from 'zod';
+
+export const configFields = defineConfigFields(
+  z.object({
+    owner: z.string().min(1).meta({
+      label: 'Repository owner',
+      description: 'GitHub username or organization name.',
+      placeholder: 'rawdash',
+    }),
+    repo: z.string().min(1).meta({
+      label: 'Repository',
+      description: 'Repository name.',
+      placeholder: 'rawdash',
+    }),
+    token: z.object({ $secret: z.string() }).optional().meta({
+      label: 'Personal access token',
+      description: 'GitHub PAT with `repo` scope.',
+      secret: true,
+    }),
+  }),
+);
 
 export interface GitHubActionsSettings {
   owner: string;
@@ -53,6 +75,16 @@ export class GitHubActionsConnector extends BaseConnector<
   GitHubActionsSettings,
   GitHubCredentials
 > {
+  static readonly id = 'github-actions';
+
+  static create(input: unknown): GitHubActionsConnector {
+    const parsed = configFields.parse(input);
+    return new GitHubActionsConnector(
+      { owner: parsed.owner, repo: parsed.repo },
+      { token: parsed.token },
+    );
+  }
+
   readonly id = 'github-actions';
 
   override readonly credentials = githubCredentials;

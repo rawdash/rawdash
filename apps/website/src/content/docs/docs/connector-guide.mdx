@@ -138,6 +138,66 @@ data into `storage` using typed write methods (`storage.events()`,
 
 </Steps>
 
+## Config fields schema
+
+Every connector package should export a `configFields` Zod schema. The cloud
+web UI uses this schema to auto-generate the connector setup form; OSS users can
+use the companion `create` factory for validated construction.
+
+Define your schema with `defineConfigFields` from `@rawdash/core`. Each field
+carries a `.meta()` annotation with UI hints:
+
+```ts title="src/connectors/my-api/index.ts"
+import { z } from 'zod';
+import { defineConfigFields } from '@rawdash/core';
+
+export const configFields = defineConfigFields(
+  z.object({
+    apiKey: z.object({ $secret: z.string() }).meta({
+      label: 'API key',
+      description: 'Your My API secret key.',
+      secret: true,
+    }),
+    baseUrl: z.string().url().optional().meta({
+      label: 'Base URL',
+      description: 'Override the default API endpoint.',
+      placeholder: 'https://api.example.com',
+    }),
+  }),
+);
+```
+
+**Field meta properties:**
+
+| Property | Type | Purpose |
+|---|---|---|
+| `label` | `string` | Human-readable field label |
+| `description` | `string` | Help text shown below the input |
+| `placeholder` | `string` | Input placeholder text |
+| `secret` | `boolean` | Renders as a password input backed by the secrets manager |
+
+**Secret fields** use the shape `z.object({ $secret: z.string() })` — the value
+is a secret reference resolved at runtime, not the raw credential.
+
+Add a static `create` factory to your connector class so callers get
+`configFields` validation automatically. If your connector extends `BaseConnector`
+(settings + credentials constructor), split the parsed fields accordingly:
+
+```ts
+static create(input: unknown): MyConnector {
+  const parsed = configFields.parse(input);
+  // First arg: plain settings; second arg: credentials (SecretRef values)
+  return new MyConnector({ baseUrl: parsed.baseUrl }, { apiKey: parsed.apiKey });
+}
+```
+
+Adapt the `new MyConnector(...)` call to match your constructor's shape if it
+differs from the `(settings, credentials)` convention.
+
+`defineConfigFields` validates the schema shape at module load time — a
+malformed schema throws immediately rather than failing silently at form-render
+time.
+
 ## Error handling
 
 If `sync()` throws, Rawdash logs the error and schedules a retry with
