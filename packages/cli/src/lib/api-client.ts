@@ -112,7 +112,9 @@ export async function setSecret(name: string, value: string): Promise<void> {
     );
   }
 
-  if (!res.ok) {await throwApiError(res);}
+  if (!res.ok) {
+    await throwApiError(res);
+  }
 }
 
 export async function listSecrets(): Promise<SecretEntry[]> {
@@ -130,7 +132,9 @@ export async function listSecrets(): Promise<SecretEntry[]> {
     );
   }
 
-  if (!res.ok) {await throwApiError(res);}
+  if (!res.ok) {
+    await throwApiError(res);
+  }
   return res.json() as Promise<SecretEntry[]>;
 }
 
@@ -150,7 +154,9 @@ export async function removeSecret(name: string): Promise<void> {
     );
   }
 
-  if (!res.ok) {await throwApiError(res);}
+  if (!res.ok) {
+    await throwApiError(res);
+  }
 }
 
 async function throwApiError(res: Response): Promise<never> {

@@ -70,8 +70,14 @@ export const deployCommand = new Command('deploy')
   );
 
 function exitCodeForStatus(status: number): number {
-  if (status === 401 || status === 403) {return 3;}
-  if (status === 409) {return 4;}
-  if (status === 422) {return 2;}
+  if (status === 401 || status === 403) {
+    return 3;
+  }
+  if (status === 409) {
+    return 4;
+  }
+  if (status === 422) {
+    return 2;
+  }
   return 1;
 }

@@ -15,9 +15,13 @@ export async function findConfigFile(explicitPath?: string): Promise<string> {
   let dir = process.cwd();
   for (;;) {
     const candidate = join(dir, 'rawdash.config.ts');
-    if (existsSync(candidate)) {return candidate;}
+    if (existsSync(candidate)) {
+      return candidate;
+    }
     const parent = dirname(dir);
-    if (parent === dir) {break;}
+    if (parent === dir) {
+      break;
+    }
     dir = parent;
   }
 
