@@ -22,6 +22,9 @@ export class WidgetsRouter implements RawdashRouter {
     id: string,
     widget: Widget,
   ): Promise<WidgetEntry | undefined> {
+    if (widget.kind === 'status') {
+      return undefined;
+    }
     const { connectorId } = widget.metric;
     const connectorEntry = this.connectors.find(
       (e) => e.connector.id === connectorId,

@@ -26,6 +26,7 @@ export type {
   ConnectorEntry,
   Dashboard,
   DashboardConfig,
+  DistributionWidget,
   FilterClause,
   FilterCondition,
   FilterOperator,
@@ -33,10 +34,16 @@ export type {
   MetricDef,
   ResolvedMetric,
   Shape,
+  StatWidget,
+  StatusWidget,
+  TimeseriesWidget,
   Widget,
+  WidgetKind,
 } from './config';
 
 export { defineConfig, defineDashboard, defineMetric } from './config';
+
+export { getWidgetSchema, widgetSchemas } from './widget-schemas';
 
 export type { SyncState, WidgetEntry } from './engine';
 

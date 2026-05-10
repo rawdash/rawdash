@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { defineConfig, defineDashboard, defineMetric } from './config';
 import type { Distribution, Edge, Entity, Event, Metric } from './connector';
+import { getWidgetSchema, widgetSchemas } from './widget-schemas';
 
 describe('shape types', () => {
   it('Event has required fields', () => {
@@ -148,6 +149,8 @@ describe('defineConfig validation', () => {
           main: defineDashboard({
             widgets: {
               w: {
+                kind: 'stat',
+                title: 'W',
                 metric: defineMetric({
                   connector,
                   shape: 'event',
@@ -170,6 +173,8 @@ describe('defineConfig validation', () => {
           main: defineDashboard({
             widgets: {
               w: {
+                kind: 'stat',
+                title: 'W',
                 metric: {
                   connectorId: 'c',
                   shape: 'invalid' as never,
@@ -192,6 +197,8 @@ describe('defineConfig validation', () => {
           main: defineDashboard({
             widgets: {
               w: {
+                kind: 'stat',
+                title: 'W',
                 metric: {
                   connectorId: 'c',
                   shape: 'event',
@@ -225,6 +232,8 @@ describe('defineConfig validation', () => {
           main: defineDashboard({
             widgets: {
               'bad:key': {
+                kind: 'stat',
+                title: 'W',
                 metric: defineMetric({
                   connector,
                   shape: 'event',
@@ -249,6 +258,8 @@ describe('defineConfig validation', () => {
           main: defineDashboard({
             widgets: {
               w: {
+                kind: 'stat',
+                title: 'My Widget',
                 metric: defineMetric({
                   connector,
                   shape: 'event',
@@ -344,5 +355,156 @@ describe('defineConfig validation', () => {
     it('passes when retention is omitted', () => {
       expect(() => defineConfig(base)).not.toThrow();
     });
+  });
+});
+
+describe('widgetSchemas', () => {
+  it('has schemas for all four widget kinds', () => {
+    expect(Object.keys(widgetSchemas)).toEqual([
+      'stat',
+      'status',
+      'timeseries',
+      'distribution',
+    ]);
+  });
+
+  it('getWidgetSchema returns the correct schema', () => {
+    expect(getWidgetSchema('stat')).toBe(widgetSchemas.stat);
+    expect(getWidgetSchema('status')).toBe(widgetSchemas.status);
+    expect(getWidgetSchema('timeseries')).toBe(widgetSchemas.timeseries);
+    expect(getWidgetSchema('distribution')).toBe(widgetSchemas.distribution);
+  });
+
+  it('stat schema validates required fields', () => {
+    const result = widgetSchemas.stat.safeParse({
+      title: 'Deploys',
+      metric: 'deploy-count',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.compare).toBe('none');
+    }
+  });
+
+  it('stat schema rejects missing title', () => {
+    const result = widgetSchemas.stat.safeParse({ metric: 'deploy-count' });
+    expect(result.success).toBe(false);
+  });
+
+  it('status schema validates required fields', () => {
+    const result = widgetSchemas.status.safeParse({
+      title: 'CI Status',
+      source: 'github-actions',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('timeseries schema applies default granularity', () => {
+    const result = widgetSchemas.timeseries.safeParse({
+      title: 'Latency over time',
+      metric: 'latency-p99',
+      window: '7d',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.granularity).toBe('day');
+    }
+  });
+
+  it('timeseries schema rejects missing window', () => {
+    const result = widgetSchemas.timeseries.safeParse({
+      title: 'Latency',
+      metric: 'latency-p99',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('distribution schema validates required fields', () => {
+    const result = widgetSchemas.distribution.safeParse({
+      title: 'Request latency',
+      metric: 'latency',
+      window: '1d',
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe('defineDashboard widget validation', () => {
+  const metric = defineMetric({
+    connector: { id: 'c' },
+    shape: 'event',
+    field: 'start_ts',
+    fn: 'count',
+  });
+
+  it('throws for unknown widget kind', () => {
+    expect(() =>
+      defineDashboard({
+        widgets: {
+          w: { kind: 'unknown' as never, title: 'W', metric },
+        },
+      }),
+    ).toThrow('unknown kind "unknown"');
+  });
+
+  it('throws when required title is missing', () => {
+    expect(() =>
+      defineDashboard({
+        widgets: {
+          w: { kind: 'stat', title: '', metric },
+        },
+      }),
+    ).not.toThrow();
+  });
+
+  it('accepts a valid stat widget', () => {
+    expect(() =>
+      defineDashboard({
+        widgets: {
+          w: {
+            kind: 'stat',
+            title: 'Deploys',
+            metric,
+            window: '7d',
+            compare: 'previous-period',
+          },
+        },
+      }),
+    ).not.toThrow();
+  });
+
+  it('accepts a valid status widget', () => {
+    expect(() =>
+      defineDashboard({
+        widgets: {
+          w: { kind: 'status', title: 'CI', source: 'github' },
+        },
+      }),
+    ).not.toThrow();
+  });
+
+  it('accepts a valid timeseries widget', () => {
+    expect(() =>
+      defineDashboard({
+        widgets: {
+          w: { kind: 'timeseries', title: 'Latency', metric, window: '7d' },
+        },
+      }),
+    ).not.toThrow();
+  });
+
+  it('accepts a valid distribution widget', () => {
+    expect(() =>
+      defineDashboard({
+        widgets: {
+          w: {
+            kind: 'distribution',
+            title: 'Latency dist',
+            metric,
+            window: '1d',
+          },
+        },
+      }),
+    ).not.toThrow();
   });
 });
