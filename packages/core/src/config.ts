@@ -1,5 +1,7 @@
 import type { Connector } from './connector';
 import type { RetentionConfig } from './retention';
+import { getWidgetSchema, widgetSchemas } from './widget-schemas';
+import type { WidgetKind } from './widget-schemas';
 
 // ---------------------------------------------------------------------------
 // Aggregation functions
@@ -82,10 +84,42 @@ export interface ResolvedMetric {
 // Widget definition
 // ---------------------------------------------------------------------------
 
-export interface Widget {
-  label?: string;
+export interface StatWidget {
+  kind: 'stat';
+  title: string;
   metric: ResolvedMetric;
+  window?: string;
+  compare?: 'none' | 'previous-period';
 }
+
+export interface StatusWidget {
+  kind: 'status';
+  title: string;
+  source: string;
+}
+
+export interface TimeseriesWidget {
+  kind: 'timeseries';
+  title: string;
+  metric: ResolvedMetric;
+  window: string;
+  granularity?: 'hour' | 'day' | 'week';
+}
+
+export interface DistributionWidget {
+  kind: 'distribution';
+  title: string;
+  metric: ResolvedMetric;
+  window: string;
+}
+
+export type Widget =
+  | StatWidget
+  | StatusWidget
+  | TimeseriesWidget
+  | DistributionWidget;
+
+export type { WidgetKind };
 
 // ---------------------------------------------------------------------------
 // Dashboard config
@@ -109,9 +143,35 @@ export interface DashboardConfig {
 // defineDashboard
 // ---------------------------------------------------------------------------
 
+const VALID_WIDGET_KINDS = new Set<string>(Object.keys(widgetSchemas));
+
 export function defineDashboard(options: {
   widgets: Record<string, Widget>;
 }): Dashboard {
+  for (const [key, widget] of Object.entries(options.widgets)) {
+    if (!VALID_WIDGET_KINDS.has(widget.kind)) {
+      throw new Error(
+        `Widget "${key}": unknown kind "${widget.kind}". Must be one of: ${[...VALID_WIDGET_KINDS].join(', ')}`,
+      );
+    }
+    const schema = getWidgetSchema(widget.kind as WidgetKind);
+    const parseInput: Record<string, unknown> = { ...widget };
+    if (widget.kind !== 'status') {
+      const m = (widget as { metric?: unknown }).metric;
+      if (typeof m !== 'object' || m === null) {
+        throw new Error(
+          `Widget "${key}" (kind "${widget.kind}"): metric is required`,
+        );
+      }
+      parseInput.metric = 'placeholder';
+    }
+    const result = schema.safeParse(parseInput);
+    if (!result.success) {
+      throw new Error(
+        `Widget "${key}" (kind "${widget.kind}"): ${result.error.issues.map((i) => i.message).join('; ')}`,
+      );
+    }
+  }
   return { widgets: options.widgets };
 }
 
@@ -212,6 +272,10 @@ function validateConfig(config: DashboardConfig): void {
         throw new Error(
           `${ref}: widget key contains URL-unsafe characters; use only letters, digits, hyphens, and underscores`,
         );
+      }
+
+      if (widget.kind === 'status') {
+        continue;
       }
 
       const { connectorId, shape, fn } = widget.metric;

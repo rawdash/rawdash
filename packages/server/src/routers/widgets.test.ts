@@ -17,6 +17,8 @@ const config = {
     main: {
       widgets: {
         my_widget: {
+          kind: 'stat' as const,
+          title: 'My Widget',
           metric: {
             connectorId: CONNECTOR_ID,
             shape: 'event' as const,

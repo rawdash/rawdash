@@ -45,7 +45,8 @@ serve(
       github: defineDashboard({
         widgets: {
           latest_run_conclusion: {
-            label: 'Latest Run Conclusion',
+            kind: 'stat',
+            title: 'Latest Run Conclusion',
             metric: defineMetric({
               connector: github,
               shape: 'event',
@@ -55,7 +56,8 @@ serve(
             }),
           },
           run_count_7d: {
-            label: 'Run Count 7d',
+            kind: 'stat',
+            title: 'Run Count 7d',
             metric: defineMetric({
               connector: github,
               shape: 'event',
@@ -66,7 +68,8 @@ serve(
             }),
           },
           successful_runs_7d: {
-            label: 'Successful Runs 7d',
+            kind: 'stat',
+            title: 'Successful Runs 7d',
             metric: defineMetric({
               connector: github,
               shape: 'event',
@@ -78,7 +81,9 @@ serve(
             }),
           },
           daily_runs: {
-            label: 'Daily Runs',
+            kind: 'timeseries',
+            title: 'Daily Runs',
+            window: '7d',
             metric: defineMetric({
               connector: github,
               shape: 'event',
