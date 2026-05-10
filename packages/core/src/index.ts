@@ -52,3 +52,7 @@ export {
   resolveSecretRefs,
   secret,
 } from './secrets';
+
+export type { ConfigFieldsSchema } from './config-fields';
+
+export { defineConfigFields } from './config-fields';
