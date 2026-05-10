@@ -17,7 +17,9 @@ export function registerRemoveConnector(
       connector_id: z.string().describe('The connector instance ID to remove.'),
     },
     async ({ connector_id }) => {
-      const existed = runtime.removeConnector(connector_id);
+      const existed = runtime
+        .getConnectors()
+        .some((e) => e.connector.id === connector_id);
       if (!existed) {
         return text({ removed: connector_id, existed: false });
       }
@@ -27,10 +29,11 @@ export function registerRemoveConnector(
       } catch (e) {
         return err(
           'ON_REMOVE_CONNECTOR_FAILED',
-          `Connector removed in-memory but post-remove callback failed: ${e instanceof Error ? e.message : String(e)}`,
+          e instanceof Error ? e.message : String(e),
         );
       }
 
+      runtime.removeConnector(connector_id);
       return text({ removed: connector_id, existed: true });
     },
   );
