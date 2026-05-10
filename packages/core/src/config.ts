@@ -157,6 +157,12 @@ export function defineDashboard(options: {
     const schema = getWidgetSchema(widget.kind as WidgetKind);
     const parseInput: Record<string, unknown> = { ...widget };
     if (widget.kind !== 'status') {
+      const m = (widget as { metric?: unknown }).metric;
+      if (typeof m !== 'object' || m === null) {
+        throw new Error(
+          `Widget "${key}" (kind "${widget.kind}"): metric is required`,
+        );
+      }
       parseInput.metric = 'placeholder';
     }
     const result = schema.safeParse(parseInput);
