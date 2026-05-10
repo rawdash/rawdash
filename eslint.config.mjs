@@ -68,6 +68,30 @@ export default [
             message:
               'Do not use file extensions in relative import specifiers.',
           },
+          {
+            selector:
+              'ImportDeclaration[source.value=/\\.js$/]:not([source.value=/^\\.\\.?\\//])',
+            message:
+              'Do not use .js extensions in package subpath import specifiers.',
+          },
+          {
+            selector:
+              'ExportNamedDeclaration[source.value=/\\.js$/]:not([source.value=/^\\.\\.?\\//])',
+            message:
+              'Do not use .js extensions in package subpath import specifiers.',
+          },
+          {
+            selector:
+              'ExportAllDeclaration[source.value=/\\.js$/]:not([source.value=/^\\.\\.?\\//])',
+            message:
+              'Do not use .js extensions in package subpath import specifiers.',
+          },
+          {
+            selector:
+              'ImportExpression > Literal[value=/\\.js$/]:not([value=/^\\.\\.?\\//])',
+            message:
+              'Do not use .js extensions in package subpath import specifiers.',
+          },
         ],
       },
     },
