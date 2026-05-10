@@ -528,7 +528,7 @@ export class TursoStorage implements ServerStorage {
               ),
             );
           rowsAffected = result.rowsAffected;
-        } else {
+        } else if (shape === 'distributions') {
           const result = await db
             .delete(distributions)
             .where(
@@ -538,6 +538,10 @@ export class TursoStorage implements ServerStorage {
               ),
             );
           rowsAffected = result.rowsAffected;
+        } else {
+          throw new Error(
+            `Unsupported shape for deleteOlderThan: ${String(shape)}`,
+          );
         }
         return { rowsDeleted: rowsAffected };
       },

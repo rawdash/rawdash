@@ -227,11 +227,15 @@ export class InMemoryStorage implements ServerStorage {
           const after = before.filter((m) => m.ts >= tsUnixMs);
           this.metricStore.set(connectorId, after);
           return { rowsDeleted: before.length - after.length };
-        } else {
+        } else if (shape === 'distributions') {
           const before = this.distributionStore.get(connectorId) ?? [];
           const after = before.filter((d) => d.ts >= tsUnixMs);
           this.distributionStore.set(connectorId, after);
           return { rowsDeleted: before.length - after.length };
+        } else {
+          throw new Error(
+            `Unsupported shape for deleteOlderThan: ${String(shape)}`,
+          );
         }
       },
     };
