@@ -65,7 +65,14 @@ export function registerAddConnector(
         );
       }
 
-      await options.onAddConnector?.(entry);
+      try {
+        await options.onAddConnector?.(entry);
+      } catch (e) {
+        return err(
+          'ON_ADD_CONNECTOR_FAILED',
+          `Connector added in-memory but post-add callback failed: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
 
       return text({ added: entry.connector.id, idempotent: false });
     },

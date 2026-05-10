@@ -265,6 +265,38 @@ describe('set_secret / list_secrets', () => {
     };
     expect(data.secrets).toContain('MY_SECRET');
   });
+
+  it('set_secret returns structured error when onSetSecret throws', async () => {
+    const client = await makeClient(new InMemoryStorage(), {
+      onSetSecret: async () => {
+        throw new Error('backend unavailable');
+      },
+    });
+    const result = await client.callTool({
+      name: 'set_secret',
+      arguments: { name: 'FAIL_SECRET', value: 'x' },
+    });
+    const data = parseResult(result as Parameters<typeof parseResult>[0]) as {
+      error: { code: string };
+    };
+    expect(data.error.code).toBe('SET_SECRET_FAILED');
+  });
+
+  it('list_secrets returns structured error when listSecrets throws', async () => {
+    const client = await makeClient(new InMemoryStorage(), {
+      listSecrets: async () => {
+        throw new Error('vault unreachable');
+      },
+    });
+    const result = await client.callTool({
+      name: 'list_secrets',
+      arguments: {},
+    });
+    const data = parseResult(result as Parameters<typeof parseResult>[0]) as {
+      error: { code: string };
+    };
+    expect(data.error.code).toBe('LIST_SECRETS_FAILED');
+  });
 });
 
 describe('remove_connector', () => {
@@ -291,16 +323,18 @@ describe('remove_connector', () => {
     expect(listData.connectors).toHaveLength(0);
   });
 
-  it('returns error when connector not found', async () => {
+  it('is idempotent — returns success for non-existent connector', async () => {
     const client = await makeClient(new InMemoryStorage());
     const result = await client.callTool({
       name: 'remove_connector',
       arguments: { connector_id: 'nope' },
     });
     const data = parseResult(result as Parameters<typeof parseResult>[0]) as {
-      error: { code: string };
+      removed: string;
+      existed: boolean;
     };
-    expect(data.error.code).toBe('NOT_FOUND');
+    expect(data.removed).toBe('nope');
+    expect(data.existed).toBe(false);
   });
 });
 

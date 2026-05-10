@@ -10,7 +10,7 @@ export class RuntimeConfig {
   }
 
   getConnectors(): ConnectorEntry[] {
-    return this.connectors;
+    return [...this.connectors];
   }
 
   getDashboards(): Record<string, Dashboard> {

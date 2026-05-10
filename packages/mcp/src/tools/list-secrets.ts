@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp';
 
 import type { McpServerOptions } from '../types';
-import { text } from './shared';
+import { err, text } from './shared';
 
 export function registerListSecrets(
   server: McpServer,
@@ -13,13 +13,17 @@ export function registerListSecrets(
     'List secret names known to this Rawdash instance. Values are never returned.',
     {},
     async () => {
-      let names: string[];
-      if (options.listSecrets) {
-        names = await options.listSecrets();
-      } else {
-        names = [...trackedSecrets];
+      try {
+        const names = options.listSecrets
+          ? await options.listSecrets()
+          : [...trackedSecrets];
+        return text({ secrets: [...names].sort() });
+      } catch (e) {
+        return err(
+          'LIST_SECRETS_FAILED',
+          e instanceof Error ? e.message : 'Failed to list secrets.',
+        );
       }
-      return text({ secrets: names.sort() });
     },
   );
 }

@@ -30,17 +30,28 @@ export function registerSetSecret(
         );
       }
 
-      if (options.onSetSecret) {
-        await options.onSetSecret(name, value);
-      } else {
-        const env = (
-          globalThis as {
-            process?: { env?: Record<string, string | undefined> };
+      try {
+        if (options.onSetSecret) {
+          await options.onSetSecret(name, value);
+        } else {
+          const env = (
+            globalThis as {
+              process?: { env?: Record<string, string | undefined> };
+            }
+          ).process?.env;
+          if (!env) {
+            return err(
+              'NO_SECRET_BACKEND',
+              'No secret backend is configured for this runtime.',
+            );
           }
-        ).process?.env;
-        if (env) {
           env[name] = value;
         }
+      } catch (e) {
+        return err(
+          'SET_SECRET_FAILED',
+          e instanceof Error ? e.message : 'Failed to set secret.',
+        );
       }
 
       trackedSecrets.add(name);

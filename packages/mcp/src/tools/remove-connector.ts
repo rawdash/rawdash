@@ -19,12 +19,19 @@ export function registerRemoveConnector(
     async ({ connector_id }) => {
       const existed = runtime.removeConnector(connector_id);
       if (!existed) {
-        return err('NOT_FOUND', `Connector "${connector_id}" not found`);
+        return text({ removed: connector_id, existed: false });
       }
 
-      await options.onRemoveConnector?.(connector_id);
+      try {
+        await options.onRemoveConnector?.(connector_id);
+      } catch (e) {
+        return err(
+          'ON_REMOVE_CONNECTOR_FAILED',
+          `Connector removed in-memory but post-remove callback failed: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
 
-      return text({ removed: connector_id });
+      return text({ removed: connector_id, existed: true });
     },
   );
 }

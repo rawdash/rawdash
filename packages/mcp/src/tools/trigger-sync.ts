@@ -54,13 +54,18 @@ export function registerTriggerSync(
           }
           await storage.setSyncSuccess();
         } catch (e) {
-          await storage.setSyncError(
-            e instanceof Error ? e.message : String(e),
-          );
+          const message = e instanceof Error ? e.message : String(e);
+          try {
+            await storage.setSyncError(message);
+          } catch {
+            // Intentionally swallow to avoid unhandled background rejection.
+          }
         }
       };
 
-      void run();
+      void run().catch(() => {
+        // Defensive terminal catch for any unexpected rejection path.
+      });
 
       return text({
         triggered: true,
