@@ -451,10 +451,10 @@ describe('defineDashboard widget validation', () => {
     expect(() =>
       defineDashboard({
         widgets: {
-          w: { kind: 'stat', title: '', metric },
+          w: { kind: 'stat', metric } as never,
         },
       }),
-    ).not.toThrow();
+    ).toThrow();
   });
 
   it('accepts a valid stat widget', () => {
