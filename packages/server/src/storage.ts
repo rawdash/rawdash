@@ -213,6 +213,31 @@ export class InMemoryStorage implements ServerStorage {
         }
         return results;
       },
+
+      // Entities and edges are excluded — they hold the latest known state per
+      // primary key; deleting by age would lose live data.
+      deleteOlderThan: async (shape, tsUnixMs) => {
+        if (shape === 'events') {
+          const before = this.eventStore.get(connectorId) ?? [];
+          const after = before.filter((e) => e.start_ts >= tsUnixMs);
+          this.eventStore.set(connectorId, after);
+          return { rowsDeleted: before.length - after.length };
+        } else if (shape === 'metrics') {
+          const before = this.metricStore.get(connectorId) ?? [];
+          const after = before.filter((m) => m.ts >= tsUnixMs);
+          this.metricStore.set(connectorId, after);
+          return { rowsDeleted: before.length - after.length };
+        } else if (shape === 'distributions') {
+          const before = this.distributionStore.get(connectorId) ?? [];
+          const after = before.filter((d) => d.ts >= tsUnixMs);
+          this.distributionStore.set(connectorId, after);
+          return { rowsDeleted: before.length - after.length };
+        } else {
+          throw new Error(
+            `Unsupported shape for deleteOlderThan: ${String(shape)}`,
+          );
+        }
+      },
     };
   }
 

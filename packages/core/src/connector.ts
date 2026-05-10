@@ -125,6 +125,16 @@ export interface StorageHandle {
   queryMetrics(q: MetricQuery): Promise<Metric[]>;
   traverse(q: EdgeQuery): Promise<Edge[]>;
   queryDistributions(q: DistributionQuery): Promise<Distribution[]>;
+
+  // Deletes all rows in the given time-series shape whose timestamp column is
+  // strictly less than `tsUnixMs`. Only covers append-only shapes (events,
+  // metrics, distributions). Entities and edges are excluded because they hold
+  // the latest known state per primary key — deleting by age would lose live
+  // data. The right model for those shapes is "expire when source disappears."
+  deleteOlderThan(
+    shape: 'events' | 'metrics' | 'distributions',
+    tsUnixMs: number,
+  ): Promise<{ rowsDeleted: number }>;
 }
 
 // ---------------------------------------------------------------------------
