@@ -21,7 +21,7 @@ secretsCommand
     requireApiKey();
 
     let secretValue = value;
-    if (!secretValue) {
+    if (secretValue === undefined) {
       secretValue = await readStdin();
       if (!secretValue) {
         printError('No value provided. Pass as argument or via stdin.');

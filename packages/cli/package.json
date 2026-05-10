@@ -4,6 +4,9 @@
   "description": "Rawdash CLI — deploy and manage your dashboard config",
   "license": "Apache-2.0",
   "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
   "bin": {
     "rawdash": "./dist/bin.js"
   },
