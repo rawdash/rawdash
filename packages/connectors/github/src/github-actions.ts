@@ -86,6 +86,7 @@ interface GitHubDeployment {
 
 interface GitHubDeploymentStatus {
   state: string;
+  updated_at: string;
 }
 
 interface GitHubRelease {
@@ -418,6 +419,10 @@ export class GitHubActionsConnector extends BaseConnector<
         throw new Error(`GitHub API error: ${res.status} ${res.statusText}`);
       }
       const statuses = (await res.json()) as GitHubDeploymentStatus[];
+      const createdMs = new Date(deployment.created_at).getTime();
+      const statusUpdatedMs = statuses[0]?.updated_at
+        ? new Date(statuses[0].updated_at).getTime()
+        : null;
       entities.push({
         type: 'deployment',
         id: String(deployment.id),
@@ -426,10 +431,10 @@ export class GitHubActionsConnector extends BaseConnector<
           ref: deployment.ref,
           sha: deployment.sha,
           creator: deployment.creator?.login ?? '',
-          created_at: new Date(deployment.created_at).getTime(),
+          created_at: createdMs,
           latest_status: statuses[0]?.state ?? 'unknown',
         },
-        updated_at: new Date(deployment.created_at).getTime(),
+        updated_at: Math.max(createdMs, statusUpdatedMs ?? 0),
       });
     }
 
@@ -503,7 +508,17 @@ export class GitHubActionsConnector extends BaseConnector<
         { headers, signal },
       );
       if (res.status === 202) {
-        await new Promise((resolve) => setTimeout(resolve, 3000));
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(resolve, 3000);
+          signal?.addEventListener(
+            'abort',
+            () => {
+              clearTimeout(timer);
+              reject(signal.reason ?? new Error('Aborted'));
+            },
+            { once: true },
+          );
+        });
         continue;
       }
       if (!res.ok) {
