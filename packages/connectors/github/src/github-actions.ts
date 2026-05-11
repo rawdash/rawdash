@@ -500,40 +500,30 @@ export class GitHubActionsConnector extends BaseConnector<
     const { owner, repo } = this.settings;
     const headers = this.buildHeaders();
 
-    const maxAttempts = 15;
-    const retryDelayMs = 5000;
-    let contributors: GitHubContributorStats[] | null = null;
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      signal?.throwIfAborted();
-      const res = await fetch(
-        `https://api.github.com/repos/${owner}/${repo}/stats/contributors`,
-        { headers, signal },
-      );
-      if (res.status === 202) {
-        await new Promise<void>((resolve, reject) => {
-          const timer = setTimeout(resolve, retryDelayMs);
-          signal?.addEventListener(
-            'abort',
-            () => {
-              clearTimeout(timer);
-              reject(signal.reason ?? new Error('Aborted'));
-            },
-            { once: true },
-          );
-        });
-        continue;
-      }
-      if (!res.ok) {
-        throw new Error(`GitHub API error: ${res.status} ${res.statusText}`);
-      }
-      contributors = (await res.json()) as GitHubContributorStats[];
-      break;
-    }
+    const contributors = await this.withRetry<GitHubContributorStats[]>(
+      async (sig) => {
+        const res = await fetch(
+          `https://api.github.com/repos/${owner}/${repo}/stats/contributors`,
+          { headers, signal: sig },
+        );
+        if (res.status === 202) {
+          return { status: 'retry' };
+        }
+        if (!res.ok) {
+          throw new Error(`GitHub API error: ${res.status} ${res.statusText}`);
+        }
+        return {
+          status: 'done',
+          value: (await res.json()) as GitHubContributorStats[],
+        };
+      },
+      { maxAttempts: 15, initialDelayMs: 1000, maxDelayMs: 10000, signal },
+    );
 
     if (!contributors || contributors.length === 0) {
       if (!contributors) {
         console.warn(
-          `[github-actions] Stats endpoint never became ready after ${maxAttempts} attempts — skipping contributor sync and keeping previous data.`,
+          '[github-actions] Stats endpoint never became ready — skipping contributor sync and keeping previous data.',
         );
       }
       return;

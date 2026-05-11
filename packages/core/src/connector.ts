@@ -185,6 +185,13 @@ export interface Connector {
   ): Promise<void>;
 }
 
+export interface RetryOptions {
+  maxAttempts?: number;
+  initialDelayMs?: number;
+  maxDelayMs?: number;
+  signal?: AbortSignal;
+}
+
 export abstract class BaseConnector<
   TSettings = unknown,
   TCreds extends CredentialSchema = CredentialSchema,
@@ -203,6 +210,48 @@ export abstract class BaseConnector<
           new EnvSecretsResolver(),
         ) as InferCredentials<TCreds>)
       : ({} as InferCredentials<TCreds>);
+  }
+
+  protected sleep(ms: number, signal?: AbortSignal): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(resolve, ms);
+      signal?.addEventListener(
+        'abort',
+        () => {
+          clearTimeout(timer);
+          reject(signal.reason ?? new Error('Aborted'));
+        },
+        { once: true },
+      );
+    });
+  }
+
+  protected async withRetry<T>(
+    fn: (
+      signal?: AbortSignal,
+    ) => Promise<{ status: 'done'; value: T } | { status: 'retry' }>,
+    options?: RetryOptions,
+  ): Promise<T | null> {
+    const {
+      maxAttempts = 10,
+      initialDelayMs = 1000,
+      maxDelayMs = 10000,
+      signal,
+    } = options ?? {};
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      signal?.throwIfAborted();
+      const result = await fn(signal);
+      if (result.status === 'done') {
+        return result.value;
+      }
+      if (attempt < maxAttempts - 1) {
+        const delay = Math.min(initialDelayMs * 2 ** attempt, maxDelayMs);
+        await this.sleep(delay, signal);
+      }
+    }
+
+    return null;
   }
 
   abstract sync(
