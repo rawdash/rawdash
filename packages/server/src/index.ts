@@ -6,11 +6,13 @@ import type { DashboardConfig, ServeOptions } from './types';
 
 export { createServer } from './server';
 export { createEngineRouters } from './engine-router';
+export { createEngine } from './engine';
 export { computeMetric } from './compute';
 export { InMemoryStorage } from './storage';
 export type { RawdashRouter } from './router';
 export type { SyncState, WidgetEntry } from '@rawdash/core';
 export type { DashboardConfig, ServeOptions, ServerStorage } from './types';
+export type { Engine, EngineOptions } from './engine';
 
 export function serve(
   config: DashboardConfig,

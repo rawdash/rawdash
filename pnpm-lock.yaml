@@ -224,6 +224,15 @@ importers:
         specifier: ^5.7.2
         version: 5.9.3
 
+  packages/client:
+    devDependencies:
+      tsup:
+        specifier: ^8.0.0
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.9)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.3)
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+
   packages/connectors/github:
     dependencies:
       '@rawdash/core':
@@ -277,9 +286,9 @@ importers:
 
   packages/nextjs:
     dependencies:
-      '@rawdash/core':
+      '@rawdash/client':
         specifier: workspace:*
-        version: link:../core
+        version: link:../client
     devDependencies:
       next:
         specifier: ^15.0.0
