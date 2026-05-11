@@ -1,5 +1,5 @@
-import { createRawdashClient } from '@rawdash/nextjs';
+import { createRawdashClient, http } from '@rawdash/nextjs';
 
-export const rawdash = createRawdashClient({
-  url: process.env['RAWDASH_URL'] ?? 'http://localhost:8080',
-});
+export const rawdash = createRawdashClient(
+  http({ baseUrl: process.env['RAWDASH_URL'] ?? 'http://localhost:8080' }),
+);
