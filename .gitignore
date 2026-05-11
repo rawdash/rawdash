@@ -17,9 +17,7 @@ pnpm-debug.log*
 .env.local
 .env.*.local
 
-.claude/settings.local.json
-.claude/CLAUDE.local.md
-.claude/plugga.json
+.claude/
 
 .DS_Store
 Thumbs.db
