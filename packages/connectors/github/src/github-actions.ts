@@ -500,8 +500,10 @@ export class GitHubActionsConnector extends BaseConnector<
     const { owner, repo } = this.settings;
     const headers = this.buildHeaders();
 
+    const maxAttempts = 15;
+    const retryDelayMs = 5000;
     let contributors: GitHubContributorStats[] | null = null;
-    for (let attempt = 0; attempt < 5; attempt++) {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
       signal?.throwIfAborted();
       const res = await fetch(
         `https://api.github.com/repos/${owner}/${repo}/stats/contributors`,
@@ -509,7 +511,7 @@ export class GitHubActionsConnector extends BaseConnector<
       );
       if (res.status === 202) {
         await new Promise<void>((resolve, reject) => {
-          const timer = setTimeout(resolve, 3000);
+          const timer = setTimeout(resolve, retryDelayMs);
           signal?.addEventListener(
             'abort',
             () => {
@@ -528,7 +530,12 @@ export class GitHubActionsConnector extends BaseConnector<
       break;
     }
 
-    if (!contributors) {
+    if (!contributors || contributors.length === 0) {
+      if (!contributors) {
+        console.warn(
+          `[github-actions] Stats endpoint never became ready after ${maxAttempts} attempts — skipping contributor sync and keeping previous data.`,
+        );
+      }
       return;
     }
 
