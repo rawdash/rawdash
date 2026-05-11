@@ -50,15 +50,12 @@ export default async function DashboardPage() {
 }
 ```
 
+In `app/actions.ts`:
+
 ```ts
-// app/actions.ts
 'use server';
 
 import { rawdash } from '@/lib/rawdash';
-
-// app/actions.ts
-
-// app/actions.ts
 
 export async function syncDashboard() {
   // Triggers sync, waits for completion, then calls revalidateTag('rawdash')
