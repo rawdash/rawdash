@@ -340,12 +340,18 @@ export class GitHubActionsConnector extends BaseConnector<
         throw new Error(`GitHub API error: ${res.status} ${res.statusText}`);
       }
       const issues = (await res.json()) as GitHubIssue[];
-      if (issues.length === 0) {break;}
+      if (issues.length === 0) {
+        break;
+      }
       for (const issue of issues) {
-        if (issue.pull_request !== undefined) {continue;}
+        if (issue.pull_request !== undefined) {
+          continue;
+        }
         allIssues.push(issue);
       }
-      if (issues.length < 100) {break;}
+      if (issues.length < 100) {
+        break;
+      }
       page++;
     }
 
@@ -391,9 +397,13 @@ export class GitHubActionsConnector extends BaseConnector<
         throw new Error(`GitHub API error: ${res.status} ${res.statusText}`);
       }
       const deployments = (await res.json()) as GitHubDeployment[];
-      if (deployments.length === 0) {break;}
+      if (deployments.length === 0) {
+        break;
+      }
       allDeployments.push(...deployments);
-      if (deployments.length < 100) {break;}
+      if (deployments.length < 100) {
+        break;
+      }
       page++;
     }
 
@@ -445,9 +455,13 @@ export class GitHubActionsConnector extends BaseConnector<
         throw new Error(`GitHub API error: ${res.status} ${res.statusText}`);
       }
       const releases = (await res.json()) as GitHubRelease[];
-      if (releases.length === 0) {break;}
+      if (releases.length === 0) {
+        break;
+      }
       allReleases.push(...releases);
-      if (releases.length < 100) {break;}
+      if (releases.length < 100) {
+        break;
+      }
       page++;
     }
 
@@ -499,7 +513,9 @@ export class GitHubActionsConnector extends BaseConnector<
       break;
     }
 
-    if (!contributors) {return;}
+    if (!contributors) {
+      return;
+    }
 
     await storage.entities(
       contributors.map((c) => {
