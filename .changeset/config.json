@@ -8,7 +8,10 @@
       "@rawdash/server",
       "@rawdash/nextjs",
       "@rawdash/connector-github",
-      "@rawdash/adapter-turso"
+      "@rawdash/adapter-turso",
+      "@rawdash/cli",
+      "@rawdash/client",
+      "@rawdash/mcp"
     ]
   ],
   "linked": [],

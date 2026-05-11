@@ -4,6 +4,16 @@
   "description": "Rawdash standalone Hono server",
   "license": "Apache-2.0",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rawdash/rawdash.git",
+    "directory": "packages/server"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "exports": {
     ".": {
       "@rawdash/source": "./src/index.ts",
