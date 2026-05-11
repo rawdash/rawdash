@@ -27,14 +27,20 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${plusJakartaSans.variable} font-sans antialiased`}>
-        <header className="border-b border-gray-100 px-6 py-4">
-          <span className="text-base font-bold tracking-tight text-gray-900">
-            RawDash
+        <header className="flex h-12 items-center justify-between border-b border-gray-100 bg-white px-5">
+          <span className="text-sm font-bold tracking-tight text-gray-900">
+            rawdash
           </span>
+          <a
+            href="https://rawdash.dev"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-gray-400 transition-colors hover:bg-gray-50 hover:text-gray-700"
+          >
+            rawdash.dev ↗
+          </a>
         </header>
-        <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
-          {children}
-        </main>
+        <main className="min-h-[calc(100vh-3rem)] bg-gray-50">{children}</main>
       </body>
     </html>
   );

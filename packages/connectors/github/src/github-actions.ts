@@ -106,6 +106,12 @@ interface GitHubContributorStats {
   author: { login: string };
 }
 
+interface GitHubRepo {
+  stargazers_count: number;
+  forks_count: number;
+  subscribers_count: number;
+}
+
 const githubCredentials = {
   token: {
     description: 'GitHub personal access token',
@@ -248,7 +254,7 @@ export class GitHubActionsConnector extends BaseConnector<
     while (true) {
       signal?.throwIfAborted();
       const res = await fetch(
-        `https://api.github.com/repos/${owner}/${repo}/pulls?state=open&per_page=100&page=${page}`,
+        `https://api.github.com/repos/${owner}/${repo}/pulls?state=all&per_page=100&page=${page}`,
         { headers, signal },
       );
       if (!res.ok) {
@@ -553,11 +559,43 @@ export class GitHubActionsConnector extends BaseConnector<
     );
   }
 
+  private async syncRepoStats(
+    storage: StorageHandle,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    const { owner, repo } = this.settings;
+    const headers = this.buildHeaders();
+    const res = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
+      headers,
+      signal,
+    });
+    if (!res.ok) {
+      throw new Error(`GitHub API error: ${res.status} ${res.statusText}`);
+    }
+    const data = (await res.json()) as GitHubRepo;
+    await storage.entities(
+      [
+        {
+          type: 'repo',
+          id: `${owner}/${repo}`,
+          attributes: {
+            stars: data.stargazers_count,
+            forks: data.forks_count,
+            watchers: data.subscribers_count,
+          },
+          updated_at: Date.now(),
+        },
+      ],
+      { types: ['repo'] },
+    );
+  }
+
   async sync(
     request: SyncRequest,
     storage: StorageHandle,
     signal?: AbortSignal,
   ): Promise<void> {
+    await this.syncRepoStats(storage, signal);
     await this.syncWorkflowRuns(storage, request, signal);
     await this.syncPullRequests(storage, signal);
     await this.syncIssues(storage, request, signal);

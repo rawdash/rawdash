@@ -33,8 +33,42 @@ serve(
     dashboards: {
       github: defineDashboard({
         widgets: {
+          stars: {
+            kind: 'stat',
+            title: 'Stars',
+            metric: defineMetric({
+              connector: github,
+              shape: 'entity',
+              name: 'repo',
+              field: 'stars',
+              fn: 'latest',
+            }),
+          },
+          forks: {
+            kind: 'stat',
+            title: 'Forks',
+            metric: defineMetric({
+              connector: github,
+              shape: 'entity',
+              name: 'repo',
+              field: 'forks',
+              fn: 'latest',
+            }),
+          },
+          contributors: {
+            kind: 'stat',
+            title: 'Contributors',
+            metric: defineMetric({
+              connector: github,
+              shape: 'entity',
+              name: 'contributor',
+              field: 'commits',
+              fn: 'count',
+            }),
+          },
           open_prs: {
-            label: 'Open PRs',
+            kind: 'stat',
+            title: 'Open PRs',
             metric: defineMetric({
               connector: github,
               shape: 'entity',
@@ -44,66 +78,9 @@ serve(
               filter: [{ field: 'state', op: 'eq', value: 'open' }],
             }),
           },
-          prs_merged_per_week: {
-            label: 'PRs Merged per Week',
-            metric: defineMetric({
-              connector: github,
-              shape: 'entity',
-              name: 'pull_request',
-              field: 'updated_at',
-              fn: 'count',
-              window: '90d',
-              filter: [{ field: 'state', op: 'eq', value: 'closed' }],
-              groupBy: { field: 'updated_at', granularity: 'week' },
-            }),
-          },
-          successful_runs_30d: {
-            label: 'Successful Runs 30d',
-            metric: defineMetric({
-              connector: github,
-              shape: 'event',
-              name: 'workflow_run',
-              field: 'start_ts',
-              fn: 'count',
-              window: '30d',
-              filter: [{ field: 'conclusion', op: 'eq', value: 'success' }],
-            }),
-          },
-          run_count_30d: {
-            label: 'Total Runs 30d',
-            metric: defineMetric({
-              connector: github,
-              shape: 'event',
-              name: 'workflow_run',
-              field: 'start_ts',
-              fn: 'count',
-              window: '30d',
-            }),
-          },
-          daily_runs_30d: {
-            label: 'Daily Runs 30d',
-            metric: defineMetric({
-              connector: github,
-              shape: 'event',
-              name: 'workflow_run',
-              field: 'start_ts',
-              fn: 'count',
-              window: '30d',
-              groupBy: { field: 'start_ts', granularity: 'day' },
-            }),
-          },
-          total_contributors: {
-            label: 'Contributors',
-            metric: defineMetric({
-              connector: github,
-              shape: 'entity',
-              name: 'contributor',
-              field: 'commits',
-              fn: 'count',
-            }),
-          },
           open_issues: {
-            label: 'Open Issues',
+            kind: 'stat',
+            title: 'Open Issues',
             metric: defineMetric({
               connector: github,
               shape: 'entity',
@@ -113,27 +90,30 @@ serve(
               filter: [{ field: 'state', op: 'eq', value: 'open' }],
             }),
           },
-          releases_per_month: {
-            label: 'Releases per Month',
+          ci_status: {
+            kind: 'stat',
+            title: 'CI Status',
             metric: defineMetric({
               connector: github,
-              shape: 'entity',
-              name: 'release',
-              field: 'updated_at',
-              fn: 'count',
-              window: '365d',
-              groupBy: { field: 'updated_at', granularity: 'month' },
+              shape: 'event',
+              name: 'workflow_run',
+              field: 'conclusion',
+              fn: 'latest',
             }),
           },
-          deployments_per_week: {
-            label: 'Deployments per Week',
+          prs_merged_per_week: {
+            kind: 'timeseries',
+            title: 'PRs Merged per Week',
+            window: '90d',
+            granularity: 'week',
             metric: defineMetric({
               connector: github,
               shape: 'entity',
-              name: 'deployment',
+              name: 'pull_request',
               field: 'updated_at',
               fn: 'count',
               window: '90d',
+              filter: [{ field: 'state', op: 'eq', value: 'closed' }],
               groupBy: { field: 'updated_at', granularity: 'week' },
             }),
           },

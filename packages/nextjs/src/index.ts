@@ -74,7 +74,13 @@ export function createRawdashClient(dataSource: DataSource): RawdashClient {
 
     getHealth: () => dataSource.getHealth(),
 
-    ensureFresh: (maxAgeMs) => dataSource.ensureFresh(maxAgeMs),
+    async ensureFresh(maxAgeMs) {
+      const synced = await dataSource.ensureFresh(maxAgeMs);
+      if (synced) {
+        revalidateTag(RAWDASH_CACHE_TAG);
+      }
+      return synced;
+    },
 
     async triggerSync() {
       const result = await dataSource.triggerSync();
