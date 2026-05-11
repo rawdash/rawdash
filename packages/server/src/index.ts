@@ -6,6 +6,8 @@ import type { DashboardConfig, ServeOptions } from './types';
 
 export { createServer } from './server';
 export { createEngineRouters } from './engine-router';
+export { computeMetric } from './compute';
+export { InMemoryStorage } from './storage';
 export type { RawdashRouter } from './router';
 export type { SyncState, WidgetEntry } from '@rawdash/core';
 export type { DashboardConfig, ServeOptions, ServerStorage } from './types';
