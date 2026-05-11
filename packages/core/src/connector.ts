@@ -213,6 +213,9 @@ export abstract class BaseConnector<
   }
 
   protected sleep(ms: number, signal?: AbortSignal): Promise<void> {
+    if (signal?.aborted) {
+      return Promise.reject(signal.reason ?? new Error('Aborted'));
+    }
     return new Promise<void>((resolve, reject) => {
       const onAbort = () => {
         clearTimeout(timer);
