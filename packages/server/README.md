@@ -1,7 +1,7 @@
 # @rawdash/server
 
 [![npm version](https://img.shields.io/npm/v/@rawdash/server)](https://www.npmjs.com/package/@rawdash/server)
-[![license](https://img.shields.io/npm/l/@rawdash/server)](LICENSE)
+[![license](https://img.shields.io/npm/l/@rawdash/server)](https://github.com/rawdash/rawdash/blob/main/LICENSE)
 
 Standalone Hono HTTP server hosting the rawdash data API.
 

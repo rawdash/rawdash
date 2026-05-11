@@ -1,7 +1,7 @@
 # @rawdash/client
 
 [![npm version](https://img.shields.io/npm/v/@rawdash/client)](https://www.npmjs.com/package/@rawdash/client)
-[![license](https://img.shields.io/npm/l/@rawdash/client)](LICENSE)
+[![license](https://img.shields.io/npm/l/@rawdash/client)](https://github.com/rawdash/rawdash/blob/main/LICENSE)
 
 Framework-agnostic data sources for rawdash dashboards.
 

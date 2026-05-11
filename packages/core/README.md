@@ -1,7 +1,7 @@
 # @rawdash/core
 
 [![npm version](https://img.shields.io/npm/v/@rawdash/core)](https://www.npmjs.com/package/@rawdash/core)
-[![license](https://img.shields.io/npm/l/@rawdash/core)](LICENSE)
+[![license](https://img.shields.io/npm/l/@rawdash/core)](https://github.com/rawdash/rawdash/blob/main/LICENSE)
 
 Headless dashboard backend primitives for rawdash. Define connectors, dashboards, widgets, and metrics — no UI assumptions, works anywhere.
 

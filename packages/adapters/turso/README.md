@@ -1,7 +1,7 @@
 # @rawdash/adapter-turso
 
 [![npm version](https://img.shields.io/npm/v/@rawdash/adapter-turso)](https://www.npmjs.com/package/@rawdash/adapter-turso)
-[![license](https://img.shields.io/npm/l/@rawdash/adapter-turso)](LICENSE)
+[![license](https://img.shields.io/npm/l/@rawdash/adapter-turso)](https://github.com/rawdash/rawdash/blob/main/LICENSE)
 
 Turso / libSQL storage adapter for rawdash.
 

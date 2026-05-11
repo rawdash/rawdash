@@ -57,9 +57,7 @@ jobs:
         run: pnpm build
 
       - name: Publish to npm
-        run: pnpm changeset publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: pnpm changeset publish --provenance
 
       - name: Tag release
         run: git tag -a "v${{ steps.version.outputs.version }}" -m "Release v${{ steps.version.outputs.version }}"
