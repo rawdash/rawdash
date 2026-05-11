@@ -14,7 +14,7 @@ Other packages (`@rawdash/server`, `@rawdash/nextjs`, `@rawdash/mcp`) take a con
 ## Install
 
 ```sh
-npm install @rawdash/core
+npm install @rawdash/core @rawdash/connector-github
 ```
 
 ## Quick example
