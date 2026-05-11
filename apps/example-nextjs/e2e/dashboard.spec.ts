@@ -24,5 +24,5 @@ test('dashboard shows correct widget values', async ({ page }) => {
 
   await expect(page.getByText('Success')).toBeVisible();
   await expect(page.getByText('42', { exact: true })).toBeVisible();
-  await expect(page.getByText('15', { exact: true })).toBeVisible();
+  await expect(page.locator('span').filter({ hasText: /^15$/ })).toBeVisible();
 });
