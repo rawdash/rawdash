@@ -62,6 +62,50 @@ interface GitHubReview {
   submitted_at: string;
 }
 
+interface GitHubIssue {
+  number: number;
+  title: string;
+  state: string;
+  labels: Array<{ name: string }>;
+  assignees: Array<{ login: string }>;
+  user: { login: string };
+  created_at: string;
+  updated_at: string;
+  closed_at: string | null;
+  pull_request?: unknown;
+}
+
+interface GitHubDeployment {
+  id: number;
+  environment: string;
+  ref: string;
+  sha: string;
+  creator: { login: string } | null;
+  created_at: string;
+}
+
+interface GitHubDeploymentStatus {
+  state: string;
+  updated_at: string;
+}
+
+interface GitHubRelease {
+  id: number;
+  tag_name: string;
+  name: string | null;
+  draft: boolean;
+  prerelease: boolean;
+  created_at: string;
+  published_at: string | null;
+  author: { login: string };
+}
+
+interface GitHubContributorStats {
+  total: number;
+  weeks: Array<{ w: number; a: number; d: number; c: number }>;
+  author: { login: string };
+}
+
 const githubCredentials = {
   token: {
     description: 'GitHub personal access token',
@@ -271,6 +315,244 @@ export class GitHubActionsConnector extends BaseConnector<
     await storage.edges(reviewEdges, { kinds: ['reviewed_by'] });
   }
 
+  private async syncIssues(
+    storage: StorageHandle,
+    request: SyncRequest,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    const { owner, repo } = this.settings;
+    const headers = this.buildHeaders();
+    const allIssues: GitHubIssue[] = [];
+    let page = 1;
+
+    while (true) {
+      signal?.throwIfAborted();
+      const url = new URL(
+        `https://api.github.com/repos/${owner}/${repo}/issues`,
+      );
+      url.searchParams.set('state', 'all');
+      url.searchParams.set('per_page', '100');
+      url.searchParams.set('page', String(page));
+      if (request.since) {
+        url.searchParams.set('since', request.since);
+      }
+      const res = await fetch(url.toString(), { headers, signal });
+      if (!res.ok) {
+        throw new Error(`GitHub API error: ${res.status} ${res.statusText}`);
+      }
+      const issues = (await res.json()) as GitHubIssue[];
+      if (issues.length === 0) {
+        break;
+      }
+      for (const issue of issues) {
+        if (issue.pull_request !== undefined) {
+          continue;
+        }
+        allIssues.push(issue);
+      }
+      if (issues.length < 100) {
+        break;
+      }
+      page++;
+    }
+
+    await storage.entities(
+      allIssues.map((issue) => ({
+        type: 'issue',
+        id: String(issue.number),
+        attributes: {
+          number: issue.number,
+          title: issue.title,
+          state: issue.state,
+          labels: issue.labels.map((l) => l.name),
+          assignees: issue.assignees.map((a) => a.login),
+          author: issue.user.login,
+          created_at: new Date(issue.created_at).getTime(),
+          updated_at: new Date(issue.updated_at).getTime(),
+          closed_at: issue.closed_at
+            ? new Date(issue.closed_at).getTime()
+            : null,
+        },
+        updated_at: new Date(issue.updated_at).getTime(),
+      })),
+      { types: ['issue'] },
+    );
+  }
+
+  private async syncDeployments(
+    storage: StorageHandle,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    const { owner, repo } = this.settings;
+    const headers = this.buildHeaders();
+    const allDeployments: GitHubDeployment[] = [];
+    let page = 1;
+
+    while (true) {
+      signal?.throwIfAborted();
+      const res = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/deployments?per_page=100&page=${page}`,
+        { headers, signal },
+      );
+      if (!res.ok) {
+        throw new Error(`GitHub API error: ${res.status} ${res.statusText}`);
+      }
+      const deployments = (await res.json()) as GitHubDeployment[];
+      if (deployments.length === 0) {
+        break;
+      }
+      allDeployments.push(...deployments);
+      if (deployments.length < 100) {
+        break;
+      }
+      page++;
+    }
+
+    const entities: Parameters<StorageHandle['entities']>[0] = [];
+    for (const deployment of allDeployments) {
+      signal?.throwIfAborted();
+      const res = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/deployments/${deployment.id}/statuses?per_page=1`,
+        { headers, signal },
+      );
+      if (!res.ok) {
+        throw new Error(`GitHub API error: ${res.status} ${res.statusText}`);
+      }
+      const statuses = (await res.json()) as GitHubDeploymentStatus[];
+      const createdMs = new Date(deployment.created_at).getTime();
+      const statusUpdatedMs = statuses[0]?.updated_at
+        ? new Date(statuses[0].updated_at).getTime()
+        : null;
+      entities.push({
+        type: 'deployment',
+        id: String(deployment.id),
+        attributes: {
+          environment: deployment.environment,
+          ref: deployment.ref,
+          sha: deployment.sha,
+          creator: deployment.creator?.login ?? '',
+          created_at: createdMs,
+          latest_status: statuses[0]?.state ?? 'unknown',
+        },
+        updated_at: Math.max(createdMs, statusUpdatedMs ?? 0),
+      });
+    }
+
+    await storage.entities(entities, { types: ['deployment'] });
+  }
+
+  private async syncReleases(
+    storage: StorageHandle,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    const { owner, repo } = this.settings;
+    const headers = this.buildHeaders();
+    const allReleases: GitHubRelease[] = [];
+    let page = 1;
+
+    while (true) {
+      signal?.throwIfAborted();
+      const res = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/releases?per_page=100&page=${page}`,
+        { headers, signal },
+      );
+      if (!res.ok) {
+        throw new Error(`GitHub API error: ${res.status} ${res.statusText}`);
+      }
+      const releases = (await res.json()) as GitHubRelease[];
+      if (releases.length === 0) {
+        break;
+      }
+      allReleases.push(...releases);
+      if (releases.length < 100) {
+        break;
+      }
+      page++;
+    }
+
+    await storage.entities(
+      allReleases.map((release) => ({
+        type: 'release',
+        id: String(release.id),
+        attributes: {
+          tag_name: release.tag_name,
+          name: release.name ?? '',
+          draft: release.draft,
+          prerelease: release.prerelease,
+          created_at: new Date(release.created_at).getTime(),
+          published_at: release.published_at
+            ? new Date(release.published_at).getTime()
+            : null,
+          author: release.author.login,
+        },
+        updated_at: new Date(
+          release.published_at ?? release.created_at,
+        ).getTime(),
+      })),
+      { types: ['release'] },
+    );
+  }
+
+  private async syncContributors(
+    storage: StorageHandle,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    const { owner, repo } = this.settings;
+    const headers = this.buildHeaders();
+
+    let contributors: GitHubContributorStats[] | null = null;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      signal?.throwIfAborted();
+      const res = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/stats/contributors`,
+        { headers, signal },
+      );
+      if (res.status === 202) {
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(resolve, 3000);
+          signal?.addEventListener(
+            'abort',
+            () => {
+              clearTimeout(timer);
+              reject(signal.reason ?? new Error('Aborted'));
+            },
+            { once: true },
+          );
+        });
+        continue;
+      }
+      if (!res.ok) {
+        throw new Error(`GitHub API error: ${res.status} ${res.statusText}`);
+      }
+      contributors = (await res.json()) as GitHubContributorStats[];
+      break;
+    }
+
+    if (!contributors) {
+      return;
+    }
+
+    await storage.entities(
+      contributors.map((c) => {
+        const additions = c.weeks.reduce((sum, w) => sum + w.a, 0);
+        const deletions = c.weeks.reduce((sum, w) => sum + w.d, 0);
+        const latestWeek = [...c.weeks].reverse().find((w) => w.c > 0);
+        return {
+          type: 'contributor',
+          id: c.author.login,
+          attributes: {
+            commits: c.total,
+            additions,
+            deletions,
+            latest_commit_at: latestWeek ? latestWeek.w * 1000 : null,
+          },
+          updated_at: latestWeek ? latestWeek.w * 1000 : 0,
+        };
+      }),
+      { types: ['contributor'] },
+    );
+  }
+
   async sync(
     request: SyncRequest,
     storage: StorageHandle,
@@ -278,5 +560,9 @@ export class GitHubActionsConnector extends BaseConnector<
   ): Promise<void> {
     await this.syncWorkflowRuns(storage, request, signal);
     await this.syncPullRequests(storage, signal);
+    await this.syncIssues(storage, request, signal);
+    await this.syncDeployments(storage, signal);
+    await this.syncReleases(storage, signal);
+    await this.syncContributors(storage, signal);
   }
 }
