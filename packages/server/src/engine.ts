@@ -98,7 +98,9 @@ export function createEngine(
       if (state.status === 'syncing') {
         return { triggered: false };
       }
-      void syncRouter.runSync();
+      void syncRouter.runSync().catch((error) => {
+        console.error('Rawdash sync failed', error);
+      });
       return { triggered: true };
     },
   };

@@ -35,7 +35,10 @@ export function http(opts: HttpOptions): DataSource {
         ...(init as NextFetchInit),
         next: {
           ...(init as NextFetchInit | undefined)?.next,
-          tags: [RAWDASH_CACHE_TAG],
+          tags: [
+            ...((init as NextFetchInit | undefined)?.next?.tags ?? []),
+            RAWDASH_CACHE_TAG,
+          ],
         },
       } as RequestInit,
     );
