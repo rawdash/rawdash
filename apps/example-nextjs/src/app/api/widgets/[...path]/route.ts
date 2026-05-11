@@ -32,16 +32,22 @@ async function handler(
     init.body = await request.text();
   }
 
-  const upstream = await fetch(targetUrl, init);
-  const body = await upstream.arrayBuffer();
-
-  return new NextResponse(body, {
-    status: upstream.status,
-    headers: {
-      'Content-Type':
-        upstream.headers.get('Content-Type') ?? 'application/json',
-    },
-  });
+  try {
+    const upstream = await fetch(targetUrl, init);
+    return new NextResponse(upstream.body, {
+      status: upstream.status,
+      headers: {
+        'Content-Type':
+          upstream.headers.get('Content-Type') ?? 'application/json',
+      },
+    });
+  } catch (error) {
+    console.error('Proxy fetch failed:', { targetUrl, error });
+    return NextResponse.json(
+      { error: 'Failed to fetch from upstream API' },
+      { status: 502 },
+    );
+  }
 }
 
 export const GET = handler;
