@@ -101,9 +101,9 @@ serve(
               fn: 'latest',
             }),
           },
-          prs_merged_per_week: {
+          prs_closed_per_week: {
             kind: 'timeseries',
-            title: 'PRs Merged per Week',
+            title: 'PRs Closed per Week',
             window: '90d',
             granularity: 'week',
             metric: defineMetric({

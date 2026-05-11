@@ -46,8 +46,8 @@ const WIDGETS = [
     cachedAt,
   },
   {
-    id: 'prs_merged_per_week',
-    widgetId: 'prs_merged_per_week',
+    id: 'prs_closed_per_week',
+    widgetId: 'prs_closed_per_week',
     connectorId: 'github-actions',
     data: [
       { date: '2026-04-06', value: 9 },

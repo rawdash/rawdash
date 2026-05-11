@@ -14,7 +14,7 @@ test('dashboard renders widgets without JS errors', async ({ page }) => {
   await expect(page.getByText('Open Prs')).toBeVisible();
   await expect(page.getByText('Open Issues')).toBeVisible();
   await expect(page.getByText('Ci Status')).toBeVisible();
-  await expect(page.getByText('Prs Merged Per Week')).toBeVisible();
+  await expect(page.getByText('Prs Closed Per Week')).toBeVisible();
 
   expect(errors).toHaveLength(0);
 });

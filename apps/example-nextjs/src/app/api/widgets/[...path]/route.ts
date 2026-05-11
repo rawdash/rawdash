@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+export const dynamic = 'force-static';
 export const revalidate = 60;
 
 const CLOUD_URL = process.env['RAWDASH_CLOUD_URL'];
