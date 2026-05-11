@@ -4,6 +4,17 @@
   "description": "Rawdash Turso/libsql adapter",
   "license": "Apache-2.0",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rawdash/rawdash.git",
+    "directory": "packages/adapters/turso"
+  },
+  "files": [
+    "dist",
+    "drizzle",
+    "README.md",
+    "LICENSE"
+  ],
   "exports": {
     ".": {
       "@rawdash/source": "./src/index.ts",
@@ -11,10 +22,6 @@
       "import": "./dist/index.js"
     }
   },
-  "files": [
-    "dist",
-    "drizzle"
-  ],
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
