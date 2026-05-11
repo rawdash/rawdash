@@ -1,7 +1,7 @@
 # @rawdash/cli
 
 [![npm version](https://img.shields.io/npm/v/@rawdash/cli)](https://www.npmjs.com/package/@rawdash/cli)
-[![license](https://img.shields.io/npm/l/@rawdash/cli)](LICENSE)
+[![license](https://img.shields.io/npm/l/@rawdash/cli)](https://github.com/rawdash/rawdash/blob/main/LICENSE)
 
 Deploy and manage your rawdash config from the terminal.
 

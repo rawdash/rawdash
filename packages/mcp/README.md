@@ -1,7 +1,7 @@
 # @rawdash/mcp
 
 [![npm version](https://img.shields.io/npm/v/@rawdash/mcp)](https://www.npmjs.com/package/@rawdash/mcp)
-[![license](https://img.shields.io/npm/l/@rawdash/mcp)](LICENSE)
+[![license](https://img.shields.io/npm/l/@rawdash/mcp)](https://github.com/rawdash/rawdash/blob/main/LICENSE)
 
 MCP server exposing rawdash dashboards to LLMs and AI agents.
 

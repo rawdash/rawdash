@@ -1,7 +1,7 @@
 # @rawdash/nextjs
 
 [![npm version](https://img.shields.io/npm/v/@rawdash/nextjs)](https://www.npmjs.com/package/@rawdash/nextjs)
-[![license](https://img.shields.io/npm/l/@rawdash/nextjs)](LICENSE)
+[![license](https://img.shields.io/npm/l/@rawdash/nextjs)](https://github.com/rawdash/rawdash/blob/main/LICENSE)
 
 Rawdash SDK for the Next.js App Router.
 

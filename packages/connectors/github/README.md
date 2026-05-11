@@ -1,7 +1,7 @@
 # @rawdash/connector-github
 
 [![npm version](https://img.shields.io/npm/v/@rawdash/connector-github)](https://www.npmjs.com/package/@rawdash/connector-github)
-[![license](https://img.shields.io/npm/l/@rawdash/connector-github)](LICENSE)
+[![license](https://img.shields.io/npm/l/@rawdash/connector-github)](https://github.com/rawdash/rawdash/blob/main/LICENSE)
 
 GitHub connector for rawdash — sync pull requests, issues, deployments, releases, and CI runs into your dashboard.
 
