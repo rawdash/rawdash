@@ -33,49 +33,108 @@ serve(
     dashboards: {
       github: defineDashboard({
         widgets: {
-          latest_run_conclusion: {
-            label: 'Latest Run Conclusion',
+          open_prs: {
+            label: 'Open PRs',
             metric: defineMetric({
               connector: github,
-              shape: 'event',
-              name: 'workflow_run',
-              field: 'conclusion',
-              fn: 'latest',
+              shape: 'entity',
+              name: 'pull_request',
+              field: 'state',
+              fn: 'count',
+              filter: [{ field: 'state', op: 'eq', value: 'open' }],
             }),
           },
-          run_count_7d: {
-            label: 'Run Count 7d',
+          prs_merged_per_week: {
+            label: 'PRs Merged per Week',
+            metric: defineMetric({
+              connector: github,
+              shape: 'entity',
+              name: 'pull_request',
+              field: 'updated_at',
+              fn: 'count',
+              window: '90d',
+              filter: [{ field: 'state', op: 'eq', value: 'closed' }],
+              groupBy: { field: 'updated_at', granularity: 'week' },
+            }),
+          },
+          successful_runs_30d: {
+            label: 'Successful Runs 30d',
             metric: defineMetric({
               connector: github,
               shape: 'event',
               name: 'workflow_run',
               field: 'start_ts',
               fn: 'count',
-              window: '7d',
-            }),
-          },
-          successful_runs_7d: {
-            label: 'Successful Runs 7d',
-            metric: defineMetric({
-              connector: github,
-              shape: 'event',
-              name: 'workflow_run',
-              field: 'start_ts',
-              fn: 'count',
-              window: '7d',
+              window: '30d',
               filter: [{ field: 'conclusion', op: 'eq', value: 'success' }],
             }),
           },
-          daily_runs: {
-            label: 'Daily Runs',
+          run_count_30d: {
+            label: 'Total Runs 30d',
             metric: defineMetric({
               connector: github,
               shape: 'event',
               name: 'workflow_run',
               field: 'start_ts',
               fn: 'count',
-              window: '7d',
+              window: '30d',
+            }),
+          },
+          daily_runs_30d: {
+            label: 'Daily Runs 30d',
+            metric: defineMetric({
+              connector: github,
+              shape: 'event',
+              name: 'workflow_run',
+              field: 'start_ts',
+              fn: 'count',
+              window: '30d',
               groupBy: { field: 'start_ts', granularity: 'day' },
+            }),
+          },
+          total_contributors: {
+            label: 'Contributors',
+            metric: defineMetric({
+              connector: github,
+              shape: 'entity',
+              name: 'contributor',
+              field: 'commits',
+              fn: 'count',
+            }),
+          },
+          open_issues: {
+            label: 'Open Issues',
+            metric: defineMetric({
+              connector: github,
+              shape: 'entity',
+              name: 'issue',
+              field: 'state',
+              fn: 'count',
+              filter: [{ field: 'state', op: 'eq', value: 'open' }],
+            }),
+          },
+          releases_per_month: {
+            label: 'Releases per Month',
+            metric: defineMetric({
+              connector: github,
+              shape: 'entity',
+              name: 'release',
+              field: 'updated_at',
+              fn: 'count',
+              window: '365d',
+              groupBy: { field: 'updated_at', granularity: 'month' },
+            }),
+          },
+          deployments_per_week: {
+            label: 'Deployments per Week',
+            metric: defineMetric({
+              connector: github,
+              shape: 'entity',
+              name: 'deployment',
+              field: 'updated_at',
+              fn: 'count',
+              window: '90d',
+              groupBy: { field: 'updated_at', granularity: 'week' },
             }),
           },
         },
