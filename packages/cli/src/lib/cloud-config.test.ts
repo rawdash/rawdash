@@ -19,12 +19,18 @@ class StubConnector extends BaseConnector<
 }
 
 describe('toCloudConfig()', () => {
+  const prevApiToken = process.env['API_TOKEN'];
+
   beforeAll(() => {
     process.env['API_TOKEN'] = 'test-secret-value';
   });
 
   afterAll(() => {
-    delete process.env['API_TOKEN'];
+    if (prevApiToken === undefined) {
+      delete process.env['API_TOKEN'];
+    } else {
+      process.env['API_TOKEN'] = prevApiToken;
+    }
   });
 
   it('maps connectors to cloud shape with id as name and connectorId', () => {
