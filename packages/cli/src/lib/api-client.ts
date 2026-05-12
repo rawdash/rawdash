@@ -1,3 +1,6 @@
+import type { DashboardConfig } from '@rawdash/core';
+
+import { toCloudConfig } from './cloud-config';
 import { getEnv } from './env';
 
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -37,7 +40,7 @@ export class ApiError extends Error {
 }
 
 export async function postConfig(
-  config: unknown,
+  config: DashboardConfig,
   dryRun: boolean,
 ): Promise<DeployResult> {
   const { url, apiKey } = getEnv();
@@ -51,7 +54,7 @@ export async function postConfig(
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey ?? ''}`,
       },
-      body: JSON.stringify(config),
+      body: JSON.stringify(toCloudConfig(config)),
       signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
     });
   } catch (err) {

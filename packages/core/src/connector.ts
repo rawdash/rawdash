@@ -178,6 +178,7 @@ export interface SyncRequest {
 export interface Connector {
   readonly id: string;
   readonly credentials?: CredentialSchema;
+  serializeConfig(): Record<string, unknown>;
   sync(
     request: SyncRequest,
     storage: StorageHandle,
@@ -201,15 +202,33 @@ export abstract class BaseConnector<
 
   protected settings: TSettings;
   protected creds: InferCredentials<TCreds>;
+  private rawCredInput: InferCredentialInput<TCreds> | undefined;
 
   constructor(settings: TSettings, creds?: InferCredentialInput<TCreds>) {
     this.settings = settings;
+    this.rawCredInput = creds;
     this.creds = creds
       ? (resolveSecretRefs(
           creds,
           new EnvSecretsResolver(),
         ) as InferCredentials<TCreds>)
       : ({} as InferCredentials<TCreds>);
+  }
+
+  serializeConfig(): Record<string, unknown> {
+    const config: Record<string, unknown> = {
+      ...(this.settings as Record<string, unknown>),
+    };
+    if (this.rawCredInput) {
+      for (const [key, value] of Object.entries(
+        this.rawCredInput as Record<string, unknown>,
+      )) {
+        if (value !== undefined) {
+          config[key] = value;
+        }
+      }
+    }
+    return config;
   }
 
   protected sleep(ms: number, signal?: AbortSignal): Promise<void> {
