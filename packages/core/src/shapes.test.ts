@@ -139,7 +139,12 @@ describe('defineMetric', () => {
 });
 
 describe('defineConfig validation', () => {
-  const connector = { id: 'c', credentials: undefined, sync: async () => {} };
+  const connector = {
+    id: 'c',
+    credentials: undefined,
+    serializeConfig: () => ({}),
+    sync: async () => {},
+  };
 
   it('throws if connector not listed', () => {
     expect(() =>
