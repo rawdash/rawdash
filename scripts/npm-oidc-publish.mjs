@@ -35,13 +35,16 @@ async function getGitHubOidcJwt() {
       Authorization: `Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}`,
     },
   });
-  if (!res.ok)
-    {throw new Error(
+  if (!res.ok) {
+    throw new Error(
       `GitHub OIDC request failed: ${res.status} ${await res.text()}`,
-    );}
+    );
+  }
 
   const { value } = await res.json();
-  if (!value) {throw new Error('No id_token in GitHub OIDC response');}
+  if (!value) {
+    throw new Error('No id_token in GitHub OIDC response');
+  }
   return value;
 }
 
@@ -57,16 +60,18 @@ async function exchangeForNpmToken(idToken, packageName) {
       headers: { Authorization: `Bearer ${idToken}` },
     },
   );
-  if (!res.ok)
-    {throw new Error(
+  if (!res.ok) {
+    throw new Error(
       `npm OIDC exchange failed for ${packageName}: ${res.status} ${await res.text()}`,
-    );}
+    );
+  }
 
   const { token } = await res.json();
-  if (!token)
-    {throw new Error(
+  if (!token) {
+    throw new Error(
       `No token in npm OIDC exchange response for ${packageName}`,
-    );}
+    );
+  }
   return token;
 }
 
