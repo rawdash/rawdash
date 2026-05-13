@@ -13,6 +13,8 @@
  *   3. Pass that token as NODE_AUTH_TOKEN to `npm publish --provenance`
  */
 import { execFileSync, execSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 const REGISTRY = 'https://registry.npmjs.org';
 const REGISTRY_HOST = new URL(REGISTRY).hostname;
@@ -79,9 +81,7 @@ function isAlreadyPublished(name, version) {
   try {
     const result = execSync(
       `npm view ${name}@${version} version --json 2>/dev/null`,
-      {
-        stdio: ['pipe', 'pipe', 'pipe'],
-      },
+      { stdio: ['pipe', 'pipe', 'pipe'] },
     )
       .toString()
       .trim();
@@ -91,28 +91,105 @@ function isAlreadyPublished(name, version) {
   }
 }
 
+function tagExists(name, version) {
+  const tag = `${name}@${version}`;
+  return (
+    execSync(`git tag -l "${tag}"`, { stdio: ['pipe', 'pipe', 'pipe'] })
+      .toString()
+      .trim() === tag
+  );
+}
+
+function ensureTag(name, version) {
+  if (!tagExists(name, version)) {
+    execSync(`git tag "${name}@${version}"`);
+  }
+}
+
+/**
+ * Topologically sort packages so dependencies are published before dependents.
+ * Uses Kahn's algorithm. Throws on cycles.
+ */
+function topoSort(pkgs) {
+  const byName = new Map(pkgs.map((p) => [p.name, p]));
+  const inDegree = new Map(pkgs.map((p) => [p.name, 0]));
+  const edges = new Map(pkgs.map((p) => [p.name, []]));
+
+  for (const pkg of pkgs) {
+    const pkgJson = JSON.parse(
+      readFileSync(join(pkg.path, 'package.json'), 'utf8'),
+    );
+    const allDeps = Object.keys({
+      ...pkgJson.dependencies,
+      ...pkgJson.peerDependencies,
+    });
+    for (const dep of allDeps) {
+      if (byName.has(dep)) {
+        edges.get(dep).push(pkg.name);
+        inDegree.set(pkg.name, inDegree.get(pkg.name) + 1);
+      }
+    }
+  }
+
+  const queue = pkgs.filter((p) => inDegree.get(p.name) === 0);
+  const sorted = [];
+
+  while (queue.length > 0) {
+    const pkg = queue.shift();
+    sorted.push(pkg);
+    for (const dependent of edges.get(pkg.name)) {
+      const newDegree = inDegree.get(dependent) - 1;
+      inDegree.set(dependent, newDegree);
+      if (newDegree === 0) {queue.push(byName.get(dependent));}
+    }
+  }
+
+  if (sorted.length !== pkgs.length) {
+    throw new Error('Cycle detected in workspace package dependencies');
+  }
+
+  return sorted;
+}
+
 const packages = JSON.parse(
   execSync('pnpm ls -r --depth -1 --json', {
     stdio: ['pipe', 'pipe', 'pipe'],
   }).toString(),
 );
 
-const toPublish = packages.filter(
-  (pkg) => !pkg.private && !isAlreadyPublished(pkg.name, pkg.version),
+const publicPackages = packages.filter((pkg) => !pkg.private);
+const alreadyPublished = publicPackages.filter((pkg) =>
+  isAlreadyPublished(pkg.name, pkg.version),
 );
+const toPublish = publicPackages.filter(
+  (pkg) => !alreadyPublished.includes(pkg),
+);
+
+// Backfill tags for packages that were published in a previous (partial) run
+// so that changesets/action can still create their GitHub releases.
+for (const pkg of alreadyPublished) {
+  if (!tagExists(pkg.name, pkg.version)) {
+    console.log(
+      `Backfilling missing tag for already-published ${pkg.name}@${pkg.version}`,
+    );
+    ensureTag(pkg.name, pkg.version);
+  }
+}
 
 if (toPublish.length === 0) {
   console.log('No packages to publish.');
   process.exit(0);
 }
 
+const sorted = topoSort(toPublish);
+
 console.log(
-  `Packages to publish: ${toPublish.map((p) => `${p.name}@${p.version}`).join(', ')}`,
+  `Packages to publish: ${sorted.map((p) => `${p.name}@${p.version}`).join(', ')}`,
 );
 
 const idToken = await getGitHubOidcJwt();
 
-for (const pkg of toPublish) {
+for (const pkg of sorted) {
   const { name, version, path: pkgPath } = pkg;
   console.log(`\nPublishing ${name}@${version}...`);
 
@@ -125,6 +202,6 @@ for (const pkg of toPublish) {
   });
 
   // Create a lightweight git tag — changesets/action reads these to create GitHub releases
-  execSync(`git tag "${name}@${version}"`);
+  ensureTag(name, version);
   console.log(`✓ Published ${name}@${version}`);
 }
