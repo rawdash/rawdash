@@ -140,7 +140,9 @@ function topoSort(pkgs) {
     for (const dependent of edges.get(pkg.name)) {
       const newDegree = inDegree.get(dependent) - 1;
       inDegree.set(dependent, newDegree);
-      if (newDegree === 0) {queue.push(byName.get(dependent));}
+      if (newDegree === 0) {
+        queue.push(byName.get(dependent));
+      }
     }
   }
 
