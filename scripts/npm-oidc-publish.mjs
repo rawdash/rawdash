@@ -18,6 +18,7 @@ import { join } from 'node:path';
 
 const REGISTRY = 'https://registry.npmjs.org';
 const REGISTRY_HOST = new URL(REGISTRY).hostname;
+const NETWORK_TIMEOUT_MS = 30_000;
 
 async function getGitHubOidcJwt() {
   const { ACTIONS_ID_TOKEN_REQUEST_URL, ACTIONS_ID_TOKEN_REQUEST_TOKEN } =
@@ -32,6 +33,7 @@ async function getGitHubOidcJwt() {
   url.searchParams.set('audience', `npm:${REGISTRY_HOST}`);
 
   const res = await fetch(url.href, {
+    signal: AbortSignal.timeout(NETWORK_TIMEOUT_MS),
     headers: {
       Accept: 'application/json',
       Authorization: `Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}`,
@@ -59,6 +61,7 @@ async function exchangeForNpmToken(idToken, packageName) {
     `${REGISTRY}/-/npm/v1/oidc/token/exchange/package/${escapedName}`,
     {
       method: 'POST',
+      signal: AbortSignal.timeout(NETWORK_TIMEOUT_MS),
       headers: { Authorization: `Bearer ${idToken}` },
     },
   );
@@ -189,12 +192,11 @@ console.log(
   `Packages to publish: ${sorted.map((p) => `${p.name}@${p.version}`).join(', ')}`,
 );
 
-const idToken = await getGitHubOidcJwt();
-
 for (const pkg of sorted) {
   const { name, version, path: pkgPath } = pkg;
   console.log(`\nPublishing ${name}@${version}...`);
 
+  const idToken = await getGitHubOidcJwt();
   const npmToken = await exchangeForNpmToken(idToken, name);
 
   execFileSync('npm', ['publish', '--provenance', '--access', 'public'], {
