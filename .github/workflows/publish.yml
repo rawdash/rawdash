@@ -13,6 +13,7 @@ concurrency:
 jobs:
   publish:
     name: Publish to npm
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -49,7 +50,7 @@ jobs:
         run: pnpm build
 
       - name: Create release PR or publish
-        uses: changesets/action@v1
+        uses: changesets/action@63a615b9cd06ba9a3e6d13796c7fbcb080a60a0b # v1.8.0
         with:
           publish: pnpm changeset publish --provenance
           version: pnpm changeset version
