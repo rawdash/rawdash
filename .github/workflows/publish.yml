@@ -38,12 +38,6 @@ jobs:
           cache: pnpm
           registry-url: https://registry.npmjs.org
 
-      - name: Upgrade npm for OIDC publishing support
-        run: npm install -g npm@latest
-
-      - name: Clear npm auth token for OIDC
-        run: npm config delete //registry.npmjs.org/:_authToken
-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -58,7 +52,7 @@ jobs:
       - name: Create release PR or publish
         uses: changesets/action@63a615b9cd06ba9a3e6d13796c7fbcb080a60a0b # v1.8.0
         with:
-          publish: pnpm changeset publish --provenance
+          publish: node scripts/npm-oidc-publish.mjs
           version: pnpm changeset version
           title: 'chore: release packages'
           commit: 'chore: release packages'
