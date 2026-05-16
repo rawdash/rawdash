@@ -176,9 +176,6 @@ importers:
       '@rawdash/core':
         specifier: workspace:*
         version: link:../../core
-      '@rawdash/server':
-        specifier: workspace:*
-        version: link:../../server
       drizzle-orm:
         specifier: ^0.38.4
         version: 0.38.4(@libsql/client@0.14.0)(@types/react@19.2.14)(react@19.2.5)
@@ -264,6 +261,9 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
+      '@libsql/client':
+        specifier: ^0.14.0
+        version: 0.14.0
       tsup:
         specifier: ^8.0.0
         version: 8.5.1(jiti@1.21.7)(postcss@8.5.9)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.3)

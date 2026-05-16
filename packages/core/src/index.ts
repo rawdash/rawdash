@@ -43,7 +43,22 @@ export type {
 
 export { defineConfig, defineDashboard, defineMetric } from './config';
 
-export { getWidgetSchema, widgetSchemas } from './widget-schemas';
+export {
+  aggFnSchema,
+  distributionWidgetSchema,
+  filterClauseSchema,
+  filterConditionSchema,
+  filterOperatorSchema,
+  getWidgetSchema,
+  groupBySchema,
+  resolvedMetricSchema,
+  shapeSchema,
+  statWidgetSchema,
+  statusWidgetSchema,
+  timeseriesWidgetSchema,
+  widgetSchema,
+  widgetSchemas,
+} from './widget-schemas';
 
 export type { SyncState, WidgetEntry } from './engine';
 
@@ -63,3 +78,11 @@ export {
 export type { ConfigFieldsSchema } from './config-fields';
 
 export { defineConfigFields } from './config-fields';
+
+export { computeMetric } from './compute';
+
+export { resolveWidget } from './resolve-widget';
+
+export type { ServerStorage } from './server-storage';
+
+export { InMemoryStorage } from './in-memory-storage';
