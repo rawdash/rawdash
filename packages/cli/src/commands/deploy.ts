@@ -65,7 +65,7 @@ export const deployCommand = new Command('deploy')
         process.exit(exitCodeForStatus(deployResult.status));
       }
 
-      printSuccess(`Deployed — version ${deployResult.version}`);
+      printSuccess('Deployed');
     },
   );
 

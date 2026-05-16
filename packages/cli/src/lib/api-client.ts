@@ -5,14 +5,36 @@ import { getEnv } from './env';
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 
+export interface DiffSet<T> {
+  added: T[];
+  removed: T[];
+  modified: T[];
+}
+
+export interface CloudConnectorEntry {
+  name: string;
+  connectorId: string;
+  displayName?: string | null;
+  config: Record<string, unknown>;
+  syncIntervalSeconds?: number;
+  enabled?: boolean;
+}
+
+export interface CloudDashboardEntry {
+  id: string;
+  name: string;
+  slug: string;
+  config: Record<string, unknown>;
+}
+
+export interface ConfigDiff {
+  connectors: DiffSet<CloudConnectorEntry>;
+  dashboards: DiffSet<CloudDashboardEntry>;
+}
+
 export interface DeploySuccess {
   ok: true;
-  version: number;
-  diff: {
-    added: string[];
-    removed: string[];
-    modified: string[];
-  };
+  diff: ConfigDiff;
 }
 
 export interface DeployFailure {
@@ -71,7 +93,8 @@ export async function postConfig(
   }
 
   if (res.ok) {
-    return res.json() as Promise<DeploySuccess>;
+    const diff = (await res.json()) as ConfigDiff;
+    return { ok: true, diff };
   }
 
   return buildDeployFailure(res);
