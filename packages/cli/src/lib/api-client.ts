@@ -142,7 +142,8 @@ export async function listSecrets(): Promise<SecretEntry[]> {
   if (!res.ok) {
     await throwApiError(res);
   }
-  return res.json() as Promise<SecretEntry[]>;
+  const body = (await res.json()) as { secrets: SecretEntry[] };
+  return body.secrets;
 }
 
 export async function removeSecret(name: string): Promise<void> {
