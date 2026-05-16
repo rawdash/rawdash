@@ -74,7 +74,9 @@ describe('postConfig()', () => {
     );
 
     expect(result.ok).toBe(true);
-    if (!result.ok) {return;}
+    if (!result.ok) {
+      return;
+    }
     expect(result.diff.connectors.added).toHaveLength(1);
     expect(result.diff.connectors.added[0]!.name).toBe('stub');
     expect(result.diff.dashboards.modified).toHaveLength(1);
@@ -92,7 +94,9 @@ describe('postConfig()', () => {
     const result = await postConfig({ connectors: [], dashboards: {} }, true);
 
     expect(result.ok).toBe(false);
-    if (result.ok) {return;}
+    if (result.ok) {
+      return;
+    }
     expect(result.status).toBe(401);
     expect(result.error).toContain('API key invalid');
   });
@@ -105,7 +109,9 @@ describe('postConfig()', () => {
     const result = await postConfig({ connectors: [], dashboards: {} }, true);
 
     expect(result.ok).toBe(false);
-    if (result.ok) {return;}
+    if (result.ok) {
+      return;
+    }
     expect(result.status).toBe(0);
     expect(result.error).toContain('Network error');
   });
