@@ -88,7 +88,8 @@ describe('postConfig()', () => {
       ok: false,
       status: 401,
       statusText: 'Unauthorized',
-      json: async () => ({ error: 'bad key' }),
+      headers: new Headers({ 'content-type': 'application/json' }),
+      text: async () => JSON.stringify({ error: 'bad key' }),
     } as Response);
 
     const result = await postConfig({ connectors: [], dashboards: {} }, true);
