@@ -15,20 +15,24 @@ function matchesCondition(
     case 'neq':
       return val !== cond.value;
     case 'gt':
-      if (typeof val !== 'number' || typeof cond.value !== 'number')
-        {return false;}
+      if (typeof val !== 'number' || typeof cond.value !== 'number') {
+        return false;
+      }
       return val > cond.value;
     case 'gte':
-      if (typeof val !== 'number' || typeof cond.value !== 'number')
-        {return false;}
+      if (typeof val !== 'number' || typeof cond.value !== 'number') {
+        return false;
+      }
       return val >= cond.value;
     case 'lt':
-      if (typeof val !== 'number' || typeof cond.value !== 'number')
-        {return false;}
+      if (typeof val !== 'number' || typeof cond.value !== 'number') {
+        return false;
+      }
       return val < cond.value;
     case 'lte':
-      if (typeof val !== 'number' || typeof cond.value !== 'number')
-        {return false;}
+      if (typeof val !== 'number' || typeof cond.value !== 'number') {
+        return false;
+      }
       return val <= cond.value;
     case 'contains':
       return String(val).includes(String(cond.value));
