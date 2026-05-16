@@ -1,8 +1,7 @@
-import type { DashboardConfig, Widget, WidgetEntry } from '@rawdash/core';
+import type { DashboardConfig, WidgetEntry } from '@rawdash/core';
+import { InMemoryStorage, resolveWidget } from '@rawdash/core';
 
-import { computeMetric } from './compute';
 import { SyncRouter } from './routers/sync';
-import { InMemoryStorage } from './storage';
 import type { ServerStorage } from './types';
 
 export interface EngineOptions {
@@ -30,38 +29,6 @@ export function createEngine(
   const storage: ServerStorage = options.storage ?? new InMemoryStorage();
   const syncRouter = new SyncRouter(config, storage);
 
-  async function resolveWidget(
-    connectors: DashboardConfig['connectors'],
-    id: string,
-    widget: Widget,
-  ): Promise<WidgetEntry | undefined> {
-    if (widget.kind === 'status') {
-      return {
-        id,
-        widgetId: id,
-        connectorId: widget.source,
-        data: null,
-        cachedAt: null,
-      };
-    }
-    const { connectorId } = widget.metric;
-    const connectorEntry = connectors.find(
-      (e) => e.connector.id === connectorId,
-    );
-    if (!connectorEntry) {
-      return undefined;
-    }
-    const handle = storage.getStorageHandle(connectorId);
-    const data = await computeMetric(handle, widget.metric);
-    return {
-      id,
-      widgetId: id,
-      connectorId,
-      data,
-      cachedAt: (await storage.getSyncState()).lastSyncAt,
-    };
-  }
-
   return {
     async getWidget(dashboardId, widgetId) {
       const dashboard = config.dashboards[dashboardId];
@@ -72,7 +39,7 @@ export function createEngine(
       if (!widget) {
         return undefined;
       }
-      return resolveWidget(config.connectors, widgetId, widget);
+      return resolveWidget(widgetId, widget, config.connectors, storage);
     },
 
     async getWidgets(dashboardId) {
@@ -83,7 +50,7 @@ export function createEngine(
       const entries = Object.entries(dashboard.widgets);
       const resolved = await Promise.all(
         entries.map(([key, widget]) =>
-          resolveWidget(config.connectors, key, widget),
+          resolveWidget(key, widget, config.connectors, storage),
         ),
       );
       return resolved.filter((w): w is WidgetEntry => w !== undefined);

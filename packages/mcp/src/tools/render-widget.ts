@@ -1,5 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp';
-import { computeMetric } from '@rawdash/server';
+import { computeMetric } from '@rawdash/core';
 import { z } from 'zod';
 
 import type { RuntimeConfig } from '../runtime-config';

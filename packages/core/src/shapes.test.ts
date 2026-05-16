@@ -191,7 +191,7 @@ describe('defineConfig validation', () => {
           }),
         },
       }),
-    ).toThrow('Dashboard "main", widget "w": invalid shape "invalid"');
+    ).toThrow(/Widget "w".*event.*entity.*metric.*edge.*distribution/);
   });
 
   it('throws for invalid fn', () => {
@@ -380,10 +380,19 @@ describe('widgetSchemas', () => {
     expect(getWidgetSchema('distribution')).toBe(widgetSchemas.distribution);
   });
 
+  const sampleMetric = {
+    connectorId: 'c',
+    shape: 'event' as const,
+    name: 'run',
+    field: 'start_ts',
+    fn: 'count' as const,
+  };
+
   it('stat schema validates required fields', () => {
     const result = widgetSchemas.stat.safeParse({
+      kind: 'stat',
       title: 'Deploys',
-      metric: 'deploy-count',
+      metric: sampleMetric,
     });
     expect(result.success).toBe(true);
     if (result.success) {
@@ -392,12 +401,25 @@ describe('widgetSchemas', () => {
   });
 
   it('stat schema rejects missing title', () => {
-    const result = widgetSchemas.stat.safeParse({ metric: 'deploy-count' });
+    const result = widgetSchemas.stat.safeParse({
+      kind: 'stat',
+      metric: sampleMetric,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('stat schema rejects string metric (legacy shape)', () => {
+    const result = widgetSchemas.stat.safeParse({
+      kind: 'stat',
+      title: 'Deploys',
+      metric: 'deploy-count',
+    });
     expect(result.success).toBe(false);
   });
 
   it('status schema validates required fields', () => {
     const result = widgetSchemas.status.safeParse({
+      kind: 'status',
       title: 'CI Status',
       source: 'github-actions',
     });
@@ -406,8 +428,9 @@ describe('widgetSchemas', () => {
 
   it('timeseries schema applies default granularity', () => {
     const result = widgetSchemas.timeseries.safeParse({
+      kind: 'timeseries',
       title: 'Latency over time',
-      metric: 'latency-p99',
+      metric: sampleMetric,
       window: '7d',
     });
     expect(result.success).toBe(true);
@@ -418,16 +441,18 @@ describe('widgetSchemas', () => {
 
   it('timeseries schema rejects missing window', () => {
     const result = widgetSchemas.timeseries.safeParse({
+      kind: 'timeseries',
       title: 'Latency',
-      metric: 'latency-p99',
+      metric: sampleMetric,
     });
     expect(result.success).toBe(false);
   });
 
   it('distribution schema validates required fields', () => {
     const result = widgetSchemas.distribution.safeParse({
+      kind: 'distribution',
       title: 'Request latency',
-      metric: 'latency',
+      metric: sampleMetric,
       window: '1d',
     });
     expect(result.success).toBe(true);

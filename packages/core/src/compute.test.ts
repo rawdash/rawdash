@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { computeMetric } from './compute';
-import { InMemoryStorage } from './storage';
+import { InMemoryStorage } from './in-memory-storage';
 
 function makeHandle(connectorId = 'c') {
   const s = new InMemoryStorage();

@@ -19,6 +19,11 @@
       "@rawdash/source": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./libsql": {
+      "@rawdash/source": "./src/libsql.ts",
+      "types": "./dist/libsql.d.ts",
+      "import": "./dist/libsql.js"
     }
   },
   "scripts": {
@@ -30,7 +35,16 @@
   "dependencies": {
     "zod": "^4.4.3"
   },
+  "peerDependencies": {
+    "@libsql/client": "^0.14.0"
+  },
+  "peerDependenciesMeta": {
+    "@libsql/client": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "@libsql/client": "^0.14.0",
     "tsup": "^8.0.0",
     "typescript": "^5.7.2"
   }

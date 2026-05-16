@@ -1,14 +1,10 @@
-import type { StorageHandle, SyncState } from '@rawdash/core';
+import type { ServerStorage } from '@rawdash/core';
 
-export type { ConnectorEntry, DashboardConfig } from '@rawdash/core';
-
-export interface ServerStorage {
-  getStorageHandle(connectorId: string): StorageHandle;
-  getSyncState(): Promise<SyncState>;
-  setSyncing(): Promise<boolean>;
-  setSyncSuccess(): Promise<void>;
-  setSyncError(error: string): Promise<void>;
-}
+export type {
+  ConnectorEntry,
+  DashboardConfig,
+  ServerStorage,
+} from '@rawdash/core';
 
 export interface ServeOptions {
   port?: number;

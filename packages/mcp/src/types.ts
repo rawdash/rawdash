@@ -1,5 +1,8 @@
-import type { ConnectorEntry, DashboardConfig } from '@rawdash/core';
-import type { ServerStorage } from '@rawdash/server';
+import type {
+  ConnectorEntry,
+  DashboardConfig,
+  ServerStorage,
+} from '@rawdash/core';
 import type { ZodObject, ZodRawShape } from 'zod';
 
 export interface McpError {

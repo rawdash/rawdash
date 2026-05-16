@@ -4,9 +4,9 @@ import type {
   Widget,
   WidgetEntry,
 } from '@rawdash/core';
+import { resolveWidget } from '@rawdash/core';
 import type { Hono } from 'hono';
 
-import { computeMetric } from '../compute';
 import type { RawdashRouter } from '../router';
 import type { ServerStorage } from '../types';
 
@@ -18,35 +18,11 @@ export class WidgetsRouter implements RawdashRouter {
     private storage: ServerStorage,
   ) {}
 
-  private async resolveWidget(
+  private resolve(
     id: string,
     widget: Widget,
   ): Promise<WidgetEntry | undefined> {
-    if (widget.kind === 'status') {
-      return {
-        id,
-        widgetId: id,
-        connectorId: widget.source,
-        data: null,
-        cachedAt: null,
-      };
-    }
-    const { connectorId } = widget.metric;
-    const connectorEntry = this.connectors.find(
-      (e) => e.connector.id === connectorId,
-    );
-    if (!connectorEntry) {
-      return undefined;
-    }
-    const handle = this.storage.getStorageHandle(connectorId);
-    const data = await computeMetric(handle, widget.metric);
-    return {
-      id,
-      widgetId: id,
-      connectorId,
-      data,
-      cachedAt: (await this.storage.getSyncState()).lastSyncAt,
-    };
+    return resolveWidget(id, widget, this.connectors, this.storage);
   }
 
   mount(app: Hono): void {
@@ -55,7 +31,7 @@ export class WidgetsRouter implements RawdashRouter {
     app.get(base, async (c) => {
       const entries = Object.entries(this.dashboard.widgets);
       const resolved = await Promise.all(
-        entries.map(([key, widget]) => this.resolveWidget(key, widget)),
+        entries.map(([key, widget]) => this.resolve(key, widget)),
       );
       const widgets = resolved.filter((w): w is WidgetEntry => w !== undefined);
       return c.json(widgets);
@@ -67,7 +43,7 @@ export class WidgetsRouter implements RawdashRouter {
       if (!widget) {
         return c.json({ error: 'Widget not found' }, 404);
       }
-      const result = await this.resolveWidget(widgetId, widget);
+      const result = await this.resolve(widgetId, widget);
       if (!result) {
         return c.json({ error: 'Widget not found' }, 404);
       }

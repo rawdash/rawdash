@@ -11,10 +11,10 @@ import type {
   JSONValue,
   Metric,
   MetricQuery,
+  ServerStorage,
   StorageHandle,
   SyncState,
 } from '@rawdash/core';
-import type { ServerStorage } from '@rawdash/server';
 import { and, eq, gte, inArray, lt, lte } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import { type LibSQLDatabase, drizzle } from 'drizzle-orm/libsql';

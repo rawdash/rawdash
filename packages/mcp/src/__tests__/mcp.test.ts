@@ -1,6 +1,6 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory';
-import { InMemoryStorage } from '@rawdash/server';
+import { InMemoryStorage } from '@rawdash/core';
 import { describe, expect, it } from 'vitest';
 
 import { createMcpServer } from '../server';
