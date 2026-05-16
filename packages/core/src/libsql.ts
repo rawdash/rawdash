@@ -62,6 +62,7 @@ const CREATE_TABLES_SQL = [
   )`,
   `CREATE INDEX IF NOT EXISTS edges_conn_kind ON edges (connector_id, kind)`,
   `CREATE INDEX IF NOT EXISTS edges_conn_from ON edges (connector_id, from_type, from_id)`,
+  `CREATE INDEX IF NOT EXISTS edges_conn_to ON edges (connector_id, to_type, to_id)`,
   `CREATE TABLE IF NOT EXISTS distributions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     connector_id TEXT NOT NULL,

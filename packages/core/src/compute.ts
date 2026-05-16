@@ -15,13 +15,21 @@ function matchesCondition(
     case 'neq':
       return val !== cond.value;
     case 'gt':
-      return (val as number) > (cond.value as number);
+      if (typeof val !== 'number' || typeof cond.value !== 'number')
+        {return false;}
+      return val > cond.value;
     case 'gte':
-      return (val as number) >= (cond.value as number);
+      if (typeof val !== 'number' || typeof cond.value !== 'number')
+        {return false;}
+      return val >= cond.value;
     case 'lt':
-      return (val as number) < (cond.value as number);
+      if (typeof val !== 'number' || typeof cond.value !== 'number')
+        {return false;}
+      return val < cond.value;
     case 'lte':
-      return (val as number) <= (cond.value as number);
+      if (typeof val !== 'number' || typeof cond.value !== 'number')
+        {return false;}
+      return val <= cond.value;
     case 'contains':
       return String(val).includes(String(cond.value));
     default:
@@ -125,10 +133,14 @@ function computeAgg(
       : null;
   }
   if (fn === 'min') {
-    return numbers.length > 0 ? Math.min(...numbers) : null;
+    return numbers.length > 0
+      ? numbers.reduce((a, b) => (a < b ? a : b))
+      : null;
   }
   if (fn === 'max') {
-    return numbers.length > 0 ? Math.max(...numbers) : null;
+    return numbers.length > 0
+      ? numbers.reduce((a, b) => (a > b ? a : b))
+      : null;
   }
   return null;
 }
