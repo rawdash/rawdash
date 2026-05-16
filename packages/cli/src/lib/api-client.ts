@@ -78,14 +78,8 @@ export async function postConfig(
 }
 
 async function buildDeployFailure(res: Response): Promise<DeployFailure> {
-  let body: { error?: string; message?: string; conflicts?: string[] } = {};
-  try {
-    body = (await res.json()) as typeof body;
-  } catch (e) {
-    console.warn('Could not parse error response body:', e);
-  }
-
-  const rawMessage = body.error ?? body.message ?? res.statusText;
+  const { body, text } = await readErrorBody(res);
+  const rawMessage = body.error ?? body.message ?? (text || res.statusText);
 
   let error: string;
   if (res.status === 401) {
@@ -175,12 +169,30 @@ function wrapFetchError(err: unknown): string {
 }
 
 async function throwApiError(res: Response): Promise<never> {
-  let message = res.statusText;
-  try {
-    const body = (await res.json()) as { error?: string; message?: string };
-    message = body.error ?? body.message ?? message;
-  } catch (e) {
-    console.warn('Could not parse error response body:', e);
-  }
+  const { body, text } = await readErrorBody(res);
+  const message = body.error ?? body.message ?? (text || res.statusText);
   throw new ApiError(`API error (${res.status}): ${message}`, res.status);
+}
+
+async function readErrorBody(res: Response): Promise<{
+  body: { error?: string; message?: string; conflicts?: string[] };
+  text: string;
+}> {
+  const text = await res.text();
+  const contentType = res.headers.get('content-type') ?? '';
+  if (contentType.includes('application/json')) {
+    try {
+      return {
+        body: JSON.parse(text) as {
+          error?: string;
+          message?: string;
+          conflicts?: string[];
+        },
+        text,
+      };
+    } catch {
+      // body claimed JSON but wasn't — fall through to text
+    }
+  }
+  return { body: {}, text };
 }
