@@ -86,3 +86,16 @@ export { resolveWidget } from './resolve-widget';
 export type { ServerStorage } from './server-storage';
 
 export { InMemoryStorage } from './in-memory-storage';
+
+export type {
+  CloudConfig,
+  CloudConnector,
+  CloudDashboard,
+} from './cloud-config';
+
+export {
+  cloudConfigSchema,
+  cloudConnectorSchema,
+  cloudDashboardSchema,
+  toCloudConfig,
+} from './cloud-config';

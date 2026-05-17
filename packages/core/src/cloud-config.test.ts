@@ -1,12 +1,12 @@
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
+import { toCloudConfig } from './cloud-config';
 import {
   BaseConnector,
   type StorageHandle,
   type SyncOptions,
-  secret,
-} from '@rawdash/core';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-
-import { toCloudConfig } from './cloud-config';
+} from './connector';
+import { secret } from './secrets';
 
 class StubConnector extends BaseConnector<
   { host: string; port: number },
@@ -18,18 +18,23 @@ class StubConnector extends BaseConnector<
   async sync(_req: SyncOptions, _storage: StorageHandle): Promise<void> {}
 }
 
+type NodeLike = { process?: { env?: Record<string, string | undefined> } };
+
 describe('toCloudConfig()', () => {
-  const prevApiToken = process.env['API_TOKEN'];
+  const g = globalThis as unknown as NodeLike;
+  g.process ??= { env: {} };
+  const env = (g.process.env ??= {});
+  const prevApiToken = env['API_TOKEN'];
 
   beforeAll(() => {
-    process.env['API_TOKEN'] = 'test-secret-value';
+    env['API_TOKEN'] = 'test-secret-value';
   });
 
   afterAll(() => {
     if (prevApiToken === undefined) {
-      delete process.env['API_TOKEN'];
+      delete env['API_TOKEN'];
     } else {
-      process.env['API_TOKEN'] = prevApiToken;
+      env['API_TOKEN'] = prevApiToken;
     }
   });
 
