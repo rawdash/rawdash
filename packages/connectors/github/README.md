@@ -61,11 +61,11 @@ export default defineConfig({
 
 ## Configuration
 
-| Field   | Type        | Required | Description                                                                       |
-| ------- | ----------- | -------- | --------------------------------------------------------------------------------- |
-| `owner` | `string`    | Yes      | GitHub username or organization name                                              |
-| `repo`  | `string`    | Yes      | Repository name                                                                   |
-| `token` | `SecretRef` | No       | GitHub PAT with `repo` scope. Required for private repos and to avoid rate limits |
+| Field   | Type     | Required | Description                                                                       |
+| ------- | -------- | -------- | --------------------------------------------------------------------------------- |
+| `owner` | `string` | Yes      | GitHub username or organization name                                              |
+| `repo`  | `string` | Yes      | Repository name                                                                   |
+| `token` | `Secret` | No       | GitHub PAT with `repo` scope. Required for private repos and to avoid rate limits |
 
 ## Data synced
 

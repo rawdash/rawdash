@@ -1,12 +1,12 @@
 import type { DashboardConfig } from '@rawdash/core';
 import type { Hono } from 'hono';
 
-import type { RawdashRouter } from '../router';
+import type { RouterMount } from '../router';
 import type { ServerStorage } from '../types';
 
 const FULL_SYNC_TIMEOUT_MS = 300_000;
 
-export class SyncRouter implements RawdashRouter {
+export class SyncRouter implements RouterMount {
   constructor(
     private config: DashboardConfig,
     private storage: ServerStorage,

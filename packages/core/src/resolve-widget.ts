@@ -1,14 +1,14 @@
 import { computeMetric } from './compute';
-import type { ConnectorEntry, Widget } from './config';
-import type { WidgetEntry } from './engine';
+import type { ConfiguredConnector, Widget } from './config';
+import type { CachedWidget } from './engine';
 import type { ServerStorage } from './server-storage';
 
 export async function resolveWidget(
   id: string,
   widget: Widget,
-  connectors: ConnectorEntry[] | readonly string[] | undefined,
+  connectors: ConfiguredConnector[] | readonly string[] | undefined,
   storage: ServerStorage,
-): Promise<WidgetEntry | undefined> {
+): Promise<CachedWidget | undefined> {
   if (widget.kind === 'status') {
     return {
       id,
@@ -37,7 +37,7 @@ export async function resolveWidget(
 }
 
 function isAllowedConnector(
-  connectors: ConnectorEntry[] | readonly string[],
+  connectors: ConfiguredConnector[] | readonly string[],
   connectorId: string,
 ): boolean {
   if (connectors.length === 0) {
@@ -46,7 +46,7 @@ function isAllowedConnector(
   if (typeof connectors[0] === 'string') {
     return (connectors as readonly string[]).includes(connectorId);
   }
-  return (connectors as ConnectorEntry[]).some(
+  return (connectors as ConfiguredConnector[]).some(
     (e) => e.connector.id === connectorId,
   );
 }

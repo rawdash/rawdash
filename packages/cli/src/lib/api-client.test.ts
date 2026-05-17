@@ -1,7 +1,7 @@
 import {
   BaseConnector,
   type StorageHandle,
-  type SyncRequest,
+  type SyncOptions,
 } from '@rawdash/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -14,7 +14,7 @@ class StubConnector extends BaseConnector<
   static readonly id = 'stub';
   readonly id = 'stub';
 
-  async sync(_req: SyncRequest, _storage: StorageHandle): Promise<void> {}
+  async sync(_req: SyncOptions, _storage: StorageHandle): Promise<void> {}
 }
 
 const ORIG_FETCH = globalThis.fetch;

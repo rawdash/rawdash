@@ -1,8 +1,8 @@
 import {
   BaseConnector,
-  type CredentialSchema,
+  type CredentialsSchema,
   type StorageHandle,
-  type SyncRequest,
+  type SyncOptions,
   defineConfigFields,
 } from '@rawdash/core';
 import { z } from 'zod';
@@ -117,7 +117,7 @@ const githubCredentials = {
     description: 'GitHub personal access token',
     auth: 'optional' as const,
   },
-} satisfies CredentialSchema;
+} satisfies CredentialsSchema;
 
 type GitHubCredentials = typeof githubCredentials;
 
@@ -152,7 +152,7 @@ export class GitHubActionsConnector extends BaseConnector<
 
   private async syncWorkflowRuns(
     storage: StorageHandle,
-    request: SyncRequest,
+    request: SyncOptions,
     signal?: AbortSignal,
   ): Promise<void> {
     const { owner, repo } = this.settings;
@@ -323,7 +323,7 @@ export class GitHubActionsConnector extends BaseConnector<
 
   private async syncIssues(
     storage: StorageHandle,
-    request: SyncRequest,
+    request: SyncOptions,
     signal?: AbortSignal,
   ): Promise<void> {
     const { owner, repo } = this.settings;
@@ -588,7 +588,7 @@ export class GitHubActionsConnector extends BaseConnector<
   }
 
   async sync(
-    request: SyncRequest,
+    request: SyncOptions,
     storage: StorageHandle,
     signal?: AbortSignal,
   ): Promise<void> {

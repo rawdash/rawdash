@@ -2,7 +2,7 @@ import type { DashboardConfig, RetentionConfig } from '@rawdash/core';
 import { selectForDeletion } from '@rawdash/core';
 import type { Hono } from 'hono';
 
-import type { RawdashRouter } from '../router';
+import type { RouterMount } from '../router';
 import type { ServerStorage } from '../types';
 
 const DEFAULT_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
@@ -11,7 +11,7 @@ function hasPruningPolicy(config: RetentionConfig): boolean {
   return config.maxAge !== undefined || config.maxSize !== undefined;
 }
 
-export class RetentionRouter implements RawdashRouter {
+export class RetentionRouter implements RouterMount {
   private interval: ReturnType<typeof setInterval> | null = null;
   private inFlight: Promise<void> | null = null;
 

@@ -1,11 +1,11 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp';
 
-import type { RuntimeConfig } from '../runtime-config';
+import type { McpRuntime } from '../runtime-config';
 import { text } from './shared';
 
 export function registerListDashboards(
   server: McpServer,
-  runtime: RuntimeConfig,
+  runtime: McpRuntime,
 ): void {
   server.tool(
     'list_dashboards',

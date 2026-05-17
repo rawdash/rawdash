@@ -2,13 +2,13 @@ import { describe, expect, it } from 'vitest';
 
 import {
   EnvSecretsResolver,
-  isSecretRef,
-  resolveSecretRefs,
+  isSecret,
+  resolveSecrets,
   secret,
 } from './secrets';
 
 describe('secret()', () => {
-  it('returns a SecretRef for valid names', () => {
+  it('returns a Secret for valid names', () => {
     expect(secret('GITHUB_TOKEN')).toEqual({ $secret: 'GITHUB_TOKEN' });
     expect(secret('MY_API_KEY_2')).toEqual({ $secret: 'MY_API_KEY_2' });
     expect(secret('A')).toEqual({ $secret: 'A' });
@@ -31,63 +31,58 @@ describe('secret()', () => {
   });
 });
 
-describe('isSecretRef()', () => {
-  it('returns true for SecretRef objects', () => {
-    expect(isSecretRef({ $secret: 'FOO' })).toBe(true);
+describe('isSecret()', () => {
+  it('returns true for Secret objects', () => {
+    expect(isSecret({ $secret: 'FOO' })).toBe(true);
   });
 
   it('returns false for plain strings', () => {
-    expect(isSecretRef('FOO')).toBe(false);
+    expect(isSecret('FOO')).toBe(false);
   });
 
   it('returns false for null', () => {
-    expect(isSecretRef(null)).toBe(false);
+    expect(isSecret(null)).toBe(false);
   });
 
   it('returns false for objects without $secret', () => {
-    expect(isSecretRef({ foo: 'bar' })).toBe(false);
+    expect(isSecret({ foo: 'bar' })).toBe(false);
   });
 
   it('returns false for objects with non-string $secret', () => {
-    expect(isSecretRef({ $secret: 42 })).toBe(false);
+    expect(isSecret({ $secret: 42 })).toBe(false);
   });
 });
 
-describe('resolveSecretRefs()', () => {
+describe('resolveSecrets()', () => {
   const resolver: EnvSecretsResolver = {
     resolve: (name: string) =>
       name === 'MY_TOKEN' ? 'secret-value' : undefined,
   };
 
-  it('resolves a top-level SecretRef', () => {
-    expect(resolveSecretRefs(secret('MY_TOKEN'), resolver)).toBe(
-      'secret-value',
-    );
+  it('resolves a top-level Secret', () => {
+    expect(resolveSecrets(secret('MY_TOKEN'), resolver)).toBe('secret-value');
   });
 
-  it('resolves SecretRefs inside an object', () => {
+  it('resolves Secrets inside an object', () => {
     const input = { token: secret('MY_TOKEN'), owner: 'acme' };
-    expect(resolveSecretRefs(input, resolver)).toEqual({
+    expect(resolveSecrets(input, resolver)).toEqual({
       token: 'secret-value',
       owner: 'acme',
     });
   });
 
-  it('resolves SecretRefs inside arrays', () => {
+  it('resolves Secrets inside arrays', () => {
     const input = [secret('MY_TOKEN'), 'plain'];
-    expect(resolveSecretRefs(input, resolver)).toEqual([
-      'secret-value',
-      'plain',
-    ]);
+    expect(resolveSecrets(input, resolver)).toEqual(['secret-value', 'plain']);
   });
 
   it('passes through undefined values unchanged', () => {
     const input = { token: undefined };
-    expect(resolveSecretRefs(input, resolver)).toEqual({ token: undefined });
+    expect(resolveSecrets(input, resolver)).toEqual({ token: undefined });
   });
 
   it('throws a clear error for missing secrets', () => {
-    expect(() => resolveSecretRefs(secret('MISSING_KEY'), resolver)).toThrow(
+    expect(() => resolveSecrets(secret('MISSING_KEY'), resolver)).toThrow(
       /Missing secret "MISSING_KEY"/,
     );
   });

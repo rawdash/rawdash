@@ -1,7 +1,7 @@
 import {
   BaseConnector,
   type StorageHandle,
-  type SyncRequest,
+  type SyncOptions,
   secret,
 } from '@rawdash/core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -15,7 +15,7 @@ class StubConnector extends BaseConnector<
   static readonly id = 'stub';
   readonly id = 'stub';
 
-  async sync(_req: SyncRequest, _storage: StorageHandle): Promise<void> {}
+  async sync(_req: SyncOptions, _storage: StorageHandle): Promise<void> {}
 }
 
 describe('toCloudConfig()', () => {

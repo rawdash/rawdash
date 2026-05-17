@@ -1,7 +1,7 @@
 import type { ServerStorage } from '@rawdash/core';
 
 export type {
-  ConnectorEntry,
+  ConfiguredConnector,
   DashboardConfig,
   ServerStorage,
 } from '@rawdash/core';

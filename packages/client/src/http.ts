@@ -1,8 +1,8 @@
 import type {
-  CachedWidgetResponse,
+  CachedWidgetData,
   DataSource,
-  HealthResponse,
-  SyncTriggerResponse,
+  HealthStatus,
+  SyncResult,
 } from './types';
 
 export interface HttpOptions {
@@ -57,19 +57,19 @@ export function http(opts: HttpOptions): DataSource {
 
   return {
     getWidgets(dashboardId) {
-      return get<CachedWidgetResponse[]>(
+      return get<CachedWidgetData[]>(
         `/dashboards/${encodeURIComponent(dashboardId)}/widgets`,
       );
     },
 
     getWidget(dashboardId, widgetId) {
-      return get<CachedWidgetResponse>(
+      return get<CachedWidgetData>(
         `/dashboards/${encodeURIComponent(dashboardId)}/widgets/${encodeURIComponent(widgetId)}`,
       );
     },
 
     getHealth() {
-      return get<HealthResponse>('/health', { cache: 'no-store' });
+      return get<HealthStatus>('/health', { cache: 'no-store' });
     },
 
     async triggerSync() {
@@ -77,11 +77,11 @@ export function http(opts: HttpOptions): DataSource {
       if (!res.ok) {
         throw new Error(`Rawdash sync error ${res.status}: ${res.statusText}`);
       }
-      return res.json() as Promise<SyncTriggerResponse>;
+      return res.json() as Promise<SyncResult>;
     },
 
     async ensureFresh(maxAgeMs = 5 * 60 * 1000) {
-      const health = await get<HealthResponse>('/health', {
+      const health = await get<HealthStatus>('/health', {
         cache: 'no-store',
       });
 
@@ -105,7 +105,7 @@ export function http(opts: HttpOptions): DataSource {
 
       const maxAttempts = 60;
       for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        const h = await get<HealthResponse>('/health', { cache: 'no-store' });
+        const h = await get<HealthStatus>('/health', { cache: 'no-store' });
         if (h.status === 'error') {
           throw new Error(
             `Rawdash sync failed: ${h.lastError ?? 'unknown error'}`,

@@ -1,4 +1,4 @@
-export interface WidgetEntry {
+export interface CachedWidget {
   id: string;
   widgetId: string;
   connectorId: string;

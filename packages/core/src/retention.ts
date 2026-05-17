@@ -1,4 +1,9 @@
-import type { Distribution, Event, Metric, StorageHandle } from './connector';
+import type {
+  Distribution,
+  Event,
+  MetricSample,
+  StorageHandle,
+} from './connector';
 
 // ---------------------------------------------------------------------------
 // RetentionConfig
@@ -12,12 +17,12 @@ export interface RetentionConfig {
 }
 
 // ---------------------------------------------------------------------------
-// RetentionCandidates — rows eligible for deletion across time-series shapes
+// RetentionDeletionPlan — rows eligible for deletion across time-series shapes
 // ---------------------------------------------------------------------------
 
-export interface RetentionCandidates {
+export interface RetentionDeletionPlan {
   events: Event[];
-  metrics: Metric[];
+  metrics: MetricSample[];
   distributions: Distribution[];
 }
 
@@ -76,7 +81,7 @@ export async function computeRetention(
   handle: StorageHandle,
   config: RetentionConfig,
   nowMs: number = Date.now(),
-): Promise<RetentionCandidates> {
+): Promise<RetentionDeletionPlan> {
   const [events, metrics, distributions] = await Promise.all([
     handle.queryEvents({}),
     handle.queryMetrics({}),

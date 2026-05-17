@@ -1,6 +1,6 @@
-export type SecretRef = { $secret: string };
+export type Secret = { $secret: string };
 
-export function secret(name: string): SecretRef {
+export function secret(name: string): Secret {
   if (!/^[A-Z][A-Z0-9_]*$/.test(name)) {
     throw new Error(
       `Invalid secret name "${name}". Must match /^[A-Z][A-Z0-9_]*$/ ` +
@@ -10,12 +10,12 @@ export function secret(name: string): SecretRef {
   return { $secret: name };
 }
 
-export function isSecretRef(value: unknown): value is SecretRef {
+export function isSecret(value: unknown): value is Secret {
   return (
     typeof value === 'object' &&
     value !== null &&
     '$secret' in value &&
-    typeof (value as SecretRef).$secret === 'string'
+    typeof (value as Secret).$secret === 'string'
   );
 }
 
@@ -32,8 +32,8 @@ export class EnvSecretsResolver implements SecretsResolver {
   }
 }
 
-export function resolveSecretRefs<T>(obj: T, resolver: SecretsResolver): T {
-  if (isSecretRef(obj)) {
+export function resolveSecrets<T>(obj: T, resolver: SecretsResolver): T {
+  if (isSecret(obj)) {
     const name = obj.$secret;
     const value = resolver.resolve(name);
     if (value === undefined) {
@@ -44,13 +44,13 @@ export function resolveSecretRefs<T>(obj: T, resolver: SecretsResolver): T {
     return value as unknown as T;
   }
   if (Array.isArray(obj)) {
-    return obj.map((item) => resolveSecretRefs(item, resolver)) as unknown as T;
+    return obj.map((item) => resolveSecrets(item, resolver)) as unknown as T;
   }
   if (typeof obj === 'object' && obj !== null) {
     const result: Record<string, unknown> = {};
     for (const [key, val] of Object.entries(obj as object)) {
       Object.defineProperty(result, key, {
-        value: resolveSecretRefs(val, resolver),
+        value: resolveSecrets(val, resolver),
         enumerable: true,
         configurable: true,
         writable: true,

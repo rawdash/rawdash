@@ -1,5 +1,5 @@
 import type { Hono } from 'hono';
 
-export interface RawdashRouter {
+export interface RouterMount {
   mount(app: Hono): void;
 }

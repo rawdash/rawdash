@@ -1,6 +1,6 @@
 import type { DashboardConfig } from '@rawdash/core';
 
-import type { RawdashRouter } from './router';
+import type { RouterMount } from './router';
 import { HealthRouter } from './routers/health';
 import { RetentionRouter } from './routers/retention';
 import { SyncRouter } from './routers/sync';
@@ -11,7 +11,7 @@ import type { ServerStorage } from './types';
 export function createEngineRouters(
   config: DashboardConfig,
   storage: ServerStorage = new InMemoryStorage(),
-): RawdashRouter[] {
+): RouterMount[] {
   const widgetRouters = Object.entries(config.dashboards).map(
     ([dashboardId, dashboard]) =>
       new WidgetsRouter(dashboardId, dashboard, config.connectors, storage),

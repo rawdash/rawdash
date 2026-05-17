@@ -1,6 +1,6 @@
-import type { DataSource, RawdashEngine } from './types';
+import type { DataSource, ServerDataSource } from './types';
 
-export function inProcess(engine: RawdashEngine): DataSource {
+export function inProcess(engine: ServerDataSource): DataSource {
   return {
     getWidget: (dashboardId, widgetId) =>
       engine.getWidget(dashboardId, widgetId),
