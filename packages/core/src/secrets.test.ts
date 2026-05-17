@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   EnvSecretsResolver,
+  extractSecretNames,
   isSecret,
   resolveSecrets,
   secret,
@@ -85,6 +86,53 @@ describe('resolveSecrets()', () => {
     expect(() => resolveSecrets(secret('MISSING_KEY'), resolver)).toThrow(
       /Missing secret "MISSING_KEY"/,
     );
+  });
+});
+
+describe('extractSecretNames()', () => {
+  it('returns an empty array when no secrets are present', () => {
+    expect(extractSecretNames({ foo: 'bar', n: 1, arr: [1, 'two'] })).toEqual(
+      [],
+    );
+    expect(extractSecretNames(null)).toEqual([]);
+    expect(extractSecretNames(undefined)).toEqual([]);
+    expect(extractSecretNames('plain')).toEqual([]);
+  });
+
+  it('extracts a top-level Secret', () => {
+    expect(extractSecretNames(secret('MY_TOKEN'))).toEqual(['MY_TOKEN']);
+  });
+
+  it('extracts Secrets from nested objects and arrays', () => {
+    const config = {
+      a: secret('A_TOKEN'),
+      nested: {
+        b: secret('B_TOKEN'),
+        deep: { c: secret('C_TOKEN') },
+      },
+      list: [secret('D_TOKEN'), { e: secret('E_TOKEN') }, 'plain'],
+    };
+    expect(extractSecretNames(config).sort()).toEqual([
+      'A_TOKEN',
+      'B_TOKEN',
+      'C_TOKEN',
+      'D_TOKEN',
+      'E_TOKEN',
+    ]);
+  });
+
+  it('dedupes repeated secret names', () => {
+    const config = {
+      a: secret('SHARED'),
+      b: secret('SHARED'),
+      list: [secret('SHARED'), secret('OTHER')],
+    };
+    expect(extractSecretNames(config).sort()).toEqual(['OTHER', 'SHARED']);
+  });
+
+  it('does not descend into a Secret marker', () => {
+    const fake = { $secret: 'OUTER', nested: secret('INNER') } as unknown;
+    expect(extractSecretNames(fake)).toEqual(['OUTER']);
   });
 });
 

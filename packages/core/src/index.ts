@@ -70,6 +70,7 @@ export type { Secret, SecretsResolver } from './secrets';
 
 export {
   EnvSecretsResolver,
+  extractSecretNames,
   isSecret,
   resolveSecrets,
   secret,
