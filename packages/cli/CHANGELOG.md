@@ -1,5 +1,15 @@
 # @rawdash/cli
 
+## 0.5.0
+
+### Patch Changes
+
+- fe3e046: Expose the wire-body translator from `@rawdash/core`. `toWireConfig`, the `WireConfig` / `WireConnector` / `WireDashboard` types, and matching Zod schemas (`wireConfigSchema`, `wireConnectorSchema`, `wireDashboardSchema`) are now exported from `@rawdash/core` so backend implementations can produce and validate the canonical config wire body without re-implementing it. The CLI now consumes this from core instead of duplicating the translation internally.
+- e42e3f8: Republish packages with `workspace:*` deps rewritten to real semver ranges. The publish workflow regressed in #59 and was emitting `"workspace:*"` literally into published `package.json` files, breaking installs for external consumers. The script now uses `pnpm publish` (which packs through pnpm's workspace-aware path) instead of `npm publish` directly.
+- Updated dependencies [fe3e046]
+- Updated dependencies [e42e3f8]
+  - @rawdash/core@0.5.0
+
 ## 0.4.0
 
 ### Minor Changes
