@@ -43,6 +43,22 @@ describe('applyMigrations', () => {
     expect(Number(applied.rows[0]!['n'])).toBe(MIGRATIONS.length);
   });
 
+  it('survives concurrent runners racing on the same fresh db', async () => {
+    await Promise.all([
+      applyMigrations(client),
+      applyMigrations(client),
+      applyMigrations(client),
+    ]);
+
+    const applied = await client.execute(
+      'SELECT tag, COUNT(*) AS n FROM schema_migrations GROUP BY tag',
+    );
+    expect(applied.rows).toHaveLength(MIGRATIONS.length);
+    for (const row of applied.rows) {
+      expect(Number(row['n'])).toBe(1);
+    }
+  });
+
   it('baselines pre-existing legacy schemas without re-running migrations', async () => {
     await client.execute(
       'CREATE TABLE events (id INTEGER PRIMARY KEY, name TEXT NOT NULL)',

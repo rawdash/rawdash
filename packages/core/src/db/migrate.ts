@@ -45,19 +45,26 @@ export async function applyMigrations(client: Client): Promise<void> {
     }
   }
 
-  const applied = await readAppliedTags(client);
+  let applied = await readAppliedTags(client);
 
   for (const migration of MIGRATIONS) {
     if (applied.has(migration.tag)) {
       continue;
     }
     const batch: InStatement[] = [
-      ...migration.statements,
       {
         sql: `INSERT INTO ${SCHEMA_MIGRATIONS_TABLE} (tag, applied_at) VALUES (?, ?)`,
         args: [migration.tag, Date.now()],
       },
+      ...migration.statements,
     ];
-    await client.batch(batch, 'write');
+    try {
+      await client.batch(batch, 'write');
+    } catch (err) {
+      applied = await readAppliedTags(client);
+      if (!applied.has(migration.tag)) {
+        throw err;
+      }
+    }
   }
 }
