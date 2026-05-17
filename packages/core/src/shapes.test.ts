@@ -215,7 +215,7 @@ describe('defineConfig validation', () => {
           }),
         },
       }),
-    ).toThrow('Dashboard "main", widget "w": invalid fn "badFn"');
+    ).toThrow(/Widget "w" \(kind "stat"\): Invalid option/);
   });
 
   it('throws for dashboard key with URL-unsafe characters', () => {
