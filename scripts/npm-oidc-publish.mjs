@@ -96,12 +96,20 @@ function isAlreadyPublished(name, version) {
 
 function packageExistsOnNpm(name) {
   try {
-    execSync(`npm view ${name} name 2>/dev/null`, {
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
+    execFileSync(
+      'npm',
+      ['view', name, 'name', '--fetch-timeout', String(NETWORK_TIMEOUT_MS)],
+      { stdio: ['pipe', 'pipe', 'pipe'] },
+    );
     return true;
-  } catch {
-    return false;
+  } catch (err) {
+    const stderr = err.stderr?.toString() ?? '';
+    if (stderr.includes('E404') || stderr.includes('404 Not Found')) {
+      return false;
+    }
+    throw new Error(
+      `Failed to query npm registry for ${name}: ${stderr.trim() || err.message}`,
+    );
   }
 }
 
