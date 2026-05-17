@@ -30,7 +30,7 @@
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
-    "@libsql/client": "^0.14.0",
+    "@libsql/client": "^0.17.0",
     "@rawdash/core": "workspace:*",
     "drizzle-orm": "^0.38.4"
   },
