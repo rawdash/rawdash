@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/mcp",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Rawdash MCP server — exposes dashboards, widgets, and connectors to AI agents",
   "license": "Apache-2.0",
   "type": "module",
