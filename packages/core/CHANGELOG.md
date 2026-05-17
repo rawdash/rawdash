@@ -1,5 +1,19 @@
 # @rawdash/core
 
+## 0.3.0
+
+### Minor Changes
+
+- c70db8d: `resolveWidget` no longer requires an instantiated `ConnectorEntry[]`. The `connectors` parameter now accepts `ConnectorEntry[] | readonly string[] | undefined`:
+  - `undefined` skips the membership check entirely — useful in runtimes (e.g. Cloudflare Workers) where connector implementations are not loaded on the read path.
+  - `readonly string[]` checks membership against a lightweight allowlist of connector ids.
+  - `ConnectorEntry[]` continues to work as before (backward-compatible).
+
+### Patch Changes
+
+- 13744df: Fix `resolvedMetricSchema`: make `field` optional (count-only metrics like `{ fn: 'count' }` have no field) and narrow `fn` from `z.string()` to `aggFnSchema` so consumers get the proper enum type and invalid fns are rejected at validation time.
+- 2ca8591: Widen `@libsql/client` peer dependency range to `>=0.14.0 <1.0.0`. The `LibsqlStorage` API surface (`createClient`, `Client`, `execute`, `batch`, `transaction`) has been stable across 0.14 → 0.17, so the previous `^0.14.0` constraint was artificially narrow and produced peer-dep warnings for consumers on newer 0.x releases.
+
 ## 0.2.0
 
 ### Minor Changes
