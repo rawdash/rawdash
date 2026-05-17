@@ -5,13 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS_DIR = resolve(__dirname, '..', 'migrations');
-const OUTPUT_FILE = resolve(
-  __dirname,
-  '..',
-  'src',
-  'db',
-  'migrations-bundle.ts',
-);
+const OUTPUT_FILE = resolve(__dirname, '..', 'src', 'migrations-bundle.ts');
 
 const files = readdirSync(MIGRATIONS_DIR)
   .filter((f) => f.endsWith('.sql'))

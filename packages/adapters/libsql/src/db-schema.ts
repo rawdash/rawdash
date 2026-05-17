@@ -56,6 +56,12 @@ export interface SyncStateTable {
   last_error: string | null;
 }
 
+export interface SchemaMigrationsTable {
+  version: number;
+  tag: string;
+  applied_at: number;
+}
+
 export interface Database {
   events: EventsTable;
   entities: EntitiesTable;
@@ -63,4 +69,5 @@ export interface Database {
   edges: EdgesTable;
   distributions: DistributionsTable;
   sync_state: SyncStateTable;
+  schema_migrations: SchemaMigrationsTable;
 }

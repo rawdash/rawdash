@@ -9,10 +9,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@libsql/client": "^0.17.0",
     "@rawdash/core": "workspace:*",
     "@rawdash/connector-github": "workspace:*",
     "@rawdash/server": "workspace:*",
-    "@rawdash/adapter-turso": "workspace:*"
+    "@rawdash/adapter-libsql": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22",

@@ -86,5 +86,3 @@ export { resolveWidget } from './resolve-widget';
 export type { ServerStorage } from './server-storage';
 
 export { InMemoryStorage } from './in-memory-storage';
-
-export { applyMigrations } from './db/migrate';

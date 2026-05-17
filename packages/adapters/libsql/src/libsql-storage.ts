@@ -1,7 +1,4 @@
 import type { Client, InValue } from '@libsql/client/web';
-import { type CompiledQuery, type Insertable, Kysely } from 'kysely';
-import { LibsqlDialect } from 'kysely-libsql';
-
 import type {
   Distribution,
   DistributionQuery,
@@ -14,20 +11,21 @@ import type {
   JSONValue,
   MetricQuery,
   MetricSample,
+  ServerStorage,
   StorageHandle,
-} from './connector';
-import { applyMigrations } from './db/migrate';
+  SyncState,
+} from '@rawdash/core';
+import { type CompiledQuery, type Insertable, Kysely } from 'kysely';
+import { LibsqlDialect } from 'kysely-libsql';
+
 import type {
   Database,
   EdgesTable,
   EntitiesTable,
   EventsTable,
   MetricsTable,
-} from './db/schema';
-import type { SyncState } from './engine';
-import type { ServerStorage } from './server-storage';
-
-export { applyMigrations } from './db/migrate';
+} from './db-schema';
+import { applyMigrations } from './migrate';
 
 type Attrs = Record<string, JSONValue>;
 
@@ -630,5 +628,10 @@ export class LibsqlStorage implements ServerStorage {
       .set({ status: 'error', last_error: error })
       .where('id', '=', SYNC_STATE_ID)
       .execute();
+  }
+
+  async close(): Promise<void> {
+    await this.ready.catch(() => undefined);
+    this.client.close();
   }
 }

@@ -45,10 +45,10 @@ serve(
 
 Starts the HTTP server on Node.js (via `@hono/node-server`). Options:
 
-| Option    | Type            | Default   | Description                           |
-| --------- | --------------- | --------- | ------------------------------------- |
-| `port`    | `number`        | `8080`    | Port to listen on                     |
-| `storage` | `ServerStorage` | in-memory | Storage backend (e.g. `TursoStorage`) |
+| Option    | Type            | Default   | Description                            |
+| --------- | --------------- | --------- | -------------------------------------- |
+| `port`    | `number`        | `8080`    | Port to listen on                      |
+| `storage` | `ServerStorage` | in-memory | Storage backend (e.g. `LibsqlStorage`) |
 
 ### `createServer(config, options?)`
 

@@ -67,7 +67,7 @@ Creates and returns an `McpServer` instance with all tools registered. Options:
 | Option    | Type              | Description                               |
 | --------- | ----------------- | ----------------------------------------- |
 | `config`  | `DashboardConfig` | Your rawdash config (from `defineConfig`) |
-| `storage` | `ServerStorage`   | Storage backend (e.g. `TursoStorage`)     |
+| `storage` | `ServerStorage`   | Storage backend (e.g. `LibsqlStorage`)    |
 | `name`    | `string`          | MCP server name (default: `'rawdash'`)    |
 | `version` | `string`          | MCP server version (default: `'1.0.0'`)   |
 
