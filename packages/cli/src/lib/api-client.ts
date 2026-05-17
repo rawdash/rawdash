@@ -1,6 +1,5 @@
-import type { DashboardConfig } from '@rawdash/core';
+import { type DashboardConfig, toCloudConfig } from '@rawdash/core';
 
-import { toCloudConfig } from './cloud-config';
 import { getEnv } from './env';
 
 const DEFAULT_TIMEOUT_MS = 10_000;
