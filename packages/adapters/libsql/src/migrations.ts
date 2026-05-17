@@ -85,22 +85,26 @@ const SCHEMA_MIGRATIONS_DDL = `CREATE TABLE IF NOT EXISTS schema_migrations (
 
 export async function applyMigrations(client: Client): Promise<void> {
   await client.execute(SCHEMA_MIGRATIONS_DDL);
-  const applied = await client.execute('SELECT version FROM schema_migrations');
-  const appliedVersions = new Set<number>(
-    applied.rows.map((r) => Number(r['version'])),
-  );
 
   for (const m of MIGRATIONS) {
-    if (appliedVersions.has(m.version)) {
-      continue;
+    const batch: { sql: string; args: InValue[] }[] = [
+      {
+        sql: 'INSERT INTO schema_migrations (version, tag, applied_at) VALUES (?, ?, ?)',
+        args: [m.version, m.tag, Date.now()],
+      },
+      ...m.statements.map((sql) => ({ sql, args: [] as InValue[] })),
+    ];
+    try {
+      await client.batch(batch, 'write');
+    } catch (err) {
+      const applied = await client.execute({
+        sql: 'SELECT 1 FROM schema_migrations WHERE version = ?',
+        args: [m.version],
+      });
+      if (applied.rows.length > 0) {
+        continue;
+      }
+      throw err;
     }
-    const batch: { sql: string; args: InValue[] }[] = m.statements.map(
-      (sql) => ({ sql, args: [] }),
-    );
-    batch.push({
-      sql: 'INSERT INTO schema_migrations (version, tag, applied_at) VALUES (?, ?, ?)',
-      args: [m.version, m.tag, Date.now()],
-    });
-    await client.batch(batch, 'write');
   }
 }

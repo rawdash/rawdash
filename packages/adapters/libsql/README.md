@@ -22,6 +22,7 @@ npm install @rawdash/adapter-libsql @libsql/client
 ```ts
 import { createClient } from '@libsql/client';
 import { LibsqlStorage } from '@rawdash/adapter-libsql';
+import { defineConfig } from '@rawdash/core';
 import { serve } from '@rawdash/server';
 
 const storage = new LibsqlStorage({
@@ -29,6 +30,11 @@ const storage = new LibsqlStorage({
     url: process.env.TURSO_DATABASE_URL!,
     authToken: process.env.TURSO_AUTH_TOKEN,
   }),
+});
+
+const config = defineConfig({
+  connectors: [],
+  dashboards: {},
 });
 
 serve(config, { storage });
