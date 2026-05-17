@@ -32,6 +32,25 @@ export class EnvSecretsResolver implements SecretsResolver {
   }
 }
 
+export function extractSecretNames(value: unknown): string[] {
+  const names: string[] = [];
+  const visit = (v: unknown): void => {
+    if (isSecret(v)) {
+      names.push(v.$secret);
+      return;
+    }
+    if (v && typeof v === 'object') {
+      if (Array.isArray(v)) {
+        v.forEach(visit);
+      } else {
+        Object.values(v as Record<string, unknown>).forEach(visit);
+      }
+    }
+  };
+  visit(value);
+  return [...new Set(names)];
+}
+
 export function resolveSecrets<T>(obj: T, resolver: SecretsResolver): T {
   if (isSecret(obj)) {
     const name = obj.$secret;
