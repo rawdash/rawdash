@@ -25,7 +25,7 @@ import type {
   EventsTable,
   MetricsTable,
 } from './db-schema';
-import { applyMigrations } from './migrations';
+import { applyMigrations } from './migrate';
 
 type Attrs = Record<string, JSONValue>;
 

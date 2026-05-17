@@ -11,7 +11,7 @@
   },
   "files": [
     "dist",
-    "drizzle",
+    "migrations",
     "README.md",
     "LICENSE"
   ],
@@ -27,7 +27,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
     "test": "vitest run",
-    "db:generate": "drizzle-kit generate && node scripts/inline-migrations.mjs"
+    "db:bundle": "node scripts/bundle-migrations.mjs",
+    "db:generate": "drizzle-kit generate && pnpm db:bundle"
   },
   "dependencies": {
     "@rawdash/core": "workspace:*",
