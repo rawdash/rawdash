@@ -94,6 +94,56 @@ function isAlreadyPublished(name, version) {
   }
 }
 
+function packageExistsOnNpm(name) {
+  try {
+    execFileSync(
+      'npm',
+      ['view', name, 'name', '--fetch-timeout', String(NETWORK_TIMEOUT_MS)],
+      { stdio: ['pipe', 'pipe', 'pipe'] },
+    );
+    return true;
+  } catch (err) {
+    const stderr = err.stderr?.toString() ?? '';
+    if (stderr.includes('E404') || stderr.includes('404 Not Found')) {
+      return false;
+    }
+    throw new Error(
+      `Failed to query npm registry for ${name}: ${stderr.trim() || err.message}`,
+    );
+  }
+}
+
+function printNewPackageError(newPackages) {
+  const bulletList = newPackages.map((p) => `  - ${p.name}`).join('\n');
+
+  const bootstrapCommands = newPackages
+    .map(
+      (p) =>
+        `       cd ${p.path}\n` +
+        `       pnpm build\n` +
+        `       npm publish --access public`,
+    )
+    .join('\n\n');
+
+  const lines = [
+    '',
+    'The following package(s) do not yet exist on npm and cannot be bootstrapped via OIDC trusted publishing:',
+    bulletList,
+    '',
+    'npm requires the package to already exist (or a "pending" trusted publisher entry to be pre-configured) before it will mint a token. To bootstrap a new package:',
+    '',
+    '  1. Publish the first version manually from a maintainer machine:',
+    bootstrapCommands,
+    '',
+    "  2. On npmjs.com, open each new package's Settings → Trusted Publishers and add a GitHub Actions entry matching the existing packages (same repo, workflow file, and environment).",
+    '',
+    '  3. Re-run this workflow. Subsequent versions will publish via OIDC with provenance automatically.',
+    '',
+  ];
+
+  console.error(lines.join('\n'));
+}
+
 function tagExists(name, version) {
   const tag = `${name}@${version}`;
   return (
@@ -184,6 +234,12 @@ for (const pkg of alreadyPublished) {
 if (toPublish.length === 0) {
   console.log('No packages to publish.');
   process.exit(0);
+}
+
+const newPackages = toPublish.filter((pkg) => !packageExistsOnNpm(pkg.name));
+if (newPackages.length > 0) {
+  printNewPackageError(newPackages);
+  process.exit(1);
 }
 
 const sorted = topoSort(toPublish);
