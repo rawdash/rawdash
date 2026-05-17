@@ -1,12 +1,12 @@
 ---
-'@rawdash/core': major
-'@rawdash/server': major
-'@rawdash/client': major
-'@rawdash/nextjs': major
-'@rawdash/mcp': major
-'@rawdash/cli': major
-'@rawdash/connector-github': major
-'@rawdash/adapter-turso': major
+'@rawdash/core': minor
+'@rawdash/server': minor
+'@rawdash/client': minor
+'@rawdash/nextjs': minor
+'@rawdash/mcp': minor
+'@rawdash/cli': minor
+'@rawdash/connector-github': minor
+'@rawdash/adapter-turso': minor
 ---
 
 Rename public API types/interfaces/classes for clearer framework ergonomics. Drops noisy suffixes like `Ref`, `Entry`, `Def`, `Response`, and disambiguates several `Metric`-related types.
