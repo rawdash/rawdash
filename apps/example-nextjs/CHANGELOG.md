@@ -1,5 +1,16 @@
 # example-nextjs
 
+## 0.0.5
+
+### Patch Changes
+
+- Updated dependencies [fe3e046]
+- Updated dependencies [e42e3f8]
+  - @rawdash/core@0.5.0
+  - @rawdash/connector-github@0.5.0
+  - @rawdash/nextjs@0.5.0
+  - @rawdash/server@0.5.0
+
 ## 0.0.4
 
 ### Patch Changes
