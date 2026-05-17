@@ -36,7 +36,7 @@
     "zod": "^4.4.3"
   },
   "peerDependencies": {
-    "@libsql/client": "^0.14.0"
+    "@libsql/client": ">=0.14.0 <1.0.0"
   },
   "peerDependenciesMeta": {
     "@libsql/client": {
@@ -44,7 +44,7 @@
     }
   },
   "devDependencies": {
-    "@libsql/client": "^0.14.0",
+    "@libsql/client": "^0.17.0",
     "tsup": "^8.0.0",
     "typescript": "^5.7.2"
   }
