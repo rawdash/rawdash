@@ -10,7 +10,8 @@
  * Token exchange flow (per package):
  *   1. Fetch a GitHub OIDC JWT from the Actions token endpoint
  *   2. POST it to the npm registry exchange endpoint to get a short-lived publish token
- *   3. Pass that token as NODE_AUTH_TOKEN to `npm publish --provenance`
+ *   3. Pass that token as NODE_AUTH_TOKEN to `pnpm publish --provenance`
+ *      (pnpm rewrites workspace:* deps during pack, then delegates to npm publish)
  */
 import { execFileSync, execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -255,11 +256,23 @@ for (const pkg of sorted) {
   const idToken = await getGitHubOidcJwt();
   const npmToken = await exchangeForNpmToken(idToken, name);
 
-  execFileSync('npm', ['publish', '--provenance', '--access', 'public'], {
-    cwd: pkgPath,
-    stdio: 'inherit',
-    env: { ...process.env, NODE_AUTH_TOKEN: npmToken },
-  });
+  execFileSync(
+    'pnpm',
+    [
+      'publish',
+      '--access',
+      'public',
+      '--no-git-checks',
+      '--provenance',
+      '--registry',
+      REGISTRY,
+    ],
+    {
+      cwd: pkgPath,
+      stdio: 'inherit',
+      env: { ...process.env, NODE_AUTH_TOKEN: npmToken },
+    },
+  );
 
   // Create a lightweight git tag — changesets/action reads these to create GitHub releases
   ensureTag(name, version);
