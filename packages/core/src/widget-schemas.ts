@@ -44,17 +44,22 @@ export const groupBySchema = z.object({
   granularity: z.enum(['hour', 'day', 'week', 'month']),
 });
 
-export const resolvedMetricSchema = z.object({
-  connectorId: z.string(),
-  shape: shapeSchema,
-  name: z.string().optional(),
-  entityType: z.string().optional(),
-  field: z.string(),
-  fn: z.string(),
-  window: z.string().optional(),
-  filter: z.array(filterClauseSchema).optional(),
-  groupBy: groupBySchema.optional(),
-});
+export const resolvedMetricSchema = z
+  .object({
+    connectorId: z.string(),
+    shape: shapeSchema,
+    name: z.string().optional(),
+    entityType: z.string().optional(),
+    field: z.string().optional(),
+    fn: aggFnSchema,
+    window: z.string().optional(),
+    filter: z.array(filterClauseSchema).optional(),
+    groupBy: groupBySchema.optional(),
+  })
+  .refine((m) => m.fn === 'count' || m.field !== undefined, {
+    message: 'field is required unless fn is "count"',
+    path: ['field'],
+  });
 
 const titleField = z
   .string()

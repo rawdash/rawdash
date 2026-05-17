@@ -61,7 +61,7 @@ export interface MetricDef {
   shape: Shape;
   name?: string;
   entityType?: string;
-  field: string;
+  field?: string;
   fn: AggFn;
   window?: string;
   filter?: FilterClause[];
@@ -73,8 +73,8 @@ export interface ResolvedMetric {
   readonly shape: Shape;
   readonly name?: string;
   readonly entityType?: string;
-  readonly field: string;
-  readonly fn: string;
+  readonly field?: string;
+  readonly fn: AggFn;
   readonly window?: string;
   readonly filter?: FilterClause[];
   readonly groupBy?: GroupBy;
