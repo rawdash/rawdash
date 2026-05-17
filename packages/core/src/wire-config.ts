@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import type { DashboardConfig } from './config';
 
-export const cloudConnectorSchema = z.object({
+export const wireConnectorSchema = z.object({
   name: z.string(),
   connectorId: z.string(),
   displayName: z.string().optional(),
@@ -11,25 +11,25 @@ export const cloudConnectorSchema = z.object({
   enabled: z.boolean().optional(),
 });
 
-export const cloudDashboardSchema = z.object({
+export const wireDashboardSchema = z.object({
   id: z.string().optional(),
   name: z.string(),
   slug: z.string(),
   config: z.record(z.string(), z.unknown()),
 });
 
-export const cloudConfigSchema = z.object({
-  connectors: z.array(cloudConnectorSchema).optional(),
-  dashboards: z.array(cloudDashboardSchema).optional(),
+export const wireConfigSchema = z.object({
+  connectors: z.array(wireConnectorSchema).optional(),
+  dashboards: z.array(wireDashboardSchema).optional(),
 });
 
-export type CloudConnector = z.infer<typeof cloudConnectorSchema>;
-export type CloudDashboard = z.infer<typeof cloudDashboardSchema>;
-export type CloudConfig = z.infer<typeof cloudConfigSchema>;
+export type WireConnector = z.infer<typeof wireConnectorSchema>;
+export type WireDashboard = z.infer<typeof wireDashboardSchema>;
+export type WireConfig = z.infer<typeof wireConfigSchema>;
 
-export function toCloudConfig(ossConfig: DashboardConfig): CloudConfig {
+export function toWireConfig(config: DashboardConfig): WireConfig {
   return {
-    connectors: ossConfig.connectors.map(({ connector }) => ({
+    connectors: config.connectors.map(({ connector }) => ({
       name: connector.id,
       connectorId: connector.id,
       displayName: connector.id,
@@ -37,7 +37,7 @@ export function toCloudConfig(ossConfig: DashboardConfig): CloudConfig {
       syncIntervalSeconds: 300,
       enabled: true,
     })),
-    dashboards: Object.entries(ossConfig.dashboards).map(([id, dash]) => ({
+    dashboards: Object.entries(config.dashboards).map(([id, dash]) => ({
       id,
       name: id,
       slug: id,

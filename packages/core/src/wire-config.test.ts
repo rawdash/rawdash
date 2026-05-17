@@ -1,12 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { toCloudConfig } from './cloud-config';
 import {
   BaseConnector,
   type StorageHandle,
   type SyncOptions,
 } from './connector';
 import { secret } from './secrets';
+import { toWireConfig } from './wire-config';
 
 class StubConnector extends BaseConnector<
   { host: string; port: number },
@@ -20,7 +20,7 @@ class StubConnector extends BaseConnector<
 
 type NodeLike = { process?: { env?: Record<string, string | undefined> } };
 
-describe('toCloudConfig()', () => {
+describe('toWireConfig()', () => {
   const g = globalThis as unknown as NodeLike;
   g.process ??= { env: {} };
   const env = (g.process.env ??= {});
@@ -38,13 +38,13 @@ describe('toCloudConfig()', () => {
     }
   });
 
-  it('maps connectors to cloud shape with id as name and connectorId', () => {
+  it('maps connectors to wire shape with id as name and connectorId', () => {
     const connector = new StubConnector(
       { host: 'example.com', port: 443 },
       { token: secret('API_TOKEN') },
     );
 
-    const result = toCloudConfig({
+    const result = toWireConfig({
       connectors: [{ connector }],
       dashboards: {},
     });
@@ -64,7 +64,7 @@ describe('toCloudConfig()', () => {
       { token: secret('API_TOKEN') },
     );
 
-    const result = toCloudConfig({
+    const result = toWireConfig({
       connectors: [{ connector }],
       dashboards: {},
     });
@@ -82,7 +82,7 @@ describe('toCloudConfig()', () => {
       { token: undefined },
     );
 
-    const result = toCloudConfig({
+    const result = toWireConfig({
       connectors: [{ connector }],
       dashboards: {},
     });
@@ -95,7 +95,7 @@ describe('toCloudConfig()', () => {
   });
 
   it('maps dashboards from Record to Array with id/name/slug', () => {
-    const result = toCloudConfig({
+    const result = toWireConfig({
       connectors: [],
       dashboards: {
         github: {
@@ -128,7 +128,7 @@ describe('toCloudConfig()', () => {
     const c1 = new StubConnector({ host: 'a.com', port: 80 });
     const c2 = new StubConnector({ host: 'b.com', port: 443 });
 
-    const result = toCloudConfig({
+    const result = toWireConfig({
       connectors: [{ connector: c1 }, { connector: c2 }],
       dashboards: {
         dash1: { widgets: {} },
@@ -141,7 +141,7 @@ describe('toCloudConfig()', () => {
   });
 
   it('produces empty arrays for empty config', () => {
-    const result = toCloudConfig({ connectors: [], dashboards: {} });
+    const result = toWireConfig({ connectors: [], dashboards: {} });
     expect(result.connectors).toEqual([]);
     expect(result.dashboards).toEqual([]);
   });
