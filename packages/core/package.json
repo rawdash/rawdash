@@ -33,6 +33,8 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "kysely": "^0.29.0",
+    "kysely-libsql": "^0.7.0",
     "zod": "^4.4.3"
   },
   "peerDependencies": {

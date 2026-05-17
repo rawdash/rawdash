@@ -1,4 +1,6 @@
 import type { Client, InValue } from '@libsql/client/web';
+import { type CompiledQuery, type Insertable, Kysely } from 'kysely';
+import { LibsqlDialect } from 'kysely-libsql';
 
 import type {
   Distribution,
@@ -14,6 +16,13 @@ import type {
   MetricSample,
   StorageHandle,
 } from './connector';
+import type {
+  Database,
+  EdgesTable,
+  EntitiesTable,
+  EventsTable,
+  MetricsTable,
+} from './db/schema';
 import type { SyncState } from './engine';
 import type { ServerStorage } from './server-storage';
 
@@ -82,8 +91,8 @@ const CREATE_TABLES_SQL = [
 ];
 
 export async function initLibsqlSchema(client: Client): Promise<void> {
-  for (const sql of CREATE_TABLES_SQL) {
-    await client.execute(sql);
+  for (const stmt of CREATE_TABLES_SQL) {
+    await client.execute(stmt);
   }
   await client.execute({
     sql: "INSERT OR IGNORE INTO sync_state (id, status, last_sync_at, last_error) VALUES (?, 'idle', NULL, NULL)",
@@ -102,6 +111,16 @@ function parseJson<T>(value: unknown, fallback: T): T {
   }
 }
 
+function createDb(client: Client): Kysely<Database> {
+  return new Kysely<Database>({
+    dialect: new LibsqlDialect({ client }),
+  });
+}
+
+function toBatchStmt(q: CompiledQuery): { sql: string; args: InValue[] } {
+  return { sql: q.sql, args: q.parameters as InValue[] };
+}
+
 export interface LibsqlStorageOptions {
   client: Client;
   initSchema?: boolean;
@@ -109,11 +128,13 @@ export interface LibsqlStorageOptions {
 
 export class LibsqlStorage implements ServerStorage {
   private client: Client;
+  private db: Kysely<Database>;
   private ready: Promise<void>;
   private initError: string | null = null;
 
   constructor(options: LibsqlStorageOptions) {
     this.client = options.client;
+    this.db = createDb(options.client);
     this.ready = options.initSchema === false ? Promise.resolve() : this.init();
   }
 
@@ -133,98 +154,107 @@ export class LibsqlStorage implements ServerStorage {
 
   getStorageHandle(connectorId: string): StorageHandle {
     const ready = this.ready;
+    const db = this.db;
     const client = this.client;
 
-    const insertEvent = (e: Event): { sql: string; args: InValue[] } => ({
-      sql: 'INSERT INTO events (connector_id, name, start_ts, end_ts, attributes) VALUES (?, ?, ?, ?, ?)',
-      args: [
-        connectorId,
-        e.name,
-        e.start_ts,
-        e.end_ts,
-        JSON.stringify(e.attributes),
-      ],
+    const eventRow = (e: Event): Insertable<EventsTable> => ({
+      connector_id: connectorId,
+      name: e.name,
+      start_ts: e.start_ts,
+      end_ts: e.end_ts,
+      attributes: JSON.stringify(e.attributes),
     });
 
-    const upsertEntity = (e: Entity): { sql: string; args: InValue[] } => ({
-      sql: `INSERT INTO entities (connector_id, type, id, attributes, updated_at)
-            VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT (connector_id, type, id)
-            DO UPDATE SET attributes = excluded.attributes, updated_at = excluded.updated_at`,
-      args: [
-        connectorId,
-        e.type,
-        e.id,
-        JSON.stringify(e.attributes),
-        e.updated_at,
-      ],
+    const entityRow = (e: Entity): Insertable<EntitiesTable> => ({
+      connector_id: connectorId,
+      type: e.type,
+      id: e.id,
+      attributes: JSON.stringify(e.attributes),
+      updated_at: e.updated_at,
     });
 
-    const insertMetric = (
-      m: MetricSample,
-    ): { sql: string; args: InValue[] } => ({
-      sql: 'INSERT INTO metrics (connector_id, name, ts, value, attributes) VALUES (?, ?, ?, ?, ?)',
-      args: [connectorId, m.name, m.ts, m.value, JSON.stringify(m.attributes)],
+    const metricRow = (m: MetricSample): Insertable<MetricsTable> => ({
+      connector_id: connectorId,
+      name: m.name,
+      ts: m.ts,
+      value: m.value,
+      attributes: JSON.stringify(m.attributes),
     });
 
-    const upsertEdge = (e: Edge): { sql: string; args: InValue[] } => ({
-      sql: `INSERT INTO edges (connector_id, from_type, from_id, kind, to_type, to_id, attributes, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT (connector_id, from_type, from_id, kind, to_type, to_id)
-            DO UPDATE SET attributes = excluded.attributes, updated_at = excluded.updated_at`,
-      args: [
-        connectorId,
-        e.from_type,
-        e.from_id,
-        e.kind,
-        e.to_type,
-        e.to_id,
-        JSON.stringify(e.attributes),
-        e.updated_at,
-      ],
+    const edgeRow = (e: Edge): Insertable<EdgesTable> => ({
+      connector_id: connectorId,
+      from_type: e.from_type,
+      from_id: e.from_id,
+      kind: e.kind,
+      to_type: e.to_type,
+      to_id: e.to_id,
+      attributes: JSON.stringify(e.attributes),
+      updated_at: e.updated_at,
     });
 
-    const insertDistribution = (
-      d: Distribution,
-    ): { sql: string; args: InValue[] } => ({
-      sql: 'INSERT INTO distributions (connector_id, name, ts, kind, data, attributes) VALUES (?, ?, ?, ?, ?, ?)',
-      args: [
-        connectorId,
-        d.name,
-        d.ts,
-        d.kind,
-        JSON.stringify(d.data),
-        JSON.stringify(d.attributes),
-      ],
+    const distributionRow = (d: Distribution) => ({
+      connector_id: connectorId,
+      name: d.name,
+      ts: d.ts,
+      kind: d.kind,
+      data: JSON.stringify(d.data),
+      attributes: JSON.stringify(d.attributes),
     });
-
-    const inPlaceholders = (n: number): string =>
-      Array.from({ length: n }, () => '?').join(', ');
 
     return {
       event: async (e) => {
         await ready;
-        await client.execute(insertEvent(e));
+        await db.insertInto('events').values(eventRow(e)).execute();
       },
 
       entity: async (e) => {
         await ready;
-        await client.execute(upsertEntity(e));
+        await db
+          .insertInto('entities')
+          .values(entityRow(e))
+          .onConflict((oc) =>
+            oc.columns(['connector_id', 'type', 'id']).doUpdateSet({
+              attributes: (eb) => eb.ref('excluded.attributes'),
+              updated_at: (eb) => eb.ref('excluded.updated_at'),
+            }),
+          )
+          .execute();
       },
 
       metric: async (m) => {
         await ready;
-        await client.execute(insertMetric(m));
+        await db.insertInto('metrics').values(metricRow(m)).execute();
       },
 
       edge: async (e) => {
         await ready;
-        await client.execute(upsertEdge(e));
+        await db
+          .insertInto('edges')
+          .values(edgeRow(e))
+          .onConflict((oc) =>
+            oc
+              .columns([
+                'connector_id',
+                'from_type',
+                'from_id',
+                'kind',
+                'to_type',
+                'to_id',
+              ])
+              .doUpdateSet({
+                attributes: (eb) => eb.ref('excluded.attributes'),
+                updated_at: (eb) => eb.ref('excluded.updated_at'),
+              }),
+          )
+          .execute();
       },
 
       distribution: async (d) => {
         await ready;
-        await client.execute(insertDistribution(d));
+        await db
+          .insertInto('distributions')
+          .values(distributionRow(d))
+          .execute();
       },
 
       events: async (es, scope) => {
@@ -234,13 +264,22 @@ export class LibsqlStorage implements ServerStorage {
         );
         const stmts: { sql: string; args: InValue[] }[] = [];
         if (names.length > 0) {
-          stmts.push({
-            sql: `DELETE FROM events WHERE connector_id = ? AND name IN (${inPlaceholders(names.length)})`,
-            args: [connectorId, ...names],
-          });
+          stmts.push(
+            toBatchStmt(
+              db
+                .deleteFrom('events')
+                .where('connector_id', '=', connectorId)
+                .where('name', 'in', names)
+                .compile(),
+            ),
+          );
         }
-        for (const e of es) {
-          stmts.push(insertEvent(e));
+        if (es.length > 0) {
+          stmts.push(
+            toBatchStmt(
+              db.insertInto('events').values(es.map(eventRow)).compile(),
+            ),
+          );
         }
         if (stmts.length > 0) {
           await client.batch(stmts, 'write');
@@ -254,13 +293,31 @@ export class LibsqlStorage implements ServerStorage {
         );
         const stmts: { sql: string; args: InValue[] }[] = [];
         if (types.length > 0) {
-          stmts.push({
-            sql: `DELETE FROM entities WHERE connector_id = ? AND type IN (${inPlaceholders(types.length)})`,
-            args: [connectorId, ...types],
-          });
+          stmts.push(
+            toBatchStmt(
+              db
+                .deleteFrom('entities')
+                .where('connector_id', '=', connectorId)
+                .where('type', 'in', types)
+                .compile(),
+            ),
+          );
         }
-        for (const e of es) {
-          stmts.push(upsertEntity(e));
+        if (es.length > 0) {
+          stmts.push(
+            toBatchStmt(
+              db
+                .insertInto('entities')
+                .values(es.map(entityRow))
+                .onConflict((oc) =>
+                  oc.columns(['connector_id', 'type', 'id']).doUpdateSet({
+                    attributes: (eb) => eb.ref('excluded.attributes'),
+                    updated_at: (eb) => eb.ref('excluded.updated_at'),
+                  }),
+                )
+                .compile(),
+            ),
+          );
         }
         if (stmts.length > 0) {
           await client.batch(stmts, 'write');
@@ -274,13 +331,22 @@ export class LibsqlStorage implements ServerStorage {
         );
         const stmts: { sql: string; args: InValue[] }[] = [];
         if (names.length > 0) {
-          stmts.push({
-            sql: `DELETE FROM metrics WHERE connector_id = ? AND name IN (${inPlaceholders(names.length)})`,
-            args: [connectorId, ...names],
-          });
+          stmts.push(
+            toBatchStmt(
+              db
+                .deleteFrom('metrics')
+                .where('connector_id', '=', connectorId)
+                .where('name', 'in', names)
+                .compile(),
+            ),
+          );
         }
-        for (const m of ms) {
-          stmts.push(insertMetric(m));
+        if (ms.length > 0) {
+          stmts.push(
+            toBatchStmt(
+              db.insertInto('metrics').values(ms.map(metricRow)).compile(),
+            ),
+          );
         }
         if (stmts.length > 0) {
           await client.batch(stmts, 'write');
@@ -294,13 +360,40 @@ export class LibsqlStorage implements ServerStorage {
         );
         const stmts: { sql: string; args: InValue[] }[] = [];
         if (kinds.length > 0) {
-          stmts.push({
-            sql: `DELETE FROM edges WHERE connector_id = ? AND kind IN (${inPlaceholders(kinds.length)})`,
-            args: [connectorId, ...kinds],
-          });
+          stmts.push(
+            toBatchStmt(
+              db
+                .deleteFrom('edges')
+                .where('connector_id', '=', connectorId)
+                .where('kind', 'in', kinds)
+                .compile(),
+            ),
+          );
         }
-        for (const e of es) {
-          stmts.push(upsertEdge(e));
+        if (es.length > 0) {
+          stmts.push(
+            toBatchStmt(
+              db
+                .insertInto('edges')
+                .values(es.map(edgeRow))
+                .onConflict((oc) =>
+                  oc
+                    .columns([
+                      'connector_id',
+                      'from_type',
+                      'from_id',
+                      'kind',
+                      'to_type',
+                      'to_id',
+                    ])
+                    .doUpdateSet({
+                      attributes: (eb) => eb.ref('excluded.attributes'),
+                      updated_at: (eb) => eb.ref('excluded.updated_at'),
+                    }),
+                )
+                .compile(),
+            ),
+          );
         }
         if (stmts.length > 0) {
           await client.batch(stmts, 'write');
@@ -314,13 +407,25 @@ export class LibsqlStorage implements ServerStorage {
         );
         const stmts: { sql: string; args: InValue[] }[] = [];
         if (names.length > 0) {
-          stmts.push({
-            sql: `DELETE FROM distributions WHERE connector_id = ? AND name IN (${inPlaceholders(names.length)})`,
-            args: [connectorId, ...names],
-          });
+          stmts.push(
+            toBatchStmt(
+              db
+                .deleteFrom('distributions')
+                .where('connector_id', '=', connectorId)
+                .where('name', 'in', names)
+                .compile(),
+            ),
+          );
         }
-        for (const d of ds) {
-          stmts.push(insertDistribution(d));
+        if (ds.length > 0) {
+          stmts.push(
+            toBatchStmt(
+              db
+                .insertInto('distributions')
+                .values(ds.map(distributionRow))
+                .compile(),
+            ),
+          );
         }
         if (stmts.length > 0) {
           await client.batch(stmts, 'write');
@@ -329,27 +434,23 @@ export class LibsqlStorage implements ServerStorage {
 
       queryEvents: async (q: EventQuery) => {
         await ready;
-        const conds = ['connector_id = ?'];
-        const args: InValue[] = [connectorId];
+        let qb = db
+          .selectFrom('events')
+          .select(['name', 'start_ts', 'end_ts', 'attributes'])
+          .where('connector_id', '=', connectorId);
         if (q.name !== undefined) {
-          conds.push('name = ?');
-          args.push(q.name);
+          qb = qb.where('name', '=', q.name);
         }
         if (q.start !== undefined) {
-          conds.push('start_ts >= ?');
-          args.push(q.start);
+          qb = qb.where('start_ts', '>=', q.start);
         }
         if (q.end !== undefined) {
-          conds.push('start_ts <= ?');
-          args.push(q.end);
+          qb = qb.where('start_ts', '<=', q.end);
         }
-        const result = await client.execute({
-          sql: `SELECT name, start_ts, end_ts, attributes FROM events WHERE ${conds.join(' AND ')}`,
-          args,
-        });
-        return result.rows.map(
+        const rows = await qb.execute();
+        return rows.map(
           (r): Event => ({
-            name: r.name as string,
+            name: r.name,
             start_ts: Number(r.start_ts),
             end_ts: r.end_ts === null ? null : Number(r.end_ts),
             attributes: parseJson<Attrs>(r.attributes, {}),
@@ -359,17 +460,20 @@ export class LibsqlStorage implements ServerStorage {
 
       getEntity: async (type, id) => {
         await ready;
-        const result = await client.execute({
-          sql: 'SELECT type, id, attributes, updated_at FROM entities WHERE connector_id = ? AND type = ? AND id = ? LIMIT 1',
-          args: [connectorId, type, id],
-        });
-        const r = result.rows[0];
+        const r = await db
+          .selectFrom('entities')
+          .select(['type', 'id', 'attributes', 'updated_at'])
+          .where('connector_id', '=', connectorId)
+          .where('type', '=', type)
+          .where('id', '=', id)
+          .limit(1)
+          .executeTakeFirst();
         if (!r) {
           return null;
         }
         return {
-          type: r.type as string,
-          id: r.id as string,
+          type: r.type,
+          id: r.id,
           attributes: parseJson<Attrs>(r.attributes, {}),
           updated_at: Number(r.updated_at),
         };
@@ -377,14 +481,16 @@ export class LibsqlStorage implements ServerStorage {
 
       queryEntities: async (q: EntityQuery) => {
         await ready;
-        const result = await client.execute({
-          sql: 'SELECT type, id, attributes, updated_at FROM entities WHERE connector_id = ? AND type = ?',
-          args: [connectorId, q.type],
-        });
-        return result.rows.map(
+        const rows = await db
+          .selectFrom('entities')
+          .select(['type', 'id', 'attributes', 'updated_at'])
+          .where('connector_id', '=', connectorId)
+          .where('type', '=', q.type)
+          .execute();
+        return rows.map(
           (r): Entity => ({
-            type: r.type as string,
-            id: r.id as string,
+            type: r.type,
+            id: r.id,
             attributes: parseJson<Attrs>(r.attributes, {}),
             updated_at: Number(r.updated_at),
           }),
@@ -393,27 +499,23 @@ export class LibsqlStorage implements ServerStorage {
 
       queryMetrics: async (q: MetricQuery) => {
         await ready;
-        const conds = ['connector_id = ?'];
-        const args: InValue[] = [connectorId];
+        let qb = db
+          .selectFrom('metrics')
+          .select(['name', 'ts', 'value', 'attributes'])
+          .where('connector_id', '=', connectorId);
         if (q.name !== undefined) {
-          conds.push('name = ?');
-          args.push(q.name);
+          qb = qb.where('name', '=', q.name);
         }
         if (q.start !== undefined) {
-          conds.push('ts >= ?');
-          args.push(q.start);
+          qb = qb.where('ts', '>=', q.start);
         }
         if (q.end !== undefined) {
-          conds.push('ts <= ?');
-          args.push(q.end);
+          qb = qb.where('ts', '<=', q.end);
         }
-        const result = await client.execute({
-          sql: `SELECT name, ts, value, attributes FROM metrics WHERE ${conds.join(' AND ')}`,
-          args,
-        });
-        return result.rows.map(
+        const rows = await qb.execute();
+        return rows.map(
           (r): MetricSample => ({
-            name: r.name as string,
+            name: r.name,
             ts: Number(r.ts),
             value: Number(r.value),
             attributes: parseJson<Attrs>(r.attributes, {}),
@@ -423,39 +525,41 @@ export class LibsqlStorage implements ServerStorage {
 
       traverse: async (q: EdgeQuery) => {
         await ready;
-        const conds = ['connector_id = ?'];
-        const args: InValue[] = [connectorId];
+        let qb = db
+          .selectFrom('edges')
+          .select([
+            'from_type',
+            'from_id',
+            'kind',
+            'to_type',
+            'to_id',
+            'attributes',
+            'updated_at',
+          ])
+          .where('connector_id', '=', connectorId);
         if (q.fromType !== undefined) {
-          conds.push('from_type = ?');
-          args.push(q.fromType);
+          qb = qb.where('from_type', '=', q.fromType);
         }
         if (q.fromId !== undefined) {
-          conds.push('from_id = ?');
-          args.push(q.fromId);
+          qb = qb.where('from_id', '=', q.fromId);
         }
         if (q.kind !== undefined) {
-          conds.push('kind = ?');
-          args.push(q.kind);
+          qb = qb.where('kind', '=', q.kind);
         }
         if (q.toType !== undefined) {
-          conds.push('to_type = ?');
-          args.push(q.toType);
+          qb = qb.where('to_type', '=', q.toType);
         }
         if (q.toId !== undefined) {
-          conds.push('to_id = ?');
-          args.push(q.toId);
+          qb = qb.where('to_id', '=', q.toId);
         }
-        const result = await client.execute({
-          sql: `SELECT from_type, from_id, kind, to_type, to_id, attributes, updated_at FROM edges WHERE ${conds.join(' AND ')}`,
-          args,
-        });
-        return result.rows.map(
+        const rows = await qb.execute();
+        return rows.map(
           (r): Edge => ({
-            from_type: r.from_type as string,
-            from_id: r.from_id as string,
-            kind: r.kind as string,
-            to_type: r.to_type as string,
-            to_id: r.to_id as string,
+            from_type: r.from_type,
+            from_id: r.from_id,
+            kind: r.kind,
+            to_type: r.to_type,
+            to_id: r.to_id,
             attributes: parseJson<Attrs>(r.attributes, {}),
             updated_at: Number(r.updated_at),
           }),
@@ -464,64 +568,71 @@ export class LibsqlStorage implements ServerStorage {
 
       queryDistributions: async (q: DistributionQuery) => {
         await ready;
-        const conds = ['connector_id = ?'];
-        const args: InValue[] = [connectorId];
+        let qb = db
+          .selectFrom('distributions')
+          .select(['name', 'ts', 'kind', 'data', 'attributes'])
+          .where('connector_id', '=', connectorId);
         if (q.name !== undefined) {
-          conds.push('name = ?');
-          args.push(q.name);
+          qb = qb.where('name', '=', q.name);
         }
         if (q.start !== undefined) {
-          conds.push('ts >= ?');
-          args.push(q.start);
+          qb = qb.where('ts', '>=', q.start);
         }
         if (q.end !== undefined) {
-          conds.push('ts <= ?');
-          args.push(q.end);
+          qb = qb.where('ts', '<=', q.end);
         }
-        const result = await client.execute({
-          sql: `SELECT name, ts, kind, data, attributes FROM distributions WHERE ${conds.join(' AND ')}`,
-          args,
-        });
-        return result.rows.map((r) => {
+        const rows = await qb.execute();
+        return rows.map((r) => {
           const base = {
-            name: r.name as string,
+            name: r.name,
             ts: Number(r.ts),
             attributes: parseJson<Attrs>(r.attributes, {}),
           };
-          const kind = r.kind as string;
           const data = parseJson<Distribution['data']>(r.data, {
             count: 0,
             sum: 0,
           } as unknown as Distribution['data']);
-          if (kind === 'histogram') {
+          if (r.kind === 'histogram') {
             return { ...base, kind: 'histogram', data } as Distribution;
           }
-          if (kind === 'summary') {
+          if (r.kind === 'summary') {
             return { ...base, kind: 'summary', data } as Distribution;
           }
           throw new Error(
-            `Unknown distribution kind: ${kind} (name=${base.name})`,
+            `Unknown distribution kind: ${r.kind} (name=${base.name})`,
           );
         });
       },
 
       deleteOlderThan: async (shape, tsUnixMs) => {
         await ready;
-        const tsCol = shape === 'events' ? 'start_ts' : 'ts';
-        if (
-          shape !== 'events' &&
-          shape !== 'metrics' &&
-          shape !== 'distributions'
-        ) {
-          throw new Error(
-            `Unsupported shape for deleteOlderThan: ${String(shape)}`,
-          );
+        if (shape === 'events') {
+          const r = await db
+            .deleteFrom('events')
+            .where('connector_id', '=', connectorId)
+            .where('start_ts', '<', tsUnixMs)
+            .executeTakeFirst();
+          return { rowsDeleted: Number(r.numDeletedRows) };
         }
-        const result = await client.execute({
-          sql: `DELETE FROM ${shape} WHERE connector_id = ? AND ${tsCol} < ?`,
-          args: [connectorId, tsUnixMs],
-        });
-        return { rowsDeleted: result.rowsAffected };
+        if (shape === 'metrics') {
+          const r = await db
+            .deleteFrom('metrics')
+            .where('connector_id', '=', connectorId)
+            .where('ts', '<', tsUnixMs)
+            .executeTakeFirst();
+          return { rowsDeleted: Number(r.numDeletedRows) };
+        }
+        if (shape === 'distributions') {
+          const r = await db
+            .deleteFrom('distributions')
+            .where('connector_id', '=', connectorId)
+            .where('ts', '<', tsUnixMs)
+            .executeTakeFirst();
+          return { rowsDeleted: Number(r.numDeletedRows) };
+        }
+        throw new Error(
+          `Unsupported shape for deleteOlderThan: ${String(shape)}`,
+        );
       },
     };
   }
@@ -531,43 +642,52 @@ export class LibsqlStorage implements ServerStorage {
       return { status: 'error', lastSyncAt: null, lastError: this.initError };
     }
     await this.ready;
-    const result = await this.client.execute({
-      sql: 'SELECT status, last_sync_at, last_error FROM sync_state WHERE id = ? LIMIT 1',
-      args: [SYNC_STATE_ID],
-    });
-    const r = result.rows[0];
+    const r = await this.db
+      .selectFrom('sync_state')
+      .select(['status', 'last_sync_at', 'last_error'])
+      .where('id', '=', SYNC_STATE_ID)
+      .limit(1)
+      .executeTakeFirst();
     if (!r) {
       return { status: 'idle', lastSyncAt: null, lastError: null };
     }
     return {
       status: r.status as SyncState['status'],
-      lastSyncAt: r.last_sync_at as string | null,
-      lastError: r.last_error as string | null,
+      lastSyncAt: r.last_sync_at,
+      lastError: r.last_error,
     };
   }
 
   async setSyncing(): Promise<boolean> {
     await this.ready;
-    const result = await this.client.execute({
-      sql: "UPDATE sync_state SET status = 'syncing' WHERE id = ? AND status != 'syncing'",
-      args: [SYNC_STATE_ID],
-    });
-    return result.rowsAffected > 0;
+    const r = await this.db
+      .updateTable('sync_state')
+      .set({ status: 'syncing' })
+      .where('id', '=', SYNC_STATE_ID)
+      .where('status', '!=', 'syncing')
+      .executeTakeFirst();
+    return Number(r.numUpdatedRows) > 0;
   }
 
   async setSyncSuccess(): Promise<void> {
     await this.ready;
-    await this.client.execute({
-      sql: "UPDATE sync_state SET status = 'idle', last_sync_at = ?, last_error = NULL WHERE id = ?",
-      args: [new Date().toISOString(), SYNC_STATE_ID],
-    });
+    await this.db
+      .updateTable('sync_state')
+      .set({
+        status: 'idle',
+        last_sync_at: new Date().toISOString(),
+        last_error: null,
+      })
+      .where('id', '=', SYNC_STATE_ID)
+      .execute();
   }
 
   async setSyncError(error: string): Promise<void> {
     await this.ready;
-    await this.client.execute({
-      sql: "UPDATE sync_state SET status = 'error', last_error = ? WHERE id = ?",
-      args: [error, SYNC_STATE_ID],
-    });
+    await this.db
+      .updateTable('sync_state')
+      .set({ status: 'error', last_error: error })
+      .where('id', '=', SYNC_STATE_ID)
+      .execute();
   }
 }
