@@ -6,7 +6,7 @@ import type { ServerStorage } from './server-storage';
 export async function resolveWidget(
   id: string,
   widget: Widget,
-  connectors: ConnectorEntry[],
+  connectors: ConnectorEntry[] | readonly string[] | undefined,
   storage: ServerStorage,
 ): Promise<WidgetEntry | undefined> {
   if (widget.kind === 'status') {
@@ -19,8 +19,10 @@ export async function resolveWidget(
     };
   }
   const { connectorId } = widget.metric;
-  const connectorEntry = connectors.find((e) => e.connector.id === connectorId);
-  if (!connectorEntry) {
+  if (
+    connectors !== undefined &&
+    !isAllowedConnector(connectors, connectorId)
+  ) {
     return undefined;
   }
   const handle = storage.getStorageHandle(connectorId);
@@ -32,4 +34,19 @@ export async function resolveWidget(
     data,
     cachedAt: (await storage.getSyncState()).lastSyncAt,
   };
+}
+
+function isAllowedConnector(
+  connectors: ConnectorEntry[] | readonly string[],
+  connectorId: string,
+): boolean {
+  if (connectors.length === 0) {
+    return false;
+  }
+  if (typeof connectors[0] === 'string') {
+    return (connectors as readonly string[]).includes(connectorId);
+  }
+  return (connectors as ConnectorEntry[]).some(
+    (e) => e.connector.id === connectorId,
+  );
 }
