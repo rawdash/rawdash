@@ -21,6 +21,25 @@ async function readAppliedTags(client: Client): Promise<Set<string>> {
   return new Set(result.rows.map((r) => String(r['tag'])));
 }
 
+export async function migrateIfNeeded(client: Client): Promise<void> {
+  const latest = MIGRATIONS[MIGRATIONS.length - 1];
+  if (latest === undefined) {
+    return;
+  }
+  try {
+    const result = await client.execute({
+      sql: `SELECT 1 FROM ${SCHEMA_MIGRATIONS_TABLE} WHERE tag = ? LIMIT 1`,
+      args: [latest.tag],
+    });
+    if (result.rows.length > 0) {
+      return;
+    }
+  } catch {
+    // schema_migrations table doesn't exist yet — fall through to apply.
+  }
+  await applyMigrations(client);
+}
+
 export async function applyMigrations(client: Client): Promise<void> {
   const hadSchemaTable = await tableExists(client, SCHEMA_MIGRATIONS_TABLE);
 
