@@ -218,6 +218,53 @@ describe('defineConfig validation', () => {
     ).toThrow(/Widget "w" \(kind "stat"\): Invalid option/);
   });
 
+  it('allows fn: "count" without a field', () => {
+    expect(() =>
+      defineConfig({
+        connectors: [{ connector }],
+        dashboards: {
+          main: defineDashboard({
+            widgets: {
+              w: {
+                kind: 'stat',
+                title: 'W',
+                metric: {
+                  connectorId: 'c',
+                  shape: 'entity',
+                  name: 'pull_request',
+                  fn: 'count',
+                },
+              },
+            },
+          }),
+        },
+      }),
+    ).not.toThrow();
+  });
+
+  it('throws for non-count fn without a field', () => {
+    expect(() =>
+      defineConfig({
+        connectors: [{ connector }],
+        dashboards: {
+          main: defineDashboard({
+            widgets: {
+              w: {
+                kind: 'stat',
+                title: 'W',
+                metric: {
+                  connectorId: 'c',
+                  shape: 'event',
+                  fn: 'sum',
+                },
+              },
+            },
+          }),
+        },
+      }),
+    ).toThrow(/field is required unless fn is "count"/);
+  });
+
   it('throws for dashboard key with URL-unsafe characters', () => {
     expect(() =>
       defineConfig({

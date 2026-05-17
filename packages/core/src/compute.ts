@@ -106,11 +106,14 @@ function truncateToGranularity(ts: number, granularity: string): string {
 
 function computeAgg(
   records: Record<string, unknown>[],
-  field: string,
+  field: string | undefined,
   fn: string,
 ): unknown {
   if (fn === 'count') {
     return records.length;
+  }
+  if (field === undefined) {
+    throw new Error(`computeAgg: fn "${fn}" requires a field`);
   }
   if (fn === 'latest') {
     return records.at(-1)?.[field] ?? null;
