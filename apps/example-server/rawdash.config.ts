@@ -1,4 +1,5 @@
-import { TursoStorage } from '@rawdash/adapter-turso';
+import { createClient } from '@libsql/client';
+import { LibsqlStorage } from '@rawdash/adapter-libsql';
 import { GitHubActionsConnector } from '@rawdash/connector-github';
 import {
   defineConfig,
@@ -33,9 +34,11 @@ const github = new GitHubActionsConnector(
   },
 );
 
-const storage = new TursoStorage({
-  url: process.env['TURSO_URL'] ?? 'file:rawdash.db',
-  authToken: process.env['TURSO_AUTH_TOKEN'],
+const storage = new LibsqlStorage({
+  client: createClient({
+    url: process.env['TURSO_URL'] ?? 'file:rawdash.db',
+    authToken: process.env['TURSO_AUTH_TOKEN'],
+  }),
 });
 
 serve(

@@ -1,7 +1,4 @@
 import type { Client, InValue } from '@libsql/client/web';
-import { type CompiledQuery, type Insertable, Kysely } from 'kysely';
-import { LibsqlDialect } from 'kysely-libsql';
-
 import type {
   Distribution,
   DistributionQuery,
@@ -14,86 +11,28 @@ import type {
   JSONValue,
   MetricQuery,
   MetricSample,
+  ServerStorage,
   StorageHandle,
-} from './connector';
+  SyncState,
+} from '@rawdash/core';
+import { type CompiledQuery, type Insertable, Kysely } from 'kysely';
+import { LibsqlDialect } from 'kysely-libsql';
+
 import type {
   Database,
   EdgesTable,
   EntitiesTable,
   EventsTable,
   MetricsTable,
-} from './db/schema';
-import type { SyncState } from './engine';
-import type { ServerStorage } from './server-storage';
+} from './db-schema';
+import { applyMigrations } from './migrations';
 
 type Attrs = Record<string, JSONValue>;
 
 const SYNC_STATE_ID = 1;
 
-const CREATE_TABLES_SQL = [
-  `CREATE TABLE IF NOT EXISTS events (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    connector_id TEXT NOT NULL,
-    name TEXT NOT NULL,
-    start_ts INTEGER NOT NULL,
-    end_ts INTEGER,
-    attributes TEXT NOT NULL DEFAULT '{}'
-  )`,
-  `CREATE INDEX IF NOT EXISTS events_conn_name_start ON events (connector_id, name, start_ts)`,
-  `CREATE TABLE IF NOT EXISTS entities (
-    connector_id TEXT NOT NULL,
-    type TEXT NOT NULL,
-    id TEXT NOT NULL,
-    attributes TEXT NOT NULL DEFAULT '{}',
-    updated_at INTEGER NOT NULL,
-    PRIMARY KEY (connector_id, type, id)
-  )`,
-  `CREATE INDEX IF NOT EXISTS entities_conn_type ON entities (connector_id, type)`,
-  `CREATE TABLE IF NOT EXISTS metrics (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    connector_id TEXT NOT NULL,
-    name TEXT NOT NULL,
-    ts INTEGER NOT NULL,
-    value REAL NOT NULL,
-    attributes TEXT NOT NULL DEFAULT '{}'
-  )`,
-  `CREATE INDEX IF NOT EXISTS metrics_conn_name_ts ON metrics (connector_id, name, ts)`,
-  `CREATE TABLE IF NOT EXISTS edges (
-    connector_id TEXT NOT NULL,
-    from_type TEXT NOT NULL,
-    from_id TEXT NOT NULL,
-    kind TEXT NOT NULL,
-    to_type TEXT NOT NULL,
-    to_id TEXT NOT NULL,
-    attributes TEXT NOT NULL DEFAULT '{}',
-    updated_at INTEGER NOT NULL,
-    PRIMARY KEY (connector_id, from_type, from_id, kind, to_type, to_id)
-  )`,
-  `CREATE INDEX IF NOT EXISTS edges_conn_kind ON edges (connector_id, kind)`,
-  `CREATE INDEX IF NOT EXISTS edges_conn_from ON edges (connector_id, from_type, from_id)`,
-  `CREATE INDEX IF NOT EXISTS edges_conn_to ON edges (connector_id, to_type, to_id)`,
-  `CREATE TABLE IF NOT EXISTS distributions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    connector_id TEXT NOT NULL,
-    name TEXT NOT NULL,
-    ts INTEGER NOT NULL,
-    kind TEXT NOT NULL,
-    data TEXT NOT NULL,
-    attributes TEXT NOT NULL DEFAULT '{}'
-  )`,
-  `CREATE INDEX IF NOT EXISTS distributions_conn_name_ts ON distributions (connector_id, name, ts)`,
-  `CREATE TABLE IF NOT EXISTS sync_state (
-    id INTEGER PRIMARY KEY,
-    status TEXT NOT NULL,
-    last_sync_at TEXT,
-    last_error TEXT
-  )`,
-];
-
 export async function initLibsqlSchema(client: Client): Promise<void> {
-  for (const stmt of CREATE_TABLES_SQL) {
-    await client.execute(stmt);
-  }
+  await applyMigrations(client);
   await client.execute({
     sql: "INSERT OR IGNORE INTO sync_state (id, status, last_sync_at, last_error) VALUES (?, 'idle', NULL, NULL)",
     args: [SYNC_STATE_ID],
@@ -689,5 +628,10 @@ export class LibsqlStorage implements ServerStorage {
       .set({ status: 'error', last_error: error })
       .where('id', '=', SYNC_STATE_ID)
       .execute();
+  }
+
+  async close(): Promise<void> {
+    await this.ready.catch(() => undefined);
+    this.client.close();
   }
 }

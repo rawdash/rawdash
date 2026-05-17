@@ -6,7 +6,7 @@
 '@rawdash/mcp': minor
 '@rawdash/cli': minor
 '@rawdash/connector-github': minor
-'@rawdash/adapter-turso': minor
+'@rawdash/adapter-libsql': minor
 ---
 
 Rename public API types/interfaces/classes for clearer framework ergonomics. Drops noisy suffixes like `Ref`, `Entry`, `Def`, `Response`, and disambiguates several `Metric`-related types.

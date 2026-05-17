@@ -1,14 +1,20 @@
+import { type Client, createClient } from '@libsql/client';
 import { describe, expect, it } from 'vitest';
 
-import { TursoStorage } from './turso-storage';
+import { LibsqlStorage } from './libsql-storage';
 
-function makeStorage(): TursoStorage {
-  return new TursoStorage({ url: ':memory:' });
+function makeStorage(url = ':memory:'): {
+  storage: LibsqlStorage;
+  client: Client;
+} {
+  const client = createClient({ url });
+  const storage = new LibsqlStorage({ client });
+  return { storage, client };
 }
 
-describe('TursoStorage — events', () => {
+describe('LibsqlStorage — events', () => {
   it('appends via event() and filters by name', async () => {
-    const s = makeStorage();
+    const { storage: s } = makeStorage();
     const h = s.getStorageHandle('c');
     await h.event({
       name: 'run',
@@ -29,7 +35,7 @@ describe('TursoStorage — events', () => {
   });
 
   it('batch replaces only scoped names', async () => {
-    const s = makeStorage();
+    const { storage: s } = makeStorage();
     const h = s.getStorageHandle('c');
     await h.events([
       { name: 'run', start_ts: 1000, end_ts: null, attributes: {} },
@@ -47,7 +53,7 @@ describe('TursoStorage — events', () => {
   });
 
   it('filters events by start window', async () => {
-    const s = makeStorage();
+    const { storage: s } = makeStorage();
     const h = s.getStorageHandle('c');
     await h.events([
       { name: 'e', start_ts: 1000, end_ts: null, attributes: {} },
@@ -60,9 +66,9 @@ describe('TursoStorage — events', () => {
   });
 });
 
-describe('TursoStorage — entities', () => {
+describe('LibsqlStorage — entities', () => {
   it('upserts via entity() by natural key', async () => {
-    const s = makeStorage();
+    const { storage: s } = makeStorage();
     const h = s.getStorageHandle('c');
     await h.entity({
       type: 'pr',
@@ -83,7 +89,7 @@ describe('TursoStorage — entities', () => {
   });
 
   it('entities() replaces types in batch, preserves others', async () => {
-    const s = makeStorage();
+    const { storage: s } = makeStorage();
     const h = s.getStorageHandle('c');
     await h.entity({
       type: 'user',
@@ -106,7 +112,7 @@ describe('TursoStorage — entities', () => {
   });
 
   it('getEntity returns null for missing', async () => {
-    const s = makeStorage();
+    const { storage: s } = makeStorage();
     const h = s.getStorageHandle('c');
     await h.entity({
       type: 'pr',
@@ -120,9 +126,9 @@ describe('TursoStorage — entities', () => {
   });
 });
 
-describe('TursoStorage — metrics', () => {
+describe('LibsqlStorage — metrics', () => {
   it('replaces metrics() by name', async () => {
-    const s = makeStorage();
+    const { storage: s } = makeStorage();
     const h = s.getStorageHandle('c');
     await h.metrics([
       { name: 'spend', ts: 1000, value: 10, attributes: {} },
@@ -138,9 +144,9 @@ describe('TursoStorage — metrics', () => {
   });
 });
 
-describe('TursoStorage — edges', () => {
+describe('LibsqlStorage — edges', () => {
   it('upserts edge by natural key', async () => {
-    const s = makeStorage();
+    const { storage: s } = makeStorage();
     const h = s.getStorageHandle('c');
     const base = {
       from_type: 'pr',
@@ -159,7 +165,7 @@ describe('TursoStorage — edges', () => {
   });
 
   it('edges() scoped delete by kind preserves other kinds', async () => {
-    const s = makeStorage();
+    const { storage: s } = makeStorage();
     const h = s.getStorageHandle('c');
     await h.edges([
       {
@@ -198,9 +204,9 @@ describe('TursoStorage — edges', () => {
   });
 });
 
-describe('TursoStorage — distributions', () => {
+describe('LibsqlStorage — distributions', () => {
   it('round-trips histogram and summary', async () => {
-    const s = makeStorage();
+    const { storage: s } = makeStorage();
     const h = s.getStorageHandle('c');
     await h.distributions([
       {
@@ -230,9 +236,9 @@ describe('TursoStorage — distributions', () => {
   });
 });
 
-describe('TursoStorage — deleteOlderThan (events)', () => {
+describe('LibsqlStorage — deleteOlderThan (events)', () => {
   it('deletes events with start_ts strictly less than threshold', async () => {
-    const s = makeStorage();
+    const { storage: s } = makeStorage();
     const h = s.getStorageHandle('c');
     await h.events([
       { name: 'e', start_ts: 1000, end_ts: null, attributes: {} },
@@ -248,7 +254,7 @@ describe('TursoStorage — deleteOlderThan (events)', () => {
   });
 
   it('returns zero when nothing is old enough', async () => {
-    const s = makeStorage();
+    const { storage: s } = makeStorage();
     const h = s.getStorageHandle('c');
     await h.event({ name: 'e', start_ts: 5000, end_ts: null, attributes: {} });
     const { rowsDeleted } = await h.deleteOlderThan('events', 1000);
@@ -258,7 +264,7 @@ describe('TursoStorage — deleteOlderThan (events)', () => {
   });
 
   it('is scoped to the connector — does not delete other connectors rows', async () => {
-    const s = makeStorage();
+    const { storage: s } = makeStorage();
     const h1 = s.getStorageHandle('c1');
     const h2 = s.getStorageHandle('c2');
     await h1.event({ name: 'e', start_ts: 500, end_ts: null, attributes: {} });
@@ -270,9 +276,9 @@ describe('TursoStorage — deleteOlderThan (events)', () => {
   });
 });
 
-describe('TursoStorage — deleteOlderThan (metrics)', () => {
+describe('LibsqlStorage — deleteOlderThan (metrics)', () => {
   it('deletes metrics with ts strictly less than threshold', async () => {
-    const s = makeStorage();
+    const { storage: s } = makeStorage();
     const h = s.getStorageHandle('c');
     await h.metrics([
       { name: 'm', ts: 100, value: 1, attributes: {} },
@@ -288,9 +294,9 @@ describe('TursoStorage — deleteOlderThan (metrics)', () => {
   });
 });
 
-describe('TursoStorage — deleteOlderThan (distributions)', () => {
+describe('LibsqlStorage — deleteOlderThan (distributions)', () => {
   it('deletes distributions with ts strictly less than threshold', async () => {
-    const s = makeStorage();
+    const { storage: s } = makeStorage();
     const h = s.getStorageHandle('c');
     await h.distributions([
       {
@@ -324,9 +330,9 @@ describe('TursoStorage — deleteOlderThan (distributions)', () => {
   });
 });
 
-describe('TursoStorage — isolation + sync state', () => {
+describe('LibsqlStorage — isolation + sync state', () => {
   it('isolates connectors', async () => {
-    const s = makeStorage();
+    const { storage: s } = makeStorage();
     const h1 = s.getStorageHandle('c1');
     const h2 = s.getStorageHandle('c2');
     await h1.event({
@@ -341,17 +347,17 @@ describe('TursoStorage — isolation + sync state', () => {
 
   it('sync state is durable across storage instances sharing a file', async () => {
     const tmp = `/tmp/rawdash-sync-${Date.now()}-${Math.random()}.db`;
-    const s1 = new TursoStorage({ url: `file:${tmp}` });
+    const { storage: s1 } = makeStorage(`file:${tmp}`);
     expect(await s1.setSyncing()).toBe(true);
     await s1.close();
-    const s2 = new TursoStorage({ url: `file:${tmp}` });
+    const { storage: s2 } = makeStorage(`file:${tmp}`);
     expect((await s2.getSyncState()).status).toBe('syncing');
     expect(await s2.setSyncing()).toBe(false);
     await s2.close();
   });
 
   it('tracks sync lifecycle with durable CAS lock', async () => {
-    const s = makeStorage();
+    const { storage: s } = makeStorage();
     expect((await s.getSyncState()).status).toBe('idle');
     expect(await s.setSyncing()).toBe(true);
     expect((await s.getSyncState()).status).toBe('syncing');

@@ -1,13 +1,13 @@
 {
-  "name": "@rawdash/adapter-turso",
+  "name": "@rawdash/adapter-libsql",
   "version": "0.3.0",
-  "description": "Rawdash Turso/libsql adapter",
+  "description": "Rawdash libSQL/Turso storage adapter",
   "license": "Apache-2.0",
   "type": "module",
   "repository": {
     "type": "git",
     "url": "https://github.com/rawdash/rawdash.git",
-    "directory": "packages/adapters/turso"
+    "directory": "packages/adapters/libsql"
   },
   "files": [
     "dist",
@@ -27,16 +27,21 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
     "test": "vitest run",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate && node scripts/inline-migrations.mjs"
   },
   "dependencies": {
-    "@libsql/client": "^0.17.0",
     "@rawdash/core": "workspace:*",
-    "drizzle-orm": "^0.38.4"
+    "kysely": "^0.29.0",
+    "kysely-libsql": "^0.7.0"
+  },
+  "peerDependencies": {
+    "@libsql/client": ">=0.14.0 <1.0.0"
   },
   "devDependencies": {
+    "@libsql/client": "^0.17.0",
     "@types/node": "^22.19.17",
     "drizzle-kit": "^0.31.10",
+    "drizzle-orm": "^0.38.4",
     "tsup": "^8.0.0",
     "typescript": "^5.7.2",
     "vitest": "^4.1.4"
