@@ -1,4 +1,4 @@
-import { type DashboardConfig, toCloudConfig } from '@rawdash/core';
+import { type DashboardConfig, toWireConfig } from '@rawdash/core';
 
 import { getEnv } from './env';
 
@@ -75,7 +75,7 @@ export async function postConfig(
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey ?? ''}`,
       },
-      body: JSON.stringify(toCloudConfig(config)),
+      body: JSON.stringify(toWireConfig(config)),
       signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
     });
   } catch (err) {

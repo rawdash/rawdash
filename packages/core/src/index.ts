@@ -88,15 +88,11 @@ export type { ServerStorage } from './server-storage';
 
 export { InMemoryStorage } from './in-memory-storage';
 
-export type {
-  CloudConfig,
-  CloudConnector,
-  CloudDashboard,
-} from './cloud-config';
+export type { WireConfig, WireConnector, WireDashboard } from './wire-config';
 
 export {
-  cloudConfigSchema,
-  cloudConnectorSchema,
-  cloudDashboardSchema,
-  toCloudConfig,
-} from './cloud-config';
+  toWireConfig,
+  wireConfigSchema,
+  wireConnectorSchema,
+  wireDashboardSchema,
+} from './wire-config';
