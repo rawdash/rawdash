@@ -1,4 +1,4 @@
-import type { CachedWidgetResponse } from '@rawdash/nextjs';
+import type { CachedWidgetData } from '@rawdash/nextjs';
 
 import { StatWidget } from './stat-widget';
 import { StatusWidget } from './status-widget';
@@ -46,7 +46,7 @@ function toTimeseriesEntries(
 }
 
 interface WidgetCardProps {
-  widget: CachedWidgetResponse;
+  widget: CachedWidgetData;
 }
 
 export function WidgetCard({ widget }: WidgetCardProps) {

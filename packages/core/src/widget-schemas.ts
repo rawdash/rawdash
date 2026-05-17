@@ -44,7 +44,7 @@ export const groupBySchema = z.object({
   granularity: z.enum(['hour', 'day', 'week', 'month']),
 });
 
-export const resolvedMetricSchema = z
+export const computedMetricSchema = z
   .object({
     connectorId: z.string(),
     shape: shapeSchema,
@@ -68,9 +68,9 @@ const titleField = z
 export const statWidgetSchema = z.object({
   kind: z.literal('stat'),
   title: titleField,
-  metric: resolvedMetricSchema.meta({
+  metric: computedMetricSchema.meta({
     label: 'Metric',
-    description: 'Resolved metric definition.',
+    description: 'Computed metric definition.',
   }),
   window: z
     .string()
@@ -94,9 +94,9 @@ export const statusWidgetSchema = z.object({
 export const timeseriesWidgetSchema = z.object({
   kind: z.literal('timeseries'),
   title: titleField,
-  metric: resolvedMetricSchema.meta({
+  metric: computedMetricSchema.meta({
     label: 'Metric',
-    description: 'Resolved metric definition.',
+    description: 'Computed metric definition.',
   }),
   window: z
     .string()
@@ -110,9 +110,9 @@ export const timeseriesWidgetSchema = z.object({
 export const distributionWidgetSchema = z.object({
   kind: z.literal('distribution'),
   title: titleField,
-  metric: resolvedMetricSchema.meta({
+  metric: computedMetricSchema.meta({
     label: 'Metric',
-    description: 'Resolved metric definition.',
+    description: 'Computed metric definition.',
   }),
   window: z
     .string()

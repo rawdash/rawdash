@@ -16,12 +16,12 @@ export interface CloudDashboard {
   config: Record<string, unknown>;
 }
 
-export interface CloudConfigBody {
+export interface CloudConfig {
   connectors?: CloudConnector[];
   dashboards?: CloudDashboard[];
 }
 
-export function toCloudConfig(ossConfig: DashboardConfig): CloudConfigBody {
+export function toCloudConfig(ossConfig: DashboardConfig): CloudConfig {
   return {
     connectors: ossConfig.connectors.map(({ connector }) => ({
       name: connector.id,

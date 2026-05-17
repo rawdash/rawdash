@@ -2,7 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp';
 import { computeMetric } from '@rawdash/core';
 import { z } from 'zod';
 
-import type { RuntimeConfig } from '../runtime-config';
+import type { McpRuntime } from '../runtime-config';
 import type { McpServerOptions } from '../types';
 import { err } from './shared';
 
@@ -57,7 +57,7 @@ function renderStatus(
 
 export function registerRenderWidget(
   server: McpServer,
-  runtime: RuntimeConfig,
+  runtime: McpRuntime,
   storage: McpServerOptions['storage'],
 ): void {
   server.tool(

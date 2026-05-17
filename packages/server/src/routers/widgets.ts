@@ -1,27 +1,27 @@
 import type {
-  ConnectorEntry,
+  CachedWidget,
+  ConfiguredConnector,
   Dashboard,
   Widget,
-  WidgetEntry,
 } from '@rawdash/core';
 import { resolveWidget } from '@rawdash/core';
 import type { Hono } from 'hono';
 
-import type { RawdashRouter } from '../router';
+import type { RouterMount } from '../router';
 import type { ServerStorage } from '../types';
 
-export class WidgetsRouter implements RawdashRouter {
+export class WidgetsRouter implements RouterMount {
   constructor(
     private dashboardId: string,
     private dashboard: Dashboard,
-    private connectors: ConnectorEntry[],
+    private connectors: ConfiguredConnector[],
     private storage: ServerStorage,
   ) {}
 
   private resolve(
     id: string,
     widget: Widget,
-  ): Promise<WidgetEntry | undefined> {
+  ): Promise<CachedWidget | undefined> {
     return resolveWidget(id, widget, this.connectors, this.storage);
   }
 
@@ -33,7 +33,9 @@ export class WidgetsRouter implements RawdashRouter {
       const resolved = await Promise.all(
         entries.map(([key, widget]) => this.resolve(key, widget)),
       );
-      const widgets = resolved.filter((w): w is WidgetEntry => w !== undefined);
+      const widgets = resolved.filter(
+        (w): w is CachedWidget => w !== undefined,
+      );
       return c.json(widgets);
     });
 

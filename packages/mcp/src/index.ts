@@ -1,2 +1,6 @@
 export { createMcpServer } from './server';
-export type { ConnectorFactory, McpError, McpServerOptions } from './types';
+export type {
+  ConnectorFactory,
+  McpErrorPayload,
+  McpServerOptions,
+} from './types';

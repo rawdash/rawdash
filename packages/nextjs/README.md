@@ -86,7 +86,7 @@ export const rawdash = createRawdashClient(source);
 
 Next.js-aware variant of `http` from `@rawdash/client`. Adds the `'rawdash'` cache tag to all widget fetch requests so they can be invalidated with `revalidateTag('rawdash')`. Accepts the same options as `@rawdash/client`'s `http`.
 
-### `createRawdashClient(dataSource): RawdashClient`
+### `createRawdashClient(dataSource): DataSource`
 
 Wraps any `DataSource` with Next.js behavior: `triggerSync` waits for the sync to finish, then calls `revalidateTag('rawdash')` to bust Server Component caches. All other methods are passed through unchanged.
 

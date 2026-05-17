@@ -3,12 +3,12 @@ import type { DataSource, HttpOptions } from '@rawdash/client';
 import { revalidateTag } from 'next/cache';
 
 export type {
-  CachedWidgetResponse,
+  CachedWidgetData,
   DataSource,
-  HealthResponse,
+  HealthStatus,
   HttpOptions,
-  RawdashEngine,
-  SyncTriggerResponse,
+  ServerDataSource,
+  SyncResult,
 } from '@rawdash/client';
 
 const RAWDASH_CACHE_TAG = 'rawdash';
@@ -63,9 +63,7 @@ export function http(opts: HttpOptions): DataSource {
  * );
  * ```
  */
-export type RawdashClient = DataSource;
-
-export function createRawdashClient(dataSource: DataSource): RawdashClient {
+export function createRawdashClient(dataSource: DataSource): DataSource {
   return {
     getWidget: (dashboardId, widgetId) =>
       dataSource.getWidget(dashboardId, widgetId),

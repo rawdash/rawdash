@@ -1,9 +1,9 @@
 import type { Hono } from 'hono';
 
-import type { RawdashRouter } from '../router';
+import type { RouterMount } from '../router';
 import type { ServerStorage } from '../types';
 
-export class HealthRouter implements RawdashRouter {
+export class HealthRouter implements RouterMount {
   constructor(private storage: ServerStorage) {}
 
   mount(app: Hono): void {

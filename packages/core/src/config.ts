@@ -53,10 +53,10 @@ export interface GroupBy {
 }
 
 // ---------------------------------------------------------------------------
-// Metric definition
+// Metric
 // ---------------------------------------------------------------------------
 
-export interface MetricDef {
+export interface Metric {
   connector: { id: string };
   shape: Shape;
   name?: string;
@@ -68,7 +68,7 @@ export interface MetricDef {
   groupBy?: GroupBy;
 }
 
-export interface ResolvedMetric {
+export interface ComputedMetric {
   readonly connectorId: string;
   readonly shape: Shape;
   readonly name?: string;
@@ -87,7 +87,7 @@ export interface ResolvedMetric {
 export interface StatWidget {
   kind: 'stat';
   title: string;
-  metric: ResolvedMetric;
+  metric: ComputedMetric;
   window?: string;
   compare?: 'none' | 'previous-period';
 }
@@ -101,7 +101,7 @@ export interface StatusWidget {
 export interface TimeseriesWidget {
   kind: 'timeseries';
   title: string;
-  metric: ResolvedMetric;
+  metric: ComputedMetric;
   window: string;
   granularity?: 'hour' | 'day' | 'week';
 }
@@ -109,7 +109,7 @@ export interface TimeseriesWidget {
 export interface DistributionWidget {
   kind: 'distribution';
   title: string;
-  metric: ResolvedMetric;
+  metric: ComputedMetric;
   window: string;
 }
 
@@ -125,7 +125,7 @@ export type { WidgetKind };
 // Dashboard config
 // ---------------------------------------------------------------------------
 
-export interface ConnectorEntry {
+export interface ConfiguredConnector {
   connector: Connector;
 }
 
@@ -134,7 +134,7 @@ export interface Dashboard {
 }
 
 export interface DashboardConfig {
-  connectors: ConnectorEntry[];
+  connectors: ConfiguredConnector[];
   dashboards: Record<string, Dashboard>;
   retention?: RetentionConfig;
 }
@@ -169,7 +169,7 @@ export function defineDashboard(options: {
 // defineMetric
 // ---------------------------------------------------------------------------
 
-export function defineMetric(options: MetricDef): ResolvedMetric {
+export function defineMetric(options: Metric): ComputedMetric {
   return {
     connectorId: options.connector.id,
     shape: options.shape,

@@ -1,7 +1,7 @@
 export type {
   Connector,
-  CredentialEntry,
-  CredentialSchema,
+  CredentialField,
+  CredentialsSchema,
   InferCredentialInput,
   Distribution,
   DistributionQuery,
@@ -13,17 +13,17 @@ export type {
   EventQuery,
   InferCredentials,
   JSONValue,
-  Metric,
+  MetricSample,
   MetricQuery,
   StorageHandle,
-  SyncRequest,
+  SyncOptions,
 } from './connector';
 
 export { BaseConnector, defineConnector } from './connector';
 
 export type {
   AggFn,
-  ConnectorEntry,
+  ConfiguredConnector,
   Dashboard,
   DashboardConfig,
   DistributionWidget,
@@ -31,8 +31,8 @@ export type {
   FilterCondition,
   FilterOperator,
   GroupBy,
-  MetricDef,
-  ResolvedMetric,
+  Metric,
+  ComputedMetric,
   Shape,
   StatWidget,
   StatusWidget,
@@ -51,7 +51,7 @@ export {
   filterOperatorSchema,
   getWidgetSchema,
   groupBySchema,
-  resolvedMetricSchema,
+  computedMetricSchema,
   shapeSchema,
   statWidgetSchema,
   statusWidgetSchema,
@@ -60,18 +60,18 @@ export {
   widgetSchemas,
 } from './widget-schemas';
 
-export type { SyncState, WidgetEntry } from './engine';
+export type { SyncState, CachedWidget } from './engine';
 
-export type { RetentionCandidates, RetentionConfig } from './retention';
+export type { RetentionDeletionPlan, RetentionConfig } from './retention';
 
 export { computeRetention, selectForDeletion } from './retention';
 
-export type { SecretRef, SecretsResolver } from './secrets';
+export type { Secret, SecretsResolver } from './secrets';
 
 export {
   EnvSecretsResolver,
-  isSecretRef,
-  resolveSecretRefs,
+  isSecret,
+  resolveSecrets,
   secret,
 } from './secrets';
 

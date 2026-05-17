@@ -9,8 +9,8 @@ import type {
   Event,
   EventQuery,
   JSONValue,
-  Metric,
   MetricQuery,
+  MetricSample,
   ServerStorage,
   StorageHandle,
   SyncState,
@@ -461,7 +461,7 @@ export class TursoStorage implements ServerStorage {
           .from(metrics)
           .where(and(...conds));
         return rows.map(
-          (r): Metric => ({
+          (r): MetricSample => ({
             name: r.name,
             ts: r.ts,
             value: r.value,

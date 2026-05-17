@@ -1,10 +1,10 @@
 import pc from 'picocolors';
 
 import type {
-  CloudConnectorEntry,
-  CloudDashboardEntry,
+  CloudConnectorRecord,
+  CloudDashboardRecord,
   ConfigDiff,
-  DiffSet,
+  Diff,
 } from './api-client';
 
 export function printDiff(diff: ConfigDiff): void {
@@ -12,11 +12,9 @@ export function printDiff(diff: ConfigDiff): void {
   printDiffSection('Dashboards', diff.dashboards, (d) => d.slug);
 }
 
-function printDiffSection<T extends CloudConnectorEntry | CloudDashboardEntry>(
-  label: string,
-  diff: DiffSet<T>,
-  getName: (t: T) => string,
-): void {
+function printDiffSection<
+  T extends CloudConnectorRecord | CloudDashboardRecord,
+>(label: string, diff: Diff<T>, getName: (t: T) => string): void {
   if (
     diff.added.length === 0 &&
     diff.modified.length === 0 &&

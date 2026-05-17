@@ -1,12 +1,12 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp';
 import { z } from 'zod';
 
-import type { RuntimeConfig } from '../runtime-config';
+import type { McpRuntime } from '../runtime-config';
 import { err, text } from './shared';
 
 export function registerListWidgets(
   server: McpServer,
-  runtime: RuntimeConfig,
+  runtime: McpRuntime,
 ): void {
   server.tool(
     'list_widgets',

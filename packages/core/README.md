@@ -68,11 +68,11 @@ Validates and returns a `Dashboard`. Widget keys must be URL-safe (`[a-zA-Z0-9_-
 
 ### `defineMetric(options)`
 
-Returns a `ResolvedMetric` that can be used in stat, timeseries, and distribution widgets.
+Returns a `ComputedMetric` that can be used in stat, timeseries, and distribution widgets.
 
 ### `secret(name)`
 
-Returns a `SecretRef` that resolves the named environment variable at runtime. Connectors that accept a `token` or API key should use this to avoid hardcoding credentials.
+Returns a `Secret` that resolves the named environment variable at runtime. Connectors that accept a `token` or API key should use this to avoid hardcoding credentials.
 
 ### `defineConnector(options)`
 

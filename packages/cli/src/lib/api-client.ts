@@ -5,13 +5,13 @@ import { getEnv } from './env';
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 
-export interface DiffSet<T> {
+export interface Diff<T> {
   added: T[];
   removed: T[];
   modified: T[];
 }
 
-export interface CloudConnectorEntry {
+export interface CloudConnectorRecord {
   name: string;
   connectorId: string;
   displayName?: string | null;
@@ -20,7 +20,7 @@ export interface CloudConnectorEntry {
   enabled?: boolean;
 }
 
-export interface CloudDashboardEntry {
+export interface CloudDashboardRecord {
   id: string;
   name: string;
   slug: string;
@@ -28,8 +28,8 @@ export interface CloudDashboardEntry {
 }
 
 export interface ConfigDiff {
-  connectors: DiffSet<CloudConnectorEntry>;
-  dashboards: DiffSet<CloudDashboardEntry>;
+  connectors: Diff<CloudConnectorRecord>;
+  dashboards: Diff<CloudDashboardRecord>;
 }
 
 export interface DeploySuccess {
@@ -46,7 +46,7 @@ export interface DeployFailure {
 
 export type DeployResult = DeploySuccess | DeployFailure;
 
-export interface SecretEntry {
+export interface CloudSecret {
   name: string;
   lastRotatedAt: string | null;
 }
@@ -143,7 +143,7 @@ export async function setSecret(name: string, value: string): Promise<void> {
   }
 }
 
-export async function listSecrets(): Promise<SecretEntry[]> {
+export async function listSecrets(): Promise<CloudSecret[]> {
   const { url, apiKey } = getEnv();
 
   let res: Response;
@@ -159,7 +159,7 @@ export async function listSecrets(): Promise<SecretEntry[]> {
   if (!res.ok) {
     await throwApiError(res);
   }
-  const body = (await res.json()) as { secrets: SecretEntry[] };
+  const body = (await res.json()) as { secrets: CloudSecret[] };
   return body.secrets;
 }
 

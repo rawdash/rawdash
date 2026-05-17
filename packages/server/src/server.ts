@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
 
-import type { RawdashRouter } from './router';
+import type { RouterMount } from './router';
 
-export function createServer(routers: RawdashRouter[]): Hono {
+export function createServer(routers: RouterMount[]): Hono {
   const app = new Hono();
   for (const router of routers) {
     router.mount(app);

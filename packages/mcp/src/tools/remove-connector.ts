@@ -1,13 +1,13 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp';
 import { z } from 'zod';
 
-import type { RuntimeConfig } from '../runtime-config';
+import type { McpRuntime } from '../runtime-config';
 import type { McpServerOptions } from '../types';
 import { err, text } from './shared';
 
 export function registerRemoveConnector(
   server: McpServer,
-  runtime: RuntimeConfig,
+  runtime: McpRuntime,
   options: Pick<McpServerOptions, 'onRemoveConnector'>,
 ): void {
   server.tool(

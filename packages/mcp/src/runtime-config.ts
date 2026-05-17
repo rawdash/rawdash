@@ -1,7 +1,11 @@
-import type { ConnectorEntry, Dashboard, DashboardConfig } from '@rawdash/core';
+import type {
+  ConfiguredConnector,
+  Dashboard,
+  DashboardConfig,
+} from '@rawdash/core';
 
-export class RuntimeConfig {
-  private connectors: ConnectorEntry[];
+export class McpRuntime {
+  private connectors: ConfiguredConnector[];
   private readonly dashboards: Record<string, Dashboard>;
 
   constructor(config: DashboardConfig) {
@@ -9,7 +13,7 @@ export class RuntimeConfig {
     this.dashboards = config.dashboards;
   }
 
-  getConnectors(): ConnectorEntry[] {
+  getConnectors(): ConfiguredConnector[] {
     return [...this.connectors];
   }
 
@@ -17,7 +21,7 @@ export class RuntimeConfig {
     return this.dashboards;
   }
 
-  addConnector(entry: ConnectorEntry): void {
+  addConnector(entry: ConfiguredConnector): void {
     if (this.connectors.some((e) => e.connector.id === entry.connector.id)) {
       throw new Error(`Connector "${entry.connector.id}" already exists`);
     }

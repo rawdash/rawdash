@@ -1,8 +1,4 @@
-import {
-  EnvSecretsResolver,
-  type SecretRef,
-  resolveSecretRefs,
-} from './secrets';
+import { EnvSecretsResolver, type Secret, resolveSecrets } from './secrets';
 
 export type JSONValue =
   | string
@@ -30,7 +26,7 @@ export interface Entity {
   updated_at: number;
 }
 
-export interface Metric {
+export interface MetricSample {
   name: string;
   ts: number;
   value: number;
@@ -112,13 +108,13 @@ export interface DistributionQuery {
 export interface StorageHandle {
   event(e: Event): Promise<void>;
   entity(e: Entity): Promise<void>;
-  metric(m: Metric): Promise<void>;
+  metric(m: MetricSample): Promise<void>;
   edge(e: Edge): Promise<void>;
   distribution(d: Distribution): Promise<void>;
 
   events(es: Event[], scope?: { names?: string[] }): Promise<void>;
   entities(es: Entity[], scope?: { types?: string[] }): Promise<void>;
-  metrics(ms: Metric[], scope?: { names?: string[] }): Promise<void>;
+  metrics(ms: MetricSample[], scope?: { names?: string[] }): Promise<void>;
   edges(es: Edge[], scope?: { kinds?: string[] }): Promise<void>;
   distributions(
     ds: Distribution[],
@@ -128,7 +124,7 @@ export interface StorageHandle {
   queryEvents(q: EventQuery): Promise<Event[]>;
   getEntity(type: string, id: string): Promise<Entity | null>;
   queryEntities(q: EntityQuery): Promise<Entity[]>;
-  queryMetrics(q: MetricQuery): Promise<Metric[]>;
+  queryMetrics(q: MetricQuery): Promise<MetricSample[]>;
   traverse(q: EdgeQuery): Promise<Edge[]>;
   queryDistributions(q: DistributionQuery): Promise<Distribution[]>;
 
@@ -147,46 +143,46 @@ export interface StorageHandle {
 // Credentials
 // ---------------------------------------------------------------------------
 
-export interface CredentialEntry {
+export interface CredentialField {
   description: string;
   auth?: 'none' | 'optional' | 'required';
 }
 
-export type CredentialSchema = Record<string, CredentialEntry>;
+export type CredentialsSchema = Record<string, CredentialField>;
 
-export type InferCredentials<TCreds extends CredentialSchema> = {
+export type InferCredentials<TCreds extends CredentialsSchema> = {
   [K in keyof TCreds]: TCreds[K] extends { auth: 'required' }
     ? string
     : string | undefined;
 };
 
-export type InferCredentialInput<TCreds extends CredentialSchema> = {
+export type InferCredentialInput<TCreds extends CredentialsSchema> = {
   [K in keyof TCreds]: TCreds[K] extends { auth: 'required' }
-    ? string | SecretRef
-    : string | SecretRef | undefined;
+    ? string | Secret
+    : string | Secret | undefined;
 };
 
 // ---------------------------------------------------------------------------
 // Sync + Connector
 // ---------------------------------------------------------------------------
 
-export interface SyncRequest {
+export interface SyncOptions {
   mode: 'full' | 'latest';
   since?: string;
 }
 
 export interface Connector {
   readonly id: string;
-  readonly credentials?: CredentialSchema;
+  readonly credentials?: CredentialsSchema;
   serializeConfig(): Record<string, unknown>;
   sync(
-    request: SyncRequest,
+    options: SyncOptions,
     storage: StorageHandle,
     signal?: AbortSignal,
   ): Promise<void>;
 }
 
-export interface RetryOptions {
+export interface RetryPolicy {
   maxAttempts?: number;
   initialDelayMs?: number;
   maxDelayMs?: number;
@@ -195,7 +191,7 @@ export interface RetryOptions {
 
 export abstract class BaseConnector<
   TSettings = unknown,
-  TCreds extends CredentialSchema = CredentialSchema,
+  TCreds extends CredentialsSchema = CredentialsSchema,
 > implements Connector {
   abstract readonly id: string;
   readonly credentials?: TCreds;
@@ -208,7 +204,7 @@ export abstract class BaseConnector<
     this.settings = settings;
     this.rawCredInput = creds;
     this.creds = creds
-      ? (resolveSecretRefs(
+      ? (resolveSecrets(
           creds,
           new EnvSecretsResolver(),
         ) as InferCredentials<TCreds>)
@@ -252,7 +248,7 @@ export abstract class BaseConnector<
     fn: (
       signal?: AbortSignal,
     ) => Promise<{ status: 'done'; value: T } | { status: 'retry' }>,
-    options?: RetryOptions,
+    options?: RetryPolicy,
   ): Promise<T | null> {
     const {
       maxAttempts = 10,
@@ -277,7 +273,7 @@ export abstract class BaseConnector<
   }
 
   abstract sync(
-    request: SyncRequest,
+    options: SyncOptions,
     storage: StorageHandle,
     signal?: AbortSignal,
   ): Promise<void>;
@@ -285,13 +281,13 @@ export abstract class BaseConnector<
 
 export function defineConnector<TSettings>() {
   return function <
-    TCreds extends CredentialSchema = Record<string, never>,
+    TCreds extends CredentialsSchema = Record<string, never>,
   >(def: {
     id: string;
     credentials?: TCreds;
     sync: (
       this: { settings: TSettings; creds: InferCredentials<TCreds> },
-      request: SyncRequest,
+      options: SyncOptions,
       storage: StorageHandle,
       signal?: AbortSignal,
     ) => Promise<void>;
@@ -308,13 +304,13 @@ export function defineConnector<TSettings>() {
       override readonly credentials = def.credentials;
 
       async sync(
-        request: SyncRequest,
+        options: SyncOptions,
         storage: StorageHandle,
         signal?: AbortSignal,
       ): Promise<void> {
         return def.sync.call(
           { settings: this.settings, creds: this.creds },
-          request,
+          options,
           storage,
           signal,
         );

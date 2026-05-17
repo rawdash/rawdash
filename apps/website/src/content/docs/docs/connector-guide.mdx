@@ -14,12 +14,12 @@ authoring a connector from scratch.
 Every connector implements the `Connector` interface from `@rawdash/core`:
 
 ```ts
-import type { Connector, SyncRequest, StorageHandle } from '@rawdash/core';
+import type { Connector, SyncOptions, StorageHandle } from '@rawdash/core';
 
 export class MyConnector implements Connector {
   readonly id = 'my-connector';
 
-  async sync(request: SyncRequest, storage: StorageHandle, signal?: AbortSignal): Promise<void> {
+  async sync(request: SyncOptions, storage: StorageHandle, signal?: AbortSignal): Promise<void> {
     // Fetch data and write to storage
   }
 }
@@ -186,7 +186,7 @@ Add a static `create` factory to your connector class so callers get
 ```ts
 static create(input: unknown): MyConnector {
   const parsed = configFields.parse(input);
-  // First arg: plain settings; second arg: credentials (SecretRef values)
+  // First arg: plain settings; second arg: credentials (Secret values)
   return new MyConnector({ baseUrl: parsed.baseUrl }, { apiKey: parsed.apiKey });
 }
 ```

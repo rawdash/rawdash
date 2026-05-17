@@ -10,8 +10,8 @@ import type {
   Event,
   EventQuery,
   JSONValue,
-  Metric,
   MetricQuery,
+  MetricSample,
   StorageHandle,
 } from './connector';
 import type { SyncState } from './engine';
@@ -160,7 +160,9 @@ export class LibsqlStorage implements ServerStorage {
       ],
     });
 
-    const insertMetric = (m: Metric): { sql: string; args: InValue[] } => ({
+    const insertMetric = (
+      m: MetricSample,
+    ): { sql: string; args: InValue[] } => ({
       sql: 'INSERT INTO metrics (connector_id, name, ts, value, attributes) VALUES (?, ?, ?, ?, ?)',
       args: [connectorId, m.name, m.ts, m.value, JSON.stringify(m.attributes)],
     });
@@ -410,7 +412,7 @@ export class LibsqlStorage implements ServerStorage {
           args,
         });
         return result.rows.map(
-          (r): Metric => ({
+          (r): MetricSample => ({
             name: r.name as string,
             ts: Number(r.ts),
             value: Number(r.value),

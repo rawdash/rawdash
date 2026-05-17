@@ -1,7 +1,7 @@
-import type { ResolvedMetric } from './config';
+import type { ComputedMetric } from './config';
 import type { StorageHandle } from './connector';
 
-type FilterClause = NonNullable<ResolvedMetric['filter']>[number];
+type FilterClause = NonNullable<ComputedMetric['filter']>[number];
 type FilterCondition = Exclude<FilterClause, { or: unknown[] }>;
 
 function matchesCondition(
@@ -43,7 +43,7 @@ function matchesCondition(
 
 function applyFilter(
   record: Record<string, unknown>,
-  filter: ResolvedMetric['filter'],
+  filter: ComputedMetric['filter'],
 ): boolean {
   if (!filter) {
     return true;
@@ -163,7 +163,7 @@ function sortByTs(
 
 function computeGroupBy(
   records: Record<string, unknown>[],
-  metric: ResolvedMetric,
+  metric: ComputedMetric,
   tsField: string,
 ): unknown {
   const { field, granularity } = metric.groupBy!;
@@ -210,7 +210,7 @@ function getTimestampField(shape: string): string {
 
 export async function computeMetric(
   storage: StorageHandle,
-  metric: ResolvedMetric,
+  metric: ComputedMetric,
 ): Promise<unknown> {
   const tsField = getTimestampField(metric.shape);
 

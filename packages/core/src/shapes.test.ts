@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import { defineConfig, defineDashboard, defineMetric } from './config';
-import type { Distribution, Edge, Entity, Event, Metric } from './connector';
+import type {
+  Distribution,
+  Edge,
+  Entity,
+  Event,
+  MetricSample,
+} from './connector';
 import { getWidgetSchema, widgetSchemas } from './widget-schemas';
 
 describe('shape types', () => {
@@ -40,8 +46,8 @@ describe('shape types', () => {
     expect(e.updated_at).toBe(1000);
   });
 
-  it('Metric has required fields', () => {
-    const m: Metric = {
+  it('MetricSample has required fields', () => {
+    const m: MetricSample = {
       name: 'ad.spend',
       ts: 1000,
       value: 99.5,

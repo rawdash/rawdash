@@ -1,9 +1,9 @@
 export type {
-  CachedWidgetResponse,
+  CachedWidgetData,
   DataSource,
-  HealthResponse,
-  RawdashEngine,
-  SyncTriggerResponse,
+  HealthStatus,
+  ServerDataSource,
+  SyncResult,
 } from './types';
 
 export { http } from './http';

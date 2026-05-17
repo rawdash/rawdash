@@ -7,8 +7,8 @@ import type {
   EntityQuery,
   Event,
   EventQuery,
-  Metric,
   MetricQuery,
+  MetricSample,
   StorageHandle,
 } from './connector';
 import type { SyncState } from './engine';
@@ -17,7 +17,7 @@ import type { ServerStorage } from './server-storage';
 export class InMemoryStorage implements ServerStorage {
   private eventStore = new Map<string, Event[]>();
   private entityStore = new Map<string, Map<string, Map<string, Entity>>>();
-  private metricStore = new Map<string, Metric[]>();
+  private metricStore = new Map<string, MetricSample[]>();
   private edgeStore = new Map<string, Edge[]>();
   private distributionStore = new Map<string, Distribution[]>();
   private syncState: SyncState = {

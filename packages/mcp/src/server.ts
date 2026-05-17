@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp';
 
-import { RuntimeConfig } from './runtime-config';
+import { McpRuntime } from './runtime-config';
 import { registerAddConnector } from './tools/add-connector';
 import { registerListConnectors } from './tools/list-connectors';
 import { registerListDashboards } from './tools/list-dashboards';
@@ -17,7 +17,7 @@ export function createMcpServer(options: McpServerOptions): McpServer {
   const { name = 'rawdash', version = '1.0.0', config, storage } = options;
 
   const server = new McpServer({ name, version });
-  const runtime = new RuntimeConfig(config);
+  const runtime = new McpRuntime(config);
   const trackedSecrets = new Set<string>();
 
   registerListDashboards(server, runtime);
