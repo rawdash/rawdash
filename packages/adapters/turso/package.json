@@ -11,7 +11,6 @@
   },
   "files": [
     "dist",
-    "drizzle",
     "README.md",
     "LICENSE"
   ],
@@ -26,8 +25,7 @@
     "build": "tsup",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
-    "test": "vitest run",
-    "db:generate": "drizzle-kit generate"
+    "test": "vitest run"
   },
   "dependencies": {
     "@libsql/client": "^0.17.0",
@@ -36,7 +34,6 @@
   },
   "devDependencies": {
     "@types/node": "^22.19.17",
-    "drizzle-kit": "^0.31.10",
     "tsup": "^8.0.0",
     "typescript": "^5.7.2",
     "vitest": "^4.1.4"

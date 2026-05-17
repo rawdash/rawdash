@@ -183,9 +183,6 @@ importers:
       '@types/node':
         specifier: ^22.19.17
         version: 22.19.17
-      drizzle-kit:
-        specifier: ^0.31.10
-        version: 0.31.10
       tsup:
         specifier: ^8.0.0
         version: 8.5.1(jiti@1.21.7)(postcss@8.5.9)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.3)
@@ -270,6 +267,12 @@ importers:
       '@libsql/client':
         specifier: ^0.17.0
         version: 0.17.3
+      drizzle-kit:
+        specifier: ^0.31.10
+        version: 0.31.10
+      drizzle-orm:
+        specifier: ^0.38.4
+        version: 0.38.4(@libsql/client@0.17.3)(@types/react@19.2.14)(kysely@0.29.2)(react@19.2.5)
       tsup:
         specifier: ^8.0.0
         version: 8.5.1(jiti@1.21.7)(postcss@8.5.9)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.3)

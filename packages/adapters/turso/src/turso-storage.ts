@@ -1,25 +1,24 @@
 import { type Client, createClient } from '@libsql/client';
-import type {
-  Distribution,
-  DistributionQuery,
-  Edge,
-  EdgeQuery,
-  Entity,
-  EntityQuery,
-  Event,
-  EventQuery,
-  JSONValue,
-  MetricQuery,
-  MetricSample,
-  ServerStorage,
-  StorageHandle,
-  SyncState,
+import {
+  type Distribution,
+  type DistributionQuery,
+  type Edge,
+  type EdgeQuery,
+  type Entity,
+  type EntityQuery,
+  type Event,
+  type EventQuery,
+  type JSONValue,
+  type MetricQuery,
+  type MetricSample,
+  type ServerStorage,
+  type StorageHandle,
+  type SyncState,
+  applyMigrations,
 } from '@rawdash/core';
 import { and, eq, gte, inArray, lt, lte } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import { type LibSQLDatabase, drizzle } from 'drizzle-orm/libsql';
-import { migrate } from 'drizzle-orm/libsql/migrator';
-import { fileURLToPath } from 'node:url';
 
 import {
   distributions,
@@ -29,8 +28,6 @@ import {
   metrics,
   syncState,
 } from './schema';
-
-const MIGRATIONS_FOLDER = fileURLToPath(new URL('../drizzle', import.meta.url));
 
 export interface TursoStorageOptions {
   url: string;
@@ -58,7 +55,7 @@ export class TursoStorage implements ServerStorage {
 
   private async init(): Promise<void> {
     try {
-      await migrate(this.db, { migrationsFolder: MIGRATIONS_FOLDER });
+      await applyMigrations(this.client);
       await this.db
         .insert(syncState)
         .values({
