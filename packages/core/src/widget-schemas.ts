@@ -70,7 +70,7 @@ export const statWidgetSchema = z.object({
   title: titleField,
   metric: computedMetricSchema.meta({
     label: 'Metric',
-    description: 'Resolved metric definition.',
+    description: 'Computed metric definition.',
   }),
   window: z
     .string()
@@ -96,7 +96,7 @@ export const timeseriesWidgetSchema = z.object({
   title: titleField,
   metric: computedMetricSchema.meta({
     label: 'Metric',
-    description: 'Resolved metric definition.',
+    description: 'Computed metric definition.',
   }),
   window: z
     .string()
@@ -112,7 +112,7 @@ export const distributionWidgetSchema = z.object({
   title: titleField,
   metric: computedMetricSchema.meta({
     label: 'Metric',
-    description: 'Resolved metric definition.',
+    description: 'Computed metric definition.',
   }),
   window: z
     .string()
