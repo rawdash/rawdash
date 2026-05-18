@@ -149,7 +149,7 @@ describe('defineConfig validation', () => {
     id: 'c',
     credentials: undefined,
     serializeConfig: () => ({}),
-    sync: async () => {},
+    sync: async () => ({ done: true }),
   };
 
   it('throws if connector not listed', () => {

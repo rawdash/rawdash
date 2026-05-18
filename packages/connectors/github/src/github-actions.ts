@@ -2,7 +2,7 @@ import {
   type HttpRequest,
   type HttpResponse,
   githubRateLimit,
-  paginateLink,
+  parseLinkHeader,
   request,
 } from '@rawdash/connector-shared';
 import {
@@ -10,6 +10,7 @@ import {
   type CredentialsSchema,
   type StorageHandle,
   type SyncOptions,
+  type SyncResult,
   defineConfigFields,
 } from '@rawdash/core';
 import { z } from 'zod';
@@ -128,6 +129,49 @@ const githubCredentials = {
 
 type GitHubCredentials = typeof githubCredentials;
 
+type GitHubSyncPhase =
+  | 'repo_stats'
+  | 'workflow_runs'
+  | 'pull_requests'
+  | 'issues'
+  | 'deployments'
+  | 'releases'
+  | 'contributors';
+
+interface GitHubSyncCursor {
+  phase: GitHubSyncPhase;
+  pageUrl?: string;
+}
+
+const PHASE_ORDER: readonly GitHubSyncPhase[] = [
+  'repo_stats',
+  'workflow_runs',
+  'pull_requests',
+  'issues',
+  'deployments',
+  'releases',
+  'contributors',
+];
+
+type PhaseResult = { done: true } | { done: false; pageUrl: string };
+
+function isGitHubSyncCursor(value: unknown): value is GitHubSyncCursor {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const v = value as { phase?: unknown; pageUrl?: unknown };
+  if (typeof v.phase !== 'string') {
+    return false;
+  }
+  if (!(PHASE_ORDER as readonly string[]).includes(v.phase)) {
+    return false;
+  }
+  if (v.pageUrl !== undefined && typeof v.pageUrl !== 'string') {
+    return false;
+  }
+  return true;
+}
+
 export class GitHubActionsConnector extends BaseConnector<
   GitHubActionsSettings,
   GitHubCredentials
@@ -168,36 +212,102 @@ export class GitHubActionsConnector extends BaseConnector<
     return request<T>(req);
   }
 
-  private async *paginate<T>(
-    url: string,
+  private async syncRepoStats(
+    storage: StorageHandle,
+    initialPageUrl: string | undefined,
     signal?: AbortSignal,
-  ): AsyncIterable<T> {
-    yield* paginateLink<T>(
-      {
-        url,
-        headers: this.buildHeaders(),
-        signal,
-        rateLimit: githubRateLimit,
-      },
-      (body) => body as T[],
+  ): Promise<PhaseResult> {
+    const { owner, repo } = this.settings;
+    const url =
+      initialPageUrl ?? `https://api.github.com/repos/${owner}/${repo}`;
+    const res = await this.get<GitHubRepo>(url, signal);
+    await storage.entities(
+      [
+        {
+          type: 'repo',
+          id: `${owner}/${repo}`,
+          attributes: {
+            stars: res.body.stargazers_count,
+            forks: res.body.forks_count,
+            watchers: res.body.subscribers_count,
+          },
+          updated_at: Date.now(),
+        },
+      ],
+      { types: ['repo'] },
     );
+    return { done: true };
   }
 
-  private async syncWorkflowRuns(
+  private async syncWorkflowRunsLatest(
+    storage: StorageHandle,
+    signal?: AbortSignal,
+  ): Promise<PhaseResult> {
+    const { owner, repo } = this.settings;
+    const res = await this.get<GitHubRunsResponse>(
+      `https://api.github.com/repos/${owner}/${repo}/actions/runs?per_page=1`,
+      signal,
+    );
+    const run = res.body.workflow_runs[0];
+    if (run) {
+      await storage.event({
+        name: 'workflow_run',
+        start_ts: new Date(run.created_at).getTime(),
+        end_ts: new Date(run.updated_at).getTime(),
+        attributes: {
+          id: run.id,
+          workflow_name: run.name,
+          conclusion: run.conclusion ?? 'unknown',
+          status: run.status,
+          branch: run.head_branch ?? '',
+          actor: run.actor?.login ?? '',
+          run_attempt: run.run_attempt,
+        },
+      });
+    }
+    return { done: true };
+  }
+
+  private async syncWorkflowRunsFull(
     storage: StorageHandle,
     options: SyncOptions,
+    initialPageUrl: string | undefined,
     signal?: AbortSignal,
-  ): Promise<void> {
+  ): Promise<PhaseResult> {
     const { owner, repo } = this.settings;
+    const cutoff = options.since ? new Date(options.since).getTime() : null;
 
-    if (options.mode === 'latest') {
-      const res = await this.get<GitHubRunsResponse>(
-        `https://api.github.com/repos/${owner}/${repo}/actions/runs?per_page=1`,
-        signal,
-      );
-      const run = res.body.workflow_runs[0];
-      if (run) {
-        await storage.event({
+    if (initialPageUrl === undefined) {
+      await storage.events([], { names: ['workflow_run'] });
+    }
+
+    let nextUrl: string | null =
+      initialPageUrl ??
+      `https://api.github.com/repos/${owner}/${repo}/actions/runs?per_page=100`;
+
+    while (nextUrl) {
+      if (signal?.aborted) {
+        return { done: false, pageUrl: nextUrl };
+      }
+      const res: HttpResponse<GitHubRunsResponse> =
+        await this.get<GitHubRunsResponse>(nextUrl, signal);
+      const body = res.body;
+      const nextLink = parseLinkHeader(res.headers.get('link'))['next'] ?? null;
+      const runs = body.workflow_runs;
+      if (runs.length === 0) {
+        return { done: true };
+      }
+
+      const pageEvents = runs
+        .filter((run) => {
+          if (cutoff === null) {
+            return true;
+          }
+          const createdMs = new Date(run.created_at).getTime();
+          const updatedMs = new Date(run.updated_at).getTime();
+          return !(createdMs < cutoff && updatedMs < cutoff);
+        })
+        .map((run) => ({
           name: 'workflow_run',
           start_ts: new Date(run.created_at).getTime(),
           end_ts: new Date(run.updated_at).getTime(),
@@ -210,52 +320,10 @@ export class GitHubActionsConnector extends BaseConnector<
             actor: run.actor?.login ?? '',
             run_attempt: run.run_attempt,
           },
-        });
-      }
-      return;
-    }
+        }));
 
-    const cutoff = options.since ? new Date(options.since).getTime() : null;
-    const allEvents: Parameters<StorageHandle['events']>[0] = [];
-
-    const iter = paginateLink<GitHubRunsResponse>(
-      {
-        url: `https://api.github.com/repos/${owner}/${repo}/actions/runs?per_page=100`,
-        headers: this.buildHeaders(),
-        signal,
-        rateLimit: githubRateLimit,
-      },
-      (body) => [body as GitHubRunsResponse],
-    );
-
-    let stop = false;
-    for await (const page of iter) {
-      signal?.throwIfAborted();
-      const runs = page.workflow_runs;
-      if (runs.length === 0) {
-        break;
-      }
-
-      for (const run of runs) {
-        const createdMs = new Date(run.created_at).getTime();
-        const updatedMs = new Date(run.updated_at).getTime();
-        if (cutoff !== null && createdMs < cutoff && updatedMs < cutoff) {
-          continue;
-        }
-        allEvents.push({
-          name: 'workflow_run',
-          start_ts: createdMs,
-          end_ts: updatedMs,
-          attributes: {
-            id: run.id,
-            workflow_name: run.name,
-            conclusion: run.conclusion ?? 'unknown',
-            status: run.status,
-            branch: run.head_branch ?? '',
-            actor: run.actor?.login ?? '',
-            run_attempt: run.run_attempt,
-          },
-        });
+      for (const e of pageEvents) {
+        await storage.event(e);
       }
 
       const lastRun = runs.at(-1)!;
@@ -264,201 +332,281 @@ export class GitHubActionsConnector extends BaseConnector<
         new Date(lastRun.created_at).getTime() < cutoff &&
         new Date(lastRun.updated_at).getTime() < cutoff
       ) {
-        stop = true;
+        return { done: true };
       }
-      if (stop) {
-        break;
-      }
+
+      nextUrl = nextLink;
     }
 
-    await storage.events(allEvents, { names: ['workflow_run'] });
+    return { done: true };
   }
 
   private async syncPullRequests(
     storage: StorageHandle,
+    initialPageUrl: string | undefined,
     signal?: AbortSignal,
-  ): Promise<void> {
+  ): Promise<PhaseResult> {
     const { owner, repo } = this.settings;
-    const allPRs: GitHubPR[] = [];
 
-    for await (const pr of this.paginate<GitHubPR>(
-      `https://api.github.com/repos/${owner}/${repo}/pulls?state=all&per_page=100`,
-      signal,
-    )) {
-      allPRs.push(pr);
+    if (initialPageUrl === undefined) {
+      await storage.entities([], { types: ['pull_request'] });
+      await storage.edges([], { kinds: ['reviewed_by'] });
     }
 
-    await storage.entities(
-      allPRs.map((pr) => ({
-        type: 'pull_request',
-        id: String(pr.number),
-        attributes: {
-          title: pr.title,
-          state: pr.state,
-          draft: pr.draft,
-          author: pr.user.login,
-          created_at: new Date(pr.created_at).getTime(),
-        },
-        updated_at: new Date(pr.updated_at).getTime(),
-      })),
-      { types: ['pull_request'] },
-    );
+    let nextUrl: string | null =
+      initialPageUrl ??
+      `https://api.github.com/repos/${owner}/${repo}/pulls?state=all&per_page=100`;
 
-    const reviewEdges: Parameters<StorageHandle['edges']>[0] = [];
-    for (const pr of allPRs) {
-      signal?.throwIfAborted();
-      const res = await this.get<GitHubReview[]>(
-        `https://api.github.com/repos/${owner}/${repo}/pulls/${pr.number}/reviews`,
+    while (nextUrl) {
+      if (signal?.aborted) {
+        return { done: false, pageUrl: nextUrl };
+      }
+      const res: HttpResponse<GitHubPR[]> = await this.get<GitHubPR[]>(
+        nextUrl,
         signal,
       );
-      for (const review of res.body) {
-        if (!review.user) {
-          continue;
-        }
-        reviewEdges.push({
-          from_type: 'pull_request',
-          from_id: String(pr.number),
-          kind: 'reviewed_by',
-          to_type: 'user',
-          to_id: review.user.login,
-          attributes: { state: review.state },
-          updated_at: new Date(review.submitted_at).getTime(),
+      const body = res.body;
+      const nextLink = parseLinkHeader(res.headers.get('link'))['next'] ?? null;
+      if (body.length === 0) {
+        return { done: true };
+      }
+
+      for (const pr of body) {
+        await storage.entity({
+          type: 'pull_request',
+          id: String(pr.number),
+          attributes: {
+            title: pr.title,
+            state: pr.state,
+            draft: pr.draft,
+            author: pr.user.login,
+            created_at: new Date(pr.created_at).getTime(),
+          },
+          updated_at: new Date(pr.updated_at).getTime(),
         });
       }
+
+      for (const pr of body) {
+        if (signal?.aborted) {
+          return { done: false, pageUrl: nextUrl };
+        }
+        const res = await this.get<GitHubReview[]>(
+          `https://api.github.com/repos/${owner}/${repo}/pulls/${pr.number}/reviews`,
+          signal,
+        );
+        for (const review of res.body) {
+          if (!review.user) {
+            continue;
+          }
+          await storage.edge({
+            from_type: 'pull_request',
+            from_id: String(pr.number),
+            kind: 'reviewed_by',
+            to_type: 'user',
+            to_id: review.user.login,
+            attributes: { state: review.state },
+            updated_at: new Date(review.submitted_at).getTime(),
+          });
+        }
+      }
+
+      nextUrl = nextLink;
     }
 
-    await storage.edges(reviewEdges, { kinds: ['reviewed_by'] });
+    return { done: true };
   }
 
   private async syncIssues(
     storage: StorageHandle,
     options: SyncOptions,
+    initialPageUrl: string | undefined,
     signal?: AbortSignal,
-  ): Promise<void> {
+  ): Promise<PhaseResult> {
     const { owner, repo } = this.settings;
-    const url = new URL(`https://api.github.com/repos/${owner}/${repo}/issues`);
-    url.searchParams.set('state', 'all');
-    url.searchParams.set('per_page', '100');
-    if (options.since) {
-      url.searchParams.set('since', options.since);
+
+    if (initialPageUrl === undefined) {
+      await storage.entities([], { types: ['issue'] });
     }
 
-    const allIssues: GitHubIssue[] = [];
-    for await (const issue of this.paginate<GitHubIssue>(
-      url.toString(),
-      signal,
-    )) {
-      if (issue.pull_request !== undefined) {
-        continue;
+    let nextUrl: string | null;
+    if (initialPageUrl) {
+      nextUrl = initialPageUrl;
+    } else {
+      const url = new URL(
+        `https://api.github.com/repos/${owner}/${repo}/issues`,
+      );
+      url.searchParams.set('state', 'all');
+      url.searchParams.set('per_page', '100');
+      if (options.since) {
+        url.searchParams.set('since', options.since);
       }
-      allIssues.push(issue);
+      nextUrl = url.toString();
     }
 
-    await storage.entities(
-      allIssues.map((issue) => ({
-        type: 'issue',
-        id: String(issue.number),
-        attributes: {
-          number: issue.number,
-          title: issue.title,
-          state: issue.state,
-          labels: issue.labels.map((l) => l.name),
-          assignees: issue.assignees.map((a) => a.login),
-          author: issue.user.login,
-          created_at: new Date(issue.created_at).getTime(),
+    while (nextUrl) {
+      if (signal?.aborted) {
+        return { done: false, pageUrl: nextUrl };
+      }
+      const res: HttpResponse<GitHubIssue[]> = await this.get<GitHubIssue[]>(
+        nextUrl,
+        signal,
+      );
+      const body = res.body;
+      const nextLink = parseLinkHeader(res.headers.get('link'))['next'] ?? null;
+      if (body.length === 0) {
+        return { done: true };
+      }
+
+      for (const issue of body) {
+        if (issue.pull_request !== undefined) {
+          continue;
+        }
+        await storage.entity({
+          type: 'issue',
+          id: String(issue.number),
+          attributes: {
+            number: issue.number,
+            title: issue.title,
+            state: issue.state,
+            labels: issue.labels.map((l) => l.name),
+            assignees: issue.assignees.map((a) => a.login),
+            author: issue.user.login,
+            created_at: new Date(issue.created_at).getTime(),
+            updated_at: new Date(issue.updated_at).getTime(),
+            closed_at: issue.closed_at
+              ? new Date(issue.closed_at).getTime()
+              : null,
+          },
           updated_at: new Date(issue.updated_at).getTime(),
-          closed_at: issue.closed_at
-            ? new Date(issue.closed_at).getTime()
-            : null,
-        },
-        updated_at: new Date(issue.updated_at).getTime(),
-      })),
-      { types: ['issue'] },
-    );
+        });
+      }
+
+      nextUrl = nextLink;
+    }
+
+    return { done: true };
   }
 
   private async syncDeployments(
     storage: StorageHandle,
+    initialPageUrl: string | undefined,
     signal?: AbortSignal,
-  ): Promise<void> {
+  ): Promise<PhaseResult> {
     const { owner, repo } = this.settings;
-    const allDeployments: GitHubDeployment[] = [];
-    for await (const d of this.paginate<GitHubDeployment>(
-      `https://api.github.com/repos/${owner}/${repo}/deployments?per_page=100`,
-      signal,
-    )) {
-      allDeployments.push(d);
+
+    if (initialPageUrl === undefined) {
+      await storage.entities([], { types: ['deployment'] });
     }
 
-    const entities: Parameters<StorageHandle['entities']>[0] = [];
-    for (const deployment of allDeployments) {
-      signal?.throwIfAborted();
-      const res = await this.get<GitHubDeploymentStatus[]>(
-        `https://api.github.com/repos/${owner}/${repo}/deployments/${deployment.id}/statuses?per_page=1`,
-        signal,
-      );
-      const createdMs = new Date(deployment.created_at).getTime();
-      const statusUpdatedMs = res.body[0]?.updated_at
-        ? new Date(res.body[0].updated_at).getTime()
-        : null;
-      entities.push({
-        type: 'deployment',
-        id: String(deployment.id),
-        attributes: {
-          environment: deployment.environment,
-          ref: deployment.ref,
-          sha: deployment.sha,
-          creator: deployment.creator?.login ?? '',
-          created_at: createdMs,
-          latest_status: res.body[0]?.state ?? 'unknown',
-        },
-        updated_at: Math.max(createdMs, statusUpdatedMs ?? 0),
-      });
+    let nextUrl: string | null =
+      initialPageUrl ??
+      `https://api.github.com/repos/${owner}/${repo}/deployments?per_page=100`;
+
+    while (nextUrl) {
+      if (signal?.aborted) {
+        return { done: false, pageUrl: nextUrl };
+      }
+      const res: HttpResponse<GitHubDeployment[]> = await this.get<
+        GitHubDeployment[]
+      >(nextUrl, signal);
+      const body = res.body;
+      const nextLink = parseLinkHeader(res.headers.get('link'))['next'] ?? null;
+      if (body.length === 0) {
+        return { done: true };
+      }
+
+      for (const deployment of body) {
+        if (signal?.aborted) {
+          return { done: false, pageUrl: nextUrl };
+        }
+        const res = await this.get<GitHubDeploymentStatus[]>(
+          `https://api.github.com/repos/${owner}/${repo}/deployments/${deployment.id}/statuses?per_page=1`,
+          signal,
+        );
+        const createdMs = new Date(deployment.created_at).getTime();
+        const statusUpdatedMs = res.body[0]?.updated_at
+          ? new Date(res.body[0].updated_at).getTime()
+          : null;
+        await storage.entity({
+          type: 'deployment',
+          id: String(deployment.id),
+          attributes: {
+            environment: deployment.environment,
+            ref: deployment.ref,
+            sha: deployment.sha,
+            creator: deployment.creator?.login ?? '',
+            created_at: createdMs,
+            latest_status: res.body[0]?.state ?? 'unknown',
+          },
+          updated_at: Math.max(createdMs, statusUpdatedMs ?? 0),
+        });
+      }
+
+      nextUrl = nextLink;
     }
 
-    await storage.entities(entities, { types: ['deployment'] });
+    return { done: true };
   }
 
   private async syncReleases(
     storage: StorageHandle,
+    initialPageUrl: string | undefined,
     signal?: AbortSignal,
-  ): Promise<void> {
+  ): Promise<PhaseResult> {
     const { owner, repo } = this.settings;
-    const allReleases: GitHubRelease[] = [];
-    for await (const r of this.paginate<GitHubRelease>(
-      `https://api.github.com/repos/${owner}/${repo}/releases?per_page=100`,
-      signal,
-    )) {
-      allReleases.push(r);
+
+    if (initialPageUrl === undefined) {
+      await storage.entities([], { types: ['release'] });
     }
 
-    await storage.entities(
-      allReleases.map((release) => ({
-        type: 'release',
-        id: String(release.id),
-        attributes: {
-          tag_name: release.tag_name,
-          name: release.name ?? '',
-          draft: release.draft,
-          prerelease: release.prerelease,
-          created_at: new Date(release.created_at).getTime(),
-          published_at: release.published_at
-            ? new Date(release.published_at).getTime()
-            : null,
-          author: release.author.login,
-        },
-        updated_at: new Date(
-          release.published_at ?? release.created_at,
-        ).getTime(),
-      })),
-      { types: ['release'] },
-    );
+    let nextUrl: string | null =
+      initialPageUrl ??
+      `https://api.github.com/repos/${owner}/${repo}/releases?per_page=100`;
+
+    while (nextUrl) {
+      if (signal?.aborted) {
+        return { done: false, pageUrl: nextUrl };
+      }
+      const res: HttpResponse<GitHubRelease[]> = await this.get<
+        GitHubRelease[]
+      >(nextUrl, signal);
+      const body = res.body;
+      const nextLink = parseLinkHeader(res.headers.get('link'))['next'] ?? null;
+      if (body.length === 0) {
+        return { done: true };
+      }
+
+      for (const release of body) {
+        await storage.entity({
+          type: 'release',
+          id: String(release.id),
+          attributes: {
+            tag_name: release.tag_name,
+            name: release.name ?? '',
+            draft: release.draft,
+            prerelease: release.prerelease,
+            created_at: new Date(release.created_at).getTime(),
+            published_at: release.published_at
+              ? new Date(release.published_at).getTime()
+              : null,
+            author: release.author.login,
+          },
+          updated_at: new Date(
+            release.published_at ?? release.created_at,
+          ).getTime(),
+        });
+      }
+
+      nextUrl = nextLink;
+    }
+
+    return { done: true };
   }
 
   private async syncContributors(
     storage: StorageHandle,
     signal?: AbortSignal,
-  ): Promise<void> {
+  ): Promise<PhaseResult> {
     const { owner, repo } = this.settings;
 
     const contributors = await this.withRetry<GitHubContributorStats[]>(
@@ -484,7 +632,7 @@ export class GitHubActionsConnector extends BaseConnector<
           '[github-actions] Stats endpoint never became ready — skipping contributor sync and keeping previous data.',
         );
       }
-      return;
+      return { done: true };
     }
 
     await storage.entities(
@@ -506,45 +654,88 @@ export class GitHubActionsConnector extends BaseConnector<
       }),
       { types: ['contributor'] },
     );
+    return { done: true };
   }
 
-  private async syncRepoStats(
-    storage: StorageHandle,
-    signal?: AbortSignal,
-  ): Promise<void> {
+  private sanitizeIncomingCursor(
+    cursor: unknown,
+  ): GitHubSyncCursor | undefined {
+    if (!isGitHubSyncCursor(cursor)) {
+      return undefined;
+    }
+    if (cursor.pageUrl === undefined) {
+      return cursor;
+    }
     const { owner, repo } = this.settings;
-    const res = await this.get<GitHubRepo>(
-      `https://api.github.com/repos/${owner}/${repo}`,
-      signal,
-    );
-    await storage.entities(
-      [
-        {
-          type: 'repo',
-          id: `${owner}/${repo}`,
-          attributes: {
-            stars: res.body.stargazers_count,
-            forks: res.body.forks_count,
-            watchers: res.body.subscribers_count,
-          },
-          updated_at: Date.now(),
-        },
-      ],
-      { types: ['repo'] },
-    );
+    const expectedPrefix = `/repos/${owner}/${repo}/`;
+    try {
+      const u = new URL(cursor.pageUrl);
+      if (
+        u.protocol !== 'https:' ||
+        u.host !== 'api.github.com' ||
+        !u.pathname.startsWith(expectedPrefix)
+      ) {
+        return { phase: cursor.phase };
+      }
+      return cursor;
+    } catch {
+      return { phase: cursor.phase };
+    }
+  }
+
+  private async runPhase(
+    phase: GitHubSyncPhase,
+    storage: StorageHandle,
+    options: SyncOptions,
+    initialPageUrl: string | undefined,
+    signal?: AbortSignal,
+  ): Promise<PhaseResult> {
+    switch (phase) {
+      case 'repo_stats':
+        return this.syncRepoStats(storage, initialPageUrl, signal);
+      case 'workflow_runs':
+        return options.mode === 'latest'
+          ? this.syncWorkflowRunsLatest(storage, signal)
+          : this.syncWorkflowRunsFull(storage, options, initialPageUrl, signal);
+      case 'pull_requests':
+        return this.syncPullRequests(storage, initialPageUrl, signal);
+      case 'issues':
+        return this.syncIssues(storage, options, initialPageUrl, signal);
+      case 'deployments':
+        return this.syncDeployments(storage, initialPageUrl, signal);
+      case 'releases':
+        return this.syncReleases(storage, initialPageUrl, signal);
+      case 'contributors':
+        return this.syncContributors(storage, signal);
+    }
   }
 
   async sync(
     options: SyncOptions,
     storage: StorageHandle,
     signal?: AbortSignal,
-  ): Promise<void> {
-    await this.syncRepoStats(storage, signal);
-    await this.syncWorkflowRuns(storage, options, signal);
-    await this.syncPullRequests(storage, signal);
-    await this.syncIssues(storage, options, signal);
-    await this.syncDeployments(storage, signal);
-    await this.syncReleases(storage, signal);
-    await this.syncContributors(storage, signal);
+  ): Promise<SyncResult> {
+    const incoming = this.sanitizeIncomingCursor(options.cursor);
+    const startIdx = incoming ? PHASE_ORDER.indexOf(incoming.phase) : 0;
+
+    for (let i = startIdx; i < PHASE_ORDER.length; i++) {
+      const phase = PHASE_ORDER[i]!;
+      const initialPageUrl = i === startIdx ? incoming?.pageUrl : undefined;
+      const result = await this.runPhase(
+        phase,
+        storage,
+        options,
+        initialPageUrl,
+        signal,
+      );
+      if (!result.done) {
+        return {
+          done: false,
+          cursor: { phase, pageUrl: result.pageUrl } satisfies GitHubSyncCursor,
+        };
+      }
+    }
+
+    return { done: true };
   }
 }
