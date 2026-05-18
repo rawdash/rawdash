@@ -48,7 +48,7 @@ export async function* paginateCursor<T>(
     if (!nextCursor) {
       return;
     }
-    req = buildNext(initial, nextCursor);
+    req = buildNext(req, nextCursor);
   }
 }
 

@@ -32,8 +32,8 @@ describe('request — defaults', () => {
     await request({ url: 'https://example.test/x' }, { fetch: fetchSpy });
     const init = fetchSpy.mock.calls[0]![1];
     const headers = init.headers as Record<string, string>;
-    expect(headers['User-Agent']).toBe(DEFAULT_USER_AGENT);
-    expect(headers['Accept']).toBe('application/json');
+    expect(headers['user-agent']).toBe(DEFAULT_USER_AGENT);
+    expect(headers['accept']).toBe('application/json');
   });
 
   it('allows callers to override default headers', async () => {
@@ -52,8 +52,25 @@ describe('request — defaults', () => {
       string,
       string
     >;
-    expect(headers['User-Agent']).toBe('my-app/1.0');
-    expect(headers['Accept']).toBe('application/vnd.github+json');
+    expect(headers['user-agent']).toBe('my-app/1.0');
+    expect(headers['accept']).toBe('application/vnd.github+json');
+  });
+
+  it('overrides defaults regardless of header casing', async () => {
+    const fetchSpy = vi.fn<FetchLike>().mockResolvedValue(jsonResponse({}));
+    await request(
+      {
+        url: 'https://example.test/x',
+        headers: { 'user-agent': 'lowercase/1.0', accept: 'text/plain' },
+      },
+      { fetch: fetchSpy },
+    );
+    const headers = fetchSpy.mock.calls[0]![1].headers as Record<
+      string,
+      string
+    >;
+    expect(headers['user-agent']).toBe('lowercase/1.0');
+    expect(headers['accept']).toBe('text/plain');
   });
 
   it('parses JSON when content-type is application/json', async () => {

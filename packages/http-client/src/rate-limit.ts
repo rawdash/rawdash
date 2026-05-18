@@ -16,7 +16,7 @@ export const githubRateLimit: RateLimitPolicy = {
     }
     const remaining = Number(remainingRaw);
     const reset = Number(resetRaw);
-    if (Number.isNaN(remaining) || Number.isNaN(reset)) {
+    if (!Number.isFinite(remaining) || !Number.isFinite(reset) || reset < 0) {
       return null;
     }
     return { remaining, resetAt: new Date(reset * 1000) };
@@ -32,7 +32,11 @@ export const sentryRateLimit: RateLimitPolicy = {
     }
     const remaining = Number(concurrent);
     const resetSec = Number(reset);
-    if (Number.isNaN(remaining) || Number.isNaN(resetSec)) {
+    if (
+      !Number.isFinite(remaining) ||
+      !Number.isFinite(resetSec) ||
+      resetSec < 0
+    ) {
       return null;
     }
     return { remaining, resetAt: new Date(resetSec * 1000) };
@@ -47,13 +51,13 @@ export const linearRateLimit: RateLimitPolicy = {
       return null;
     }
     const remaining = Number(remainingRaw);
-    if (Number.isNaN(remaining)) {
+    if (!Number.isFinite(remaining)) {
       return null;
     }
     let resetAt: Date;
     if (resetRaw !== null) {
       const reset = Number(resetRaw);
-      if (Number.isNaN(reset)) {
+      if (!Number.isFinite(reset) || reset < 0) {
         return null;
       }
       resetAt = new Date(reset);

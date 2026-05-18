@@ -24,10 +24,13 @@ function mergeHeaders(
   defaults: Record<string, string>,
   overrides: Record<string, string> | undefined,
 ): Record<string, string> {
-  const merged: Record<string, string> = { ...defaults };
+  const merged: Record<string, string> = {};
+  for (const [k, v] of Object.entries(defaults)) {
+    merged[k.toLowerCase()] = v;
+  }
   if (overrides) {
     for (const [k, v] of Object.entries(overrides)) {
-      merged[k] = v;
+      merged[k.toLowerCase()] = v;
     }
   }
   return merged;

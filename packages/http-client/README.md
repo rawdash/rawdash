@@ -46,6 +46,7 @@ import {
   AuthError,
   RateLimitError,
   TransientError,
+  request,
 } from '@rawdash/http-client';
 
 try {
