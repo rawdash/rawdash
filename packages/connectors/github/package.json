@@ -28,10 +28,10 @@
   },
   "dependencies": {
     "@rawdash/core": "workspace:*",
-    "@rawdash/http-client": "workspace:*",
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@rawdash/connector-shared": "workspace:*",
     "tsup": "^8.0.0",
     "typescript": "^5.7.2"
   }
