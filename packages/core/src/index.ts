@@ -17,6 +17,7 @@ export type {
   MetricQuery,
   StorageHandle,
   SyncOptions,
+  SyncResult,
 } from './connector';
 
 export { BaseConnector, defineConnector } from './connector';

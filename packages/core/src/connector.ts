@@ -169,6 +169,12 @@ export type InferCredentialInput<TCreds extends CredentialsSchema> = {
 export interface SyncOptions {
   mode: 'full' | 'latest';
   since?: string;
+  cursor?: unknown;
+}
+
+export interface SyncResult {
+  done: boolean;
+  cursor?: unknown;
 }
 
 export interface Connector {
@@ -179,7 +185,7 @@ export interface Connector {
     options: SyncOptions,
     storage: StorageHandle,
     signal?: AbortSignal,
-  ): Promise<void>;
+  ): Promise<SyncResult>;
 }
 
 export interface RetryPolicy {
@@ -276,7 +282,7 @@ export abstract class BaseConnector<
     options: SyncOptions,
     storage: StorageHandle,
     signal?: AbortSignal,
-  ): Promise<void>;
+  ): Promise<SyncResult>;
 }
 
 export function defineConnector<TSettings>() {
@@ -290,7 +296,7 @@ export function defineConnector<TSettings>() {
       options: SyncOptions,
       storage: StorageHandle,
       signal?: AbortSignal,
-    ) => Promise<void>;
+    ) => Promise<SyncResult>;
   }): {
     new (settings: TSettings, creds?: InferCredentialInput<TCreds>): Connector;
     readonly id: string;
@@ -307,7 +313,7 @@ export function defineConnector<TSettings>() {
         options: SyncOptions,
         storage: StorageHandle,
         signal?: AbortSignal,
-      ): Promise<void> {
+      ): Promise<SyncResult> {
         return def.sync.call(
           { settings: this.settings, creds: this.creds },
           options,

@@ -4,6 +4,7 @@ import {
   BaseConnector,
   type StorageHandle,
   type SyncOptions,
+  type SyncResult,
 } from './connector';
 import { secret } from './secrets';
 import { toWireConfig } from './wire-config';
@@ -15,7 +16,9 @@ class StubConnector extends BaseConnector<
   static readonly id = 'stub';
   readonly id = 'stub';
 
-  async sync(_req: SyncOptions, _storage: StorageHandle): Promise<void> {}
+  async sync(_req: SyncOptions, _storage: StorageHandle): Promise<SyncResult> {
+    return { done: true };
+  }
 }
 
 type NodeLike = { process?: { env?: Record<string, string | undefined> } };

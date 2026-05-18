@@ -27,7 +27,16 @@ export class SyncRouter implements RouterMount {
           FULL_SYNC_TIMEOUT_MS,
         );
         try {
-          await connector.sync({ mode: 'full' }, handle, controller.signal);
+          const result = await connector.sync(
+            { mode: 'full' },
+            handle,
+            controller.signal,
+          );
+          if (!result.done) {
+            errors.push(
+              `${connector.id} did not complete in one chunk (chunked syncs are only supported in cloud)`,
+            );
+          }
         } catch (err) {
           if (err instanceof Error && err.name === 'AbortError') {
             errors.push(

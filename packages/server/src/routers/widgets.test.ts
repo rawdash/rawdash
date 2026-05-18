@@ -9,7 +9,9 @@ const CONNECTOR_ID = 'test';
 const mockConnector = {
   id: CONNECTOR_ID,
   serializeConfig: () => ({}),
-  async sync() {},
+  async sync() {
+    return { done: true };
+  },
 };
 
 const config = {
