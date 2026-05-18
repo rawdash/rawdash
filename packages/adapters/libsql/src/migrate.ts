@@ -21,7 +21,14 @@ async function readAppliedTags(client: Client): Promise<Set<string>> {
   return new Set(result.rows.map((r) => String(r['tag'])));
 }
 
-export async function migrateIfNeeded(client: Client): Promise<void> {
+export interface ApplyMigrationsOptions {
+  assumeLegacyBaselineIfEventsExists?: boolean;
+}
+
+export async function migrateIfNeeded(
+  client: Client,
+  opts: ApplyMigrationsOptions = {},
+): Promise<void> {
   const latest = MIGRATIONS[MIGRATIONS.length - 1];
   if (latest === undefined) {
     return;
@@ -37,10 +44,13 @@ export async function migrateIfNeeded(client: Client): Promise<void> {
   } catch {
     // schema_migrations table doesn't exist yet — fall through to apply.
   }
-  await applyMigrations(client);
+  await applyMigrations(client, opts);
 }
 
-export async function applyMigrations(client: Client): Promise<void> {
+export async function applyMigrations(
+  client: Client,
+  opts: ApplyMigrationsOptions = {},
+): Promise<void> {
   const hadSchemaTable = await tableExists(client, SCHEMA_MIGRATIONS_TABLE);
 
   await client.execute(
@@ -50,7 +60,7 @@ export async function applyMigrations(client: Client): Promise<void> {
     )`,
   );
 
-  if (!hadSchemaTable) {
+  if (!hadSchemaTable && opts.assumeLegacyBaselineIfEventsExists === true) {
     const hasLegacySchema = await tableExists(client, LEGACY_BASELINE_TABLE);
     if (hasLegacySchema) {
       const now = Date.now();

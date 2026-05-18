@@ -32,7 +32,7 @@ type Attrs = Record<string, JSONValue>;
 const SYNC_STATE_ID = 1;
 
 export async function initLibsqlSchema(client: Client): Promise<void> {
-  await applyMigrations(client);
+  await applyMigrations(client, { assumeLegacyBaselineIfEventsExists: true });
   await client.execute({
     sql: "INSERT OR IGNORE INTO sync_state (id, status, last_sync_at, last_error) VALUES (?, 'idle', NULL, NULL)",
     args: [SYNC_STATE_ID],
