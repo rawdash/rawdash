@@ -105,12 +105,45 @@ describe('applyMigrations', () => {
     expect(tags.sort()).toEqual(MIGRATIONS.map((m) => m.tag).sort());
   });
 
-  it('baselines pre-existing legacy schemas without re-running migrations', async () => {
+  it('runs migrations against a db with only a stray events table when not opted in', async () => {
     await client.execute(
       'CREATE TABLE events (id INTEGER PRIMARY KEY, name TEXT NOT NULL)',
     );
 
+    await expect(applyMigrations(client)).rejects.toThrow();
+  });
+
+  it('does not re-run migrations when schema_migrations is fully populated even with a legacy events table', async () => {
+    await client.execute(
+      'CREATE TABLE events (id INTEGER PRIMARY KEY, name TEXT NOT NULL)',
+    );
+    await client.execute(
+      `CREATE TABLE schema_migrations (tag TEXT PRIMARY KEY, applied_at INTEGER NOT NULL)`,
+    );
+    const now = Date.now();
+    for (const migration of MIGRATIONS) {
+      await client.execute({
+        sql: `INSERT INTO schema_migrations (tag, applied_at) VALUES (?, ?)`,
+        args: [migration.tag, now],
+      });
+    }
+
     await applyMigrations(client);
+
+    const applied = await client.execute('SELECT tag FROM schema_migrations');
+    const tags = applied.rows.map((r) => String(r['tag']));
+    expect(tags.sort()).toEqual(MIGRATIONS.map((m) => m.tag).sort());
+
+    const cols = await client.execute('PRAGMA table_info(events)');
+    expect(cols.rows.map((r) => String(r['name']))).toEqual(['id', 'name']);
+  });
+
+  it('baselines pre-existing legacy schemas without re-running migrations when opted in', async () => {
+    await client.execute(
+      'CREATE TABLE events (id INTEGER PRIMARY KEY, name TEXT NOT NULL)',
+    );
+
+    await applyMigrations(client, { assumeLegacyBaselineIfEventsExists: true });
 
     const applied = await client.execute('SELECT tag FROM schema_migrations');
     const tags = applied.rows.map((r) => String(r['tag']));
