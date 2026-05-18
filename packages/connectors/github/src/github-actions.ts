@@ -1,17 +1,17 @@
 import {
+  type HttpRequest,
+  type HttpResponse,
+  githubRateLimit,
+  paginateLink,
+  request,
+} from '@rawdash/connector-shared';
+import {
   BaseConnector,
   type CredentialsSchema,
   type StorageHandle,
   type SyncOptions,
   defineConfigFields,
 } from '@rawdash/core';
-import {
-  type HttpRequest,
-  type HttpResponse,
-  githubRateLimit,
-  paginateLink,
-  request,
-} from '@rawdash/http-client';
 import { z } from 'zod';
 
 export const configFields = defineConfigFields(

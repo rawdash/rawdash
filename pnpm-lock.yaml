@@ -248,18 +248,27 @@ importers:
         specifier: ^5.7.2
         version: 5.9.3
 
+  packages/connector-shared:
+    devDependencies:
+      tsup:
+        specifier: ^8.0.0
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.9)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.3)
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+
   packages/connectors/github:
     dependencies:
       '@rawdash/core':
         specifier: workspace:*
         version: link:../../core
-      '@rawdash/http-client':
-        specifier: workspace:*
-        version: link:../../http-client
       zod:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
+      '@rawdash/connector-shared':
+        specifier: workspace:*
+        version: link:../../connector-shared
       tsup:
         specifier: ^8.0.0
         version: 8.5.1(jiti@1.21.7)(postcss@8.5.9)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.3)
@@ -272,15 +281,6 @@ importers:
       zod:
         specifier: ^4.4.3
         version: 4.4.3
-    devDependencies:
-      tsup:
-        specifier: ^8.0.0
-        version: 8.5.1(jiti@1.21.7)(postcss@8.5.9)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.3)
-      typescript:
-        specifier: ^5.7.2
-        version: 5.9.3
-
-  packages/http-client:
     devDependencies:
       tsup:
         specifier: ^8.0.0

@@ -1,6 +1,6 @@
-# @rawdash/http-client
+# @rawdash/connector-shared
 
-Internal HTTP client shared by Rawdash connectors. Centralizes the concerns every connector ends up reinventing: User-Agent, timeouts, retry/backoff, rate-limit parsing, pagination, and typed errors.
+Internal shared substrate for Rawdash connectors. Today it's the HTTP client — User-Agent, timeouts, retry/backoff, rate-limit parsing, pagination, and typed errors. Future additions (auth helpers, common types, signing) will land here too rather than spawning more `connector-*-shared` packages until a real split is justified.
 
 > **Internal package.** `"private": true` — not published to npm. Workspace consumers reference via `workspace:*`.
 
@@ -19,7 +19,7 @@ This package gives connectors a small substrate so the per-API code becomes "URL
 ## Quick start
 
 ```ts
-import { request } from '@rawdash/http-client';
+import { request } from '@rawdash/connector-shared';
 
 const res = await request<{ name: string }>({
   url: 'https://api.example.com/v1/me',
@@ -47,7 +47,7 @@ import {
   RateLimitError,
   TransientError,
   request,
-} from '@rawdash/http-client';
+} from '@rawdash/connector-shared';
 
 try {
   await request({ url: '…' });
@@ -75,7 +75,7 @@ try {
 Each API uses different headers. Pass a policy and the client surfaces parsed state on the response:
 
 ```ts
-import { githubRateLimit, request } from '@rawdash/http-client';
+import { githubRateLimit, request } from '@rawdash/connector-shared';
 
 const res = await request({
   url: 'https://api.github.com/…',
@@ -96,7 +96,7 @@ import {
   paginateCursor,
   paginateLink,
   paginatePage,
-} from '@rawdash/http-client';
+} from '@rawdash/connector-shared';
 
 for await (const issue of paginateLink<Issue>(
   { url: 'https://api.github.com/repos/owner/repo/issues?per_page=100' },
@@ -137,8 +137,36 @@ await request({
 
 ## Authoring a new connector
 
-1. Depend on `@rawdash/http-client` via `workspace:*`.
-2. Define your API types.
-3. Per fetch site, call `request()` (or the right paginator). Don't reach for raw `fetch`.
-4. If your API has a rate-limit header convention not yet covered, add a `RateLimitPolicy` here and export it — every connector for that API should share it.
-5. In error handling, branch on `err.kind` (or `instanceof`), never regex on `err.message`.
+1. Depend on `@rawdash/connector-shared` via `workspace:*` — in `devDependencies`, not `dependencies`. It gets inlined at build time (see "Bundling" below), so it must not appear in the published `dependencies` map.
+2. Add `noExternal: ['@rawdash/connector-shared']` to the connector's `tsup.config.ts`:
+
+   ```ts
+   import { defineConfig } from 'tsup';
+
+   export default defineConfig({
+     entry: ['src/index.ts'],
+     format: ['esm'],
+     noExternal: ['@rawdash/connector-shared'],
+     dts: true,
+   });
+   ```
+
+3. Define your API types.
+4. Per fetch site, call `request()` (or the right paginator). Don't reach for raw `fetch`.
+5. If your API has a rate-limit header convention not yet covered, add a `RateLimitPolicy` here and export it — every connector for that API should share it.
+6. In error handling, branch on `err.kind` (or `instanceof`), never regex on `err.message`.
+
+## Bundling
+
+This package is `"private": true` and never publishes to npm. Connectors that publish to npm (e.g. `@rawdash/connector-github`) inline it at build time via tsup's `noExternal`.
+
+Why bundle instead of publish:
+
+- Rename or split freely. Future re-organizations (e.g. splitting into `@rawdash/connector-aws-shared`, `@rawdash/connector-graphql-shared`) never touch npm.
+- No semver discipline on internal API. Connectors and shared utilities update in lockstep via single PRs.
+- Cleaner published surface. `npm view @rawdash/*` only lists what users actually `npm i`.
+- One tarball per `npm i @rawdash/connector-<name>` — no dangling workspace deps.
+
+Cost: ~10 KB of shared code duplicated per connector tarball, and bug fixes here require republishing every connector that uses it (`pnpm publish -r --filter '@rawdash/connector-*'`).
+
+After editing a connector's `tsup.config.ts`, verify with `pnpm pack` in the connector's directory and inspect `package.json` inside the tarball — it must have no `@rawdash/connector-shared` entry under `dependencies`.
