@@ -143,6 +143,7 @@ export class GitHubActionsConnector extends BaseConnector<
     const headers: Record<string, string> = {
       Accept: 'application/vnd.github+json',
       'X-GitHub-Api-Version': '2022-11-28',
+      'User-Agent': 'rawdash/connector-github (+https://rawdash.dev)',
     };
     if (this.creds.token) {
       headers['Authorization'] = `Bearer ${this.creds.token}`;
