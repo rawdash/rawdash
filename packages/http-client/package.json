@@ -1,18 +1,18 @@
 {
-  "name": "@rawdash/connector-github",
-  "version": "0.6.1",
-  "description": "Rawdash connector for GitHub Actions",
+  "name": "@rawdash/http-client",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Internal HTTP client for Rawdash connectors — shared retry, pagination, rate-limit, errors, and User-Agent",
   "license": "Apache-2.0",
   "type": "module",
   "repository": {
     "type": "git",
     "url": "https://github.com/rawdash/rawdash.git",
-    "directory": "packages/connectors/github"
+    "directory": "packages/http-client"
   },
   "files": [
     "dist",
-    "README.md",
-    "LICENSE"
+    "README.md"
   ],
   "exports": {
     ".": {
@@ -24,12 +24,8 @@
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src"
-  },
-  "dependencies": {
-    "@rawdash/core": "workspace:*",
-    "@rawdash/http-client": "workspace:*",
-    "zod": "^4.4.3"
+    "lint": "eslint src",
+    "test": "vitest run"
   },
   "devDependencies": {
     "tsup": "^8.0.0",

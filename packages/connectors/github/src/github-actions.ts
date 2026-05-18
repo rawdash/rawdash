@@ -5,6 +5,13 @@ import {
   type SyncOptions,
   defineConfigFields,
 } from '@rawdash/core';
+import {
+  type HttpRequest,
+  type HttpResponse,
+  githubRateLimit,
+  paginateLink,
+  request,
+} from '@rawdash/http-client';
 import { z } from 'zod';
 
 export const configFields = defineConfigFields(
@@ -151,24 +158,44 @@ export class GitHubActionsConnector extends BaseConnector<
     return headers;
   }
 
+  private get<T>(url: string, signal?: AbortSignal): Promise<HttpResponse<T>> {
+    const req: HttpRequest = {
+      url,
+      headers: this.buildHeaders(),
+      signal,
+      rateLimit: githubRateLimit,
+    };
+    return request<T>(req);
+  }
+
+  private async *paginate<T>(
+    url: string,
+    signal?: AbortSignal,
+  ): AsyncIterable<T> {
+    yield* paginateLink<T>(
+      {
+        url,
+        headers: this.buildHeaders(),
+        signal,
+        rateLimit: githubRateLimit,
+      },
+      (body) => body as T[],
+    );
+  }
+
   private async syncWorkflowRuns(
     storage: StorageHandle,
-    request: SyncOptions,
+    options: SyncOptions,
     signal?: AbortSignal,
   ): Promise<void> {
     const { owner, repo } = this.settings;
-    const headers = this.buildHeaders();
 
-    if (request.mode === 'latest') {
-      const res = await fetch(
+    if (options.mode === 'latest') {
+      const res = await this.get<GitHubRunsResponse>(
         `https://api.github.com/repos/${owner}/${repo}/actions/runs?per_page=1`,
-        { headers, signal },
+        signal,
       );
-      if (!res.ok) {
-        throw new Error(`GitHub API error: ${res.status} ${res.statusText}`);
-      }
-      const data = (await res.json()) as GitHubRunsResponse;
-      const run = data.workflow_runs[0];
+      const run = res.body.workflow_runs[0];
       if (run) {
         await storage.event({
           name: 'workflow_run',
@@ -188,21 +215,23 @@ export class GitHubActionsConnector extends BaseConnector<
       return;
     }
 
-    const cutoff = request.since ? new Date(request.since).getTime() : null;
+    const cutoff = options.since ? new Date(options.since).getTime() : null;
     const allEvents: Parameters<StorageHandle['events']>[0] = [];
-    let page = 1;
 
-    while (true) {
+    const iter = paginateLink<GitHubRunsResponse>(
+      {
+        url: `https://api.github.com/repos/${owner}/${repo}/actions/runs?per_page=100`,
+        headers: this.buildHeaders(),
+        signal,
+        rateLimit: githubRateLimit,
+      },
+      (body) => [body as GitHubRunsResponse],
+    );
+
+    let stop = false;
+    for await (const page of iter) {
       signal?.throwIfAborted();
-      const res = await fetch(
-        `https://api.github.com/repos/${owner}/${repo}/actions/runs?per_page=100&page=${page}`,
-        { headers, signal },
-      );
-      if (!res.ok) {
-        throw new Error(`GitHub API error: ${res.status} ${res.statusText}`);
-      }
-      const data = (await res.json()) as GitHubRunsResponse;
-      const runs = data.workflow_runs;
+      const runs = page.workflow_runs;
       if (runs.length === 0) {
         break;
       }
@@ -235,9 +264,11 @@ export class GitHubActionsConnector extends BaseConnector<
         new Date(lastRun.created_at).getTime() < cutoff &&
         new Date(lastRun.updated_at).getTime() < cutoff
       ) {
+        stop = true;
+      }
+      if (stop) {
         break;
       }
-      page++;
     }
 
     await storage.events(allEvents, { names: ['workflow_run'] });
@@ -248,28 +279,13 @@ export class GitHubActionsConnector extends BaseConnector<
     signal?: AbortSignal,
   ): Promise<void> {
     const { owner, repo } = this.settings;
-    const headers = this.buildHeaders();
     const allPRs: GitHubPR[] = [];
-    let page = 1;
 
-    while (true) {
-      signal?.throwIfAborted();
-      const res = await fetch(
-        `https://api.github.com/repos/${owner}/${repo}/pulls?state=all&per_page=100&page=${page}`,
-        { headers, signal },
-      );
-      if (!res.ok) {
-        throw new Error(`GitHub API error: ${res.status} ${res.statusText}`);
-      }
-      const prs = (await res.json()) as GitHubPR[];
-      if (prs.length === 0) {
-        break;
-      }
-      allPRs.push(...prs);
-      if (prs.length < 100) {
-        break;
-      }
-      page++;
+    for await (const pr of this.paginate<GitHubPR>(
+      `https://api.github.com/repos/${owner}/${repo}/pulls?state=all&per_page=100`,
+      signal,
+    )) {
+      allPRs.push(pr);
     }
 
     await storage.entities(
@@ -291,17 +307,11 @@ export class GitHubActionsConnector extends BaseConnector<
     const reviewEdges: Parameters<StorageHandle['edges']>[0] = [];
     for (const pr of allPRs) {
       signal?.throwIfAborted();
-      const res = await fetch(
+      const res = await this.get<GitHubReview[]>(
         `https://api.github.com/repos/${owner}/${repo}/pulls/${pr.number}/reviews`,
-        { headers, signal },
+        signal,
       );
-      if (!res.ok) {
-        throw new Error(
-          `GitHub API error fetching reviews for PR #${pr.number}: ${res.status} ${res.statusText}`,
-        );
-      }
-      const reviews = (await res.json()) as GitHubReview[];
-      for (const review of reviews) {
+      for (const review of res.body) {
         if (!review.user) {
           continue;
         }
@@ -311,9 +321,7 @@ export class GitHubActionsConnector extends BaseConnector<
           kind: 'reviewed_by',
           to_type: 'user',
           to_id: review.user.login,
-          attributes: {
-            state: review.state,
-          },
+          attributes: { state: review.state },
           updated_at: new Date(review.submitted_at).getTime(),
         });
       }
@@ -324,43 +332,26 @@ export class GitHubActionsConnector extends BaseConnector<
 
   private async syncIssues(
     storage: StorageHandle,
-    request: SyncOptions,
+    options: SyncOptions,
     signal?: AbortSignal,
   ): Promise<void> {
     const { owner, repo } = this.settings;
-    const headers = this.buildHeaders();
-    const allIssues: GitHubIssue[] = [];
-    let page = 1;
+    const url = new URL(`https://api.github.com/repos/${owner}/${repo}/issues`);
+    url.searchParams.set('state', 'all');
+    url.searchParams.set('per_page', '100');
+    if (options.since) {
+      url.searchParams.set('since', options.since);
+    }
 
-    while (true) {
-      signal?.throwIfAborted();
-      const url = new URL(
-        `https://api.github.com/repos/${owner}/${repo}/issues`,
-      );
-      url.searchParams.set('state', 'all');
-      url.searchParams.set('per_page', '100');
-      url.searchParams.set('page', String(page));
-      if (request.since) {
-        url.searchParams.set('since', request.since);
+    const allIssues: GitHubIssue[] = [];
+    for await (const issue of this.paginate<GitHubIssue>(
+      url.toString(),
+      signal,
+    )) {
+      if (issue.pull_request !== undefined) {
+        continue;
       }
-      const res = await fetch(url.toString(), { headers, signal });
-      if (!res.ok) {
-        throw new Error(`GitHub API error: ${res.status} ${res.statusText}`);
-      }
-      const issues = (await res.json()) as GitHubIssue[];
-      if (issues.length === 0) {
-        break;
-      }
-      for (const issue of issues) {
-        if (issue.pull_request !== undefined) {
-          continue;
-        }
-        allIssues.push(issue);
-      }
-      if (issues.length < 100) {
-        break;
-      }
-      page++;
+      allIssues.push(issue);
     }
 
     await storage.entities(
@@ -391,44 +382,24 @@ export class GitHubActionsConnector extends BaseConnector<
     signal?: AbortSignal,
   ): Promise<void> {
     const { owner, repo } = this.settings;
-    const headers = this.buildHeaders();
     const allDeployments: GitHubDeployment[] = [];
-    let page = 1;
-
-    while (true) {
-      signal?.throwIfAborted();
-      const res = await fetch(
-        `https://api.github.com/repos/${owner}/${repo}/deployments?per_page=100&page=${page}`,
-        { headers, signal },
-      );
-      if (!res.ok) {
-        throw new Error(`GitHub API error: ${res.status} ${res.statusText}`);
-      }
-      const deployments = (await res.json()) as GitHubDeployment[];
-      if (deployments.length === 0) {
-        break;
-      }
-      allDeployments.push(...deployments);
-      if (deployments.length < 100) {
-        break;
-      }
-      page++;
+    for await (const d of this.paginate<GitHubDeployment>(
+      `https://api.github.com/repos/${owner}/${repo}/deployments?per_page=100`,
+      signal,
+    )) {
+      allDeployments.push(d);
     }
 
     const entities: Parameters<StorageHandle['entities']>[0] = [];
     for (const deployment of allDeployments) {
       signal?.throwIfAborted();
-      const res = await fetch(
+      const res = await this.get<GitHubDeploymentStatus[]>(
         `https://api.github.com/repos/${owner}/${repo}/deployments/${deployment.id}/statuses?per_page=1`,
-        { headers, signal },
+        signal,
       );
-      if (!res.ok) {
-        throw new Error(`GitHub API error: ${res.status} ${res.statusText}`);
-      }
-      const statuses = (await res.json()) as GitHubDeploymentStatus[];
       const createdMs = new Date(deployment.created_at).getTime();
-      const statusUpdatedMs = statuses[0]?.updated_at
-        ? new Date(statuses[0].updated_at).getTime()
+      const statusUpdatedMs = res.body[0]?.updated_at
+        ? new Date(res.body[0].updated_at).getTime()
         : null;
       entities.push({
         type: 'deployment',
@@ -439,7 +410,7 @@ export class GitHubActionsConnector extends BaseConnector<
           sha: deployment.sha,
           creator: deployment.creator?.login ?? '',
           created_at: createdMs,
-          latest_status: statuses[0]?.state ?? 'unknown',
+          latest_status: res.body[0]?.state ?? 'unknown',
         },
         updated_at: Math.max(createdMs, statusUpdatedMs ?? 0),
       });
@@ -453,28 +424,12 @@ export class GitHubActionsConnector extends BaseConnector<
     signal?: AbortSignal,
   ): Promise<void> {
     const { owner, repo } = this.settings;
-    const headers = this.buildHeaders();
     const allReleases: GitHubRelease[] = [];
-    let page = 1;
-
-    while (true) {
-      signal?.throwIfAborted();
-      const res = await fetch(
-        `https://api.github.com/repos/${owner}/${repo}/releases?per_page=100&page=${page}`,
-        { headers, signal },
-      );
-      if (!res.ok) {
-        throw new Error(`GitHub API error: ${res.status} ${res.statusText}`);
-      }
-      const releases = (await res.json()) as GitHubRelease[];
-      if (releases.length === 0) {
-        break;
-      }
-      allReleases.push(...releases);
-      if (releases.length < 100) {
-        break;
-      }
-      page++;
+    for await (const r of this.paginate<GitHubRelease>(
+      `https://api.github.com/repos/${owner}/${repo}/releases?per_page=100`,
+      signal,
+    )) {
+      allReleases.push(r);
     }
 
     await storage.entities(
@@ -505,23 +460,19 @@ export class GitHubActionsConnector extends BaseConnector<
     signal?: AbortSignal,
   ): Promise<void> {
     const { owner, repo } = this.settings;
-    const headers = this.buildHeaders();
 
     const contributors = await this.withRetry<GitHubContributorStats[]>(
       async (sig) => {
-        const res = await fetch(
+        const res = await this.get<GitHubContributorStats[] | null>(
           `https://api.github.com/repos/${owner}/${repo}/stats/contributors`,
-          { headers, signal: sig },
+          sig,
         );
         if (res.status === 202) {
           return { status: 'retry' };
         }
-        if (!res.ok) {
-          throw new Error(`GitHub API error: ${res.status} ${res.statusText}`);
-        }
         return {
           status: 'done',
-          value: (await res.json()) as GitHubContributorStats[],
+          value: (res.body ?? []) as GitHubContributorStats[],
         };
       },
       { maxAttempts: 15, initialDelayMs: 1000, maxDelayMs: 10000, signal },
@@ -562,24 +513,19 @@ export class GitHubActionsConnector extends BaseConnector<
     signal?: AbortSignal,
   ): Promise<void> {
     const { owner, repo } = this.settings;
-    const headers = this.buildHeaders();
-    const res = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
-      headers,
+    const res = await this.get<GitHubRepo>(
+      `https://api.github.com/repos/${owner}/${repo}`,
       signal,
-    });
-    if (!res.ok) {
-      throw new Error(`GitHub API error: ${res.status} ${res.statusText}`);
-    }
-    const data = (await res.json()) as GitHubRepo;
+    );
     await storage.entities(
       [
         {
           type: 'repo',
           id: `${owner}/${repo}`,
           attributes: {
-            stars: data.stargazers_count,
-            forks: data.forks_count,
-            watchers: data.subscribers_count,
+            stars: res.body.stargazers_count,
+            forks: res.body.forks_count,
+            watchers: res.body.subscribers_count,
           },
           updated_at: Date.now(),
         },
@@ -589,14 +535,14 @@ export class GitHubActionsConnector extends BaseConnector<
   }
 
   async sync(
-    request: SyncOptions,
+    options: SyncOptions,
     storage: StorageHandle,
     signal?: AbortSignal,
   ): Promise<void> {
     await this.syncRepoStats(storage, signal);
-    await this.syncWorkflowRuns(storage, request, signal);
+    await this.syncWorkflowRuns(storage, options, signal);
     await this.syncPullRequests(storage, signal);
-    await this.syncIssues(storage, request, signal);
+    await this.syncIssues(storage, options, signal);
     await this.syncDeployments(storage, signal);
     await this.syncReleases(storage, signal);
     await this.syncContributors(storage, signal);
