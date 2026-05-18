@@ -1,5 +1,12 @@
 # @rawdash/mcp
 
+## 0.7.1
+
+### Patch Changes
+
+- @rawdash/core@0.7.1
+- @rawdash/server@0.7.1
+
 ## 0.7.0
 
 ### Patch Changes
