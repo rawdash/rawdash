@@ -657,6 +657,32 @@ export class GitHubActionsConnector extends BaseConnector<
     return { done: true };
   }
 
+  private sanitizeIncomingCursor(
+    cursor: unknown,
+  ): GitHubSyncCursor | undefined {
+    if (!isGitHubSyncCursor(cursor)) {
+      return undefined;
+    }
+    if (cursor.pageUrl === undefined) {
+      return cursor;
+    }
+    const { owner, repo } = this.settings;
+    const expectedPrefix = `/repos/${owner}/${repo}/`;
+    try {
+      const u = new URL(cursor.pageUrl);
+      if (
+        u.protocol !== 'https:' ||
+        u.host !== 'api.github.com' ||
+        !u.pathname.startsWith(expectedPrefix)
+      ) {
+        return { phase: cursor.phase };
+      }
+      return cursor;
+    } catch {
+      return { phase: cursor.phase };
+    }
+  }
+
   private async runPhase(
     phase: GitHubSyncPhase,
     storage: StorageHandle,
@@ -689,9 +715,7 @@ export class GitHubActionsConnector extends BaseConnector<
     storage: StorageHandle,
     signal?: AbortSignal,
   ): Promise<SyncResult> {
-    const incoming = isGitHubSyncCursor(options.cursor)
-      ? options.cursor
-      : undefined;
+    const incoming = this.sanitizeIncomingCursor(options.cursor);
     const startIdx = incoming ? PHASE_ORDER.indexOf(incoming.phase) : 0;
 
     for (let i = startIdx; i < PHASE_ORDER.length; i++) {
