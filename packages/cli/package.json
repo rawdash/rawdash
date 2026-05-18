@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/cli",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "description": "Rawdash CLI — deploy and manage your dashboard config",
   "license": "Apache-2.0",
   "type": "module",

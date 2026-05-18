@@ -1,5 +1,13 @@
 # @rawdash/mcp
 
+## 0.8.0
+
+### Patch Changes
+
+- Updated dependencies [28355ff]
+  - @rawdash/core@0.8.0
+  - @rawdash/server@0.8.0
+
 ## 0.7.1
 
 ### Patch Changes
