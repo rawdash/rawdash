@@ -1,5 +1,11 @@
 # @rawdash/server
 
+## 0.7.1
+
+### Patch Changes
+
+- @rawdash/core@0.7.1
+
 ## 0.7.0
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @rawdash/connector-github
 
+## 0.7.1
+
+### Patch Changes
+
+- 6d7d0e7: Bundle the internal shared substrate (renamed from `@rawdash/http-client` to `@rawdash/connector-shared`) into the published tarball via tsup `noExternal`, so `npm i @rawdash/connector-github` resolves cleanly without a dangling workspace dependency.
+  - @rawdash/core@0.7.1
+
 ## 0.7.0
 
 ### Patch Changes
