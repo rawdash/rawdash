@@ -1,5 +1,11 @@
 # @rawdash/cli
 
+## 0.7.0
+
+### Patch Changes
+
+- @rawdash/core@0.7.0
+
 ## 0.6.1
 
 ### Patch Changes
