@@ -200,12 +200,19 @@ interface StripeSyncCursor {
 type PhaseResult = { done: true } | { done: false; startingAfter: string };
 
 function isStripeSyncCursor(value: unknown): value is StripeSyncCursor {
-  if (typeof value !== 'object' || value === null) {return false;}
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
   const v = value as { phase?: unknown; startingAfter?: unknown };
-  if (typeof v.phase !== 'string') {return false;}
-  if (!(PHASE_ORDER as readonly string[]).includes(v.phase)) {return false;}
-  if (v.startingAfter !== undefined && typeof v.startingAfter !== 'string')
-    {return false;}
+  if (typeof v.phase !== 'string') {
+    return false;
+  }
+  if (!(PHASE_ORDER as readonly string[]).includes(v.phase)) {
+    return false;
+  }
+  if (v.startingAfter !== undefined && typeof v.startingAfter !== 'string') {
+    return false;
+  }
   return true;
 }
 
@@ -217,9 +224,13 @@ export function computeMrrAmountCents(
   subscription: StripeSubscription,
 ): number | null {
   const item = subscription.items.data[0];
-  if (!item) {return null;}
+  if (!item) {
+    return null;
+  }
   const { unit_amount, recurring } = item.price;
-  if (unit_amount === null || unit_amount === undefined) {return null;}
+  if (unit_amount === null || unit_amount === undefined) {
+    return null;
+  }
   const quantity = item.quantity ?? 1;
   const total = unit_amount * quantity;
   switch (recurring?.interval) {
@@ -287,21 +298,27 @@ export class StripeConnector extends BaseConnector<
     const url = new URL(`https://api.stripe.com/v1/${path}`);
     url.searchParams.set('limit', '100');
     for (const [key, value] of Object.entries(params)) {
-      if (value !== undefined) {url.searchParams.set(key, value);}
+      if (value !== undefined) {
+        url.searchParams.set(key, value);
+      }
     }
     return url.toString();
   }
 
   // created[gte] cutoff for entity phases in incremental mode (7-day lookback)
   private entityCreatedGte(options: SyncOptions): string | undefined {
-    if (options.mode !== 'latest' || !options.since) {return undefined;}
+    if (options.mode !== 'latest' || !options.since) {
+      return undefined;
+    }
     const sinceMs = new Date(options.since).getTime();
     return String(Math.floor((sinceMs - 7 * 24 * 60 * 60 * 1000) / 1000));
   }
 
   // created[gt] cutoff for event phases in incremental mode
   private eventCreatedGt(options: SyncOptions): string | undefined {
-    if (options.mode !== 'latest' || !options.since) {return undefined;}
+    if (options.mode !== 'latest' || !options.since) {
+      return undefined;
+    }
     return String(Math.floor(new Date(options.since).getTime() / 1000));
   }
 
@@ -322,7 +339,9 @@ export class StripeConnector extends BaseConnector<
 
     let cursor = startingAfter;
     while (true) {
-      if (signal?.aborted) {return { done: false, startingAfter: cursor ?? '' };}
+      if (signal?.aborted) {
+        return { done: false, startingAfter: cursor ?? '' };
+      }
 
       const url = this.buildListUrl('customers', {
         starting_after: cursor,
@@ -348,9 +367,13 @@ export class StripeConnector extends BaseConnector<
         updated_at: c.created * 1000,
       }));
 
-      for (const e of entities) {await storage.entity(e);}
+      for (const e of entities) {
+        await storage.entity(e);
+      }
 
-      if (!has_more || data.length === 0) {return { done: true };}
+      if (!has_more || data.length === 0) {
+        return { done: true };
+      }
       cursor = data.at(-1)!.id;
     }
   }
@@ -372,7 +395,9 @@ export class StripeConnector extends BaseConnector<
 
     let cursor = startingAfter;
     while (true) {
-      if (signal?.aborted) {return { done: false, startingAfter: cursor ?? '' };}
+      if (signal?.aborted) {
+        return { done: false, startingAfter: cursor ?? '' };
+      }
 
       const url = this.buildListUrl('products', {
         starting_after: cursor,
@@ -397,7 +422,9 @@ export class StripeConnector extends BaseConnector<
         });
       }
 
-      if (!has_more || data.length === 0) {return { done: true };}
+      if (!has_more || data.length === 0) {
+        return { done: true };
+      }
       cursor = data.at(-1)!.id;
     }
   }
@@ -419,7 +446,9 @@ export class StripeConnector extends BaseConnector<
 
     let cursor = startingAfter;
     while (true) {
-      if (signal?.aborted) {return { done: false, startingAfter: cursor ?? '' };}
+      if (signal?.aborted) {
+        return { done: false, startingAfter: cursor ?? '' };
+      }
 
       const url = this.buildListUrl('prices', {
         starting_after: cursor,
@@ -445,7 +474,9 @@ export class StripeConnector extends BaseConnector<
         });
       }
 
-      if (!has_more || data.length === 0) {return { done: true };}
+      if (!has_more || data.length === 0) {
+        return { done: true };
+      }
       cursor = data.at(-1)!.id;
     }
   }
@@ -467,7 +498,9 @@ export class StripeConnector extends BaseConnector<
 
     let cursor = startingAfter;
     while (true) {
-      if (signal?.aborted) {return { done: false, startingAfter: cursor ?? '' };}
+      if (signal?.aborted) {
+        return { done: false, startingAfter: cursor ?? '' };
+      }
 
       const url = this.buildListUrl('subscriptions', {
         status: 'all',
@@ -502,7 +535,9 @@ export class StripeConnector extends BaseConnector<
         });
       }
 
-      if (!has_more || data.length === 0) {return { done: true };}
+      if (!has_more || data.length === 0) {
+        return { done: true };
+      }
       cursor = data.at(-1)!.id;
     }
   }
@@ -524,7 +559,9 @@ export class StripeConnector extends BaseConnector<
 
     let cursor = startingAfter;
     while (true) {
-      if (signal?.aborted) {return { done: false, startingAfter: cursor ?? '' };}
+      if (signal?.aborted) {
+        return { done: false, startingAfter: cursor ?? '' };
+      }
 
       const url = this.buildListUrl('invoices', {
         starting_after: cursor,
@@ -555,7 +592,9 @@ export class StripeConnector extends BaseConnector<
         });
       }
 
-      if (!has_more || data.length === 0) {return { done: true };}
+      if (!has_more || data.length === 0) {
+        return { done: true };
+      }
       cursor = data.at(-1)!.id;
     }
   }
@@ -577,7 +616,9 @@ export class StripeConnector extends BaseConnector<
 
     let cursor = startingAfter;
     while (true) {
-      if (signal?.aborted) {return { done: false, startingAfter: cursor ?? '' };}
+      if (signal?.aborted) {
+        return { done: false, startingAfter: cursor ?? '' };
+      }
 
       const url = this.buildListUrl('charges', {
         starting_after: cursor,
@@ -601,9 +642,13 @@ export class StripeConnector extends BaseConnector<
         },
       }));
 
-      for (const e of events) {await storage.event(e);}
+      for (const e of events) {
+        await storage.event(e);
+      }
 
-      if (!has_more || data.length === 0) {return { done: true };}
+      if (!has_more || data.length === 0) {
+        return { done: true };
+      }
       cursor = data.at(-1)!.id;
     }
   }
@@ -625,7 +670,9 @@ export class StripeConnector extends BaseConnector<
 
     let cursor = startingAfter;
     while (true) {
-      if (signal?.aborted) {return { done: false, startingAfter: cursor ?? '' };}
+      if (signal?.aborted) {
+        return { done: false, startingAfter: cursor ?? '' };
+      }
 
       const url = this.buildListUrl('payment_intents', {
         starting_after: cursor,
@@ -652,7 +699,9 @@ export class StripeConnector extends BaseConnector<
         });
       }
 
-      if (!has_more || data.length === 0) {return { done: true };}
+      if (!has_more || data.length === 0) {
+        return { done: true };
+      }
       cursor = data.at(-1)!.id;
     }
   }
@@ -674,7 +723,9 @@ export class StripeConnector extends BaseConnector<
 
     let cursor = startingAfter;
     while (true) {
-      if (signal?.aborted) {return { done: false, startingAfter: cursor ?? '' };}
+      if (signal?.aborted) {
+        return { done: false, startingAfter: cursor ?? '' };
+      }
 
       const url = this.buildListUrl('disputes', {
         starting_after: cursor,
@@ -702,7 +753,9 @@ export class StripeConnector extends BaseConnector<
         });
       }
 
-      if (!has_more || data.length === 0) {return { done: true };}
+      if (!has_more || data.length === 0) {
+        return { done: true };
+      }
       cursor = data.at(-1)!.id;
     }
   }
@@ -724,7 +777,9 @@ export class StripeConnector extends BaseConnector<
 
     let cursor = startingAfter;
     while (true) {
-      if (signal?.aborted) {return { done: false, startingAfter: cursor ?? '' };}
+      if (signal?.aborted) {
+        return { done: false, startingAfter: cursor ?? '' };
+      }
 
       const url = this.buildListUrl('refunds', {
         starting_after: cursor,
@@ -749,7 +804,9 @@ export class StripeConnector extends BaseConnector<
         });
       }
 
-      if (!has_more || data.length === 0) {return { done: true };}
+      if (!has_more || data.length === 0) {
+        return { done: true };
+      }
       cursor = data.at(-1)!.id;
     }
   }
