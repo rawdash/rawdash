@@ -14,8 +14,11 @@
  *   3. OIDC exchange dry-run: for each new public package, exchange a GitHub
  *      Actions OIDC token at npm's exchange endpoint and discard the result. A
  *      4xx means the Trusted Publisher entry on npmjs.com is missing or
- *      misconfigured. Skipped (with a warning) when no OIDC token is available
- *      (fork PRs, local runs).
+ *      misconfigured. npm allows only one Trusted Publisher entry per package,
+ *      so this dry-run is only authoritative when run inside the trusted
+ *      publish workflow itself; from any other context (`ci.yml`, fork PRs,
+ *      local runs) the exchange would be rejected by design, and the check is
+ *      skipped with a warning instead.
  *
  *   4. connector-shared bundling discipline: every `@rawdash/connector-*`
  *      (other than `@rawdash/connector-shared` itself) must declare
@@ -314,10 +317,31 @@ async function dryRunOidcExchange(
   return { ok: res.ok, status: res.status, body: await res.text() };
 }
 
+const TRUSTED_WORKFLOW_FILE = 'publish.yml';
+
+function runningFromTrustedWorkflow(): boolean {
+  const ref = process.env['GITHUB_WORKFLOW_REF'];
+  if (!ref) {
+    return false;
+  }
+  const match = ref.match(/\.github\/workflows\/([^@]+)/);
+  return match?.[1] === TRUSTED_WORKFLOW_FILE;
+}
+
 async function checkOidcExchange(
   newPackages: WorkspacePackage[],
 ): Promise<void> {
   if (newPackages.length === 0) {
+    return;
+  }
+
+  if (!runningFromTrustedWorkflow()) {
+    recordWarning(
+      `Skipping OIDC exchange dry-run for new packages: this run is not ` +
+        `inside ${TRUSTED_WORKFLOW_FILE}, so the registry will reject the ` +
+        `token by design. Real publish validation happens on main in the ` +
+        `publish workflow.`,
+    );
     return;
   }
 
@@ -354,7 +378,7 @@ async function checkOidcExchange(
           `machine (requires npm ≥ 11.10.0):` +
           `\n  npm trust github ${pkg.name} \\` +
           `\n    --repository rawdash/rawdash \\` +
-          `\n    --file publish.yml`,
+          `\n    --file ${TRUSTED_WORKFLOW_FILE}`,
         '',
         `Registry response: ${body.trim()}`,
       ].join('\n'),
