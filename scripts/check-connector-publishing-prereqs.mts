@@ -159,36 +159,19 @@ function detectNewPublicPackages(
     const relPkgPath = relative(REPO_ROOT, pkg.path);
     const relPkgJson = join(relPkgPath, 'package.json');
     try {
-      execFileSync('git', ['cat-file', '-e', `${baseRef}:${relPkgJson}`], {
-        cwd: REPO_ROOT,
-        stdio: ['pipe', 'pipe', 'pipe'],
-      });
-      // existed at base — not new
-      continue;
-    } catch {
-      // doesn't exist at base ref
-    }
-
-    // Also consider it new if the package was private at base.
-    let wasPrivateAtBase = false;
-    try {
       const baseJson = execFileSync(
         'git',
         ['show', `${baseRef}:${relPkgJson}`],
-        {
-          cwd: REPO_ROOT,
-          stdio: ['pipe', 'pipe', 'pipe'],
-        },
+        { cwd: REPO_ROOT, stdio: ['pipe', 'pipe', 'pipe'] },
       ).toString();
       const parsed = JSON.parse(baseJson) as PackageManifest;
-      wasPrivateAtBase = Boolean(parsed.private);
+      // Existed at base and was already public — not new. A private→public
+      // flip counts as new since the package has never been published.
+      if (parsed.private) {
+        newPackages.push(pkg);
+      }
     } catch {
       // package.json wasn't in the base ref at all — it's new
-      newPackages.push(pkg);
-      continue;
-    }
-
-    if (wasPrivateAtBase) {
       newPackages.push(pkg);
     }
   }
@@ -226,10 +209,16 @@ function bootstrapBlurb(pkg: WorkspacePackage): string {
   ].join('\n');
 }
 
-function checkNpmExistence(newPackages: WorkspacePackage[]): void {
-  const missing = newPackages.filter((pkg) => !packageExistsOnNpm(pkg.name));
+function checkNpmExistence(
+  newPackages: WorkspacePackage[],
+): WorkspacePackage[] {
+  const existing: WorkspacePackage[] = [];
+  const missing: WorkspacePackage[] = [];
+  for (const pkg of newPackages) {
+    (packageExistsOnNpm(pkg.name) ? existing : missing).push(pkg);
+  }
   if (missing.length === 0) {
-    return;
+    return existing;
   }
 
   recordError(
@@ -251,6 +240,8 @@ function checkNpmExistence(newPackages: WorkspacePackage[]): void {
         'environment).',
     ].join('\n'),
   );
+
+  return existing;
 }
 
 async function getGitHubOidcJwt(): Promise<string | null> {
@@ -498,8 +489,11 @@ async function main(): Promise<void> {
       `Detected ${newPackages.length} new public package(s): ` +
         newPackages.map((p) => p.name).join(', '),
     );
-    checkNpmExistence(newPackages);
-    await checkOidcExchange(newPackages);
+    // Layer 3 only makes sense for packages that exist on npm — running the
+    // OIDC exchange against a missing package produces a second 4xx with the
+    // wrong remediation hint.
+    const existingOnNpm = checkNpmExistence(newPackages);
+    await checkOidcExchange(existingOnNpm);
     const newConnectors = newPackages.filter(isConnectorPackage);
     if (newConnectors.length > 0) {
       checkPackedTarballHasNoSharedDep(newConnectors);
