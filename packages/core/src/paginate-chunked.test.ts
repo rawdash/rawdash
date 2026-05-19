@@ -143,6 +143,27 @@ describe('paginateChunked', () => {
     expect(seen).toEqual(['a', 'b', 'c']);
   });
 
+  it('does not propagate a stale page when the cursor phase is unknown', async () => {
+    const seen: Array<{ phase: Phase; page: number | null }> = [];
+    const result = await paginateChunked<Phase, number>({
+      phases,
+      cursor: { phase: 'zzz' as Phase, page: 99 },
+      signal: undefined,
+      fetchPage: async (phase, page) => {
+        seen.push({ phase, page });
+        return { items: [], next: null };
+      },
+      writeBatch: async () => {},
+    });
+
+    expect(result).toEqual({ done: true });
+    expect(seen).toEqual([
+      { phase: 'a', page: null },
+      { phase: 'b', page: null },
+      { phase: 'c', page: null },
+    ]);
+  });
+
   it('returns done immediately for an empty phases list', async () => {
     const fetchPage = vi.fn(async () => ({ items: [], next: null }));
     const result = await paginateChunked<Phase, number>({

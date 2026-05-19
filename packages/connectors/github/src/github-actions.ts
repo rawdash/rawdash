@@ -163,6 +163,8 @@ interface DeploymentPageItems {
   latestStatusById: Map<number, GitHubDeploymentStatus | null>;
 }
 
+const CONTRIBUTORS_SKIPPED = Symbol('contributors-skipped');
+
 function isGitHubSyncCursor(value: unknown): value is GitHubSyncCursor {
   if (typeof value !== 'object' || value === null) {
     return false;
@@ -223,22 +225,46 @@ export class GitHubActionsConnector extends BaseConnector<
     return request<T>(req);
   }
 
-  private sanitizePageUrl(pageUrl: string | null): string | null {
+  private allowedPageBasePath(phase: GitHubSyncPhase): string | null {
+    const { owner, repo } = this.settings;
+    switch (phase) {
+      case 'workflow_runs':
+        return `/repos/${owner}/${repo}/actions/runs`;
+      case 'pull_requests':
+        return `/repos/${owner}/${repo}/pulls`;
+      case 'issues':
+        return `/repos/${owner}/${repo}/issues`;
+      case 'deployments':
+        return `/repos/${owner}/${repo}/deployments`;
+      case 'releases':
+        return `/repos/${owner}/${repo}/releases`;
+      case 'repo_stats':
+      case 'contributors':
+        return null;
+    }
+  }
+
+  private sanitizePageUrl(
+    phase: GitHubSyncPhase,
+    pageUrl: string | null,
+  ): string | null {
     if (pageUrl === null) {
       return null;
     }
-    const { owner, repo } = this.settings;
-    const expectedPrefix = `/repos/${owner}/${repo}/`;
+    const allowedPath = this.allowedPageBasePath(phase);
+    if (allowedPath === null) {
+      return null;
+    }
     try {
       const u = new URL(pageUrl);
       if (
         u.protocol !== 'https:' ||
         u.host !== 'api.github.com' ||
-        !u.pathname.startsWith(expectedPrefix)
+        u.pathname !== allowedPath
       ) {
         return null;
       }
-      return pageUrl;
+      return u.toString();
     } catch {
       return null;
     }
@@ -248,7 +274,10 @@ export class GitHubActionsConnector extends BaseConnector<
     if (!isGitHubSyncCursor(cursor)) {
       return undefined;
     }
-    return { phase: cursor.phase, page: this.sanitizePageUrl(cursor.page) };
+    return {
+      phase: cursor.phase,
+      page: this.sanitizePageUrl(cursor.phase, cursor.page),
+    };
   }
 
   private async fetchRepoStats(
@@ -324,9 +353,7 @@ export class GitHubActionsConnector extends BaseConnector<
 
     const reviewsByPR = new Map<number, GitHubReview[]>();
     for (const pr of prs) {
-      if (signal?.aborted) {
-        break;
-      }
+      signal?.throwIfAborted();
       const reviews = await this.get<GitHubReview[]>(
         `https://api.github.com/repos/${owner}/${repo}/pulls/${pr.number}/reviews`,
         signal,
@@ -375,9 +402,7 @@ export class GitHubActionsConnector extends BaseConnector<
 
     const latestStatusById = new Map<number, GitHubDeploymentStatus | null>();
     for (const deployment of deployments) {
-      if (signal?.aborted) {
-        break;
-      }
+      signal?.throwIfAborted();
       const statusRes = await this.get<GitHubDeploymentStatus[]>(
         `https://api.github.com/repos/${owner}/${repo}/deployments/${deployment.id}/statuses?per_page=1`,
         signal,
@@ -427,7 +452,7 @@ export class GitHubActionsConnector extends BaseConnector<
       console.warn(
         '[github-actions] Stats endpoint never became ready — skipping contributor sync and keeping previous data.',
       );
-      return { items: [], next: null };
+      return { items: [CONTRIBUTORS_SKIPPED], next: null };
     }
     return { items: contributors, next: null };
   }
@@ -658,10 +683,10 @@ export class GitHubActionsConnector extends BaseConnector<
     storage: StorageHandle,
     items: unknown[],
   ): Promise<void> {
-    const contributors = items as GitHubContributorStats[];
-    if (contributors.length === 0) {
+    if (items[0] === CONTRIBUTORS_SKIPPED) {
       return;
     }
+    const contributors = items as GitHubContributorStats[];
     await storage.entities(
       contributors.map((c) => {
         const additions = c.weeks.reduce((sum, w) => sum + w.a, 0);

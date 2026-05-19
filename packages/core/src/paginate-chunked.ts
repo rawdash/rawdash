@@ -35,12 +35,14 @@ export async function paginateChunked<TPhase extends string, TPage>(
     return { done: true };
   }
 
-  const resumeIdx = cursor ? phases.indexOf(cursor.phase) : 0;
-  const startIdx = resumeIdx < 0 ? 0 : resumeIdx;
+  const resumeIdx = cursor ? phases.indexOf(cursor.phase) : -1;
+  const hasKnownResumePhase = resumeIdx >= 0;
+  const startIdx = hasKnownResumePhase ? resumeIdx : 0;
 
   for (let i = startIdx; i < phases.length; i++) {
     const phase = phases[i]!;
-    let page: TPage | null = i === startIdx && cursor ? cursor.page : null;
+    let page: TPage | null =
+      i === startIdx && hasKnownResumePhase ? cursor!.page : null;
 
     while (true) {
       if (signal?.aborted) {
