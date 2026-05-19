@@ -387,6 +387,8 @@ describe('StripeConnector.sync', () => {
 
     expect(customerCallCount).toBe(0);
     expect(chargeCallCount).toBeGreaterThan(0);
+    const resumedChargeUrl = calledUrls.find((u) => u.includes('/v1/charges'));
+    expect(resumedChargeUrl).toContain('starting_after=ch_prev');
   });
 
   it('includes Stripe-Account header when accountId is set', async () => {
