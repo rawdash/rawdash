@@ -222,7 +222,7 @@ Throw these explicitly if you detect the condition yourself (e.g. a JSON payload
 
 ## 5. Chunked syncs
 
-> **Why this section exists.** Hosts run connectors inside per-invocation budgets — Cloudflare Workers' 1000-subrequest cap, AWS Lambda's 15-minute timeout, the GitHub Actions worker's 6-hour wall clock. A connector that has to fetch the entire backfill in one go either wedges itself on any source with more than ~30 seconds of history, or silently drops data when the host kills it. Connectors that can yield mid-sync and resume on the next tick avoid this entirely.
+> **Why this section exists.** Hosts run connectors inside per-invocation budgets — serverless platforms cap subrequest counts, wall-clock time, or both (Cloudflare Workers, AWS Lambda, GitHub Actions runners all have their own ceilings; see each platform's docs for current numbers). A connector that has to fetch the entire backfill in one go either wedges itself on any source with more than a handful of pages of history, or silently drops data when the host kills it. Connectors that can yield mid-sync and resume on the next tick avoid this entirely.
 
 The mechanism is `SyncOptions.cursor` + `SyncResult.cursor`:
 
@@ -238,7 +238,7 @@ Yes:
 
 - Paginated APIs that may return thousands of pages.
 - Multi-phase syncs (e.g. fetch parents, then fetch children per parent).
-- Anything that could plausibly exceed a Cloudflare Workers' 1000-subrequest cap on a single invocation.
+- Anything that could plausibly exceed a serverless platform's per-invocation subrequest or time budget.
 
 No:
 
