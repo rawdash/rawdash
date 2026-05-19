@@ -220,9 +220,12 @@ function checkNpmExistence(newPackages) {
       '',
       ...missing.map(bootstrapBlurb),
       '',
-      "Then on npmjs.com, open each new package's Settings → Trusted " +
-        'Publishers and add a GitHub Actions entry matching the existing ' +
-        '@rawdash packages (same repo, workflow file, and environment).',
+      'Then configure the Trusted Publisher entry for each new package — ' +
+        'either run `npm trust github <package>` (npm ≥ 11.10.0) from a ' +
+        "maintainer machine, or open the package's Settings → Trusted " +
+        'Publishers on npmjs.com and add a GitHub Actions entry matching ' +
+        'the existing @rawdash packages (same repo, workflow file, and ' +
+        'environment).',
     ].join('\n'),
   );
 }
@@ -304,11 +307,14 @@ async function checkOidcExchange(newPackages) {
       [
         `npm OIDC token exchange for ${pkg.name} failed with HTTP ${status}.`,
         '',
-        `This usually means the Trusted Publisher entry on npmjs.com is ` +
-          `missing or doesn't match this workflow. On npmjs.com, open ` +
-          `${pkg.name} → Settings → Trusted Publishers and add a GitHub ` +
-          `Actions entry matching the existing @rawdash packages (same ` +
-          `repository, workflow file, and environment).`,
+        `This usually means the Trusted Publisher entry is missing or ` +
+          `doesn't match this workflow. Configure it from a maintainer ` +
+          `machine with either:` +
+          `\n  npm trust github ${pkg.name}` +
+          `\n(npm ≥ 11.10.0), or by opening ${pkg.name} → Settings → ` +
+          `Trusted Publishers on npmjs.com and adding a GitHub Actions ` +
+          `entry matching the existing @rawdash packages (same repository, ` +
+          `workflow file, and environment).`,
         '',
         `Registry response: ${body.trim()}`,
       ].join('\n'),
