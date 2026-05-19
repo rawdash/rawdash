@@ -5,13 +5,13 @@ import {
 } from '@rawdash/connector-shared';
 import {
   BaseConnector,
+  type ChunkedSyncCursor,
   type CredentialsSchema,
-  type Entity,
-  type Event,
   type StorageHandle,
   type SyncOptions,
   type SyncResult,
   defineConfigFields,
+  paginateChunked,
 } from '@rawdash/core';
 import { z } from 'zod';
 
@@ -192,29 +192,39 @@ const PHASE_ORDER: readonly StripePhase[] = [
   'refunds',
 ];
 
-interface StripeSyncCursor {
-  phase: StripePhase;
-  startingAfter?: string;
-}
-
-type PhaseResult = { done: true } | { done: false; startingAfter?: string };
+type StripeSyncCursor = ChunkedSyncCursor<StripePhase, string>;
 
 function isStripeSyncCursor(value: unknown): value is StripeSyncCursor {
   if (typeof value !== 'object' || value === null) {
     return false;
   }
-  const v = value as { phase?: unknown; startingAfter?: unknown };
+  const v = value as { phase?: unknown; page?: unknown };
   if (typeof v.phase !== 'string') {
     return false;
   }
   if (!(PHASE_ORDER as readonly string[]).includes(v.phase)) {
     return false;
   }
-  if (v.startingAfter !== undefined && typeof v.startingAfter !== 'string') {
+  if (v.page !== null && typeof v.page !== 'string') {
     return false;
   }
   return true;
 }
+
+const ENTITY_TYPE_BY_PHASE: Partial<Record<StripePhase, string>> = {
+  customers: 'stripe_customer',
+  products: 'stripe_product',
+  prices: 'stripe_price',
+  subscriptions: 'stripe_subscription',
+  invoices: 'stripe_invoice',
+};
+
+const EVENT_NAME_BY_PHASE: Partial<Record<StripePhase, string>> = {
+  charges: 'stripe_charge',
+  payment_intents: 'stripe_payment_intent',
+  disputes: 'stripe_dispute',
+  refunds: 'stripe_refund',
+};
 
 // ---------------------------------------------------------------------------
 // MRR helper
@@ -337,525 +347,203 @@ export class StripeConnector extends BaseConnector<
     return String(Math.floor(new Date(options.since).getTime() / 1000));
   }
 
-  // ---------------------------------------------------------------------------
-  // Phase: customers
-  // ---------------------------------------------------------------------------
-
-  private async syncCustomers(
-    storage: StorageHandle,
-    options: SyncOptions,
-    startingAfter: string | undefined,
-    signal?: AbortSignal,
-  ): Promise<PhaseResult> {
-    const isFull = options.mode === 'full';
-    if (isFull && startingAfter === undefined) {
-      await storage.entities([], { types: ['stripe_customer'] });
-    }
-
-    let cursor = startingAfter;
-    while (true) {
-      if (signal?.aborted) {
-        return { done: false, startingAfter: cursor };
-      }
-
-      const url = this.buildListUrl('customers', {
-        starting_after: cursor,
-        'created[gte]': this.entityCreatedGte(options),
-      });
-      const res = await this.get<StripeListResponse<StripeCustomer>>(
-        url,
-        signal,
-      );
-      const { data, has_more } = res.body;
-
-      const entities: Entity[] = data.map((c) => ({
-        type: 'stripe_customer',
-        id: c.id,
-        attributes: {
-          email: c.email ?? null,
-          name: c.name ?? null,
-          created: c.created,
-          currency: c.currency ?? null,
-          delinquent: c.delinquent ?? false,
-          livemode: c.livemode,
-        },
-        updated_at: c.created * 1000,
-      }));
-
-      for (const e of entities) {
-        await storage.entity(e);
-      }
-
-      if (!has_more || data.length === 0) {
-        return { done: true };
-      }
-      cursor = data.at(-1)!.id;
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // Phase: products
-  // ---------------------------------------------------------------------------
-
-  private async syncProducts(
-    storage: StorageHandle,
-    options: SyncOptions,
-    startingAfter: string | undefined,
-    signal?: AbortSignal,
-  ): Promise<PhaseResult> {
-    const isFull = options.mode === 'full';
-    if (isFull && startingAfter === undefined) {
-      await storage.entities([], { types: ['stripe_product'] });
-    }
-
-    let cursor = startingAfter;
-    while (true) {
-      if (signal?.aborted) {
-        return { done: false, startingAfter: cursor };
-      }
-
-      const url = this.buildListUrl('products', {
-        starting_after: cursor,
-        'created[gte]': this.entityCreatedGte(options),
-      });
-      const res = await this.get<StripeListResponse<StripeProduct>>(
-        url,
-        signal,
-      );
-      const { data, has_more } = res.body;
-
-      for (const p of data) {
-        await storage.entity({
-          type: 'stripe_product',
-          id: p.id,
-          attributes: {
-            name: p.name,
-            active: p.active,
-            created: p.created,
-          },
-          updated_at: p.created * 1000,
-        });
-      }
-
-      if (!has_more || data.length === 0) {
-        return { done: true };
-      }
-      cursor = data.at(-1)!.id;
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // Phase: prices
-  // ---------------------------------------------------------------------------
-
-  private async syncPrices(
-    storage: StorageHandle,
-    options: SyncOptions,
-    startingAfter: string | undefined,
-    signal?: AbortSignal,
-  ): Promise<PhaseResult> {
-    const isFull = options.mode === 'full';
-    if (isFull && startingAfter === undefined) {
-      await storage.entities([], { types: ['stripe_price'] });
-    }
-
-    let cursor = startingAfter;
-    while (true) {
-      if (signal?.aborted) {
-        return { done: false, startingAfter: cursor };
-      }
-
-      const url = this.buildListUrl('prices', {
-        starting_after: cursor,
-        'created[gte]': this.entityCreatedGte(options),
-      });
-      const res = await this.get<StripeListResponse<StripePrice>>(url, signal);
-      const { data, has_more } = res.body;
-
-      for (const p of data) {
-        await storage.entity({
-          type: 'stripe_price',
-          id: p.id,
-          attributes: {
-            productId: p.product,
-            unitAmount: p.unit_amount ?? null,
-            currency: p.currency,
-            interval: p.recurring?.interval ?? null,
-            intervalCount: p.recurring?.interval_count ?? null,
-            active: p.active,
-            created: p.created,
-          },
-          updated_at: p.created * 1000,
-        });
-      }
-
-      if (!has_more || data.length === 0) {
-        return { done: true };
-      }
-      cursor = data.at(-1)!.id;
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // Phase: subscriptions
-  // ---------------------------------------------------------------------------
-
-  private async syncSubscriptions(
-    storage: StorageHandle,
-    options: SyncOptions,
-    startingAfter: string | undefined,
-    signal?: AbortSignal,
-  ): Promise<PhaseResult> {
-    const isFull = options.mode === 'full';
-    if (isFull && startingAfter === undefined) {
-      await storage.entities([], { types: ['stripe_subscription'] });
-    }
-
-    let cursor = startingAfter;
-    while (true) {
-      if (signal?.aborted) {
-        return { done: false, startingAfter: cursor };
-      }
-
-      const url = this.buildListUrl('subscriptions', {
-        status: 'all',
-        starting_after: cursor,
-        'created[gte]': this.entityCreatedGte(options),
-      });
-      const res = await this.get<StripeListResponse<StripeSubscription>>(
-        url,
-        signal,
-      );
-      const { data, has_more } = res.body;
-
-      for (const s of data) {
-        const planItem = s.items.data[0];
-        await storage.entity({
-          type: 'stripe_subscription',
-          id: s.id,
-          attributes: {
-            customerId: s.customer,
-            status: s.status,
-            planId: planItem?.price.id ?? null,
-            currentPeriodStart: s.current_period_start,
-            currentPeriodEnd: s.current_period_end,
-            cancelAtPeriodEnd: s.cancel_at_period_end,
-            canceledAt: s.canceled_at ?? null,
-            trialEnd: s.trial_end ?? null,
-            mrrAmount: computeMrrAmountCents(s),
-            currency: s.currency,
-            created: s.created,
-          },
-          updated_at: s.current_period_end * 1000,
-        });
-      }
-
-      if (!has_more || data.length === 0) {
-        return { done: true };
-      }
-      cursor = data.at(-1)!.id;
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // Phase: invoices
-  // ---------------------------------------------------------------------------
-
-  private async syncInvoices(
-    storage: StorageHandle,
-    options: SyncOptions,
-    startingAfter: string | undefined,
-    signal?: AbortSignal,
-  ): Promise<PhaseResult> {
-    const isFull = options.mode === 'full';
-    if (isFull && startingAfter === undefined) {
-      await storage.entities([], { types: ['stripe_invoice'] });
-    }
-
-    let cursor = startingAfter;
-    while (true) {
-      if (signal?.aborted) {
-        return { done: false, startingAfter: cursor };
-      }
-
-      const url = this.buildListUrl('invoices', {
-        starting_after: cursor,
-        'created[gte]': this.entityCreatedGte(options),
-      });
-      const res = await this.get<StripeListResponse<StripeInvoice>>(
-        url,
-        signal,
-      );
-      const { data, has_more } = res.body;
-
-      for (const inv of data) {
-        await storage.entity({
-          type: 'stripe_invoice',
-          id: inv.id,
-          attributes: {
-            customerId: inv.customer ?? null,
-            subscriptionId: inv.subscription ?? null,
-            status: inv.status ?? null,
-            amountDue: inv.amount_due,
-            amountPaid: inv.amount_paid,
-            currency: inv.currency,
-            created: inv.created,
-            dueDate: inv.due_date ?? null,
-            hostedInvoiceUrl: inv.hosted_invoice_url ?? null,
-          },
-          updated_at: inv.created * 1000,
-        });
-      }
-
-      if (!has_more || data.length === 0) {
-        return { done: true };
-      }
-      cursor = data.at(-1)!.id;
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // Phase: charges
-  // ---------------------------------------------------------------------------
-
-  private async syncCharges(
-    storage: StorageHandle,
-    options: SyncOptions,
-    startingAfter: string | undefined,
-    signal?: AbortSignal,
-  ): Promise<PhaseResult> {
-    const isFull = options.mode === 'full';
-    if (isFull && startingAfter === undefined) {
-      await storage.events([], { names: ['stripe_charge'] });
-    }
-
-    let cursor = startingAfter;
-    while (true) {
-      if (signal?.aborted) {
-        return { done: false, startingAfter: cursor };
-      }
-
-      const url = this.buildListUrl('charges', {
-        starting_after: cursor,
-        'created[gt]': this.eventCreatedGt(options),
-      });
-      const res = await this.get<StripeListResponse<StripeCharge>>(url, signal);
-      const { data, has_more } = res.body;
-
-      const events: Event[] = data.map((c) => ({
-        name: 'stripe_charge',
-        start_ts: c.created * 1000,
-        end_ts: null,
-        attributes: {
-          id: c.id,
-          customerId: c.customer ?? null,
-          amount: c.amount,
-          currency: c.currency,
-          status: c.status,
-          failureCode: c.failure_code ?? null,
-          paymentIntentId: c.payment_intent ?? null,
-        },
-      }));
-
-      for (const e of events) {
-        await storage.event(e);
-      }
-
-      if (!has_more || data.length === 0) {
-        return { done: true };
-      }
-      cursor = data.at(-1)!.id;
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // Phase: payment_intents
-  // ---------------------------------------------------------------------------
-
-  private async syncPaymentIntents(
-    storage: StorageHandle,
-    options: SyncOptions,
-    startingAfter: string | undefined,
-    signal?: AbortSignal,
-  ): Promise<PhaseResult> {
-    const isFull = options.mode === 'full';
-    if (isFull && startingAfter === undefined) {
-      await storage.events([], { names: ['stripe_payment_intent'] });
-    }
-
-    let cursor = startingAfter;
-    while (true) {
-      if (signal?.aborted) {
-        return { done: false, startingAfter: cursor };
-      }
-
-      const url = this.buildListUrl('payment_intents', {
-        starting_after: cursor,
-        'created[gt]': this.eventCreatedGt(options),
-      });
-      const res = await this.get<StripeListResponse<StripePaymentIntent>>(
-        url,
-        signal,
-      );
-      const { data, has_more } = res.body;
-
-      for (const pi of data) {
-        await storage.event({
-          name: 'stripe_payment_intent',
-          start_ts: pi.created * 1000,
-          end_ts: null,
-          attributes: {
-            id: pi.id,
-            customerId: pi.customer ?? null,
-            amount: pi.amount,
-            currency: pi.currency,
-            status: pi.status,
-          },
-        });
-      }
-
-      if (!has_more || data.length === 0) {
-        return { done: true };
-      }
-      cursor = data.at(-1)!.id;
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // Phase: disputes
-  // ---------------------------------------------------------------------------
-
-  private async syncDisputes(
-    storage: StorageHandle,
-    options: SyncOptions,
-    startingAfter: string | undefined,
-    signal?: AbortSignal,
-  ): Promise<PhaseResult> {
-    const isFull = options.mode === 'full';
-    if (isFull && startingAfter === undefined) {
-      await storage.events([], { names: ['stripe_dispute'] });
-    }
-
-    let cursor = startingAfter;
-    while (true) {
-      if (signal?.aborted) {
-        return { done: false, startingAfter: cursor };
-      }
-
-      const url = this.buildListUrl('disputes', {
-        starting_after: cursor,
-        'created[gt]': this.eventCreatedGt(options),
-      });
-      const res = await this.get<StripeListResponse<StripeDispute>>(
-        url,
-        signal,
-      );
-      const { data, has_more } = res.body;
-
-      for (const d of data) {
-        await storage.event({
-          name: 'stripe_dispute',
-          start_ts: d.created * 1000,
-          end_ts: null,
-          attributes: {
-            id: d.id,
-            chargeId: d.charge,
-            amount: d.amount,
-            currency: d.currency,
-            reason: d.reason,
-            status: d.status,
-          },
-        });
-      }
-
-      if (!has_more || data.length === 0) {
-        return { done: true };
-      }
-      cursor = data.at(-1)!.id;
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // Phase: refunds
-  // ---------------------------------------------------------------------------
-
-  private async syncRefunds(
-    storage: StorageHandle,
-    options: SyncOptions,
-    startingAfter: string | undefined,
-    signal?: AbortSignal,
-  ): Promise<PhaseResult> {
-    const isFull = options.mode === 'full';
-    if (isFull && startingAfter === undefined) {
-      await storage.events([], { names: ['stripe_refund'] });
-    }
-
-    let cursor = startingAfter;
-    while (true) {
-      if (signal?.aborted) {
-        return { done: false, startingAfter: cursor };
-      }
-
-      const url = this.buildListUrl('refunds', {
-        starting_after: cursor,
-        'created[gt]': this.eventCreatedGt(options),
-      });
-      const res = await this.get<StripeListResponse<StripeRefund>>(url, signal);
-      const { data, has_more } = res.body;
-
-      for (const r of data) {
-        await storage.event({
-          name: 'stripe_refund',
-          start_ts: r.created * 1000,
-          end_ts: null,
-          attributes: {
-            id: r.id,
-            chargeId: r.charge ?? null,
-            amount: r.amount,
-            currency: r.currency,
-            reason: r.reason ?? null,
-            status: r.status ?? null,
-          },
-        });
-      }
-
-      if (!has_more || data.length === 0) {
-        return { done: true };
-      }
-      cursor = data.at(-1)!.id;
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // Orchestration
-  // ---------------------------------------------------------------------------
-
-  private async runPhase(
+  private buildPhaseUrl(
     phase: StripePhase,
-    storage: StorageHandle,
+    page: string | null,
     options: SyncOptions,
-    startingAfter: string | undefined,
-    signal?: AbortSignal,
-  ): Promise<PhaseResult> {
+  ): string {
+    const startingAfter = page ?? undefined;
+    if (phase in ENTITY_TYPE_BY_PHASE) {
+      const extra: Record<string, string | undefined> =
+        phase === 'subscriptions' ? { status: 'all' } : {};
+      return this.buildListUrl(phase, {
+        ...extra,
+        starting_after: startingAfter,
+        'created[gte]': this.entityCreatedGte(options),
+      });
+    }
+    return this.buildListUrl(phase, {
+      starting_after: startingAfter,
+      'created[gt]': this.eventCreatedGt(options),
+    });
+  }
+
+  private async clearScopeOnFirstPage(
+    storage: StorageHandle,
+    phase: StripePhase,
+  ): Promise<void> {
+    const entityType = ENTITY_TYPE_BY_PHASE[phase];
+    if (entityType) {
+      await storage.entities([], { types: [entityType] });
+      return;
+    }
+    const eventName = EVENT_NAME_BY_PHASE[phase];
+    if (eventName) {
+      await storage.events([], { names: [eventName] });
+    }
+  }
+
+  private async writePhase(
+    storage: StorageHandle,
+    phase: StripePhase,
+    items: unknown[],
+  ): Promise<void> {
     switch (phase) {
       case 'customers':
-        return this.syncCustomers(storage, options, startingAfter, signal);
+        for (const c of items as StripeCustomer[]) {
+          await storage.entity({
+            type: 'stripe_customer',
+            id: c.id,
+            attributes: {
+              email: c.email ?? null,
+              name: c.name ?? null,
+              created: c.created,
+              currency: c.currency ?? null,
+              delinquent: c.delinquent ?? false,
+              livemode: c.livemode,
+            },
+            updated_at: c.created * 1000,
+          });
+        }
+        return;
       case 'products':
-        return this.syncProducts(storage, options, startingAfter, signal);
+        for (const p of items as StripeProduct[]) {
+          await storage.entity({
+            type: 'stripe_product',
+            id: p.id,
+            attributes: { name: p.name, active: p.active, created: p.created },
+            updated_at: p.created * 1000,
+          });
+        }
+        return;
       case 'prices':
-        return this.syncPrices(storage, options, startingAfter, signal);
+        for (const p of items as StripePrice[]) {
+          await storage.entity({
+            type: 'stripe_price',
+            id: p.id,
+            attributes: {
+              productId: p.product,
+              unitAmount: p.unit_amount ?? null,
+              currency: p.currency,
+              interval: p.recurring?.interval ?? null,
+              intervalCount: p.recurring?.interval_count ?? null,
+              active: p.active,
+              created: p.created,
+            },
+            updated_at: p.created * 1000,
+          });
+        }
+        return;
       case 'subscriptions':
-        return this.syncSubscriptions(storage, options, startingAfter, signal);
+        for (const s of items as StripeSubscription[]) {
+          await storage.entity({
+            type: 'stripe_subscription',
+            id: s.id,
+            attributes: {
+              customerId: s.customer,
+              status: s.status,
+              planId: s.items.data[0]?.price.id ?? null,
+              currentPeriodStart: s.current_period_start,
+              currentPeriodEnd: s.current_period_end,
+              cancelAtPeriodEnd: s.cancel_at_period_end,
+              canceledAt: s.canceled_at ?? null,
+              trialEnd: s.trial_end ?? null,
+              mrrAmount: computeMrrAmountCents(s),
+              currency: s.currency,
+              created: s.created,
+            },
+            updated_at: s.current_period_end * 1000,
+          });
+        }
+        return;
       case 'invoices':
-        return this.syncInvoices(storage, options, startingAfter, signal);
+        for (const inv of items as StripeInvoice[]) {
+          await storage.entity({
+            type: 'stripe_invoice',
+            id: inv.id,
+            attributes: {
+              customerId: inv.customer ?? null,
+              subscriptionId: inv.subscription ?? null,
+              status: inv.status ?? null,
+              amountDue: inv.amount_due,
+              amountPaid: inv.amount_paid,
+              currency: inv.currency,
+              created: inv.created,
+              dueDate: inv.due_date ?? null,
+              hostedInvoiceUrl: inv.hosted_invoice_url ?? null,
+            },
+            updated_at: inv.created * 1000,
+          });
+        }
+        return;
       case 'charges':
-        return this.syncCharges(storage, options, startingAfter, signal);
+        for (const c of items as StripeCharge[]) {
+          await storage.event({
+            name: 'stripe_charge',
+            start_ts: c.created * 1000,
+            end_ts: null,
+            attributes: {
+              id: c.id,
+              customerId: c.customer ?? null,
+              amount: c.amount,
+              currency: c.currency,
+              status: c.status,
+              failureCode: c.failure_code ?? null,
+              paymentIntentId: c.payment_intent ?? null,
+            },
+          });
+        }
+        return;
       case 'payment_intents':
-        return this.syncPaymentIntents(storage, options, startingAfter, signal);
+        for (const pi of items as StripePaymentIntent[]) {
+          await storage.event({
+            name: 'stripe_payment_intent',
+            start_ts: pi.created * 1000,
+            end_ts: null,
+            attributes: {
+              id: pi.id,
+              customerId: pi.customer ?? null,
+              amount: pi.amount,
+              currency: pi.currency,
+              status: pi.status,
+            },
+          });
+        }
+        return;
       case 'disputes':
-        return this.syncDisputes(storage, options, startingAfter, signal);
+        for (const d of items as StripeDispute[]) {
+          await storage.event({
+            name: 'stripe_dispute',
+            start_ts: d.created * 1000,
+            end_ts: null,
+            attributes: {
+              id: d.id,
+              chargeId: d.charge,
+              amount: d.amount,
+              currency: d.currency,
+              reason: d.reason,
+              status: d.status,
+            },
+          });
+        }
+        return;
       case 'refunds':
-        return this.syncRefunds(storage, options, startingAfter, signal);
+        for (const r of items as StripeRefund[]) {
+          await storage.event({
+            name: 'stripe_refund',
+            start_ts: r.created * 1000,
+            end_ts: null,
+            attributes: {
+              id: r.id,
+              chargeId: r.charge ?? null,
+              amount: r.amount,
+              currency: r.currency,
+              reason: r.reason ?? null,
+              status: r.status ?? null,
+            },
+          });
+        }
+        return;
     }
   }
 
@@ -864,33 +552,31 @@ export class StripeConnector extends BaseConnector<
     storage: StorageHandle,
     signal?: AbortSignal,
   ): Promise<SyncResult> {
-    const incoming = isStripeSyncCursor(options.cursor)
+    const cursor = isStripeSyncCursor(options.cursor)
       ? options.cursor
       : undefined;
-    const startIdx = incoming ? PHASE_ORDER.indexOf(incoming.phase) : 0;
+    const isFull = options.mode === 'full';
 
-    for (let i = startIdx; i < PHASE_ORDER.length; i++) {
-      const phase = PHASE_ORDER[i]!;
-      const startingAfter =
-        i === startIdx ? incoming?.startingAfter : undefined;
-      const result = await this.runPhase(
-        phase,
-        storage,
-        options,
-        startingAfter,
-        signal,
-      );
-      if (!result.done) {
-        return {
-          done: false,
-          cursor: {
-            phase,
-            startingAfter: result.startingAfter,
-          } satisfies StripeSyncCursor,
-        };
-      }
-    }
-
-    return { done: true };
+    return paginateChunked<StripePhase, string>({
+      phases: PHASE_ORDER,
+      cursor,
+      signal,
+      fetchPage: async (phase, page, sig) => {
+        const url = this.buildPhaseUrl(phase, page, options);
+        const res = await this.get<StripeListResponse<{ id: string }>>(
+          url,
+          sig,
+        );
+        const { data, has_more } = res.body;
+        const next = has_more && data.length > 0 ? data.at(-1)!.id : null;
+        return { items: data, next };
+      },
+      writeBatch: async (phase, items, page) => {
+        if (isFull && page === null) {
+          await this.clearScopeOnFirstPage(storage, phase);
+        }
+        await this.writePhase(storage, phase, items);
+      },
+    });
   }
 }

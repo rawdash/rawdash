@@ -369,7 +369,7 @@ describe('StripeConnector.sync', () => {
     await connector.sync(
       {
         mode: 'full',
-        cursor: { phase: 'charges', startingAfter: 'ch_prev' },
+        cursor: { phase: 'charges', page: 'ch_prev' },
       },
       storage,
     );
