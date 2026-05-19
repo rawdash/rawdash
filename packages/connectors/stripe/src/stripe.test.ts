@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { StripeConnector, computeMrrAmountCents, configFields } from './stripe';
 
@@ -227,6 +227,10 @@ function mockFetch(responsesByUrl: Record<string, object>) {
 }
 
 describe('StripeConnector.sync', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it('returns done:true when all phases return empty pages', async () => {
     const connector = new StripeConnector(
       {},
@@ -240,7 +244,6 @@ describe('StripeConnector.sync', () => {
     const result = await connector.sync({ mode: 'full' }, storage);
 
     expect(result.done).toBe(true);
-    vi.unstubAllGlobals();
   });
 
   it('clears entity types at start of full sync phases', async () => {
@@ -261,10 +264,9 @@ describe('StripeConnector.sync', () => {
 
     expect(clearedTypes).toContain('stripe_customer');
     expect(clearedTypes).toContain('stripe_product');
+    expect(clearedTypes).toContain('stripe_price');
     expect(clearedTypes).toContain('stripe_subscription');
     expect(clearedTypes).toContain('stripe_invoice');
-
-    vi.unstubAllGlobals();
   });
 
   it('clears event names at start of full sync phases', async () => {
@@ -286,8 +288,6 @@ describe('StripeConnector.sync', () => {
     expect(clearedNames).toContain('stripe_payment_intent');
     expect(clearedNames).toContain('stripe_dispute');
     expect(clearedNames).toContain('stripe_refund');
-
-    vi.unstubAllGlobals();
   });
 
   it('does not clear storage in latest (incremental) mode', async () => {
@@ -313,8 +313,6 @@ describe('StripeConnector.sync', () => {
 
     expect(entityClears).toHaveLength(0);
     expect(eventClears).toHaveLength(0);
-
-    vi.unstubAllGlobals();
   });
 
   it('writes customer entities from API response', async () => {
@@ -356,8 +354,6 @@ describe('StripeConnector.sync', () => {
     expect(
       (entityCall![0] as { attributes: { email: string } }).attributes.email,
     ).toBe('alice@example.com');
-
-    vi.unstubAllGlobals();
   });
 
   it('resumes from a saved cursor', async () => {
@@ -391,8 +387,6 @@ describe('StripeConnector.sync', () => {
 
     expect(customerCallCount).toBe(0);
     expect(chargeCallCount).toBeGreaterThan(0);
-
-    vi.unstubAllGlobals();
   });
 
   it('includes Stripe-Account header when accountId is set', async () => {
@@ -410,12 +404,14 @@ describe('StripeConnector.sync', () => {
     const firstCall = fetchSpy.mock.calls[0];
     const headers = firstCall?.[1]?.headers as Record<string, string>;
     expect(headers?.['stripe-account']).toBe('acct_xyz');
-
-    vi.unstubAllGlobals();
   });
 });
 
 describe('StripeConnector.create', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it('returns a connector wrapped in a ConfiguredConnector shape', () => {
     vi.stubEnv('STRIPE_TEST_KEY', 'test_stripe_key_fixture');
     const entry = StripeConnector.create({
@@ -423,6 +419,5 @@ describe('StripeConnector.create', () => {
     });
     expect(entry.connector).toBeInstanceOf(StripeConnector);
     expect(entry.connector.id).toBe('stripe');
-    vi.unstubAllEnvs();
   });
 });
