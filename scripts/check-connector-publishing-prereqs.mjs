@@ -119,7 +119,7 @@ function getBaseRef() {
 function detectNewPublicPackages(publicPackages) {
   const baseRef = getBaseRef();
   try {
-    execSync(`git rev-parse --verify ${baseRef}`, {
+    execFileSync('git', ['rev-parse', '--verify', baseRef], {
       cwd: REPO_ROOT,
       stdio: ['pipe', 'pipe', 'pipe'],
     });
@@ -136,7 +136,7 @@ function detectNewPublicPackages(publicPackages) {
     const relPkgPath = relative(REPO_ROOT, pkg.path);
     const relPkgJson = join(relPkgPath, 'package.json');
     try {
-      execSync(`git cat-file -e ${baseRef}:${relPkgJson}`, {
+      execFileSync('git', ['cat-file', '-e', `${baseRef}:${relPkgJson}`], {
         cwd: REPO_ROOT,
         stdio: ['pipe', 'pipe', 'pipe'],
       });
@@ -149,10 +149,14 @@ function detectNewPublicPackages(publicPackages) {
     // Also consider it new if the package was private at base.
     let wasPrivateAtBase = false;
     try {
-      const baseJson = execSync(`git show ${baseRef}:${relPkgJson}`, {
-        cwd: REPO_ROOT,
-        stdio: ['pipe', 'pipe', 'pipe'],
-      }).toString();
+      const baseJson = execFileSync(
+        'git',
+        ['show', `${baseRef}:${relPkgJson}`],
+        {
+          cwd: REPO_ROOT,
+          stdio: ['pipe', 'pipe', 'pipe'],
+        },
+      ).toString();
       const parsed = JSON.parse(baseJson);
       wasPrivateAtBase = Boolean(parsed.private);
     } catch {
