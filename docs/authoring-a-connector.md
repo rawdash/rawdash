@@ -452,7 +452,7 @@ The four steps, run once per new package from a maintainer machine with publish 
    npm publish --access public
    ```
 
-3. **Configure the Trusted Publisher entry.**
+3. **Configure the Trusted Publisher entry.** `--file` takes the workflow's basename inside `.github/workflows/`, not a path — passing `.github/workflows/publish.yml` is rejected with "GitHub Actions workflow must be just a file not a path".
 
    ```sh
    npm trust github @rawdash/connector-<name> \
