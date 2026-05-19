@@ -78,6 +78,8 @@ Returns a `Secret` that resolves the named environment variable at runtime. Conn
 
 Low-level factory for authoring new connectors. Used by packages like `@rawdash/connector-github`.
 
+For an end-to-end guide on building a new connector (shapes, settings, chunked syncs, rate limits, testing, publishing), see [docs/authoring-a-connector.md](../../docs/authoring-a-connector.md).
+
 ## Links
 
 - [rawdash docs](https://rawdash.dev)
