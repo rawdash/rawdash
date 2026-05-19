@@ -23,6 +23,14 @@ export type {
 export { BaseConnector, defineConnector } from './connector';
 
 export type {
+  ChunkedSyncCursor,
+  ChunkedSyncOptions,
+  FetchPageResult,
+} from './paginate-chunked';
+
+export { paginateChunked } from './paginate-chunked';
+
+export type {
   AggFn,
   ConfiguredConnector,
   Dashboard,
