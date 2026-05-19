@@ -1,5 +1,11 @@
 # @rawdash/nextjs
 
+## 0.9.0
+
+### Patch Changes
+
+- @rawdash/client@0.9.0
+
 ## 0.8.0
 
 ### Patch Changes
