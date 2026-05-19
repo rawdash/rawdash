@@ -28,7 +28,7 @@ export default [
     eslint.configs.recommended,
     ...tseslint.configs.recommended,
     {
-      files: ['**/*.ts'],
+      files: ['**/*.{ts,mts,cts}'],
       languageOptions: {
         ecmaVersion: 'latest',
         sourceType: 'module',
