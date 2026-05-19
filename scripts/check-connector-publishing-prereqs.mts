@@ -36,31 +36,52 @@ import { fileURLToPath } from 'node:url';
 const REGISTRY = 'https://registry.npmjs.org';
 const REGISTRY_HOST = new URL(REGISTRY).hostname;
 const NETWORK_TIMEOUT_MS = 30_000;
+const SHARED_PKG = '@rawdash/connector-shared';
 
 const REPO_ROOT = resolve(fileURLToPath(import.meta.url), '../..');
 const CHANGESET_CONFIG_PATH = join(REPO_ROOT, '.changeset/config.json');
 
-const errors = [];
-const warnings = [];
+type WorkspacePackage = {
+  name: string;
+  version: string;
+  path: string;
+  private?: boolean;
+};
 
-function recordError(msg) {
+type PackageManifest = {
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+  peerDependencies?: Record<string, string>;
+  private?: boolean;
+};
+
+type ChangesetConfig = {
+  fixed?: string[][];
+};
+
+const errors: string[] = [];
+const warnings: string[] = [];
+
+function recordError(msg: string): void {
   errors.push(msg);
 }
 
-function recordWarning(msg) {
+function recordWarning(msg: string): void {
   warnings.push(msg);
 }
 
-function listWorkspacePackages() {
+function listWorkspacePackages(): WorkspacePackage[] {
   const raw = execSync('pnpm ls -r --depth -1 --json', {
     cwd: REPO_ROOT,
     stdio: ['pipe', 'pipe', 'inherit'],
   }).toString();
-  return JSON.parse(raw);
+  return JSON.parse(raw) as WorkspacePackage[];
 }
 
-function readChangesetFixedList() {
-  const config = JSON.parse(readFileSync(CHANGESET_CONFIG_PATH, 'utf8'));
+function readChangesetFixedList(): string[] {
+  const config = JSON.parse(
+    readFileSync(CHANGESET_CONFIG_PATH, 'utf8'),
+  ) as ChangesetConfig;
   const fixed = config.fixed?.[0];
   if (!Array.isArray(fixed)) {
     throw new Error(
@@ -71,7 +92,7 @@ function readChangesetFixedList() {
   return fixed;
 }
 
-function checkFixedMembership(publicPackages) {
+function checkFixedMembership(publicPackages: WorkspacePackage[]): void {
   const fixed = readChangesetFixedList();
   const fixedSet = new Set(fixed);
   const publicSet = new Set(publicPackages.map((p) => p.name));
@@ -106,17 +127,19 @@ function checkFixedMembership(publicPackages) {
   }
 }
 
-function getBaseRef() {
-  if (process.env.BASE_REF) {
-    return process.env.BASE_REF;
+function getBaseRef(): string {
+  if (process.env['BASE_REF']) {
+    return process.env['BASE_REF'];
   }
-  if (process.env.GITHUB_BASE_REF) {
-    return `origin/${process.env.GITHUB_BASE_REF}`;
+  if (process.env['GITHUB_BASE_REF']) {
+    return `origin/${process.env['GITHUB_BASE_REF']}`;
   }
   return 'origin/main';
 }
 
-function detectNewPublicPackages(publicPackages) {
+function detectNewPublicPackages(
+  publicPackages: WorkspacePackage[],
+): WorkspacePackage[] | null {
   const baseRef = getBaseRef();
   try {
     execFileSync('git', ['rev-parse', '--verify', baseRef], {
@@ -131,7 +154,7 @@ function detectNewPublicPackages(publicPackages) {
     return null;
   }
 
-  const newPackages = [];
+  const newPackages: WorkspacePackage[] = [];
   for (const pkg of publicPackages) {
     const relPkgPath = relative(REPO_ROOT, pkg.path);
     const relPkgJson = join(relPkgPath, 'package.json');
@@ -157,7 +180,7 @@ function detectNewPublicPackages(publicPackages) {
           stdio: ['pipe', 'pipe', 'pipe'],
         },
       ).toString();
-      const parsed = JSON.parse(baseJson);
+      const parsed = JSON.parse(baseJson) as PackageManifest;
       wasPrivateAtBase = Boolean(parsed.private);
     } catch {
       // package.json wasn't in the base ref at all — it's new
@@ -173,7 +196,7 @@ function detectNewPublicPackages(publicPackages) {
   return newPackages;
 }
 
-function packageExistsOnNpm(name) {
+function packageExistsOnNpm(name: string): boolean {
   try {
     execFileSync(
       'npm',
@@ -182,17 +205,18 @@ function packageExistsOnNpm(name) {
     );
     return true;
   } catch (err) {
-    const stderr = err.stderr?.toString() ?? '';
+    const stderr =
+      (err as { stderr?: { toString(): string } }).stderr?.toString() ?? '';
     if (stderr.includes('E404') || stderr.includes('404 Not Found')) {
       return false;
     }
     throw new Error(
-      `Failed to query npm registry for ${name}: ${stderr.trim() || err.message}`,
+      `Failed to query npm registry for ${name}: ${stderr.trim() || (err as Error).message}`,
     );
   }
 }
 
-function bootstrapBlurb(pkg) {
+function bootstrapBlurb(pkg: WorkspacePackage): string {
   const relPath = relative(REPO_ROOT, pkg.path);
   return [
     `  ${pkg.name}:`,
@@ -202,13 +226,8 @@ function bootstrapBlurb(pkg) {
   ].join('\n');
 }
 
-function checkNpmExistence(newPackages) {
-  const missing = [];
-  for (const pkg of newPackages) {
-    if (!packageExistsOnNpm(pkg.name)) {
-      missing.push(pkg);
-    }
-  }
+function checkNpmExistence(newPackages: WorkspacePackage[]): void {
+  const missing = newPackages.filter((pkg) => !packageExistsOnNpm(pkg.name));
   if (missing.length === 0) {
     return;
   }
@@ -234,21 +253,21 @@ function checkNpmExistence(newPackages) {
   );
 }
 
-async function getGitHubOidcJwt() {
-  const { ACTIONS_ID_TOKEN_REQUEST_URL, ACTIONS_ID_TOKEN_REQUEST_TOKEN } =
-    process.env;
-  if (!ACTIONS_ID_TOKEN_REQUEST_URL || !ACTIONS_ID_TOKEN_REQUEST_TOKEN) {
+async function getGitHubOidcJwt(): Promise<string | null> {
+  const requestUrl = process.env['ACTIONS_ID_TOKEN_REQUEST_URL'];
+  const requestToken = process.env['ACTIONS_ID_TOKEN_REQUEST_TOKEN'];
+  if (!requestUrl || !requestToken) {
     return null;
   }
 
-  const url = new URL(ACTIONS_ID_TOKEN_REQUEST_URL);
+  const url = new URL(requestUrl);
   url.searchParams.set('audience', `npm:${REGISTRY_HOST}`);
 
   const res = await fetch(url.href, {
     signal: AbortSignal.timeout(NETWORK_TIMEOUT_MS),
     headers: {
       Accept: 'application/json',
-      Authorization: `Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}`,
+      Authorization: `Bearer ${requestToken}`,
     },
   });
   if (!res.ok) {
@@ -256,14 +275,19 @@ async function getGitHubOidcJwt() {
       `GitHub OIDC request failed: ${res.status} ${await res.text()}`,
     );
   }
-  const { value } = await res.json();
+  const { value } = (await res.json()) as { value?: string };
   if (!value) {
     throw new Error('No id_token in GitHub OIDC response');
   }
   return value;
 }
 
-async function dryRunOidcExchange(idToken, packageName) {
+type ExchangeResult = { ok: boolean; status: number; body: string };
+
+async function dryRunOidcExchange(
+  idToken: string,
+  packageName: string,
+): Promise<ExchangeResult> {
   const escapedName = packageName.startsWith('@')
     ? packageName.replace('/', '%2F')
     : packageName;
@@ -278,18 +302,20 @@ async function dryRunOidcExchange(idToken, packageName) {
   return { ok: res.ok, status: res.status, body: await res.text() };
 }
 
-async function checkOidcExchange(newPackages) {
+async function checkOidcExchange(
+  newPackages: WorkspacePackage[],
+): Promise<void> {
   if (newPackages.length === 0) {
     return;
   }
 
-  let idToken;
+  let idToken: string | null;
   try {
     idToken = await getGitHubOidcJwt();
   } catch (err) {
     recordWarning(
-      `Could not obtain GitHub OIDC token (${err.message}). Skipping OIDC ` +
-        `exchange dry-run for new packages.`,
+      `Could not obtain GitHub OIDC token (${(err as Error).message}). ` +
+        `Skipping OIDC exchange dry-run for new packages.`,
     );
     return;
   }
@@ -326,58 +352,54 @@ async function checkOidcExchange(newPackages) {
   }
 }
 
-function isConnectorPackage(pkg) {
-  return (
-    pkg.name.startsWith('@rawdash/connector-') &&
-    pkg.name !== '@rawdash/connector-shared'
-  );
+function isConnectorPackage(pkg: WorkspacePackage): boolean {
+  return pkg.name.startsWith('@rawdash/connector-') && pkg.name !== SHARED_PKG;
 }
 
-function checkConnectorSharedDiscipline(publicPackages) {
+function checkConnectorSharedDiscipline(
+  publicPackages: WorkspacePackage[],
+): void {
   for (const pkg of publicPackages) {
     if (!isConnectorPackage(pkg)) {
       continue;
     }
 
     const pkgJsonPath = join(pkg.path, 'package.json');
-    const pkgJson = JSON.parse(readFileSync(pkgJsonPath, 'utf8'));
+    const pkgJson = JSON.parse(
+      readFileSync(pkgJsonPath, 'utf8'),
+    ) as PackageManifest;
     const relPkgJson = relative(REPO_ROOT, pkgJsonPath);
 
-    const inDeps = Boolean(pkgJson.dependencies?.['@rawdash/connector-shared']);
-    const inPeer = Boolean(
-      pkgJson.peerDependencies?.['@rawdash/connector-shared'],
-    );
-    const inDev = Boolean(
-      pkgJson.devDependencies?.['@rawdash/connector-shared'],
-    );
+    const inDeps = Boolean(pkgJson.dependencies?.[SHARED_PKG]);
+    const inPeer = Boolean(pkgJson.peerDependencies?.[SHARED_PKG]);
+    const inDev = Boolean(pkgJson.devDependencies?.[SHARED_PKG]);
 
     if (inDeps || inPeer) {
       const fields = [inDeps && 'dependencies', inPeer && 'peerDependencies']
         .filter(Boolean)
         .join(' and ');
       recordError(
-        `${relPkgJson}: @rawdash/connector-shared appears in ${fields}, ` +
-          `but it must live only in devDependencies. Connectors inline the ` +
-          `shared substrate at build time via tsup noExternal — declaring ` +
-          `it as a runtime dep ships a dangling workspace:* reference to ` +
-          `users. See §7 of docs/authoring-a-connector.md.`,
+        `${relPkgJson}: ${SHARED_PKG} appears in ${fields}, but it must ` +
+          `live only in devDependencies. Connectors inline the shared ` +
+          `substrate at build time via tsup noExternal — declaring it as ` +
+          `a runtime dep ships a dangling workspace:* reference to users. ` +
+          `See §7 of docs/authoring-a-connector.md.`,
       );
     }
     if (!inDev) {
       recordError(
-        `${relPkgJson}: missing @rawdash/connector-shared in ` +
-          `devDependencies. Connectors must depend on it as a dev dep so ` +
-          `tsup can inline it into the published bundle. See §7 of ` +
-          `docs/authoring-a-connector.md.`,
+        `${relPkgJson}: missing ${SHARED_PKG} in devDependencies. ` +
+          `Connectors must depend on it as a dev dep so tsup can inline it ` +
+          `into the published bundle. See §7 of docs/authoring-a-connector.md.`,
       );
     }
 
     const tsupPath = join(pkg.path, 'tsup.config.ts');
+    const relTsup = relative(REPO_ROOT, tsupPath);
     if (!existsSync(tsupPath)) {
       recordError(
-        `${relative(REPO_ROOT, tsupPath)}: missing tsup.config.ts. ` +
-          `Connectors are built with tsup and must inline ` +
-          `@rawdash/connector-shared via noExternal. See §7 of ` +
+        `${relTsup}: missing tsup.config.ts. Connectors are built with ` +
+          `tsup and must inline ${SHARED_PKG} via noExternal. See §7 of ` +
           `docs/authoring-a-connector.md.`,
       );
       continue;
@@ -390,29 +412,33 @@ function checkConnectorSharedDiscipline(publicPackages) {
       );
     if (!hasNoExternal) {
       recordError(
-        `${relative(REPO_ROOT, tsupPath)}: tsup config must include ` +
-          `'@rawdash/connector-shared' in its noExternal array so the ` +
-          `shared code is bundled into the published artifact. See §7 of ` +
-          `docs/authoring-a-connector.md.`,
+        `${relTsup}: tsup config must include '${SHARED_PKG}' in its ` +
+          `noExternal array so the shared code is bundled into the ` +
+          `published artifact. See §7 of docs/authoring-a-connector.md.`,
       );
     }
   }
 }
 
-function checkPackedTarballHasNoSharedDep(newConnectorPackages) {
+type PnpmPackOutput = { filename?: string };
+
+function checkPackedTarballHasNoSharedDep(
+  newConnectorPackages: WorkspacePackage[],
+): void {
   for (const pkg of newConnectorPackages) {
-    let tarballPath;
+    let tarballPath: string | undefined;
     try {
-      const out = execSync('pnpm pack --pack-destination /tmp --json', {
-        cwd: pkg.path,
-        stdio: ['pipe', 'pipe', 'pipe'],
-      }).toString();
-      tarballPath = JSON.parse(out)?.filename;
+      const out = execFileSync(
+        'pnpm',
+        ['pack', '--pack-destination', '/tmp', '--json'],
+        { cwd: pkg.path, stdio: ['pipe', 'pipe', 'pipe'] },
+      ).toString();
+      tarballPath = (JSON.parse(out) as PnpmPackOutput).filename;
     } catch (err) {
       recordWarning(
-        `${pkg.name}: pnpm pack failed (${err.message?.split('\n')[0]}); ` +
-          `skipping tarball bundling verification. The build must succeed ` +
-          `for this layer to run.`,
+        `${pkg.name}: pnpm pack failed ` +
+          `(${(err as Error).message?.split('\n')[0]}); skipping tarball ` +
+          `bundling verification. The build must succeed for this layer to run.`,
       );
       continue;
     }
@@ -425,34 +451,36 @@ function checkPackedTarballHasNoSharedDep(newConnectorPackages) {
       continue;
     }
 
-    let manifest;
+    let manifest: PackageManifest;
     try {
-      const raw = execSync(`tar -xzOf ${tarballPath} package/package.json`, {
-        stdio: ['pipe', 'pipe', 'pipe'],
-      }).toString();
-      manifest = JSON.parse(raw);
+      const raw = execFileSync(
+        'tar',
+        ['-xzOf', tarballPath, 'package/package.json'],
+        { stdio: ['pipe', 'pipe', 'pipe'] },
+      ).toString();
+      manifest = JSON.parse(raw) as PackageManifest;
     } catch (err) {
       recordWarning(
         `${pkg.name}: could not read packed manifest from ${tarballPath} ` +
-          `(${err.message?.split('\n')[0]}); skipping tarball check.`,
+          `(${(err as Error).message?.split('\n')[0]}); skipping tarball check.`,
       );
       continue;
     }
 
-    const sharedDep = manifest?.dependencies?.['@rawdash/connector-shared'];
+    const sharedDep = manifest.dependencies?.[SHARED_PKG];
     if (sharedDep) {
       recordError(
         `${pkg.name}: the packed tarball declares ` +
-          `@rawdash/connector-shared@${sharedDep} under dependencies. ` +
-          `tsup noExternal isn't inlining it — end users will fail to ` +
-          `resolve the workspace ref. Confirm tsup.config.ts lists it under ` +
-          `noExternal and that the build runs before publish.`,
+          `${SHARED_PKG}@${sharedDep} under dependencies. tsup noExternal ` +
+          `isn't inlining it — end users will fail to resolve the workspace ` +
+          `ref. Confirm tsup.config.ts lists it under noExternal and that ` +
+          `the build runs before publish.`,
       );
     }
   }
 }
 
-async function main() {
+async function main(): Promise<void> {
   const allPackages = listWorkspacePackages();
   const publicPackages = allPackages.filter((p) => !p.private && p.name);
 

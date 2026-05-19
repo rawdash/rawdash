@@ -44,7 +44,7 @@ jobs:
       - name: Check connector publishing prerequisites
         env:
           GITHUB_BASE_REF: ${{ github.event.pull_request.base.ref }}
-        run: node scripts/check-connector-publishing-prereqs.mjs
+        run: node scripts/check-connector-publishing-prereqs.mts
 
       - name: Determine affected filter
         id: affected
