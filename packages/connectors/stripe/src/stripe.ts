@@ -197,7 +197,7 @@ interface StripeSyncCursor {
   startingAfter?: string;
 }
 
-type PhaseResult = { done: true } | { done: false; startingAfter: string };
+type PhaseResult = { done: true } | { done: false; startingAfter?: string };
 
 function isStripeSyncCursor(value: unknown): value is StripeSyncCursor {
   if (typeof value !== 'object' || value === null) {
@@ -223,28 +223,43 @@ function isStripeSyncCursor(value: unknown): value is StripeSyncCursor {
 export function computeMrrAmountCents(
   subscription: StripeSubscription,
 ): number | null {
-  const item = subscription.items.data[0];
-  if (!item) {
+  let sum = 0;
+  let counted = 0;
+  for (const item of subscription.items.data) {
+    const { unit_amount, recurring } = item.price;
+    if (unit_amount === null || unit_amount === undefined || !recurring) {
+      continue;
+    }
+    const quantity = item.quantity ?? 1;
+    const total = unit_amount * quantity;
+    const intervalCount = recurring.interval_count || 1;
+    let monthly: number | null;
+    switch (recurring.interval) {
+      case 'month':
+        monthly = total / intervalCount;
+        break;
+      case 'year':
+        monthly = total / (12 * intervalCount);
+        break;
+      case 'week':
+        monthly = (total * 52) / (12 * intervalCount);
+        break;
+      case 'day':
+        monthly = (total * 365) / (12 * intervalCount);
+        break;
+      default:
+        monthly = null;
+    }
+    if (monthly === null) {
+      continue;
+    }
+    sum += monthly;
+    counted++;
+  }
+  if (counted === 0) {
     return null;
   }
-  const { unit_amount, recurring } = item.price;
-  if (unit_amount === null || unit_amount === undefined) {
-    return null;
-  }
-  const quantity = item.quantity ?? 1;
-  const total = unit_amount * quantity;
-  switch (recurring?.interval) {
-    case 'month':
-      return Math.round(total / (recurring.interval_count || 1));
-    case 'year':
-      return Math.round(total / (12 * (recurring.interval_count || 1)));
-    case 'week':
-      return Math.round((total * 52) / (12 * (recurring.interval_count || 1)));
-    case 'day':
-      return Math.round((total * 365) / (12 * (recurring.interval_count || 1)));
-    default:
-      return null;
-  }
+  return Math.round(sum);
 }
 
 // ---------------------------------------------------------------------------
@@ -340,7 +355,7 @@ export class StripeConnector extends BaseConnector<
     let cursor = startingAfter;
     while (true) {
       if (signal?.aborted) {
-        return { done: false, startingAfter: cursor ?? '' };
+        return { done: false, startingAfter: cursor };
       }
 
       const url = this.buildListUrl('customers', {
@@ -396,7 +411,7 @@ export class StripeConnector extends BaseConnector<
     let cursor = startingAfter;
     while (true) {
       if (signal?.aborted) {
-        return { done: false, startingAfter: cursor ?? '' };
+        return { done: false, startingAfter: cursor };
       }
 
       const url = this.buildListUrl('products', {
@@ -447,7 +462,7 @@ export class StripeConnector extends BaseConnector<
     let cursor = startingAfter;
     while (true) {
       if (signal?.aborted) {
-        return { done: false, startingAfter: cursor ?? '' };
+        return { done: false, startingAfter: cursor };
       }
 
       const url = this.buildListUrl('prices', {
@@ -499,7 +514,7 @@ export class StripeConnector extends BaseConnector<
     let cursor = startingAfter;
     while (true) {
       if (signal?.aborted) {
-        return { done: false, startingAfter: cursor ?? '' };
+        return { done: false, startingAfter: cursor };
       }
 
       const url = this.buildListUrl('subscriptions', {
@@ -560,7 +575,7 @@ export class StripeConnector extends BaseConnector<
     let cursor = startingAfter;
     while (true) {
       if (signal?.aborted) {
-        return { done: false, startingAfter: cursor ?? '' };
+        return { done: false, startingAfter: cursor };
       }
 
       const url = this.buildListUrl('invoices', {
@@ -617,7 +632,7 @@ export class StripeConnector extends BaseConnector<
     let cursor = startingAfter;
     while (true) {
       if (signal?.aborted) {
-        return { done: false, startingAfter: cursor ?? '' };
+        return { done: false, startingAfter: cursor };
       }
 
       const url = this.buildListUrl('charges', {
@@ -671,7 +686,7 @@ export class StripeConnector extends BaseConnector<
     let cursor = startingAfter;
     while (true) {
       if (signal?.aborted) {
-        return { done: false, startingAfter: cursor ?? '' };
+        return { done: false, startingAfter: cursor };
       }
 
       const url = this.buildListUrl('payment_intents', {
@@ -724,7 +739,7 @@ export class StripeConnector extends BaseConnector<
     let cursor = startingAfter;
     while (true) {
       if (signal?.aborted) {
-        return { done: false, startingAfter: cursor ?? '' };
+        return { done: false, startingAfter: cursor };
       }
 
       const url = this.buildListUrl('disputes', {
@@ -778,7 +793,7 @@ export class StripeConnector extends BaseConnector<
     let cursor = startingAfter;
     while (true) {
       if (signal?.aborted) {
-        return { done: false, startingAfter: cursor ?? '' };
+        return { done: false, startingAfter: cursor };
       }
 
       const url = this.buildListUrl('refunds', {

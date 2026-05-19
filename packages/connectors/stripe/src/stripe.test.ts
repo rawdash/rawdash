@@ -130,6 +130,40 @@ describe('computeMrrAmountCents', () => {
     sub.items.data = [];
     expect(computeMrrAmountCents(sub)).toBeNull();
   });
+
+  it('sums recurring MRR across multiple subscription items', () => {
+    const sub = makeSubscription('month', 1, 5000, 1);
+    sub.items.data.push({
+      price: {
+        id: 'price_test_2',
+        product: 'prod_test_2',
+        unit_amount: 2500,
+        currency: 'usd',
+        recurring: { interval: 'month', interval_count: 1 },
+        active: true,
+        created: 1700000000,
+      },
+      quantity: 2,
+    });
+    expect(computeMrrAmountCents(sub)).toBe(10000);
+  });
+
+  it('sums monthly and yearly items, normalising to monthly', () => {
+    const sub = makeSubscription('month', 1, 5000, 1);
+    sub.items.data.push({
+      price: {
+        id: 'price_test_yearly',
+        product: 'prod_test_yearly',
+        unit_amount: 12000,
+        currency: 'usd',
+        recurring: { interval: 'year', interval_count: 1 },
+        active: true,
+        created: 1700000000,
+      },
+      quantity: 1,
+    });
+    expect(computeMrrAmountCents(sub)).toBe(6000);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -383,7 +417,7 @@ describe('StripeConnector.sync', () => {
 
 describe('StripeConnector.create', () => {
   it('returns a connector wrapped in a ConfiguredConnector shape', () => {
-    vi.stubEnv('STRIPE_TEST_KEY', 'rk_test_placeholder');
+    vi.stubEnv('STRIPE_TEST_KEY', 'test_stripe_key_fixture');
     const entry = StripeConnector.create({
       apiKey: { $secret: 'STRIPE_TEST_KEY' },
     });
