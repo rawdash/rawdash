@@ -385,11 +385,49 @@ Unit-level tests live next to the source (`*.test.ts`). Mock at the `fetch` boun
 ## 9. Publishing
 
 - **Naming.** `@rawdash/connector-<source>`. The source name should match the connector's `id` after stripping vendor prefixes (`@rawdash/connector-github` exports a connector with `id: 'github-actions'`; the package name describes the brand, the id describes the data domain). Once published, the package name is permanent.
-- **Versioning.** Use [changesets](https://github.com/changesets/changesets). Add a changeset with every PR that touches a published package; the release workflow handles the rest. Treat the connector's exported surface (constructor, `id`, the shapes it writes) as semver — breaking changes in any of those bump major.
-- **Dependency on `@rawdash/core`.** Declare it under `dependencies` (not peer) at a caret range (`"^X.Y.Z"`). When `@rawdash/core` introduces a new optional field on `SyncOptions` or `SyncResult`, bump your range; you don't need to bump major unless you actually use the new field as required.
+- **Lockstep versioning.** All published `@rawdash/*` packages share a single version. They're declared as a [`fixed` group](https://github.com/changesets/changesets/blob/main/docs/config-file-options.md#fixed-array-of-arrays-of-package-names) in [`.changeset/config.json`](../.changeset/config.json), so when any one of them releases, _all_ of them bump to the same version even if their source didn't change. **Add your new package's name to the `fixed` array** in the same PR that adds the package — otherwise it'll drift the moment another package releases. Use [changesets](https://github.com/changesets/changesets) for the release notes themselves: add one with every PR that touches a published package.
+- **Semver discipline.** Even under lockstep versioning, the version field still encodes intent. Treat the connector's exported surface (constructor signature, `id`, the shapes it writes) as semver — breaking changes in any of those should land in a major bump for the whole release train.
+- **Dependency on `@rawdash/core`.** Declare it under `dependencies` (not peer) at `workspace:*`. The publish step rewrites it to the lockstep version at pack time. When `@rawdash/core` introduces a new optional field on `SyncOptions` or `SyncResult`, you don't need to bump anything; you only re-release when you actually use the new field.
 - **Dependency on `@rawdash/connector-shared`.** `workspace:*` in `devDependencies`, **never** in `dependencies`. Add `noExternal: ['@rawdash/connector-shared']` to `tsup.config.ts`. Verify with `pnpm pack` and inspect the tarball's `package.json` — `@rawdash/connector-shared` must not appear under `dependencies`.
 - **README.** Cover the consumer surface: install, quick example showing `defineMetric` against the connector's shapes, settings reference, credentials, and any source-specific gotchas (scopes, plans, rate limits). The authoring details belong in this guide; the README is for users.
 - **Smoke-test against the example app** (section 8) before publishing.
+
+### Wiring into CI
+
+Nothing to add. Both workflows discover workspace packages automatically:
+
+- [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs `pnpm turbo run lint/typecheck/build/test` with an "affected" filter across the whole workspace. As long as your `package.json` defines those script names, your package is exercised on every PR that touches it.
+- [`.github/workflows/publish.yml`](../.github/workflows/publish.yml) runs [`scripts/npm-oidc-publish.mjs`](../scripts/npm-oidc-publish.mjs), which enumerates non-private workspace packages via `pnpm ls -r --json` and publishes anything not already on npm at the current version. No allowlist to maintain.
+
+Required `package.json` scripts (copy from `packages/connectors/github/package.json`):
+
+```json
+{
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src"
+  }
+}
+```
+
+### First-time publishing and OIDC bootstrap
+
+The publish workflow uses [npm OIDC trusted publishing](https://docs.npmjs.com/trusted-publishers) — no `NPM_TOKEN` is stored anywhere. The catch: **npm can't mint a publish token for a package that doesn't exist yet.** The publish script detects this and fails loudly with bootstrap instructions. The one-time-per-package dance:
+
+1. **Publish v0.0.x manually** from a maintainer machine with publish rights to the `@rawdash` org:
+
+   ```sh
+   cd packages/connectors/<name>
+   pnpm build
+   npm publish --access public
+   ```
+
+2. **Add a Trusted Publisher entry** on [npmjs.com](https://www.npmjs.com/) → package Settings → Trusted Publishers. Mirror the settings of the existing packages: GitHub Actions, `rawdash/rawdash` repo, `.github/workflows/publish.yml` workflow file, blank environment.
+
+3. **Re-run the release workflow.** From here on, every release publishes the new package via OIDC with provenance, in lockstep with the rest of the train.
+
+This is manual today. It could be partly automated — npm supports _pending_ trusted publisher entries you can pre-configure before the first publish, which would let CI handle even the bootstrap version — but there's no first-class API for managing those, only the npmjs.com UI. Until that changes, treat the three-step bootstrap as a one-off chore per new package.
 
 ## See also
 
