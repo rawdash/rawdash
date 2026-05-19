@@ -434,7 +434,15 @@ The four steps, run once per new package from a maintainer machine with publish 
    npm whoami      # must be logged in as a maintainer with @rawdash publish rights
    ```
 
-   Upgrade with `npm install -g npm@latest`; log in with `npm login` if needed.
+   **If `npm --version` is older than 11.10.0:**
+
+   ```sh
+   npm install -g npm@latest
+   ```
+
+   That works on most setups. If your Node was installed through a version manager (nvm, fnm, asdf, volta), the `npm` shipped with Node ≤ 22 is older than 11.10.0 — upgrade Node or reinstall npm under that toolchain so the upgraded npm lands on the active Node. On a macOS Homebrew install, refresh with `brew install node` if `-g` is blocked by permissions. Re-run `npm --version` to confirm.
+
+   **If `npm whoami` fails or prints the wrong account:** `npm login`.
 
 2. **Publish v0.0.x manually.** This is the unavoidable step — npm requires the package to exist before any further config is possible. `cd` into the checkout where the new package source lives; if you're using a git worktree you'll need to be inside that worktree, since the package doesn't exist on `main` yet.
 
