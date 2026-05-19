@@ -244,7 +244,7 @@ No:
 
 - Webhook-driven sources where the connector doesn't pull at all.
 - Single-endpoint sources whose entire response fits in one request.
-- Sources without a resumable position. Return `{ done: true }` always; the host bounds total attempts via `MAX_CHUNK_ATTEMPTS` and will move on.
+- Sources without a resumable position. Return `{ done: true }` on every run and don't emit a cursor — do as much work as fits in the budget, then stop. (`MAX_CHUNK_ATTEMPTS`, mentioned below, only bounds repeated `{ done: false }` resumes; it doesn't apply here.)
 
 ### Pattern A: phased pagination
 
