@@ -30,11 +30,33 @@ export const configFields = defineConfigFields(
         'Stripe Connect account ID. Only needed if you are a platform accessing a connected account.',
       placeholder: 'acct_...',
     }),
+    resources: z
+      .array(
+        z.enum([
+          'customers',
+          'products',
+          'prices',
+          'subscriptions',
+          'invoices',
+          'charges',
+          'payment_intents',
+          'disputes',
+          'refunds',
+        ]),
+      )
+      .nonempty()
+      .optional()
+      .meta({
+        label: 'Resources',
+        description:
+          'Which Stripe resources to sync. Omit to sync all resources. The API key only needs Read scope for the resources listed here.',
+      }),
   }),
 );
 
 export interface StripeSettings {
   accountId?: string;
+  resources?: readonly StripeResource[];
 }
 
 // ---------------------------------------------------------------------------
@@ -169,18 +191,7 @@ type StripeCredentials = typeof stripeCredentials;
 // Sync phases + cursor
 // ---------------------------------------------------------------------------
 
-type StripePhase =
-  | 'customers'
-  | 'products'
-  | 'prices'
-  | 'subscriptions'
-  | 'invoices'
-  | 'charges'
-  | 'payment_intents'
-  | 'disputes'
-  | 'refunds';
-
-const PHASE_ORDER: readonly StripePhase[] = [
+const PHASE_ORDER = [
   'customers',
   'products',
   'prices',
@@ -190,7 +201,11 @@ const PHASE_ORDER: readonly StripePhase[] = [
   'payment_intents',
   'disputes',
   'refunds',
-];
+] as const;
+
+type StripePhase = (typeof PHASE_ORDER)[number];
+
+export type StripeResource = StripePhase;
 
 type StripeSyncCursor = ChunkedSyncCursor<StripePhase, string>;
 
@@ -286,7 +301,7 @@ export class StripeConnector extends BaseConnector<
     const parsed = configFields.parse(input);
     return {
       connector: new StripeConnector(
-        { accountId: parsed.accountId },
+        { accountId: parsed.accountId, resources: parsed.resources },
         { apiKey: parsed.apiKey },
       ),
     };
@@ -557,8 +572,14 @@ export class StripeConnector extends BaseConnector<
       : undefined;
     const isFull = options.mode === 'full';
 
+    const enabled = this.settings.resources;
+    const phases =
+      enabled && enabled.length > 0
+        ? PHASE_ORDER.filter((p) => enabled.includes(p))
+        : PHASE_ORDER;
+
     return paginateChunked<StripePhase, string>({
-      phases: PHASE_ORDER,
+      phases,
       cursor,
       signal,
       fetchPage: async (phase, page, sig) => {

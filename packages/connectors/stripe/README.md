@@ -9,7 +9,7 @@ Rawdash connector for Stripe — syncs customers, subscriptions, invoices, charg
 1. Log in to your Stripe Dashboard and navigate to **Developers → API keys**.
 2. Click **+ Create restricted key**.
 3. Give it a name (e.g. `rawdash-readonly`).
-4. Enable **Read** access for the following resources:
+4. Enable **Read** access only for the resources you want to sync. The connector supports any subset of:
    - Customers
    - Subscriptions
    - Invoices
@@ -36,6 +36,7 @@ import { secret } from '@rawdash/core';
 const stripe = new StripeConnector(
   {
     // accountId: 'acct_…', // optional, Stripe Connect only
+    // resources: ['customers', 'subscriptions', 'invoices'], // optional, defaults to all
   },
   {
     apiKey: secret('STRIPE_API_KEY'),
@@ -49,8 +50,17 @@ Or using `StripeConnector.create` (validates via `configFields` Zod schema):
 const { connector: stripe } = StripeConnector.create({
   apiKey: { $secret: 'STRIPE_API_KEY' },
   // accountId: 'acct_…',
+  // resources: ['customers', 'subscriptions', 'invoices'],
 });
 ```
+
+### Choosing resources
+
+By default the connector syncs every supported resource. To sync only a subset, pass `resources` with any combination of:
+
+`customers`, `products`, `prices`, `subscriptions`, `invoices`, `charges`, `payment_intents`, `disputes`, `refunds`
+
+Each name is a Stripe API resource. The list you choose should match the Read scopes on your Restricted API key — picking only what you need also reduces API calls during full syncs.
 
 Then pass it to `defineConfig`:
 

@@ -407,6 +407,58 @@ describe('StripeConnector.sync', () => {
     const headers = firstCall?.[1]?.headers as Record<string, string>;
     expect(headers?.['stripe-account']).toBe('acct_xyz');
   });
+
+  it('only fetches the resources listed in settings.resources', async () => {
+    const connector = new StripeConnector(
+      { resources: ['customers', 'charges'] },
+      { apiKey: 'sk_test_abc' as unknown as { $secret: string } },
+    );
+
+    const fetchSpy = mockFetch({});
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const storage = makeStorage();
+    await connector.sync({ mode: 'full' }, storage);
+
+    const calledUrls: string[] = fetchSpy.mock.calls.map(
+      (c: unknown[]) => c[0] as string,
+    );
+    expect(calledUrls.some((u) => u.includes('/v1/customers'))).toBe(true);
+    expect(calledUrls.some((u) => u.includes('/v1/charges'))).toBe(true);
+    expect(calledUrls.some((u) => u.includes('/v1/subscriptions'))).toBe(false);
+    expect(calledUrls.some((u) => u.includes('/v1/invoices'))).toBe(false);
+    expect(calledUrls.some((u) => u.includes('/v1/disputes'))).toBe(false);
+  });
+
+  it('syncs all resources when settings.resources is omitted', async () => {
+    const connector = new StripeConnector(
+      {},
+      { apiKey: 'sk_test_abc' as unknown as { $secret: string } },
+    );
+
+    const fetchSpy = mockFetch({});
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const storage = makeStorage();
+    await connector.sync({ mode: 'full' }, storage);
+
+    const calledUrls: string[] = fetchSpy.mock.calls.map(
+      (c: unknown[]) => c[0] as string,
+    );
+    for (const path of [
+      '/v1/customers',
+      '/v1/products',
+      '/v1/prices',
+      '/v1/subscriptions',
+      '/v1/invoices',
+      '/v1/charges',
+      '/v1/payment_intents',
+      '/v1/disputes',
+      '/v1/refunds',
+    ]) {
+      expect(calledUrls.some((u) => u.includes(path))).toBe(true);
+    }
+  });
 });
 
 describe('StripeConnector.create', () => {
