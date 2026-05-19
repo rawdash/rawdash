@@ -457,7 +457,7 @@ The four steps, run once per new package from a maintainer machine with publish 
    ```sh
    npm trust github @rawdash/connector-<name> \
      --repository rawdash/rawdash \
-     --file .github/workflows/publish.yml
+     --file publish.yml
    ```
 
 4. **Re-run the release workflow.** From here on, every release publishes the new package via OIDC with provenance, in lockstep with the rest of the train.

@@ -226,7 +226,7 @@ function bootstrapBlurb(pkg: WorkspacePackage): string {
     `    npm publish --access public`,
     `    npm trust github ${pkg.name} \\`,
     `      --repository rawdash/rawdash \\`,
-    `      --file .github/workflows/publish.yml`,
+    `      --file publish.yml`,
   ].join('\n');
 }
 
@@ -354,7 +354,7 @@ async function checkOidcExchange(
           `machine (requires npm ≥ 11.10.0):` +
           `\n  npm trust github ${pkg.name} \\` +
           `\n    --repository rawdash/rawdash \\` +
-          `\n    --file .github/workflows/publish.yml`,
+          `\n    --file publish.yml`,
         '',
         `Registry response: ${body.trim()}`,
       ].join('\n'),
