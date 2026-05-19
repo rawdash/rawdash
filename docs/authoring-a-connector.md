@@ -425,9 +425,18 @@ Required `package.json` scripts (copy from `packages/connectors/github/package.j
 
 The publish workflow uses [npm OIDC trusted publishing](https://docs.npmjs.com/trusted-publishers) — no `NPM_TOKEN` is stored anywhere. The catch: **npm can't mint a publish token for a package that doesn't exist yet, and it can't accept a trusted publisher entry for a package that doesn't exist yet either.** So there's an unavoidable one-time-per-package bootstrap. The publish script detects when this hasn't been done and fails loudly with the steps below.
 
-The three steps, run once per new package from a maintainer machine with publish rights to the `@rawdash` org and a real 2FA-enabled npm account:
+The four steps, run once per new package from a maintainer machine with publish rights to the `@rawdash` org and a real 2FA-enabled npm account.
 
-1. **Publish v0.0.x manually.** This is the unavoidable step — npm requires the package to exist before any further config is possible. `cd` into the checkout where the new package source lives; if you're using a git worktree you'll need to be inside that worktree, since the package doesn't exist on `main` yet.
+1. **Pre-flight.** Both of the steps below silently fail in confusing ways if either of these isn't satisfied — `npm publish` returns HTTP 404 (not 401) on a brand-new scoped package when you lack publish rights, and `npm trust` simply doesn't exist on older CLIs. Check first:
+
+   ```sh
+   npm --version   # must be ≥ 11.10.0 — older CLIs don't ship `npm trust`
+   npm whoami      # must be logged in as a maintainer with @rawdash publish rights
+   ```
+
+   Upgrade with `npm install -g npm@latest`; log in with `npm login` if needed.
+
+2. **Publish v0.0.x manually.** This is the unavoidable step — npm requires the package to exist before any further config is possible. `cd` into the checkout where the new package source lives; if you're using a git worktree you'll need to be inside that worktree, since the package doesn't exist on `main` yet.
 
    ```sh
    cd packages/connectors/<name>
@@ -435,7 +444,7 @@ The three steps, run once per new package from a maintainer machine with publish
    npm publish --access public
    ```
 
-2. **Configure the Trusted Publisher entry.** Requires npm CLI ≥ 11.10.0:
+3. **Configure the Trusted Publisher entry.**
 
    ```sh
    npm trust github @rawdash/connector-<name> \
@@ -443,9 +452,9 @@ The three steps, run once per new package from a maintainer machine with publish
      --file .github/workflows/publish.yml
    ```
 
-3. **Re-run the release workflow.** From here on, every release publishes the new package via OIDC with provenance, in lockstep with the rest of the train.
+4. **Re-run the release workflow.** From here on, every release publishes the new package via OIDC with provenance, in lockstep with the rest of the train.
 
-> **Why this is still manual.** PyPI supports _pending_ publishers — a trust entry created before the first publish, so CI can bootstrap a new package on its own. npm doesn't; both the placeholder publish and the Trusted Publisher entry must exist before OIDC can take over, and there's no first-class API for managing trusted publishers programmatically. `npm trust` is a CLI wrapper over the same npm-side data store, not a way to skip step 1. Until npm ships pending publishers, treat this as a one-off chore per new package.
+> **Why this is still manual.** PyPI supports _pending_ publishers — a trust entry created before the first publish, so CI can bootstrap a new package on its own. npm doesn't; both the placeholder publish and the Trusted Publisher entry must exist before OIDC can take over, and there's no first-class API for managing trusted publishers programmatically. `npm trust` is a CLI wrapper over the same npm-side data store, not a way to skip the placeholder publish. Until npm ships pending publishers, treat this as a one-off chore per new package.
 
 ## See also
 

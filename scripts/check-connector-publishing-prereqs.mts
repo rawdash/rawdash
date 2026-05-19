@@ -202,6 +202,13 @@ function packageExistsOnNpm(name: string): boolean {
 function bootstrapBlurb(pkg: WorkspacePackage): string {
   return [
     `  ${pkg.name}:`,
+    `    # Pre-flight (npm publish returns a confusing 404 on auth/permission`,
+    `    # failures, so verify both up front):`,
+    `    npm --version                      # must be ≥ 11.10.0 (else: npm i -g npm@latest)`,
+    `    npm whoami                         # must be logged in (else: npm login) as a`,
+    `                                       # maintainer with publish rights on @rawdash`,
+    ``,
+    `    # Bootstrap:`,
     `    cd ${pkg.path}`,
     `    pnpm build`,
     `    npm publish --access public`,
