@@ -14,8 +14,11 @@
  *   3. OIDC exchange dry-run: for each new public package, exchange a GitHub
  *      Actions OIDC token at npm's exchange endpoint and discard the result. A
  *      4xx means the Trusted Publisher entry on npmjs.com is missing or
- *      misconfigured. Skipped (with a warning) when no OIDC token is available
- *      (fork PRs, local runs).
+ *      misconfigured. npm allows only one Trusted Publisher entry per package,
+ *      so this dry-run is only authoritative when run inside the trusted
+ *      publish workflow itself; from any other context (`ci.yml`, fork PRs,
+ *      local runs) the exchange would be rejected by design, and the check is
+ *      skipped with a warning instead.
  *
  *   4. connector-shared bundling discipline: every `@rawdash/connector-*`
  *      (other than `@rawdash/connector-shared` itself) must declare
@@ -200,12 +203,33 @@ function packageExistsOnNpm(name: string): boolean {
 }
 
 function bootstrapBlurb(pkg: WorkspacePackage): string {
-  const relPath = relative(REPO_ROOT, pkg.path);
   return [
     `  ${pkg.name}:`,
-    `    cd ${relPath}`,
+    `    # Pre-flight. npm publish returns a confusing 404 on auth/permission`,
+    `    # failures and npm trust is a no-op on old CLIs, so verify both first:`,
+    `    npm --version                      # must be ≥ 11.10.0`,
+    `    npm whoami                         # must print a maintainer with @rawdash publish rights`,
+    ``,
+    `    # If npm --version is older than 11.10.0, upgrade. Pick the install`,
+    `    # method that matches how you installed Node:`,
+    `    npm install -g npm@latest          # works on most setups`,
+    `    # If you use a Node version manager (nvm, fnm, asdf, volta), upgrade`,
+    `    # the active Node release first or reinstall npm under that toolchain;`,
+    `    # the npm shipped with Node ≤ 22 is older than 11.10.0.`,
+    `    # On macOS Homebrew installs of Node, the global -g install can be`,
+    `    # blocked by permissions — use \`brew install node\` to refresh, or`,
+    `    # run the npm install with the right prefix.`,
+    `    # Verify after upgrading by re-running \`npm --version\`.`,
+    ``,
+    `    # If npm whoami fails or prints the wrong account: \`npm login\`.`,
+    ``,
+    `    # Bootstrap:`,
+    `    cd ${pkg.path}`,
     `    pnpm build`,
     `    npm publish --access public`,
+    `    npm trust github ${pkg.name} \\`,
+    `      --repository rawdash/rawdash \\`,
+    `      --file publish.yml`,
   ].join('\n');
 }
 
@@ -228,16 +252,16 @@ function checkNpmExistence(
         "token for a package that doesn't exist yet:",
       ...missing.map((p) => `  - ${p.name}`),
       '',
-      'Bootstrap each one from a maintainer machine with 2FA before merging:',
+      'Bootstrap each one from a maintainer machine with 2FA before merging. ' +
+        'Run these commands from any directory — the cd paths below point at ' +
+        'the checkout where the new package lives (including git worktrees, ' +
+        'since the package does not yet exist on the main branch):',
       '',
       ...missing.map(bootstrapBlurb),
       '',
-      'Then configure the Trusted Publisher entry for each new package — ' +
-        'either run `npm trust github <package>` (npm ≥ 11.10.0) from a ' +
-        "maintainer machine, or open the package's Settings → Trusted " +
-        'Publishers on npmjs.com and add a GitHub Actions entry matching ' +
-        'the existing @rawdash packages (same repo, workflow file, and ' +
-        'environment).',
+      'The `npm trust github` step registers this repo as a Trusted Publisher ' +
+        'so the OIDC publish workflow on main can mint a token without a ' +
+        'classic npm token. It requires npm ≥ 11.10.0.',
     ].join('\n'),
   );
 
@@ -293,10 +317,31 @@ async function dryRunOidcExchange(
   return { ok: res.ok, status: res.status, body: await res.text() };
 }
 
+const TRUSTED_WORKFLOW_FILE = 'publish.yml';
+
+function runningFromTrustedWorkflow(): boolean {
+  const ref = process.env['GITHUB_WORKFLOW_REF'];
+  if (!ref) {
+    return false;
+  }
+  const match = ref.match(/\.github\/workflows\/([^@]+)/);
+  return match?.[1] === TRUSTED_WORKFLOW_FILE;
+}
+
 async function checkOidcExchange(
   newPackages: WorkspacePackage[],
 ): Promise<void> {
   if (newPackages.length === 0) {
+    return;
+  }
+
+  if (!runningFromTrustedWorkflow()) {
+    recordWarning(
+      `Skipping OIDC exchange dry-run for new packages: this run is not ` +
+        `inside ${TRUSTED_WORKFLOW_FILE}, so the registry will reject the ` +
+        `token by design. Real publish validation happens on main in the ` +
+        `publish workflow.`,
+    );
     return;
   }
 
@@ -330,12 +375,10 @@ async function checkOidcExchange(
         '',
         `This usually means the Trusted Publisher entry is missing or ` +
           `doesn't match this workflow. Configure it from a maintainer ` +
-          `machine with either:` +
-          `\n  npm trust github ${pkg.name}` +
-          `\n(npm ≥ 11.10.0), or by opening ${pkg.name} → Settings → ` +
-          `Trusted Publishers on npmjs.com and adding a GitHub Actions ` +
-          `entry matching the existing @rawdash packages (same repository, ` +
-          `workflow file, and environment).`,
+          `machine (requires npm ≥ 11.10.0):` +
+          `\n  npm trust github ${pkg.name} \\` +
+          `\n    --repository rawdash/rawdash \\` +
+          `\n    --file ${TRUSTED_WORKFLOW_FILE}`,
         '',
         `Registry response: ${body.trim()}`,
       ].join('\n'),

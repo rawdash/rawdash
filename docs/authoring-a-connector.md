@@ -386,6 +386,16 @@ Unit-level tests live next to the source (`*.test.ts`). Mock at the `fetch` boun
 
 - **Naming.** `@rawdash/connector-<source>`. The package name and the connector's `id` are related but serve different roles: the package name groups connectors by vendor or brand (`@rawdash/connector-github` is the home for anything GitHub-related), while the `id` identifies the specific data domain inside that package (`github-actions` for the GitHub Actions API). They don't need to be identical, but they should be obviously aligned. Once published, both the package name and the `id` are permanent — they appear in user config files and widget `source` strings.
 - **Lockstep versioning.** All published `@rawdash/*` packages share a single version. They're declared as a [`fixed` group](https://github.com/changesets/changesets/blob/main/docs/config-file-options.md#fixed-array-of-arrays-of-package-names) in [`.changeset/config.json`](../.changeset/config.json), so when any one of them releases, _all_ of them bump to the same version even if their source didn't change. **Add your new package's name to the `fixed` array** in the same PR that adds the package — otherwise it'll drift the moment another package releases. Use [changesets](https://github.com/changesets/changesets) for the release notes themselves: add one with every PR that touches a published package.
+- **Initial changeset.** The PR that introduces a new connector must ship with a changeset that bumps it `minor` and describes the first release. Without one, the connector inherits the train's next version through the `fixed` group but its `CHANGELOG.md` carries no entry announcing it. Drop a file under `.changeset/` like:
+
+  ```md
+  ---
+  '@rawdash/connector-<name>': minor
+  ---
+
+  Add `@rawdash/connector-<name>` — one or two sentences describing what the connector syncs, how it authenticates, and any notable knobs (resource filters, account scoping, modes).
+  ```
+
 - **Semver discipline.** Even under lockstep versioning, the version field still encodes intent. Treat the connector's exported surface (constructor signature, `id`, the shapes it writes) as semver — breaking changes in any of those should land in a major bump for the whole release train.
 - **Dependency on `@rawdash/core`.** Declare it under `dependencies` (not peer) at `workspace:*`. The publish step rewrites it to the lockstep version at pack time. When `@rawdash/core` introduces a new optional field on `SyncOptions` or `SyncResult`, you don't need to bump anything; you only re-release when you actually use the new field.
 - **Dependency on `@rawdash/connector-shared`.** `workspace:*` in `devDependencies`, **never** in `dependencies`. Add `noExternal: ['@rawdash/connector-shared']` to `tsup.config.ts`. Verify with `pnpm pack` and inspect the tarball's `package.json` — `@rawdash/connector-shared` must not appear under `dependencies`.
@@ -415,9 +425,26 @@ Required `package.json` scripts (copy from `packages/connectors/github/package.j
 
 The publish workflow uses [npm OIDC trusted publishing](https://docs.npmjs.com/trusted-publishers) — no `NPM_TOKEN` is stored anywhere. The catch: **npm can't mint a publish token for a package that doesn't exist yet, and it can't accept a trusted publisher entry for a package that doesn't exist yet either.** So there's an unavoidable one-time-per-package bootstrap. The publish script detects when this hasn't been done and fails loudly with the steps below.
 
-The three steps, run once per new package from a maintainer machine with publish rights to the `@rawdash` org and a real 2FA-enabled npm account:
+The four steps, run once per new package from a maintainer machine with publish rights to the `@rawdash` org and a real 2FA-enabled npm account.
 
-1. **Publish v0.0.x manually.** This is the unavoidable step — npm requires the package to exist before any further config is possible.
+1. **Pre-flight.** Both of the steps below silently fail in confusing ways if either of these isn't satisfied — `npm publish` returns HTTP 404 (not 401) on a brand-new scoped package when you lack publish rights, and `npm trust` simply doesn't exist on older CLIs. Check first:
+
+   ```sh
+   npm --version   # must be ≥ 11.10.0 — older CLIs don't ship `npm trust`
+   npm whoami      # must be logged in as a maintainer with @rawdash publish rights
+   ```
+
+   **If `npm --version` is older than 11.10.0:**
+
+   ```sh
+   npm install -g npm@latest
+   ```
+
+   That works on most setups. If your Node was installed through a version manager (nvm, fnm, asdf, volta), the `npm` shipped with Node ≤ 22 is older than 11.10.0 — upgrade Node or reinstall npm under that toolchain so the upgraded npm lands on the active Node. On a macOS Homebrew install, refresh with `brew install node` if `-g` is blocked by permissions. Re-run `npm --version` to confirm.
+
+   **If `npm whoami` fails or prints the wrong account:** `npm login`.
+
+2. **Publish v0.0.x manually.** This is the unavoidable step — npm requires the package to exist before any further config is possible. `cd` into the checkout where the new package source lives; if you're using a git worktree you'll need to be inside that worktree, since the package doesn't exist on `main` yet.
 
    ```sh
    cd packages/connectors/<name>
@@ -425,19 +452,17 @@ The three steps, run once per new package from a maintainer machine with publish
    npm publish --access public
    ```
 
-2. **Configure the Trusted Publisher entry.** With npm CLI ≥ 11.10.0 you can do this from the terminal in one command:
+3. **Configure the Trusted Publisher entry.** `--file` takes the workflow's basename inside `.github/workflows/`, not a path — passing `.github/workflows/publish.yml` is rejected with "GitHub Actions workflow must be just a file not a path".
 
    ```sh
    npm trust github @rawdash/connector-<name> \
      --repository rawdash/rawdash \
-     --file .github/workflows/publish.yml
+     --file publish.yml
    ```
 
-   On older npm, do the same thing via the web UI: [npmjs.com](https://www.npmjs.com/) → package Settings → Trusted Publishers → add a GitHub Actions entry with the same repo, workflow path, and blank environment. The CLI path is preferred — it's faster, scriptable into a checklist, and less click-prone.
+4. **Re-run the release workflow.** From here on, every release publishes the new package via OIDC with provenance, in lockstep with the rest of the train.
 
-3. **Re-run the release workflow.** From here on, every release publishes the new package via OIDC with provenance, in lockstep with the rest of the train.
-
-> **Why this is still manual.** PyPI supports _pending_ publishers — a trust entry created before the first publish, so CI can bootstrap a new package on its own. npm doesn't; both the placeholder publish and the Trusted Publisher entry must exist before OIDC can take over, and there's no first-class API for managing trusted publishers programmatically. `npm trust` is a CLI wrapper over the same npm-side data store, not a way to skip step 1. Until npm ships pending publishers, treat this as a one-off chore per new package.
+> **Why this is still manual.** PyPI supports _pending_ publishers — a trust entry created before the first publish, so CI can bootstrap a new package on its own. npm doesn't; both the placeholder publish and the Trusted Publisher entry must exist before OIDC can take over, and there's no first-class API for managing trusted publishers programmatically. `npm trust` is a CLI wrapper over the same npm-side data store, not a way to skip the placeholder publish. Until npm ships pending publishers, treat this as a one-off chore per new package.
 
 ## See also
 
