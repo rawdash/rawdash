@@ -386,6 +386,16 @@ Unit-level tests live next to the source (`*.test.ts`). Mock at the `fetch` boun
 
 - **Naming.** `@rawdash/connector-<source>`. The package name and the connector's `id` are related but serve different roles: the package name groups connectors by vendor or brand (`@rawdash/connector-github` is the home for anything GitHub-related), while the `id` identifies the specific data domain inside that package (`github-actions` for the GitHub Actions API). They don't need to be identical, but they should be obviously aligned. Once published, both the package name and the `id` are permanent — they appear in user config files and widget `source` strings.
 - **Lockstep versioning.** All published `@rawdash/*` packages share a single version. They're declared as a [`fixed` group](https://github.com/changesets/changesets/blob/main/docs/config-file-options.md#fixed-array-of-arrays-of-package-names) in [`.changeset/config.json`](../.changeset/config.json), so when any one of them releases, _all_ of them bump to the same version even if their source didn't change. **Add your new package's name to the `fixed` array** in the same PR that adds the package — otherwise it'll drift the moment another package releases. Use [changesets](https://github.com/changesets/changesets) for the release notes themselves: add one with every PR that touches a published package.
+- **Initial changeset.** The PR that introduces a new connector must ship with a changeset that bumps it `minor` and describes the first release. Without one, the connector inherits the train's next version through the `fixed` group but its `CHANGELOG.md` carries no entry announcing it. Drop a file under `.changeset/` like:
+
+  ```md
+  ---
+  '@rawdash/connector-<name>': minor
+  ---
+
+  Add `@rawdash/connector-<name>` — one or two sentences describing what the connector syncs, how it authenticates, and any notable knobs (resource filters, account scoping, modes).
+  ```
+
 - **Semver discipline.** Even under lockstep versioning, the version field still encodes intent. Treat the connector's exported surface (constructor signature, `id`, the shapes it writes) as semver — breaking changes in any of those should land in a major bump for the whole release train.
 - **Dependency on `@rawdash/core`.** Declare it under `dependencies` (not peer) at `workspace:*`. The publish step rewrites it to the lockstep version at pack time. When `@rawdash/core` introduces a new optional field on `SyncOptions` or `SyncResult`, you don't need to bump anything; you only re-release when you actually use the new field.
 - **Dependency on `@rawdash/connector-shared`.** `workspace:*` in `devDependencies`, **never** in `dependencies`. Add `noExternal: ['@rawdash/connector-shared']` to `tsup.config.ts`. Verify with `pnpm pack` and inspect the tarball's `package.json` — `@rawdash/connector-shared` must not appear under `dependencies`.
