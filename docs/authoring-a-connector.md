@@ -417,7 +417,7 @@ The publish workflow uses [npm OIDC trusted publishing](https://docs.npmjs.com/t
 
 The three steps, run once per new package from a maintainer machine with publish rights to the `@rawdash` org and a real 2FA-enabled npm account:
 
-1. **Publish v0.0.x manually.** This is the unavoidable step — npm requires the package to exist before any further config is possible.
+1. **Publish v0.0.x manually.** This is the unavoidable step — npm requires the package to exist before any further config is possible. `cd` into the checkout where the new package source lives; if you're using a git worktree you'll need to be inside that worktree, since the package doesn't exist on `main` yet.
 
    ```sh
    cd packages/connectors/<name>
@@ -425,15 +425,13 @@ The three steps, run once per new package from a maintainer machine with publish
    npm publish --access public
    ```
 
-2. **Configure the Trusted Publisher entry.** With npm CLI ≥ 11.10.0 you can do this from the terminal in one command:
+2. **Configure the Trusted Publisher entry.** Requires npm CLI ≥ 11.10.0:
 
    ```sh
    npm trust github @rawdash/connector-<name> \
      --repository rawdash/rawdash \
      --file .github/workflows/publish.yml
    ```
-
-   On older npm, do the same thing via the web UI: [npmjs.com](https://www.npmjs.com/) → package Settings → Trusted Publishers → add a GitHub Actions entry with the same repo, workflow path, and blank environment. The CLI path is preferred — it's faster, scriptable into a checklist, and less click-prone.
 
 3. **Re-run the release workflow.** From here on, every release publishes the new package via OIDC with provenance, in lockstep with the rest of the train.
 

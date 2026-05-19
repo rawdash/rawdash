@@ -200,12 +200,12 @@ function packageExistsOnNpm(name: string): boolean {
 }
 
 function bootstrapBlurb(pkg: WorkspacePackage): string {
-  const relPath = relative(REPO_ROOT, pkg.path);
   return [
     `  ${pkg.name}:`,
-    `    cd ${relPath}`,
+    `    cd ${pkg.path}`,
     `    pnpm build`,
     `    npm publish --access public`,
+    `    npm trust github ${pkg.name}`,
   ].join('\n');
 }
 
@@ -228,16 +228,16 @@ function checkNpmExistence(
         "token for a package that doesn't exist yet:",
       ...missing.map((p) => `  - ${p.name}`),
       '',
-      'Bootstrap each one from a maintainer machine with 2FA before merging:',
+      'Bootstrap each one from a maintainer machine with 2FA before merging. ' +
+        'Run these commands from any directory — the cd paths below point at ' +
+        'the checkout where the new package lives (including git worktrees, ' +
+        'since the package does not yet exist on the main branch):',
       '',
       ...missing.map(bootstrapBlurb),
       '',
-      'Then configure the Trusted Publisher entry for each new package — ' +
-        'either run `npm trust github <package>` (npm ≥ 11.10.0) from a ' +
-        "maintainer machine, or open the package's Settings → Trusted " +
-        'Publishers on npmjs.com and add a GitHub Actions entry matching ' +
-        'the existing @rawdash packages (same repo, workflow file, and ' +
-        'environment).',
+      'The `npm trust github` step registers this repo as a Trusted Publisher ' +
+        'so the OIDC publish workflow on main can mint a token without a ' +
+        'classic npm token. It requires npm ≥ 11.10.0.',
     ].join('\n'),
   );
 
@@ -330,12 +330,8 @@ async function checkOidcExchange(
         '',
         `This usually means the Trusted Publisher entry is missing or ` +
           `doesn't match this workflow. Configure it from a maintainer ` +
-          `machine with either:` +
-          `\n  npm trust github ${pkg.name}` +
-          `\n(npm ≥ 11.10.0), or by opening ${pkg.name} → Settings → ` +
-          `Trusted Publishers on npmjs.com and adding a GitHub Actions ` +
-          `entry matching the existing @rawdash packages (same repository, ` +
-          `workflow file, and environment).`,
+          `machine (requires npm ≥ 11.10.0):` +
+          `\n  npm trust github ${pkg.name}`,
         '',
         `Registry response: ${body.trim()}`,
       ].join('\n'),
