@@ -10,6 +10,10 @@ Bring your own frontend. Run it anywhere.
 
 > **Status: Early planning.** This repository is a placeholder. Code is coming soon. Follow along at [rawdash.dev](https://rawdash.dev).
 
+## Building a connector
+
+See [docs/authoring-a-connector.md](./docs/authoring-a-connector.md) for an end-to-end guide — shapes, settings, chunked syncs, rate limits, testing, publishing.
+
 ## License
 
 Apache License 2.0. See [LICENSE](./LICENSE).

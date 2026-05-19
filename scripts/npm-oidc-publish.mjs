@@ -117,7 +117,7 @@ function packageExistsOnNpm(name) {
 function printNewPackageError(newPackages) {
   const bulletList = newPackages.map((p) => `  - ${p.name}`).join('\n');
 
-  const bootstrapCommands = newPackages
+  const publishCommands = newPackages
     .map(
       (p) =>
         `       cd ${p.path}\n` +
@@ -126,19 +126,33 @@ function printNewPackageError(newPackages) {
     )
     .join('\n\n');
 
+  const trustCommands = newPackages
+    .map(
+      (p) =>
+        `       npm trust github ${p.name} \\\n` +
+        `         --repository rawdash/rawdash \\\n` +
+        `         --file .github/workflows/publish.yml`,
+    )
+    .join('\n\n');
+
   const lines = [
     '',
     'The following package(s) do not yet exist on npm and cannot be bootstrapped via OIDC trusted publishing:',
     bulletList,
     '',
-    'npm requires the package to already exist (or a "pending" trusted publisher entry to be pre-configured) before it will mint a token. To bootstrap a new package:',
+    'npm requires the package to already exist before it will mint a token or accept a trusted publisher entry. To bootstrap a new package (one-off, ~2 minutes):',
     '',
-    '  1. Publish the first version manually from a maintainer machine:',
-    bootstrapCommands,
+    '  1. Publish the first version manually from a maintainer machine (must have publish rights to @rawdash and a 2FA-enabled npm account):',
+    publishCommands,
     '',
-    "  2. On npmjs.com, open each new package's Settings → Trusted Publishers and add a GitHub Actions entry matching the existing packages (same repo, workflow file, and environment).",
+    '  2. Configure the Trusted Publisher entry. With npm CLI >= 11.10.0:',
+    trustCommands,
+    '',
+    '     On older npm, do the same via the npmjs.com UI: package Settings -> Trusted Publishers -> GitHub Actions, with repo=rawdash/rawdash and workflow=.github/workflows/publish.yml.',
     '',
     '  3. Re-run this workflow. Subsequent versions will publish via OIDC with provenance automatically.',
+    '',
+    'See docs/authoring-a-connector.md §9 for the full walk-through.',
     '',
   ];
 
