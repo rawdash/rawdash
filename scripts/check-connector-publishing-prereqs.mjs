@@ -2,7 +2,7 @@
 
 /**
  * Verifies that any new public workspace package added in this PR is set up
- * correctly for the OIDC publish workflow on main. Runs three layers:
+ * correctly for the OIDC publish workflow on main. Runs four layers:
  *
  *   1. `.changeset/config.json` `fixed[0]` membership: every public workspace
  *      package must appear in `fixed`, and `fixed` must not reference any
