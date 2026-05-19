@@ -413,9 +413,11 @@ Required `package.json` scripts (copy from `packages/connectors/github/package.j
 
 ### First-time publishing and OIDC bootstrap
 
-The publish workflow uses [npm OIDC trusted publishing](https://docs.npmjs.com/trusted-publishers) — no `NPM_TOKEN` is stored anywhere. The catch: **npm can't mint a publish token for a package that doesn't exist yet.** The publish script detects this and fails loudly with bootstrap instructions. The one-time-per-package dance:
+The publish workflow uses [npm OIDC trusted publishing](https://docs.npmjs.com/trusted-publishers) — no `NPM_TOKEN` is stored anywhere. The catch: **npm can't mint a publish token for a package that doesn't exist yet, and it can't accept a trusted publisher entry for a package that doesn't exist yet either.** So there's an unavoidable one-time-per-package bootstrap. The publish script detects when this hasn't been done and fails loudly with the steps below.
 
-1. **Publish v0.0.x manually** from a maintainer machine with publish rights to the `@rawdash` org:
+The three steps, run once per new package from a maintainer machine with publish rights to the `@rawdash` org and a real 2FA-enabled npm account:
+
+1. **Publish v0.0.x manually.** This is the unavoidable step — npm requires the package to exist before any further config is possible.
 
    ```sh
    cd packages/connectors/<name>
@@ -423,11 +425,19 @@ The publish workflow uses [npm OIDC trusted publishing](https://docs.npmjs.com/t
    npm publish --access public
    ```
 
-2. **Add a Trusted Publisher entry** on [npmjs.com](https://www.npmjs.com/) → package Settings → Trusted Publishers. Mirror the settings of the existing packages: GitHub Actions, `rawdash/rawdash` repo, `.github/workflows/publish.yml` workflow file, blank environment.
+2. **Configure the Trusted Publisher entry.** With npm CLI ≥ 11.10.0 you can do this from the terminal in one command:
+
+   ```sh
+   npm trust github @rawdash/connector-<name> \
+     --repository rawdash/rawdash \
+     --file .github/workflows/publish.yml
+   ```
+
+   On older npm, do the same thing via the web UI: [npmjs.com](https://www.npmjs.com/) → package Settings → Trusted Publishers → add a GitHub Actions entry with the same repo, workflow path, and blank environment. The CLI path is preferred — it's faster, scriptable into a checklist, and less click-prone.
 
 3. **Re-run the release workflow.** From here on, every release publishes the new package via OIDC with provenance, in lockstep with the rest of the train.
 
-This is manual today. It could be partly automated — npm supports _pending_ trusted publisher entries you can pre-configure before the first publish, which would let CI handle even the bootstrap version — but there's no first-class API for managing those, only the npmjs.com UI. Until that changes, treat the three-step bootstrap as a one-off chore per new package.
+> **Why this is still manual.** PyPI supports _pending_ publishers — a trust entry created before the first publish, so CI can bootstrap a new package on its own. npm doesn't; both the placeholder publish and the Trusted Publisher entry must exist before OIDC can take over, and there's no first-class API for managing trusted publishers programmatically. `npm trust` is a CLI wrapper over the same npm-side data store, not a way to skip step 1. Until npm ships pending publishers, treat this as a one-off chore per new package.
 
 ## See also
 
