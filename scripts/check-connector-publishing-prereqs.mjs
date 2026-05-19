@@ -17,10 +17,16 @@
  *      misconfigured. Skipped (with a warning) when no OIDC token is available
  *      (fork PRs, local runs).
  *
- * Also enforces two cheap connector authoring conventions: every
- * `@rawdash/connector-*` package must declare `@rawdash/connector-shared` only
- * in `devDependencies`, and must include it in `noExternal` in its
- * `tsup.config.ts` so the shared code is bundled into the published artifact.
+ *   4. connector-shared bundling discipline: every `@rawdash/connector-*`
+ *      (other than `@rawdash/connector-shared` itself) must declare
+ *      `@rawdash/connector-shared` only in `devDependencies` (never
+ *      `dependencies` or `peerDependencies`), and must list it in `noExternal`
+ *      in `tsup.config.ts`. For packages new in the PR we additionally run
+ *      `pnpm pack` and assert the published tarball's `package.json` has no
+ *      `@rawdash/connector-shared` entry under `dependencies` — proving the
+ *      shared substrate was actually inlined.
+ *
+ * See §7 and §9 of docs/authoring-a-connector.md for the underlying rules.
  */
 import { execFileSync, execSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
@@ -101,9 +107,12 @@ function checkFixedMembership(publicPackages) {
 }
 
 function getBaseRef() {
-  if (process.env.BASE_REF) {return process.env.BASE_REF;}
-  if (process.env.GITHUB_BASE_REF)
-    {return `origin/${process.env.GITHUB_BASE_REF}`;}
+  if (process.env.BASE_REF) {
+    return process.env.BASE_REF;
+  }
+  if (process.env.GITHUB_BASE_REF) {
+    return `origin/${process.env.GITHUB_BASE_REF}`;
+  }
   return 'origin/main';
 }
 
@@ -196,7 +205,9 @@ function checkNpmExistence(newPackages) {
       missing.push(pkg);
     }
   }
-  if (missing.length === 0) {return;}
+  if (missing.length === 0) {
+    return;
+  }
 
   recordError(
     [
@@ -239,7 +250,9 @@ async function getGitHubOidcJwt() {
     );
   }
   const { value } = await res.json();
-  if (!value) {throw new Error('No id_token in GitHub OIDC response');}
+  if (!value) {
+    throw new Error('No id_token in GitHub OIDC response');
+  }
   return value;
 }
 
@@ -259,7 +272,9 @@ async function dryRunOidcExchange(idToken, packageName) {
 }
 
 async function checkOidcExchange(newPackages) {
-  if (newPackages.length === 0) {return;}
+  if (newPackages.length === 0) {
+    return;
+  }
 
   let idToken;
   try {
@@ -282,7 +297,9 @@ async function checkOidcExchange(newPackages) {
 
   for (const pkg of newPackages) {
     const { ok, status, body } = await dryRunOidcExchange(idToken, pkg.name);
-    if (ok) {continue;}
+    if (ok) {
+      continue;
+    }
     recordError(
       [
         `npm OIDC token exchange for ${pkg.name} failed with HTTP ${status}.`,
@@ -299,32 +316,49 @@ async function checkOidcExchange(newPackages) {
   }
 }
 
-function checkConnectorConventions(publicPackages) {
+function isConnectorPackage(pkg) {
+  return (
+    pkg.name.startsWith('@rawdash/connector-') &&
+    pkg.name !== '@rawdash/connector-shared'
+  );
+}
+
+function checkConnectorSharedDiscipline(publicPackages) {
   for (const pkg of publicPackages) {
-    if (!pkg.name.startsWith('@rawdash/connector-')) {continue;}
-    if (pkg.name === '@rawdash/connector-shared') {continue;}
+    if (!isConnectorPackage(pkg)) {
+      continue;
+    }
 
     const pkgJsonPath = join(pkg.path, 'package.json');
     const pkgJson = JSON.parse(readFileSync(pkgJsonPath, 'utf8'));
     const relPkgJson = relative(REPO_ROOT, pkgJsonPath);
 
     const inDeps = Boolean(pkgJson.dependencies?.['@rawdash/connector-shared']);
+    const inPeer = Boolean(
+      pkgJson.peerDependencies?.['@rawdash/connector-shared'],
+    );
     const inDev = Boolean(
       pkgJson.devDependencies?.['@rawdash/connector-shared'],
     );
 
-    if (inDeps) {
+    if (inDeps || inPeer) {
+      const fields = [inDeps && 'dependencies', inPeer && 'peerDependencies']
+        .filter(Boolean)
+        .join(' and ');
       recordError(
-        `${relPkgJson}: @rawdash/connector-shared must be a devDependency ` +
-          `(not a dependency) so it is bundled into the connector by tsup ` +
-          `via noExternal rather than published as a runtime dep.`,
+        `${relPkgJson}: @rawdash/connector-shared appears in ${fields}, ` +
+          `but it must live only in devDependencies. Connectors inline the ` +
+          `shared substrate at build time via tsup noExternal — declaring ` +
+          `it as a runtime dep ships a dangling workspace:* reference to ` +
+          `users. See §7 of docs/authoring-a-connector.md.`,
       );
     }
     if (!inDev) {
       recordError(
         `${relPkgJson}: missing @rawdash/connector-shared in ` +
           `devDependencies. Connectors must depend on it as a dev dep so ` +
-          `tsup can inline it into the published bundle.`,
+          `tsup can inline it into the published bundle. See §7 of ` +
+          `docs/authoring-a-connector.md.`,
       );
     }
 
@@ -333,7 +367,8 @@ function checkConnectorConventions(publicPackages) {
       recordError(
         `${relative(REPO_ROOT, tsupPath)}: missing tsup.config.ts. ` +
           `Connectors are built with tsup and must inline ` +
-          `@rawdash/connector-shared via noExternal.`,
+          `@rawdash/connector-shared via noExternal. See §7 of ` +
+          `docs/authoring-a-connector.md.`,
       );
       continue;
     }
@@ -347,7 +382,61 @@ function checkConnectorConventions(publicPackages) {
       recordError(
         `${relative(REPO_ROOT, tsupPath)}: tsup config must include ` +
           `'@rawdash/connector-shared' in its noExternal array so the ` +
-          `shared code is bundled into the published artifact.`,
+          `shared code is bundled into the published artifact. See §7 of ` +
+          `docs/authoring-a-connector.md.`,
+      );
+    }
+  }
+}
+
+function checkPackedTarballHasNoSharedDep(newConnectorPackages) {
+  for (const pkg of newConnectorPackages) {
+    let tarballPath;
+    try {
+      const out = execSync('pnpm pack --pack-destination /tmp --json', {
+        cwd: pkg.path,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      }).toString();
+      tarballPath = JSON.parse(out)?.filename;
+    } catch (err) {
+      recordWarning(
+        `${pkg.name}: pnpm pack failed (${err.message?.split('\n')[0]}); ` +
+          `skipping tarball bundling verification. The build must succeed ` +
+          `for this layer to run.`,
+      );
+      continue;
+    }
+
+    if (!tarballPath) {
+      recordWarning(
+        `${pkg.name}: pnpm pack returned no filename; skipping tarball ` +
+          `bundling verification.`,
+      );
+      continue;
+    }
+
+    let manifest;
+    try {
+      const raw = execSync(`tar -xzOf ${tarballPath} package/package.json`, {
+        stdio: ['pipe', 'pipe', 'pipe'],
+      }).toString();
+      manifest = JSON.parse(raw);
+    } catch (err) {
+      recordWarning(
+        `${pkg.name}: could not read packed manifest from ${tarballPath} ` +
+          `(${err.message?.split('\n')[0]}); skipping tarball check.`,
+      );
+      continue;
+    }
+
+    const sharedDep = manifest?.dependencies?.['@rawdash/connector-shared'];
+    if (sharedDep) {
+      recordError(
+        `${pkg.name}: the packed tarball declares ` +
+          `@rawdash/connector-shared@${sharedDep} under dependencies. ` +
+          `tsup noExternal isn't inlining it — end users will fail to ` +
+          `resolve the workspace ref. Confirm tsup.config.ts lists it under ` +
+          `noExternal and that the build runs before publish.`,
       );
     }
   }
@@ -360,10 +449,11 @@ async function main() {
   // Layer 1
   checkFixedMembership(publicPackages);
 
-  // Connector conventions (cheap, no network)
-  checkConnectorConventions(publicPackages);
+  // Layer 4: connector-shared discipline (cheap, no network)
+  checkConnectorSharedDiscipline(publicPackages);
 
-  // Layers 2 & 3 only need to run when new packages were added
+  // Layers 2, 3, and the Layer 4 tarball assertion only need to run when new
+  // packages were added.
   const newPackages = detectNewPublicPackages(publicPackages);
   if (newPackages && newPackages.length > 0) {
     console.log(
@@ -372,6 +462,10 @@ async function main() {
     );
     checkNpmExistence(newPackages);
     await checkOidcExchange(newPackages);
+    const newConnectors = newPackages.filter(isConnectorPackage);
+    if (newConnectors.length > 0) {
+      checkPackedTarballHasNoSharedDep(newConnectors);
+    }
   }
 
   for (const w of warnings) {
