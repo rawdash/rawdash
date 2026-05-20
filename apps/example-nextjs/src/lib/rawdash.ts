@@ -1,10 +1,11 @@
 import { createRawdashClient, http } from '@rawdash/nextjs';
 
+const isBuild = process.env['NEXT_PHASE'] === 'phase-production-build';
+const isDev = process.env.NODE_ENV === 'development';
+
 const baseUrl =
   process.env['RAWDASH_URL'] ??
-  (process.env.NODE_ENV === 'development'
-    ? 'http://localhost:8080'
-    : undefined);
+  (isDev || isBuild ? 'http://localhost:8080' : undefined);
 
 if (!baseUrl) {
   throw new Error(
