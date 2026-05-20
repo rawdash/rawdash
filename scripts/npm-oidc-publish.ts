@@ -309,6 +309,9 @@ async function publishAll(): Promise<void> {
 
     // Create a lightweight git tag — changesets/action reads these to create GitHub releases
     ensureTag(name, version);
+    // Emit the marker that changesets/action greps for to drive `createGithubReleases`.
+    // Format must match: /New tag:\s+(@[^/]+\/[^@]+|[^/]+)@([^\s]+)/
+    console.log(`New tag: ${name}@${version}`);
     console.log(`✓ Published ${name}@${version}`);
   }
 }
