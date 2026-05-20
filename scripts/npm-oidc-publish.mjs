@@ -14,6 +14,8 @@
  *      (pnpm rewrites workspace:* deps during pack, then delegates to npm publish)
  */
 import { execFile, execSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
@@ -22,12 +24,12 @@ const REGISTRY = 'https://registry.npmjs.org';
 const REGISTRY_HOST = new URL(REGISTRY).hostname;
 const NETWORK_TIMEOUT_MS = 30_000;
 const DEFAULT_PUBLISH_CONCURRENCY = 8;
-const rawPublishConcurrency = process.env.PUBLISH_CONCURRENCY;
+const rawPublishConcurrency = process.env.PUBLISH_CONCURRENCY?.trim();
 const PUBLISH_CONCURRENCY =
-  rawPublishConcurrency == null
+  rawPublishConcurrency == null || rawPublishConcurrency === ''
     ? DEFAULT_PUBLISH_CONCURRENCY
-    : Number.parseInt(rawPublishConcurrency, 10);
-if (!Number.isInteger(PUBLISH_CONCURRENCY) || PUBLISH_CONCURRENCY < 1) {
+    : Number(rawPublishConcurrency);
+if (!Number.isSafeInteger(PUBLISH_CONCURRENCY) || PUBLISH_CONCURRENCY < 1) {
   throw new Error(
     `PUBLISH_CONCURRENCY must be a positive integer, got: ${rawPublishConcurrency}`,
   );
@@ -206,6 +208,46 @@ function ensureTag(name, version) {
   }
 }
 
+/**
+ * Group packages into dependency layers. Packages in layer N depend only on
+ * packages in layers < N. Within a layer, publishes are independent and safe
+ * to run in parallel. Across layers, we publish strictly in order so that if
+ * a dependency fails, its dependents are never published with a manifest
+ * referencing a version that doesn't exist on npm.
+ */
+function computeDependencyLayers(pkgs) {
+  const byName = new Map(pkgs.map((p) => [p.name, p]));
+  const internalDeps = new Map();
+  for (const pkg of pkgs) {
+    const pkgJson = JSON.parse(
+      readFileSync(join(pkg.path, 'package.json'), 'utf8'),
+    );
+    const allDeps = Object.keys({
+      ...pkgJson.dependencies,
+      ...pkgJson.peerDependencies,
+    });
+    internalDeps.set(
+      pkg.name,
+      allDeps.filter((d) => byName.has(d)),
+    );
+  }
+  const layers = [];
+  const placed = new Set();
+  while (placed.size < pkgs.length) {
+    const layer = pkgs.filter(
+      (p) =>
+        !placed.has(p.name) &&
+        internalDeps.get(p.name).every((d) => placed.has(d)),
+    );
+    if (layer.length === 0) {
+      throw new Error('Cycle detected in workspace package dependencies');
+    }
+    for (const p of layer) {placed.add(p.name);}
+    layers.push(layer);
+  }
+  return layers;
+}
+
 async function publishPackage(pkg) {
   const { name, version, path: pkgPath } = pkg;
   const idToken = await getGitHubOidcJwt();
@@ -273,13 +315,15 @@ if (newPackages.length > 0) {
   process.exit(1);
 }
 
+const layers = computeDependencyLayers(toPublish);
+
 console.log(
-  `Packages to publish (concurrency=${PUBLISH_CONCURRENCY}): ${toPublish
+  `Packages to publish (${toPublish.length} across ${layers.length} dependency layer(s), concurrency=${PUBLISH_CONCURRENCY}): ${toPublish
     .map((p) => `${p.name}@${p.version}`)
     .join(', ')}`,
 );
 
-const outcomes = await pMap(toPublish, PUBLISH_CONCURRENCY, async (pkg) => {
+async function publishOne(pkg) {
   const label = `${pkg.name}@${pkg.version}`;
   console.log(`→ Publishing ${label}...`);
   try {
@@ -313,9 +357,34 @@ const outcomes = await pMap(toPublish, PUBLISH_CONCURRENCY, async (pkg) => {
     console.error(block);
     return { ok: false, pkg, error: err };
   }
-});
+}
+
+const outcomes = [];
+let aborted = false;
+const skipped = [];
+
+for (const [i, layer] of layers.entries()) {
+  console.log(
+    `\n── Layer ${i + 1}/${layers.length} (${layer.length} package(s)) ──`,
+  );
+  const layerOutcomes = await pMap(layer, PUBLISH_CONCURRENCY, publishOne);
+  outcomes.push(...layerOutcomes);
+  if (layerOutcomes.some((o) => !o.ok)) {
+    aborted = true;
+    for (let j = i + 1; j < layers.length; j++) {skipped.push(...layers[j]);}
+    break;
+  }
+}
 
 const failures = outcomes.filter((o) => !o.ok);
+if (aborted) {
+  console.error(
+    `\nAborted after layer failure. Skipped ${skipped.length} dependent package(s) to avoid publishing manifests referencing unpublished workspace deps:`,
+  );
+  for (const pkg of skipped) {
+    console.error(`  - ${pkg.name}@${pkg.version}`);
+  }
+}
 if (failures.length > 0) {
   console.error(
     `\n${failures.length}/${toPublish.length} package(s) failed to publish:`,
