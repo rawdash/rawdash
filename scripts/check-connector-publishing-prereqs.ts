@@ -203,30 +203,25 @@ function packageExistsOnNpm(name: string): boolean {
 }
 
 function bootstrapBlurb(pkg: WorkspacePackage): string {
+  const relPkgPath = relative(REPO_ROOT, pkg.path).replaceAll('\\', '/');
   return [
     `  ${pkg.name}:`,
-    `    # Pre-flight. npm publish returns a confusing 404 on auth/permission`,
-    `    # failures and npm trust is a no-op on old CLIs, so verify both first:`,
+    ``,
+    `    # Pre-flight (run the second command in each pair only if the first fails)`,
     `    npm --version                      # must be ≥ 11.10.0`,
-    `    npm whoami                         # must print a maintainer with @rawdash publish rights`,
+    `    npm install -g npm@latest          # upgrade if older`,
     ``,
-    `    # If npm --version is older than 11.10.0, upgrade. Pick the install`,
-    `    # method that matches how you installed Node:`,
-    `    npm install -g npm@latest          # works on most setups`,
-    `    # If you use a Node version manager (nvm, fnm, asdf, volta), upgrade`,
-    `    # the active Node release first or reinstall npm under that toolchain;`,
-    `    # the npm shipped with Node ≤ 22 is older than 11.10.0.`,
-    `    # On macOS Homebrew installs of Node, the global -g install can be`,
-    `    # blocked by permissions — use \`brew install node\` to refresh, or`,
-    `    # run the npm install with the right prefix.`,
-    `    # Verify after upgrading by re-running \`npm --version\`.`,
+    `    npm whoami                         # must be a @rawdash maintainer`,
+    `    npm login                          # run if not logged in or wrong account (npm logout first)`,
     ``,
-    `    # If npm whoami fails or prints the wrong account: \`npm login\`.`,
+    `    # Bootstrap (cd path is relative to your repo/worktree root)`,
+    `    cd <your-repo-root>/${relPkgPath}`,
     ``,
-    `    # Bootstrap:`,
-    `    cd ${pkg.path}`,
+    `    # Build and publish`,
     `    pnpm build`,
     `    npm publish --access public`,
+    ``,
+    `    # Register this repo as a Trusted Publisher so OIDC publish can mint a token`,
     `    npm trust github ${pkg.name} \\`,
     `      --repository rawdash/rawdash \\`,
     `      --file publish.yml`,
@@ -252,10 +247,7 @@ function checkNpmExistence(
         "token for a package that doesn't exist yet:",
       ...missing.map((p) => `  - ${p.name}`),
       '',
-      'Bootstrap each one from a maintainer machine with 2FA before merging. ' +
-        'Run these commands from any directory — the cd paths below point at ' +
-        'the checkout where the new package lives (including git worktrees, ' +
-        'since the package does not yet exist on the main branch):',
+      'Bootstrap each one from a maintainer machine with 2FA before merging:',
       '',
       ...missing.map(bootstrapBlurb),
       '',
