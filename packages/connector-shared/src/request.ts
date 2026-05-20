@@ -8,16 +8,71 @@ import {
   errorForStatus,
 } from './errors';
 import { defaultRetryOn, parseRetryAfter, sleep } from './retry';
-import type { FetchLike, HttpRequest, HttpResponse } from './types';
+import type { FetchLike, HttpMethod, HttpRequest, HttpResponse } from './types';
 import { DEFAULT_USER_AGENT } from './version';
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 const DEFAULT_MAX_ATTEMPTS = 3;
 const DEFAULT_INITIAL_DELAY_MS = 1000;
 const DEFAULT_MAX_DELAY_MS = 60_000;
+const OBSERVER_TIMEOUT_MS = 250;
+
+export interface RequestObservation {
+  url: string;
+  method: HttpMethod;
+  status: number;
+  resource: string | undefined;
+  requestId: string;
+  body: unknown;
+}
+
+export type RequestObserver = (
+  event: RequestObservation,
+) => void | Promise<void>;
 
 export interface RequestOptions {
   fetch?: FetchLike;
+  observer?: RequestObserver;
+  resource?: string;
+  requestId?: string;
+}
+
+async function notifyObserver(
+  observer: RequestObserver,
+  event: RequestObservation,
+): Promise<void> {
+  let result: void | Promise<void>;
+  try {
+    result = observer(event);
+  } catch (err) {
+    console.warn('[connector-shared] request observer threw:', err);
+    return;
+  }
+  if (!(result instanceof Promise)) {
+    return;
+  }
+  const guarded = result.catch((err) => {
+    console.warn('[connector-shared] request observer rejected:', err);
+  });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<void>((resolve) => {
+    timer = setTimeout(resolve, OBSERVER_TIMEOUT_MS);
+  });
+  try {
+    await Promise.race([guarded, timeout]);
+  } finally {
+    if (timer) {
+      clearTimeout(timer);
+    }
+  }
+}
+
+function newRequestId(): string {
+  const c = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto;
+  if (c?.randomUUID) {
+    return c.randomUUID();
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function mergeHeaders(
@@ -142,6 +197,17 @@ export async function request<T = unknown>(
       if (state) {
         httpResponse.rateLimitState = state;
       }
+    }
+
+    if (options.observer) {
+      await notifyObserver(options.observer, {
+        url: req.url,
+        method: req.method ?? 'GET',
+        status: res.status,
+        resource: options.resource,
+        requestId: options.requestId ?? newRequestId(),
+        body,
+      });
     }
 
     if (res.ok) {

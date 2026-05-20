@@ -211,6 +211,119 @@ describe('request — retry behavior', () => {
   });
 });
 
+describe('request — observer', () => {
+  it('invokes observer with the parsed response payload', async () => {
+    const fetchSpy = vi
+      .fn<FetchLike>()
+      .mockResolvedValue(jsonResponse({ hello: 'world' }, { status: 201 }));
+    const observer = vi.fn();
+    await request(
+      { url: 'https://example.test/users', method: 'POST' },
+      {
+        fetch: fetchSpy,
+        observer,
+        resource: 'users',
+        requestId: 'req-1',
+      },
+    );
+    expect(observer).toHaveBeenCalledTimes(1);
+    expect(observer).toHaveBeenCalledWith({
+      url: 'https://example.test/users',
+      method: 'POST',
+      status: 201,
+      resource: 'users',
+      requestId: 'req-1',
+      body: { hello: 'world' },
+    });
+  });
+
+  it('fires the observer for error responses before throwing', async () => {
+    const fetchSpy = vi
+      .fn<FetchLike>()
+      .mockResolvedValue(new Response('nope', { status: 401 }));
+    const observer = vi.fn();
+    await expect(
+      request(
+        { url: 'https://x.test', retry: { maxAttempts: 1 } },
+        { fetch: fetchSpy, observer, resource: 'users' },
+      ),
+    ).rejects.toBeInstanceOf(AuthError);
+    expect(observer).toHaveBeenCalledTimes(1);
+    expect(observer.mock.calls[0]![0]).toMatchObject({
+      status: 401,
+      resource: 'users',
+    });
+  });
+
+  it('generates a requestId when the caller omits one', async () => {
+    const fetchSpy = vi.fn<FetchLike>().mockResolvedValue(jsonResponse({}));
+    const observer = vi.fn();
+    await request(
+      { url: 'https://example.test/x' },
+      { fetch: fetchSpy, observer },
+    );
+    const event = observer.mock.calls[0]![0];
+    expect(typeof event.requestId).toBe('string');
+    expect((event.requestId as string).length).toBeGreaterThan(0);
+  });
+
+  it('swallows synchronous observer errors and logs a warning', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const fetchSpy = vi.fn<FetchLike>().mockResolvedValue(jsonResponse({}));
+    const observer = vi.fn(() => {
+      throw new Error('boom');
+    });
+    const res = await request(
+      { url: 'https://example.test/x' },
+      { fetch: fetchSpy, observer },
+    );
+    expect(res.status).toBe(200);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('swallows async observer rejections and logs a warning', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const fetchSpy = vi.fn<FetchLike>().mockResolvedValue(jsonResponse({}));
+    const observer = vi.fn(async () => {
+      throw new Error('async boom');
+    });
+    const res = await request(
+      { url: 'https://example.test/x' },
+      { fetch: fetchSpy, observer },
+    );
+    expect(res.status).toBe(200);
+    await new Promise((r) => setTimeout(r, 5));
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('returns within the timeout when the observer hangs', async () => {
+    const fetchSpy = vi.fn<FetchLike>().mockResolvedValue(jsonResponse({}));
+    const observer = vi.fn(() => new Promise<void>(() => {}));
+    const start = Date.now();
+    const res = await request(
+      { url: 'https://example.test/x' },
+      { fetch: fetchSpy, observer },
+    );
+    const elapsed = Date.now() - start;
+    expect(res.status).toBe(200);
+    expect(elapsed).toBeLessThan(1000);
+  });
+
+  it('does not invoke observer code when option is undefined', async () => {
+    const fetchSpy = vi.fn<FetchLike>().mockResolvedValue(jsonResponse({}));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const res = await request(
+      { url: 'https://example.test/x' },
+      { fetch: fetchSpy },
+    );
+    expect(res.status).toBe(200);
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+});
+
 describe('request — rate-limit policy', () => {
   it('exposes parsed rate-limit state on the response', async () => {
     const reset = Math.floor(Date.now() / 1000) + 60;
