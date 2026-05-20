@@ -30,7 +30,9 @@ async function pMap(items, limit, fn) {
   const workers = Array.from({ length: workerCount }, async () => {
     while (true) {
       const i = cursor++;
-      if (i >= items.length) {return;}
+      if (i >= items.length) {
+        return;
+      }
       results[i] = await fn(items[i], i);
     }
   });
@@ -109,7 +111,9 @@ async function isAlreadyPublished(name, version) {
     `${REGISTRY}/${encodePackageName(name)}/${encodeURIComponent(version)}`,
     { signal: AbortSignal.timeout(NETWORK_TIMEOUT_MS) },
   );
-  if (res.status === 404) {return false;}
+  if (res.status === 404) {
+    return false;
+  }
   if (!res.ok) {
     throw new Error(
       `Registry query failed for ${name}@${version}: ${res.status}`,
@@ -122,7 +126,9 @@ async function packageExistsOnNpm(name) {
   const res = await fetch(`${REGISTRY}/${encodePackageName(name)}`, {
     signal: AbortSignal.timeout(NETWORK_TIMEOUT_MS),
   });
-  if (res.status === 404) {return false;}
+  if (res.status === 404) {
+    return false;
+  }
   if (!res.ok) {
     throw new Error(`Registry query failed for ${name}: ${res.status}`);
   }
