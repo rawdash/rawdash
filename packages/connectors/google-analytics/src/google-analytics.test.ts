@@ -336,7 +336,17 @@ describe('GA4Connector.sync', () => {
 
     const storage = makeStorage();
     await connector.sync(
-      { mode: 'full', cursor: { phase: 'geo', page: 0 } },
+      {
+        mode: 'full',
+        cursor: {
+          phase: 'geo',
+          page: {
+            offset: 0,
+            startDate: '2025-01-01',
+            endDate: '2025-01-31',
+          },
+        },
+      },
       storage,
     );
 

@@ -12,44 +12,59 @@ import {
 import { z } from 'zod';
 
 export const configFields = defineConfigFields(
-  z.object({
-    propertyId: z.string().meta({
-      label: 'GA4 Property ID',
-      description:
-        'Numeric ID of your GA4 property (e.g. 123456789). Find it in Google Analytics → Admin → Property settings.',
-      placeholder: '123456789',
-    }),
-    serviceAccountJson: z.object({ $secret: z.string() }).optional().meta({
-      label: 'Service Account JSON (recommended)',
-      description:
-        'Contents of the JSON key file for a Google service account with the Analytics Viewer role. Create one at Google Cloud → IAM & Admin → Service Accounts.',
-      secret: true,
-    }),
-    refreshToken: z.object({ $secret: z.string() }).optional().meta({
-      label: 'OAuth Refresh Token',
-      description:
-        'Google OAuth 2.0 refresh token with analytics.readonly scope. Required if not using serviceAccountJson.',
-      secret: true,
-    }),
-    clientId: z.string().optional().meta({
-      label: 'OAuth Client ID',
-      description:
-        'OAuth 2.0 client ID from Google Cloud Console. Required when using refreshToken auth.',
-      placeholder: '…apps.googleusercontent.com',
-    }),
-    clientSecret: z.object({ $secret: z.string() }).optional().meta({
-      label: 'OAuth Client Secret',
-      description:
-        'OAuth 2.0 client secret from Google Cloud Console. Required when using refreshToken auth.',
-      secret: true,
-    }),
-    lookbackDays: z.number().int().positive().optional().meta({
-      label: 'Lookback days (full sync)',
-      description:
-        'How many calendar days to fetch on a full sync. Defaults to 90.',
-      placeholder: '90',
-    }),
-  }),
+  z
+    .object({
+      propertyId: z
+        .string()
+        .regex(/^\d+$/, 'GA4 Property ID must be digits only')
+        .meta({
+          label: 'GA4 Property ID',
+          description:
+            'Numeric ID of your GA4 property (e.g. 123456789). Find it in Google Analytics → Admin → Property settings.',
+          placeholder: '123456789',
+        }),
+      serviceAccountJson: z.object({ $secret: z.string() }).optional().meta({
+        label: 'Service Account JSON (recommended)',
+        description:
+          'Contents of the JSON key file for a Google service account with the Analytics Viewer role. Create one at Google Cloud → IAM & Admin → Service Accounts.',
+        secret: true,
+      }),
+      refreshToken: z.object({ $secret: z.string() }).optional().meta({
+        label: 'OAuth Refresh Token',
+        description:
+          'Google OAuth 2.0 refresh token with analytics.readonly scope. Required if not using serviceAccountJson.',
+        secret: true,
+      }),
+      clientId: z.string().optional().meta({
+        label: 'OAuth Client ID',
+        description:
+          'OAuth 2.0 client ID from Google Cloud Console. Required when using refreshToken auth.',
+        placeholder: '…apps.googleusercontent.com',
+      }),
+      clientSecret: z.object({ $secret: z.string() }).optional().meta({
+        label: 'OAuth Client Secret',
+        description:
+          'OAuth 2.0 client secret from Google Cloud Console. Required when using refreshToken auth.',
+        secret: true,
+      }),
+      lookbackDays: z.number().int().positive().optional().meta({
+        label: 'Lookback days (full sync)',
+        description:
+          'How many calendar days to fetch on a full sync. Defaults to 90.',
+        placeholder: '90',
+      }),
+    })
+    .refine(
+      (val) =>
+        val.serviceAccountJson !== undefined ||
+        (val.refreshToken !== undefined &&
+          val.clientId !== undefined &&
+          val.clientSecret !== undefined),
+      {
+        message:
+          'Provide either serviceAccountJson or the full OAuth tuple (refreshToken + clientId + clientSecret)',
+      },
+    ),
 );
 
 // ---------------------------------------------------------------------------
@@ -97,7 +112,29 @@ const PHASE_ORDER = [
 
 type GA4Phase = (typeof PHASE_ORDER)[number];
 
-type GA4SyncCursor = ChunkedSyncCursor<GA4Phase, number>;
+interface GA4Page {
+  offset: number;
+  startDate: string;
+  endDate: string;
+}
+
+type GA4SyncCursor = ChunkedSyncCursor<GA4Phase, GA4Page>;
+
+function isGA4Page(value: unknown): value is GA4Page {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const v = value as {
+    offset?: unknown;
+    startDate?: unknown;
+    endDate?: unknown;
+  };
+  return (
+    typeof v.offset === 'number' &&
+    typeof v.startDate === 'string' &&
+    typeof v.endDate === 'string'
+  );
+}
 
 function isGA4SyncCursor(value: unknown): value is GA4SyncCursor {
   if (typeof value !== 'object' || value === null) {
@@ -110,7 +147,7 @@ function isGA4SyncCursor(value: unknown): value is GA4SyncCursor {
   if (!(PHASE_ORDER as readonly string[]).includes(v.phase)) {
     return false;
   }
-  if (v.page !== null && typeof v.page !== 'number') {
+  if (v.page !== null && !isGA4Page(v.page)) {
     return false;
   }
   return true;
@@ -250,11 +287,25 @@ async function signRS256JWT(
   return `${signingInput}.${base64urlFromBytes(new Uint8Array(signature))}`;
 }
 
+function parseServiceAccountJson(value: string): ServiceAccountKey {
+  const trimmed = value.trim();
+  if (trimmed.startsWith('{')) {
+    return JSON.parse(trimmed) as ServiceAccountKey;
+  }
+  const binary = atob(trimmed);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  const decoded = new TextDecoder().decode(bytes);
+  return JSON.parse(decoded) as ServiceAccountKey;
+}
+
 async function fetchServiceAccountToken(
   serviceAccountJson: string,
   signal?: AbortSignal,
 ): Promise<{ token: string; expiresAt: number }> {
-  const sa = JSON.parse(serviceAccountJson) as ServiceAccountKey;
+  const sa = parseServiceAccountJson(serviceAccountJson);
   const now = Math.floor(Date.now() / 1000);
   const jwt = await signRS256JWT(
     {
@@ -332,20 +383,20 @@ function ga4DateToMs(ga4Date: string): number {
   return Date.UTC(Number(y), Number(m) - 1, Number(d));
 }
 
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const INCREMENTAL_LOOKBACK_DAYS = 30;
+
 function getDateRange(
   options: SyncOptions,
   lookbackDays: number,
 ): { startDate: string; endDate: string } {
-  const endDate = toGA4Date(new Date());
-  let startMs: number;
-
-  if (options.mode === 'latest' && options.since) {
-    // Incremental: last 30 days (covers 3-day attribution lag)
-    startMs = Date.now() - 30 * 24 * 60 * 60 * 1000;
-  } else {
-    startMs = Date.now() - lookbackDays * 24 * 60 * 60 * 1000;
-  }
-
+  const now = Date.now();
+  const endDate = toGA4Date(new Date(now));
+  const days =
+    options.mode === 'latest' && options.since
+      ? INCREMENTAL_LOOKBACK_DAYS
+      : lookbackDays;
+  const startMs = now - (days - 1) * MS_PER_DAY;
   return { startDate: toGA4Date(new Date(startMs)), endDate };
 }
 
@@ -491,9 +542,13 @@ export class GA4Connector extends BaseConnector<GA4Settings, GA4Credentials> {
     signal?: AbortSignal,
   ): Promise<SyncResult> {
     const lookbackDays = this.settings.lookbackDays ?? 90;
-    const dateRange = getDateRange(options, lookbackDays);
 
     const cursor = isGA4SyncCursor(options.cursor) ? options.cursor : undefined;
+    const resumeDateRange =
+      cursor?.page && isGA4Page(cursor.page)
+        ? { startDate: cursor.page.startDate, endDate: cursor.page.endDate }
+        : null;
+    const dateRange = resumeDateRange ?? getDateRange(options, lookbackDays);
 
     // Lazily resolve access token once per sync (re-fetched if expired mid-run)
     let accessToken: string | null = null;
@@ -506,18 +561,21 @@ export class GA4Connector extends BaseConnector<GA4Settings, GA4Credentials> {
 
     const clearedPhases = new Set<GA4Phase>();
 
-    return paginateChunked<GA4Phase, number>({
+    return paginateChunked<GA4Phase, GA4Page>({
       phases: PHASE_ORDER,
       cursor,
       signal,
       fetchPage: async (phase, page, sig) => {
         const token = await getToken(sig);
-        const offset = page ?? 0;
+        const offset = page?.offset ?? 0;
         let response: GA4ReportResponse;
         try {
           response = await this.runReport(token, phase, dateRange, offset, sig);
-        } catch {
-          // Token may have expired mid-run; clear cache and retry once
+        } catch (err) {
+          console.warn(
+            `[ga4] runReport failed, refreshing token and retrying once`,
+            err,
+          );
           accessToken = null;
           const freshToken = await getToken(sig);
           response = await this.runReport(
@@ -531,15 +589,19 @@ export class GA4Connector extends BaseConnector<GA4Settings, GA4Credentials> {
         const rows = response.rows ?? [];
         const totalRows = response.rowCount ?? 0;
         const nextOffset = offset + rows.length;
-        const next =
-          rows.length > 0 && nextOffset < totalRows ? nextOffset : null;
+        const next: GA4Page | null =
+          rows.length > 0 && nextOffset < totalRows
+            ? {
+                offset: nextOffset,
+                startDate: dateRange.startDate,
+                endDate: dateRange.endDate,
+              }
+            : null;
         return { items: rows, next };
       },
       writeBatch: async (phase, items, page) => {
         const cfg = PHASE_CONFIGS[phase];
 
-        // On the first page of each phase, wipe existing metric data for this
-        // phase so re-runs don't accumulate duplicate rows for the same dates.
         if (page === null && !clearedPhases.has(phase)) {
           clearedPhases.add(phase);
           await storage.metrics([], { names: [cfg.metricName] });
