@@ -1,5 +1,11 @@
 # @rawdash/core
 
+## 0.10.0
+
+### Minor Changes
+
+- eae669e: `paginateChunked` now checkpoints on caught fetch errors. When `fetchPage` throws, the helper returns `{ done: false, cursor, transientError }` so the host can re-enqueue from the advanced cursor instead of restarting at the inbound cursor. `SyncResult` gains an optional `transientError?: unknown` field that surfaces the underlying error for host-side retry decisions.
+
 ## 0.9.0
 
 ### Minor Changes

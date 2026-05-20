@@ -1,5 +1,12 @@
 # @rawdash/connector-google-analytics
 
+## 0.10.0
+
+### Patch Changes
+
+- Updated dependencies [eae669e]
+  - @rawdash/core@0.10.0
+
 ## 0.1.0
 
 ### Minor Changes
