@@ -1,5 +1,13 @@
 # @rawdash/connector-github
 
+## 0.11.0
+
+### Patch Changes
+
+- Updated dependencies [7adee87]
+- Updated dependencies [8ee5006]
+  - @rawdash/core@0.11.0
+
 ## 0.10.1
 
 ### Patch Changes
