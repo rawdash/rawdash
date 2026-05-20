@@ -195,6 +195,28 @@ describe('paginateChunked', () => {
     ]);
   });
 
+  it('does not classify an AbortError thrown by fetchPage as a transient error', async () => {
+    const controller = new AbortController();
+    const abortErr = Object.assign(new Error('aborted'), {
+      name: 'AbortError',
+    });
+    const result = await paginateChunked<Phase, number>({
+      phases,
+      cursor: undefined,
+      signal: controller.signal,
+      fetchPage: async () => {
+        controller.abort();
+        throw abortErr;
+      },
+      writeBatch: async () => {},
+    });
+
+    expect(result).toEqual({
+      done: false,
+      cursor: { phase: 'a', page: null },
+    });
+  });
+
   it('does not call writeBatch when fetchPage throws on the first page of a phase', async () => {
     const boom = new Error('network');
     const writeBatch = vi.fn(async () => {});

@@ -56,6 +56,15 @@ export async function paginateChunked<TPhase extends string, TPage>(
       try {
         ({ items, next } = await fetchPage(phase, page, signal));
       } catch (err) {
+        if (
+          signal?.aborted ||
+          (err instanceof Error && err.name === 'AbortError')
+        ) {
+          return {
+            done: false,
+            cursor: { phase, page } satisfies ChunkedSyncCursor<TPhase, TPage>,
+          };
+        }
         return {
           done: false,
           cursor: { phase, page } satisfies ChunkedSyncCursor<TPhase, TPage>,
