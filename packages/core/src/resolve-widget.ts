@@ -1,18 +1,17 @@
 import { computeMetric } from './compute';
 import type { ConfiguredConnector, Widget } from './config';
-import type { CachedWidget } from './engine';
 import type { ServerStorage } from './server-storage';
+import type { CachedWidget } from './wire';
 
 export async function resolveWidget(
-  id: string,
+  widgetId: string,
   widget: Widget,
   connectors: ConfiguredConnector[] | readonly string[] | undefined,
   storage: ServerStorage,
 ): Promise<CachedWidget | undefined> {
   if (widget.kind === 'status') {
     return {
-      id,
-      widgetId: id,
+      widgetId,
       connectorId: widget.source,
       data: null,
       cachedAt: null,
@@ -28,8 +27,7 @@ export async function resolveWidget(
   const handle = storage.getStorageHandle(connectorId);
   const data = await computeMetric(handle, widget.metric);
   return {
-    id,
-    widgetId: id,
+    widgetId,
     connectorId,
     data,
     cachedAt: (await storage.getSyncState()).lastSyncAt,

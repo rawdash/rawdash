@@ -3,6 +3,7 @@ import type {
   ConfiguredConnector,
   Dashboard,
   Widget,
+  WidgetsListResponse,
 } from '@rawdash/core';
 import { resolveWidget } from '@rawdash/core';
 import type { Hono } from 'hono';
@@ -36,7 +37,8 @@ export class WidgetsRouter implements RouterMount {
       const widgets = resolved.filter(
         (w): w is CachedWidget => w !== undefined,
       );
-      return c.json({ widgets });
+      const response: WidgetsListResponse = { widgets };
+      return c.json(response);
     });
 
     app.get(`${base}/:widgetId`, async (c) => {

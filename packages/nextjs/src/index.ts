@@ -1,16 +1,9 @@
 import { http as clientHttp } from '@rawdash/client';
-import type { DataSource, HttpOptions } from '@rawdash/client';
+import type { HttpOptions } from '@rawdash/client';
+import type { DataSource } from '@rawdash/core';
 import { revalidateTag } from 'next/cache';
 
-export type {
-  CachedWidgetData,
-  DataSource,
-  HealthStatus,
-  HttpOptions,
-  ServerDataSource,
-  SyncResult,
-  WidgetSyncState,
-} from '@rawdash/client';
+export type { HttpOptions } from '@rawdash/client';
 
 const RAWDASH_CACHE_TAG = 'rawdash';
 

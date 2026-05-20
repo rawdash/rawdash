@@ -71,7 +71,16 @@ export {
   widgetSchemas,
 } from './widget-schemas';
 
-export type { SyncState, CachedWidget } from './engine';
+export type { SyncState } from './engine';
+
+export type {
+  CachedWidget,
+  DataSource,
+  ServerDataSource,
+  TriggerSyncResponse,
+  WidgetSyncState,
+  WidgetsListResponse,
+} from './wire';
 
 export type { RetentionDeletionPlan, RetentionConfig } from './retention';
 
