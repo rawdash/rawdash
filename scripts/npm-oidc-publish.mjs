@@ -13,13 +13,30 @@
  *   3. Pass that token as NODE_AUTH_TOKEN to `pnpm publish --provenance`
  *      (pnpm rewrites workspace:* deps during pack, then delegates to npm publish)
  */
-import { execFileSync, execSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { execFile, execSync } from 'node:child_process';
+import { promisify } from 'node:util';
+
+const execFileAsync = promisify(execFile);
 
 const REGISTRY = 'https://registry.npmjs.org';
 const REGISTRY_HOST = new URL(REGISTRY).hostname;
 const NETWORK_TIMEOUT_MS = 30_000;
+const PUBLISH_CONCURRENCY = 8;
+
+async function pMap(items, limit, fn) {
+  const results = new Array(items.length);
+  let cursor = 0;
+  const workerCount = Math.min(limit, items.length);
+  const workers = Array.from({ length: workerCount }, async () => {
+    while (true) {
+      const i = cursor++;
+      if (i >= items.length) {return;}
+      results[i] = await fn(items[i], i);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
 
 async function getGitHubOidcJwt() {
   const { ACTIONS_ID_TOKEN_REQUEST_URL, ACTIONS_ID_TOKEN_REQUEST_TOKEN } =
@@ -81,37 +98,35 @@ async function exchangeForNpmToken(idToken, packageName) {
   return token;
 }
 
-function isAlreadyPublished(name, version) {
-  try {
-    const result = execSync(
-      `npm view ${name}@${version} version --json 2>/dev/null`,
-      { stdio: ['pipe', 'pipe', 'pipe'] },
-    )
-      .toString()
-      .trim();
-    return JSON.parse(result) === version;
-  } catch {
-    return false;
-  }
+function encodePackageName(name) {
+  return name.startsWith('@')
+    ? `@${encodeURIComponent(name.slice(1))}`
+    : encodeURIComponent(name);
 }
 
-function packageExistsOnNpm(name) {
-  try {
-    execFileSync(
-      'npm',
-      ['view', name, 'name', '--fetch-timeout', String(NETWORK_TIMEOUT_MS)],
-      { stdio: ['pipe', 'pipe', 'pipe'] },
-    );
-    return true;
-  } catch (err) {
-    const stderr = err.stderr?.toString() ?? '';
-    if (stderr.includes('E404') || stderr.includes('404 Not Found')) {
-      return false;
-    }
+async function isAlreadyPublished(name, version) {
+  const res = await fetch(
+    `${REGISTRY}/${encodePackageName(name)}/${encodeURIComponent(version)}`,
+    { signal: AbortSignal.timeout(NETWORK_TIMEOUT_MS) },
+  );
+  if (res.status === 404) {return false;}
+  if (!res.ok) {
     throw new Error(
-      `Failed to query npm registry for ${name}: ${stderr.trim() || err.message}`,
+      `Registry query failed for ${name}@${version}: ${res.status}`,
     );
   }
+  return true;
+}
+
+async function packageExistsOnNpm(name) {
+  const res = await fetch(`${REGISTRY}/${encodePackageName(name)}`, {
+    signal: AbortSignal.timeout(NETWORK_TIMEOUT_MS),
+  });
+  if (res.status === 404) {return false;}
+  if (!res.ok) {
+    throw new Error(`Registry query failed for ${name}: ${res.status}`);
+  }
+  return true;
 }
 
 function printNewPackageError(newPackages) {
@@ -174,51 +189,31 @@ function ensureTag(name, version) {
   }
 }
 
-/**
- * Topologically sort packages so dependencies are published before dependents.
- * Uses Kahn's algorithm. Throws on cycles.
- */
-function topoSort(pkgs) {
-  const byName = new Map(pkgs.map((p) => [p.name, p]));
-  const inDegree = new Map(pkgs.map((p) => [p.name, 0]));
-  const edges = new Map(pkgs.map((p) => [p.name, []]));
+async function publishPackage(pkg) {
+  const { name, version, path: pkgPath } = pkg;
+  const idToken = await getGitHubOidcJwt();
+  const npmToken = await exchangeForNpmToken(idToken, name);
 
-  for (const pkg of pkgs) {
-    const pkgJson = JSON.parse(
-      readFileSync(join(pkg.path, 'package.json'), 'utf8'),
-    );
-    const allDeps = Object.keys({
-      ...pkgJson.dependencies,
-      ...pkgJson.peerDependencies,
-    });
-    for (const dep of allDeps) {
-      if (byName.has(dep)) {
-        edges.get(dep).push(pkg.name);
-        inDegree.set(pkg.name, inDegree.get(pkg.name) + 1);
-      }
-    }
-  }
+  const { stdout, stderr } = await execFileAsync(
+    'pnpm',
+    [
+      'publish',
+      '--access',
+      'public',
+      '--no-git-checks',
+      '--provenance',
+      '--registry',
+      REGISTRY,
+    ],
+    {
+      cwd: pkgPath,
+      env: { ...process.env, NODE_AUTH_TOKEN: npmToken },
+      maxBuffer: 32 * 1024 * 1024,
+    },
+  );
 
-  const queue = pkgs.filter((p) => inDegree.get(p.name) === 0);
-  const sorted = [];
-
-  while (queue.length > 0) {
-    const pkg = queue.shift();
-    sorted.push(pkg);
-    for (const dependent of edges.get(pkg.name)) {
-      const newDegree = inDegree.get(dependent) - 1;
-      inDegree.set(dependent, newDegree);
-      if (newDegree === 0) {
-        queue.push(byName.get(dependent));
-      }
-    }
-  }
-
-  if (sorted.length !== pkgs.length) {
-    throw new Error('Cycle detected in workspace package dependencies');
-  }
-
-  return sorted;
+  ensureTag(name, version);
+  return { stdout, stderr };
 }
 
 const packages = JSON.parse(
@@ -228,12 +223,12 @@ const packages = JSON.parse(
 );
 
 const publicPackages = packages.filter((pkg) => !pkg.private);
-const alreadyPublished = publicPackages.filter((pkg) =>
+
+const publishedFlags = await pMap(publicPackages, PUBLISH_CONCURRENCY, (pkg) =>
   isAlreadyPublished(pkg.name, pkg.version),
 );
-const toPublish = publicPackages.filter(
-  (pkg) => !alreadyPublished.includes(pkg),
-);
+const alreadyPublished = publicPackages.filter((_, i) => publishedFlags[i]);
+const toPublish = publicPackages.filter((_, i) => !publishedFlags[i]);
 
 // Backfill tags for packages that were published in a previous (partial) run
 // so that changesets/action can still create their GitHub releases.
@@ -251,47 +246,66 @@ if (toPublish.length === 0) {
   process.exit(0);
 }
 
-const newPackages = toPublish.filter((pkg) => !packageExistsOnNpm(pkg.name));
+const existsFlags = await pMap(toPublish, PUBLISH_CONCURRENCY, (pkg) =>
+  packageExistsOnNpm(pkg.name),
+);
+const newPackages = toPublish.filter((_, i) => !existsFlags[i]);
 if (newPackages.length > 0) {
   printNewPackageError(newPackages);
   process.exit(1);
 }
 
-const sorted = topoSort(toPublish);
-
 console.log(
-  `Packages to publish: ${sorted.map((p) => `${p.name}@${p.version}`).join(', ')}`,
+  `Packages to publish (concurrency=${PUBLISH_CONCURRENCY}): ${toPublish
+    .map((p) => `${p.name}@${p.version}`)
+    .join(', ')}`,
 );
 
-for (const pkg of sorted) {
-  const { name, version, path: pkgPath } = pkg;
-  console.log(`\nPublishing ${name}@${version}...`);
+const outcomes = await pMap(toPublish, PUBLISH_CONCURRENCY, async (pkg) => {
+  const label = `${pkg.name}@${pkg.version}`;
+  console.log(`→ Publishing ${label}...`);
+  try {
+    const { stdout, stderr } = await publishPackage(pkg);
+    const block = [
+      `─── ${label} ───`,
+      stdout.trim(),
+      stderr.trim(),
+      // Marker that changesets/action greps for to drive `createGithubReleases`.
+      // Format must match: /New tag:\s+(@[^/]+\/[^@]+|[^/]+)@([^\s]+)/
+      `New tag: ${label}`,
+      `✓ Published ${label}`,
+      '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+    console.log(block);
+    return { ok: true, pkg };
+  } catch (err) {
+    const stdout = err.stdout?.toString().trim() ?? '';
+    const stderr = err.stderr?.toString().trim() ?? err.message;
+    const block = [
+      `─── ${label} (FAILED) ───`,
+      stdout,
+      stderr,
+      `✗ Failed to publish ${label}`,
+      '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+    console.error(block);
+    return { ok: false, pkg, error: err };
+  }
+});
 
-  const idToken = await getGitHubOidcJwt();
-  const npmToken = await exchangeForNpmToken(idToken, name);
-
-  execFileSync(
-    'pnpm',
-    [
-      'publish',
-      '--access',
-      'public',
-      '--no-git-checks',
-      '--provenance',
-      '--registry',
-      REGISTRY,
-    ],
-    {
-      cwd: pkgPath,
-      stdio: 'inherit',
-      env: { ...process.env, NODE_AUTH_TOKEN: npmToken },
-    },
+const failures = outcomes.filter((o) => !o.ok);
+if (failures.length > 0) {
+  console.error(
+    `\n${failures.length}/${toPublish.length} package(s) failed to publish:`,
   );
-
-  // Create a lightweight git tag — changesets/action reads these to create GitHub releases
-  ensureTag(name, version);
-  // Emit the marker that changesets/action greps for to drive `createGithubReleases`.
-  // Format must match: /New tag:\s+(@[^/]+\/[^@]+|[^/]+)@([^\s]+)/
-  console.log(`New tag: ${name}@${version}`);
-  console.log(`✓ Published ${name}@${version}`);
+  for (const f of failures) {
+    console.error(`  - ${f.pkg.name}@${f.pkg.version}`);
+  }
+  process.exit(1);
 }
+
+console.log(`\nAll ${toPublish.length} package(s) published successfully.`);
