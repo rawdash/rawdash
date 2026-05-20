@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env -S npx tsx
 
 /**
  * Verifies that any new public workspace package added in this PR is set up
@@ -560,4 +560,7 @@ async function main(): Promise<void> {
   console.log('\n✓ All connector publishing prerequisite checks passed.');
 }
 
-await main();
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

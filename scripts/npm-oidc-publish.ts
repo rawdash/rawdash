@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env -S npx tsx
 
 /**
  * Publishes all non-private workspace packages that aren't yet on npm,
@@ -36,8 +36,24 @@ if (!Number.isSafeInteger(PUBLISH_CONCURRENCY) || PUBLISH_CONCURRENCY < 1) {
 }
 const PUBLISH_TIMEOUT_MS = 10 * 60_000;
 
-async function pMap(items, limit, fn) {
-  const results = new Array(items.length);
+type WorkspacePackage = {
+  name: string;
+  version: string;
+  path: string;
+  private?: boolean;
+};
+
+type PackageManifest = {
+  dependencies?: Record<string, string>;
+  peerDependencies?: Record<string, string>;
+};
+
+async function pMap<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
   let cursor = 0;
   const workerCount = Math.min(limit, items.length);
   const workers = Array.from({ length: workerCount }, async () => {
@@ -46,14 +62,14 @@ async function pMap(items, limit, fn) {
       if (i >= items.length) {
         return;
       }
-      results[i] = await fn(items[i], i);
+      results[i] = await fn(items[i]!, i);
     }
   });
   await Promise.all(workers);
   return results;
 }
 
-async function getGitHubOidcJwt() {
+async function getGitHubOidcJwt(): Promise<string> {
   const { ACTIONS_ID_TOKEN_REQUEST_URL, ACTIONS_ID_TOKEN_REQUEST_TOKEN } =
     process.env;
   if (!ACTIONS_ID_TOKEN_REQUEST_URL || !ACTIONS_ID_TOKEN_REQUEST_TOKEN) {
@@ -78,14 +94,17 @@ async function getGitHubOidcJwt() {
     );
   }
 
-  const { value } = await res.json();
+  const { value } = (await res.json()) as { value?: string };
   if (!value) {
     throw new Error('No id_token in GitHub OIDC response');
   }
   return value;
 }
 
-async function exchangeForNpmToken(idToken, packageName) {
+async function exchangeForNpmToken(
+  idToken: string,
+  packageName: string,
+): Promise<string> {
   const escapedName = packageName.startsWith('@')
     ? packageName.replace('/', '%2F')
     : packageName;
@@ -104,7 +123,7 @@ async function exchangeForNpmToken(idToken, packageName) {
     );
   }
 
-  const { token } = await res.json();
+  const { token } = (await res.json()) as { token?: string };
   if (!token) {
     throw new Error(
       `No token in npm OIDC exchange response for ${packageName}`,
@@ -113,13 +132,16 @@ async function exchangeForNpmToken(idToken, packageName) {
   return token;
 }
 
-function encodePackageName(name) {
+function encodePackageName(name: string): string {
   return name.startsWith('@')
     ? `@${encodeURIComponent(name.slice(1))}`
     : encodeURIComponent(name);
 }
 
-async function isAlreadyPublished(name, version) {
+async function isAlreadyPublished(
+  name: string,
+  version: string,
+): Promise<boolean> {
   const res = await fetch(
     `${REGISTRY}/${encodePackageName(name)}/${encodeURIComponent(version)}`,
     { signal: AbortSignal.timeout(NETWORK_TIMEOUT_MS) },
@@ -135,7 +157,7 @@ async function isAlreadyPublished(name, version) {
   return true;
 }
 
-async function packageExistsOnNpm(name) {
+async function packageExistsOnNpm(name: string): Promise<boolean> {
   const res = await fetch(`${REGISTRY}/${encodePackageName(name)}`, {
     signal: AbortSignal.timeout(NETWORK_TIMEOUT_MS),
   });
@@ -148,7 +170,7 @@ async function packageExistsOnNpm(name) {
   return true;
 }
 
-function printNewPackageError(newPackages) {
+function printNewPackageError(newPackages: WorkspacePackage[]): void {
   const bulletList = newPackages.map((p) => `  - ${p.name}`).join('\n');
 
   const publishCommands = newPackages
@@ -193,7 +215,7 @@ function printNewPackageError(newPackages) {
   console.error(lines.join('\n'));
 }
 
-function tagExists(name, version) {
+function tagExists(name: string, version: string): boolean {
   const tag = `${name}@${version}`;
   return (
     execSync(`git tag -l "${tag}"`, { stdio: ['pipe', 'pipe', 'pipe'] })
@@ -202,7 +224,7 @@ function tagExists(name, version) {
   );
 }
 
-function ensureTag(name, version) {
+function ensureTag(name: string, version: string): void {
   if (!tagExists(name, version)) {
     execSync(`git tag "${name}@${version}"`);
   }
@@ -215,13 +237,17 @@ function ensureTag(name, version) {
  * a dependency fails, its dependents are never published with a manifest
  * referencing a version that doesn't exist on npm.
  */
-function computeDependencyLayers(pkgs) {
-  const byName = new Map(pkgs.map((p) => [p.name, p]));
-  const internalDeps = new Map();
+function computeDependencyLayers(
+  pkgs: WorkspacePackage[],
+): WorkspacePackage[][] {
+  const byName = new Map<string, WorkspacePackage>(
+    pkgs.map((p) => [p.name, p]),
+  );
+  const internalDeps = new Map<string, string[]>();
   for (const pkg of pkgs) {
     const pkgJson = JSON.parse(
       readFileSync(join(pkg.path, 'package.json'), 'utf8'),
-    );
+    ) as PackageManifest;
     const allDeps = Object.keys({
       ...pkgJson.dependencies,
       ...pkgJson.peerDependencies,
@@ -231,13 +257,13 @@ function computeDependencyLayers(pkgs) {
       allDeps.filter((d) => byName.has(d)),
     );
   }
-  const layers = [];
-  const placed = new Set();
+  const layers: WorkspacePackage[][] = [];
+  const placed = new Set<string>();
   while (placed.size < pkgs.length) {
     const layer = pkgs.filter(
       (p) =>
         !placed.has(p.name) &&
-        internalDeps.get(p.name).every((d) => placed.has(d)),
+        internalDeps.get(p.name)!.every((d) => placed.has(d)),
     );
     if (layer.length === 0) {
       throw new Error('Cycle detected in workspace package dependencies');
@@ -250,7 +276,9 @@ function computeDependencyLayers(pkgs) {
   return layers;
 }
 
-async function publishPackage(pkg) {
+async function publishPackage(
+  pkg: WorkspacePackage,
+): Promise<{ stdout: string; stderr: string }> {
   const { name, version, path: pkgPath } = pkg;
   const idToken = await getGitHubOidcJwt();
   const npmToken = await exchangeForNpmToken(idToken, name);
@@ -278,54 +306,11 @@ async function publishPackage(pkg) {
   return { stdout, stderr };
 }
 
-const packages = JSON.parse(
-  execSync('pnpm ls -r --depth -1 --json', {
-    stdio: ['pipe', 'pipe', 'pipe'],
-  }).toString(),
-);
+type PublishOutcome =
+  | { ok: true; pkg: WorkspacePackage }
+  | { ok: false; pkg: WorkspacePackage; error: unknown };
 
-const publicPackages = packages.filter((pkg) => !pkg.private);
-
-const publishedFlags = await pMap(publicPackages, PUBLISH_CONCURRENCY, (pkg) =>
-  isAlreadyPublished(pkg.name, pkg.version),
-);
-const alreadyPublished = publicPackages.filter((_, i) => publishedFlags[i]);
-const toPublish = publicPackages.filter((_, i) => !publishedFlags[i]);
-
-// Backfill tags for packages that were published in a previous (partial) run
-// so that changesets/action can still create their GitHub releases.
-for (const pkg of alreadyPublished) {
-  if (!tagExists(pkg.name, pkg.version)) {
-    console.log(
-      `Backfilling missing tag for already-published ${pkg.name}@${pkg.version}`,
-    );
-    ensureTag(pkg.name, pkg.version);
-  }
-}
-
-if (toPublish.length === 0) {
-  console.log('No packages to publish.');
-  process.exit(0);
-}
-
-const existsFlags = await pMap(toPublish, PUBLISH_CONCURRENCY, (pkg) =>
-  packageExistsOnNpm(pkg.name),
-);
-const newPackages = toPublish.filter((_, i) => !existsFlags[i]);
-if (newPackages.length > 0) {
-  printNewPackageError(newPackages);
-  process.exit(1);
-}
-
-const layers = computeDependencyLayers(toPublish);
-
-console.log(
-  `Packages to publish (${toPublish.length} across ${layers.length} dependency layer(s), concurrency=${PUBLISH_CONCURRENCY}): ${toPublish
-    .map((p) => `${p.name}@${p.version}`)
-    .join(', ')}`,
-);
-
-async function publishOne(pkg) {
+async function publishOne(pkg: WorkspacePackage): Promise<PublishOutcome> {
   const label = `${pkg.name}@${pkg.version}`;
   console.log(`→ Publishing ${label}...`);
   try {
@@ -345,8 +330,13 @@ async function publishOne(pkg) {
     console.log(block);
     return { ok: true, pkg };
   } catch (err) {
-    const stdout = err.stdout?.toString().trim() ?? '';
-    const stderr = err.stderr?.toString().trim() || err.message;
+    const e = err as {
+      stdout?: Buffer | string;
+      stderr?: Buffer | string;
+      message?: string;
+    };
+    const stdout = e.stdout?.toString().trim() ?? '';
+    const stderr = e.stderr?.toString().trim() || e.message || '';
     const block = [
       `─── ${label} (FAILED) ───`,
       stdout,
@@ -361,42 +351,98 @@ async function publishOne(pkg) {
   }
 }
 
-const outcomes = [];
-let aborted = false;
-const skipped = [];
+async function main(): Promise<void> {
+  const packages = JSON.parse(
+    execSync('pnpm ls -r --depth -1 --json', {
+      stdio: ['pipe', 'pipe', 'pipe'],
+    }).toString(),
+  ) as WorkspacePackage[];
 
-for (const [i, layer] of layers.entries()) {
-  console.log(
-    `\n── Layer ${i + 1}/${layers.length} (${layer.length} package(s)) ──`,
+  const publicPackages = packages.filter((pkg) => !pkg.private);
+
+  const publishedFlags = await pMap(
+    publicPackages,
+    PUBLISH_CONCURRENCY,
+    (pkg) => isAlreadyPublished(pkg.name, pkg.version),
   );
-  const layerOutcomes = await pMap(layer, PUBLISH_CONCURRENCY, publishOne);
-  outcomes.push(...layerOutcomes);
-  if (layerOutcomes.some((o) => !o.ok)) {
-    aborted = true;
-    for (let j = i + 1; j < layers.length; j++) {
-      skipped.push(...layers[j]);
+  const alreadyPublished = publicPackages.filter((_, i) => publishedFlags[i]);
+  const toPublish = publicPackages.filter((_, i) => !publishedFlags[i]);
+
+  // Backfill tags for packages that were published in a previous (partial) run
+  // so that changesets/action can still create their GitHub releases.
+  for (const pkg of alreadyPublished) {
+    if (!tagExists(pkg.name, pkg.version)) {
+      console.log(
+        `Backfilling missing tag for already-published ${pkg.name}@${pkg.version}`,
+      );
+      ensureTag(pkg.name, pkg.version);
     }
-    break;
   }
+
+  if (toPublish.length === 0) {
+    console.log('No packages to publish.');
+    process.exit(0);
+  }
+
+  const existsFlags = await pMap(toPublish, PUBLISH_CONCURRENCY, (pkg) =>
+    packageExistsOnNpm(pkg.name),
+  );
+  const newPackages = toPublish.filter((_, i) => !existsFlags[i]);
+  if (newPackages.length > 0) {
+    printNewPackageError(newPackages);
+    process.exit(1);
+  }
+
+  const layers = computeDependencyLayers(toPublish);
+
+  console.log(
+    `Packages to publish (${toPublish.length} across ${layers.length} dependency layer(s), concurrency=${PUBLISH_CONCURRENCY}): ${toPublish
+      .map((p) => `${p.name}@${p.version}`)
+      .join(', ')}`,
+  );
+
+  const outcomes: PublishOutcome[] = [];
+  let aborted = false;
+  const skipped: WorkspacePackage[] = [];
+
+  for (const [i, layer] of layers.entries()) {
+    console.log(
+      `\n── Layer ${i + 1}/${layers.length} (${layer.length} package(s)) ──`,
+    );
+    const layerOutcomes = await pMap(layer, PUBLISH_CONCURRENCY, publishOne);
+    outcomes.push(...layerOutcomes);
+    if (layerOutcomes.some((o) => !o.ok)) {
+      aborted = true;
+      for (let j = i + 1; j < layers.length; j++) {
+        skipped.push(...layers[j]!);
+      }
+      break;
+    }
+  }
+
+  const failures = outcomes.filter((o) => !o.ok);
+  if (aborted) {
+    console.error(
+      `\nAborted after layer failure. Skipped ${skipped.length} dependent package(s) to avoid publishing manifests referencing unpublished workspace deps:`,
+    );
+    for (const pkg of skipped) {
+      console.error(`  - ${pkg.name}@${pkg.version}`);
+    }
+  }
+  if (failures.length > 0) {
+    console.error(
+      `\n${failures.length}/${toPublish.length} package(s) failed to publish:`,
+    );
+    for (const f of failures) {
+      console.error(`  - ${f.pkg.name}@${f.pkg.version}`);
+    }
+    process.exit(1);
+  }
+
+  console.log(`\nAll ${toPublish.length} package(s) published successfully.`);
 }
 
-const failures = outcomes.filter((o) => !o.ok);
-if (aborted) {
-  console.error(
-    `\nAborted after layer failure. Skipped ${skipped.length} dependent package(s) to avoid publishing manifests referencing unpublished workspace deps:`,
-  );
-  for (const pkg of skipped) {
-    console.error(`  - ${pkg.name}@${pkg.version}`);
-  }
-}
-if (failures.length > 0) {
-  console.error(
-    `\n${failures.length}/${toPublish.length} package(s) failed to publish:`,
-  );
-  for (const f of failures) {
-    console.error(`  - ${f.pkg.name}@${f.pkg.version}`);
-  }
+main().catch((err) => {
+  console.error(err);
   process.exit(1);
-}
-
-console.log(`\nAll ${toPublish.length} package(s) published successfully.`);
+});

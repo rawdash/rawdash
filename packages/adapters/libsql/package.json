@@ -27,7 +27,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
     "test": "vitest run",
-    "db:bundle": "node scripts/bundle-migrations.mjs",
+    "db:bundle": "npx tsx scripts/bundle-migrations.ts",
     "db:generate": "drizzle-kit generate && pnpm db:bundle"
   },
   "dependencies": {
