@@ -44,7 +44,7 @@ export function http(opts: HttpOptions): DataSource {
  * A configured Rawdash client for use in Next.js Server Components and Server
  * Actions.
  *
- * Wrap a `DataSource` (from `@rawdash/client`) with Next.js-specific
+ * Wrap a `DataSource` (from `@rawdash/core`) with Next.js-specific
  * behaviour: `triggerSync` waits for the sync to complete, then calls
  * `revalidateTag` so Server Components re-fetch widget data.
  *
