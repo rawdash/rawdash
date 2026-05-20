@@ -28,6 +28,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@rawdash/connector-shared": "workspace:*",
     "zod": "^4.4.3"
   },
   "devDependencies": {

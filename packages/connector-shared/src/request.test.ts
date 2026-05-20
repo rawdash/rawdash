@@ -29,7 +29,10 @@ describe('request — defaults', () => {
     const fetchSpy = vi
       .fn<FetchLike>()
       .mockResolvedValue(jsonResponse({ ok: true }));
-    await request({ url: 'https://example.test/x' }, { fetch: fetchSpy });
+    await request(
+      { url: 'https://example.test/x' },
+      { fetch: fetchSpy, resource: 'test' },
+    );
     const init = fetchSpy.mock.calls[0]![1];
     const headers = init.headers as Record<string, string>;
     expect(headers['user-agent']).toBe(DEFAULT_USER_AGENT);
@@ -46,7 +49,7 @@ describe('request — defaults', () => {
           Accept: 'application/vnd.github+json',
         },
       },
-      { fetch: fetchSpy },
+      { fetch: fetchSpy, resource: 'test' },
     );
     const headers = fetchSpy.mock.calls[0]![1].headers as Record<
       string,
@@ -63,7 +66,7 @@ describe('request — defaults', () => {
         url: 'https://example.test/x',
         headers: { 'user-agent': 'lowercase/1.0', accept: 'text/plain' },
       },
-      { fetch: fetchSpy },
+      { fetch: fetchSpy, resource: 'test' },
     );
     const headers = fetchSpy.mock.calls[0]![1].headers as Record<
       string,
@@ -79,7 +82,7 @@ describe('request — defaults', () => {
       .mockResolvedValue(jsonResponse({ hello: 'world' }));
     const res = await request<{ hello: string }>(
       { url: 'https://example.test/x' },
-      { fetch: fetchSpy },
+      { fetch: fetchSpy, resource: 'test' },
     );
     expect(res.body).toEqual({ hello: 'world' });
   });
@@ -93,7 +96,7 @@ describe('request — error classification', () => {
     await expect(
       request(
         { url: 'https://x.test', retry: { maxAttempts: 1 } },
-        { fetch: fetchSpy },
+        { fetch: fetchSpy, resource: 'test' },
       ),
     ).rejects.toBeInstanceOf(AuthError);
   });
@@ -105,7 +108,7 @@ describe('request — error classification', () => {
     await expect(
       request(
         { url: 'https://x.test', retry: { maxAttempts: 1 } },
-        { fetch: fetchSpy },
+        { fetch: fetchSpy, resource: 'test' },
       ),
     ).rejects.toBeInstanceOf(AuthError);
   });
@@ -117,7 +120,7 @@ describe('request — error classification', () => {
     await expect(
       request(
         { url: 'https://x.test', retry: { maxAttempts: 1 } },
-        { fetch: fetchSpy },
+        { fetch: fetchSpy, resource: 'test' },
       ),
     ).rejects.toBeInstanceOf(ClientBugError);
   });
@@ -129,7 +132,7 @@ describe('request — error classification', () => {
     await expect(
       request(
         { url: 'https://x.test', retry: { maxAttempts: 1 } },
-        { fetch: fetchSpy },
+        { fetch: fetchSpy, resource: 'test' },
       ),
     ).rejects.toBeInstanceOf(RateLimitError);
   });
@@ -141,7 +144,7 @@ describe('request — error classification', () => {
     await expect(
       request(
         { url: 'https://x.test', retry: { maxAttempts: 1 } },
-        { fetch: fetchSpy },
+        { fetch: fetchSpy, resource: 'test' },
       ),
     ).rejects.toBeInstanceOf(UpstreamBugError);
   });
@@ -153,7 +156,7 @@ describe('request — error classification', () => {
     await expect(
       request(
         { url: 'https://x.test', retry: { maxAttempts: 1 } },
-        { fetch: fetchSpy },
+        { fetch: fetchSpy, resource: 'test' },
       ),
     ).rejects.toBeInstanceOf(TransientError);
   });
@@ -171,7 +174,7 @@ describe('request — retry behavior', () => {
         url: 'https://x.test',
         retry: { maxAttempts: 3, initialDelayMs: 1, maxDelayMs: 2 },
       },
-      { fetch: fetchSpy },
+      { fetch: fetchSpy, resource: 'test' },
     );
     expect(res.status).toBe(200);
     expect(fetchSpy).toHaveBeenCalledTimes(3);
@@ -184,7 +187,7 @@ describe('request — retry behavior', () => {
     await expect(
       request(
         { url: 'https://x.test', retry: { maxAttempts: 5, initialDelayMs: 1 } },
-        { fetch: fetchSpy },
+        { fetch: fetchSpy, resource: 'test' },
       ),
     ).rejects.toBeInstanceOf(AuthError);
     expect(fetchSpy).toHaveBeenCalledTimes(1);
@@ -205,7 +208,7 @@ describe('request — retry behavior', () => {
         url: 'https://x.test',
         retry: { maxAttempts: 2, initialDelayMs: 1, maxDelayMs: 2 },
       },
-      { fetch: fetchSpy },
+      { fetch: fetchSpy, resource: 'test' },
     );
     expect(res.status).toBe(200);
   });
@@ -260,7 +263,7 @@ describe('request — observer', () => {
     const observer = vi.fn();
     await request(
       { url: 'https://example.test/x' },
-      { fetch: fetchSpy, observer },
+      { fetch: fetchSpy, observer, resource: 'test' },
     );
     const event = observer.mock.calls[0]![0];
     expect(typeof event.requestId).toBe('string');
@@ -275,7 +278,7 @@ describe('request — observer', () => {
     });
     const res = await request(
       { url: 'https://example.test/x' },
-      { fetch: fetchSpy, observer },
+      { fetch: fetchSpy, observer, resource: 'test' },
     );
     expect(res.status).toBe(200);
     expect(warn).toHaveBeenCalled();
@@ -290,7 +293,7 @@ describe('request — observer', () => {
     });
     const res = await request(
       { url: 'https://example.test/x' },
-      { fetch: fetchSpy, observer },
+      { fetch: fetchSpy, observer, resource: 'test' },
     );
     expect(res.status).toBe(200);
     await new Promise((r) => setTimeout(r, 5));
@@ -304,7 +307,7 @@ describe('request — observer', () => {
     const start = Date.now();
     const res = await request(
       { url: 'https://example.test/x' },
-      { fetch: fetchSpy, observer },
+      { fetch: fetchSpy, observer, resource: 'test' },
     );
     const elapsed = Date.now() - start;
     expect(res.status).toBe(200);
@@ -316,7 +319,7 @@ describe('request — observer', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const res = await request(
       { url: 'https://example.test/x' },
-      { fetch: fetchSpy },
+      { fetch: fetchSpy, resource: 'test' },
     );
     expect(res.status).toBe(200);
     expect(warn).not.toHaveBeenCalled();
@@ -341,7 +344,7 @@ describe('request — rate-limit policy', () => {
     const { githubRateLimit } = await import('./rate-limit');
     const res = await request(
       { url: 'https://x.test', rateLimit: githubRateLimit },
-      { fetch: fetchSpy },
+      { fetch: fetchSpy, resource: 'test' },
     );
     expect(res.rateLimitState?.remaining).toBe(42);
     expect(res.rateLimitState?.resetAt.getTime()).toBe(reset * 1000);

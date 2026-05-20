@@ -1,8 +1,4 @@
-import {
-  type HttpRequest,
-  type HttpResponse,
-  request,
-} from '@rawdash/connector-shared';
+import type { HttpResponse } from '@rawdash/connector-shared';
 import {
   BaseConnector,
   type ChunkedSyncCursor,
@@ -322,13 +318,16 @@ export class StripeConnector extends BaseConnector<
     return headers;
   }
 
-  private get<T>(url: string, signal?: AbortSignal): Promise<HttpResponse<T>> {
-    const req: HttpRequest = {
-      url,
+  private fetch<T>(
+    url: string,
+    resource: string,
+    signal?: AbortSignal,
+  ): Promise<HttpResponse<T>> {
+    return this.get<T>(url, {
+      resource,
       headers: this.buildHeaders(),
       signal,
-    };
-    return request<T>(req);
+    });
   }
 
   private buildListUrl(
@@ -584,8 +583,9 @@ export class StripeConnector extends BaseConnector<
       signal,
       fetchPage: async (phase, page, sig) => {
         const url = this.buildPhaseUrl(phase, page, options);
-        const res = await this.get<StripeListResponse<{ id: string }>>(
+        const res = await this.fetch<StripeListResponse<{ id: string }>>(
           url,
+          phase,
           sig,
         );
         const { data, has_more } = res.body;
