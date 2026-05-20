@@ -50,8 +50,14 @@ interface WidgetCardProps {
 }
 
 export function WidgetCard({ widget }: WidgetCardProps) {
-  const { widgetId, data } = widget;
+  const { widgetId, data, syncState } = widget;
   const label = widgetLabel(widgetId);
+
+  if (data === null) {
+    return (
+      <UnsyncedPlaceholder label={label} syncState={syncState ?? 'unsynced'} />
+    );
+  }
 
   if (typeof data === 'string') {
     return <StatusWidget label={label} value={data} />;
@@ -71,4 +77,27 @@ export function WidgetCard({ widget }: WidgetCardProps) {
   }
 
   return null;
+}
+
+function UnsyncedPlaceholder({
+  label,
+  syncState,
+}: {
+  label: string;
+  syncState: NonNullable<CachedWidgetData['syncState']>;
+}) {
+  const message =
+    syncState === 'syncing'
+      ? 'Syncing…'
+      : syncState === 'error'
+        ? 'Sync failed'
+        : 'Not yet synced';
+  return (
+    <div className="flex flex-col justify-between gap-3 rounded-xl border border-dashed border-gray-200 bg-white px-5 py-4 shadow-sm sm:px-6 sm:py-5">
+      <span className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">
+        {label}
+      </span>
+      <span className="text-sm text-gray-400">{message}</span>
+    </div>
+  );
 }
