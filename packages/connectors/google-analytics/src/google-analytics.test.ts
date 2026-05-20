@@ -565,6 +565,145 @@ describe('GA4Connector.sync', () => {
     expect(samples.map((s) => s.value)).toEqual([100, 200, 300]);
     expect(storage.metric).not.toHaveBeenCalled();
   });
+
+  it('returns a resumable cursor when the abort signal trips mid-drain', async () => {
+    const connector = new GA4Connector(
+      { propertyId: '123456789' },
+      {
+        serviceAccountJson: undefined,
+        refreshToken: 'rtoken' as unknown as { $secret: string },
+        clientId: 'cid',
+        clientSecret: 'csecret' as unknown as { $secret: string },
+      },
+    );
+
+    const controller = new AbortController();
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockImplementation((url: string, init: RequestInit | undefined) => {
+          const urlStr = String(url);
+          if (urlStr.includes('oauth2.googleapis.com/token')) {
+            return Promise.resolve({
+              ok: true,
+              status: 200,
+              statusText: 'OK',
+              headers: new Headers({ 'content-type': 'application/json' }),
+              text: () =>
+                Promise.resolve(
+                  JSON.stringify({ access_token: 'tok', expires_in: 3600 }),
+                ),
+            } as Response);
+          }
+          controller.abort();
+          const abortError = new Error('aborted');
+          abortError.name = 'AbortError';
+          void init;
+          return Promise.reject(abortError);
+        }),
+    );
+
+    const storage = makeStorage();
+    const result = await connector.sync(
+      { mode: 'full' },
+      storage,
+      controller.signal,
+    );
+
+    expect(result.done).toBe(false);
+    if (!result.done) {
+      expect(result.cursor).toBeDefined();
+      expect(
+        (result.cursor as { phase: string; dateRange: object }).phase,
+      ).toBe('traffic_by_day');
+      expect(
+        (result.cursor as { dateRange: { startDate: string } }).dateRange
+          .startDate,
+      ).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    }
+  });
+
+  it('keeps paginating when rowCount is omitted (uses short-page heuristic)', async () => {
+    const connector = new GA4Connector(
+      { propertyId: '123456789' },
+      {
+        serviceAccountJson: undefined,
+        refreshToken: 'rtoken' as unknown as { $secret: string },
+        clientId: 'cid',
+        clientSecret: 'csecret' as unknown as { $secret: string },
+      },
+    );
+
+    // Build a full ROWS_PER_PAGE-sized first page (no rowCount), then a short
+    // second page so the loop terminates via the partial-page heuristic.
+    const fullPage: Array<{
+      dimensionValues: Array<{ value: string }>;
+      metricValues: Array<{ value: string }>;
+    }> = [];
+    for (let i = 0; i < 10000; i++) {
+      fullPage.push(makeReportRow(['20250101'], ['1', '0', '0', '0', '0']));
+    }
+    const responses = [
+      // No rowCount → forces short-page heuristic
+      {
+        rows: fullPage,
+        dimensionHeaders: [{ name: 'date' }],
+        metricHeaders: [{ name: 'sessions', type: 'TYPE_INTEGER' }],
+      },
+      {
+        rows: [makeReportRow(['20250102'], ['1', '0', '0', '0', '0'])],
+        dimensionHeaders: [{ name: 'date' }],
+        metricHeaders: [{ name: 'sessions', type: 'TYPE_INTEGER' }],
+      },
+    ];
+
+    let trafficIdx = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string, init: RequestInit) => {
+        const urlStr = String(url);
+        if (urlStr.includes('oauth2.googleapis.com/token')) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            statusText: 'OK',
+            headers: new Headers({ 'content-type': 'application/json' }),
+            text: () =>
+              Promise.resolve(
+                JSON.stringify({ access_token: 'tok', expires_in: 3600 }),
+              ),
+          } as Response);
+        }
+        const body = init.body
+          ? (JSON.parse(String(init.body)) as {
+              dimensions: Array<{ name: string }>;
+            })
+          : { dimensions: [] };
+        const firstDim = body.dimensions?.[0]?.name ?? '';
+        const resp =
+          firstDim === 'date' && trafficIdx < responses.length
+            ? responses[trafficIdx++]
+            : makeEmptyReportResponse();
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          headers: new Headers({ 'content-type': 'application/json' }),
+          text: () => Promise.resolve(JSON.stringify(resp)),
+        } as Response);
+      }),
+    );
+
+    const storage = makeStorage();
+    await connector.sync({ mode: 'full' }, storage);
+
+    const trafficWrites = storage.metrics.mock.calls.filter(
+      (c) => (c[1] as { names: string[] }).names[0] === 'ga4_traffic_by_day',
+    );
+    expect(trafficWrites).toHaveLength(1);
+    expect((trafficWrites[0]![0] as Array<unknown>).length).toBe(10001);
+  });
 });
 
 // ---------------------------------------------------------------------------

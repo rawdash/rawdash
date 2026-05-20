@@ -123,12 +123,18 @@ interface GA4SyncCursor {
   dateRange: GA4DateRange;
 }
 
+const GA4_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function isGA4DateString(value: unknown): value is string {
+  return typeof value === 'string' && GA4_DATE_RE.test(value);
+}
+
 function isGA4DateRange(value: unknown): value is GA4DateRange {
   if (typeof value !== 'object' || value === null) {
     return false;
   }
   const v = value as { startDate?: unknown; endDate?: unknown };
-  return typeof v.startDate === 'string' && typeof v.endDate === 'string';
+  return isGA4DateString(v.startDate) && isGA4DateString(v.endDate);
 }
 
 function isGA4SyncCursor(value: unknown): value is GA4SyncCursor {
@@ -573,10 +579,19 @@ export class GA4Connector extends BaseConnector<GA4Settings, GA4Credentials> {
       for (;;) {
         const response = await runReportWithRetry(phase, offset, signal);
         const rows = response.rows ?? [];
-        const totalRows = response.rowCount ?? 0;
         allRows.push(...rows);
         offset += rows.length;
-        if (rows.length === 0 || offset >= totalRows) {
+        if (rows.length === 0) {
+          break;
+        }
+        // Prefer the API's authoritative rowCount when available; fall back
+        // to a short-page heuristic only when GA4 omits it, so a missing
+        // field can't truncate a multi-page dataset to its first page.
+        const done =
+          typeof response.rowCount === 'number'
+            ? offset >= response.rowCount
+            : rows.length < ROWS_PER_PAGE;
+        if (done) {
           break;
         }
       }
@@ -593,10 +608,19 @@ export class GA4Connector extends BaseConnector<GA4Settings, GA4Credentials> {
       }
 
       // Drain every page of this phase in-memory before writing so the commit
-      // is one atomic call. A mid-phase failure throws here, leaving prior
-      // phases intact and forcing the next sync to restart this phase from
-      // scratch — the clear-and-replace below cleans any partial state.
-      const rows = await drainPhase(phase);
+      // is one atomic call. A mid-phase failure restarts this phase from
+      // scratch on the next sync; the clear-and-replace below wipes partial
+      // state. If the abort signal trips mid-drain, surface a resumable
+      // cursor instead of throwing the AbortError up to the caller.
+      let rows: GA4ReportRow[];
+      try {
+        rows = await drainPhase(phase);
+      } catch (err) {
+        if (signal?.aborted) {
+          return { done: false, cursor: { phase, dateRange } };
+        }
+        throw err;
+      }
       const cfg = PHASE_CONFIGS[phase];
       const samples = rows.map((row) =>
         rowToMetricSample(row, cfg.dimensions, cfg.metrics, cfg.metricName),
