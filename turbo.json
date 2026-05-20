@@ -4,7 +4,7 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "env": ["RAWDASH_API_KEY", "RAWDASH_MODE", "RAWDASH_CLOUD_URL"],
+      "env": ["RAWDASH_URL", "RAWDASH_API_KEY"],
       "outputs": ["dist/**", "build/**", ".next/**", "!.next/cache/**"]
     },
     "dev": {

@@ -2,22 +2,22 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-const CLOUD_URL = process.env['RAWDASH_CLOUD_URL'];
+const RAWDASH_URL = process.env['RAWDASH_URL'];
 const API_KEY = process.env['RAWDASH_API_KEY'];
 
 async function handler(
   request: NextRequest,
   { params }: { params: Promise<{ path: string[] }> },
 ): Promise<NextResponse> {
-  if (!CLOUD_URL) {
+  if (!RAWDASH_URL) {
     return NextResponse.json(
-      { error: 'RAWDASH_CLOUD_URL is not configured' },
+      { error: 'RAWDASH_URL is not configured' },
       { status: 503 },
     );
   }
 
   const { path } = await params;
-  const targetUrl = `${CLOUD_URL}/${path.join('/')}${request.nextUrl.search}`;
+  const targetUrl = `${RAWDASH_URL}/${path.join('/')}${request.nextUrl.search}`;
 
   const headers: Record<string, string> = {};
   if (API_KEY) {
