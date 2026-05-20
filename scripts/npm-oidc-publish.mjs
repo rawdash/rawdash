@@ -21,7 +21,18 @@ const execFileAsync = promisify(execFile);
 const REGISTRY = 'https://registry.npmjs.org';
 const REGISTRY_HOST = new URL(REGISTRY).hostname;
 const NETWORK_TIMEOUT_MS = 30_000;
-const PUBLISH_CONCURRENCY = 8;
+const DEFAULT_PUBLISH_CONCURRENCY = 8;
+const rawPublishConcurrency = process.env.PUBLISH_CONCURRENCY;
+const PUBLISH_CONCURRENCY =
+  rawPublishConcurrency == null
+    ? DEFAULT_PUBLISH_CONCURRENCY
+    : Number.parseInt(rawPublishConcurrency, 10);
+if (!Number.isInteger(PUBLISH_CONCURRENCY) || PUBLISH_CONCURRENCY < 1) {
+  throw new Error(
+    `PUBLISH_CONCURRENCY must be a positive integer, got: ${rawPublishConcurrency}`,
+  );
+}
+const PUBLISH_TIMEOUT_MS = 10 * 60_000;
 
 async function pMap(items, limit, fn) {
   const results = new Array(items.length);
@@ -215,6 +226,7 @@ async function publishPackage(pkg) {
       cwd: pkgPath,
       env: { ...process.env, NODE_AUTH_TOKEN: npmToken },
       maxBuffer: 32 * 1024 * 1024,
+      timeout: PUBLISH_TIMEOUT_MS,
     },
   );
 
@@ -288,7 +300,7 @@ const outcomes = await pMap(toPublish, PUBLISH_CONCURRENCY, async (pkg) => {
     return { ok: true, pkg };
   } catch (err) {
     const stdout = err.stdout?.toString().trim() ?? '';
-    const stderr = err.stderr?.toString().trim() ?? err.message;
+    const stderr = err.stderr?.toString().trim() || err.message;
     const block = [
       `─── ${label} (FAILED) ───`,
       stdout,
