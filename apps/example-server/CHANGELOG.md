@@ -1,5 +1,17 @@
 # example-server
 
+## 0.0.14
+
+### Patch Changes
+
+- Updated dependencies [7adee87]
+- Updated dependencies [8ee5006]
+- Updated dependencies [d4a0db3]
+  - @rawdash/core@0.11.0
+  - @rawdash/server@0.11.0
+  - @rawdash/adapter-libsql@0.11.0
+  - @rawdash/connector-github@0.11.0
+
 ## 0.0.13
 
 ### Patch Changes
