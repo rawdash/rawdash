@@ -1,8 +1,12 @@
+export type WidgetSyncState = 'synced' | 'unsynced' | 'syncing' | 'error';
+
 export interface CachedWidgetData<TData = unknown> {
   connectorId: string;
   widgetId: string;
-  data: TData;
+  data: TData | null;
   cachedAt: string | null;
+  syncState?: WidgetSyncState;
+  meta?: Record<string, unknown>;
 }
 
 export interface HealthStatus {

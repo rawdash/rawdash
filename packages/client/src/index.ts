@@ -4,6 +4,7 @@ export type {
   HealthStatus,
   ServerDataSource,
   SyncResult,
+  WidgetSyncState,
 } from './types';
 
 export { http } from './http';

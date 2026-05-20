@@ -9,6 +9,7 @@ export type {
   HttpOptions,
   ServerDataSource,
   SyncResult,
+  WidgetSyncState,
 } from '@rawdash/client';
 
 const RAWDASH_CACHE_TAG = 'rawdash';
