@@ -9,7 +9,9 @@ async function waitForServer(): Promise<void> {
   while (Date.now() < deadline) {
     try {
       const res = await fetch(healthUrl);
-      if (res.ok) {return;}
+      if (res.ok) {
+        return;
+      }
     } catch (err) {
       console.debug(
         `[wait] ${healthUrl} not ready:`,
