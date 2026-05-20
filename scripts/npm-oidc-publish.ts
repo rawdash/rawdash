@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env npx tsx
 
 /**
  * Publishes all non-private workspace packages that aren't yet on npm,
@@ -21,7 +21,19 @@ const REGISTRY = 'https://registry.npmjs.org';
 const REGISTRY_HOST = new URL(REGISTRY).hostname;
 const NETWORK_TIMEOUT_MS = 30_000;
 
-async function getGitHubOidcJwt() {
+type WorkspacePackage = {
+  name: string;
+  version: string;
+  path: string;
+  private?: boolean;
+};
+
+type PackageManifest = {
+  dependencies?: Record<string, string>;
+  peerDependencies?: Record<string, string>;
+};
+
+async function getGitHubOidcJwt(): Promise<string> {
   const { ACTIONS_ID_TOKEN_REQUEST_URL, ACTIONS_ID_TOKEN_REQUEST_TOKEN } =
     process.env;
   if (!ACTIONS_ID_TOKEN_REQUEST_URL || !ACTIONS_ID_TOKEN_REQUEST_TOKEN) {
@@ -46,14 +58,17 @@ async function getGitHubOidcJwt() {
     );
   }
 
-  const { value } = await res.json();
+  const { value } = (await res.json()) as { value?: string };
   if (!value) {
     throw new Error('No id_token in GitHub OIDC response');
   }
   return value;
 }
 
-async function exchangeForNpmToken(idToken, packageName) {
+async function exchangeForNpmToken(
+  idToken: string,
+  packageName: string,
+): Promise<string> {
   const escapedName = packageName.startsWith('@')
     ? packageName.replace('/', '%2F')
     : packageName;
@@ -72,7 +87,7 @@ async function exchangeForNpmToken(idToken, packageName) {
     );
   }
 
-  const { token } = await res.json();
+  const { token } = (await res.json()) as { token?: string };
   if (!token) {
     throw new Error(
       `No token in npm OIDC exchange response for ${packageName}`,
@@ -81,7 +96,7 @@ async function exchangeForNpmToken(idToken, packageName) {
   return token;
 }
 
-function isAlreadyPublished(name, version) {
+function isAlreadyPublished(name: string, version: string): boolean {
   try {
     const result = execSync(
       `npm view ${name}@${version} version --json 2>/dev/null`,
@@ -95,7 +110,7 @@ function isAlreadyPublished(name, version) {
   }
 }
 
-function packageExistsOnNpm(name) {
+function packageExistsOnNpm(name: string): boolean {
   try {
     execFileSync(
       'npm',
@@ -104,17 +119,18 @@ function packageExistsOnNpm(name) {
     );
     return true;
   } catch (err) {
-    const stderr = err.stderr?.toString() ?? '';
+    const e = err as { stderr?: Buffer | string; message?: string };
+    const stderr = e.stderr?.toString() ?? '';
     if (stderr.includes('E404') || stderr.includes('404 Not Found')) {
       return false;
     }
     throw new Error(
-      `Failed to query npm registry for ${name}: ${stderr.trim() || err.message}`,
+      `Failed to query npm registry for ${name}: ${stderr.trim() || e.message}`,
     );
   }
 }
 
-function printNewPackageError(newPackages) {
+function printNewPackageError(newPackages: WorkspacePackage[]): void {
   const bulletList = newPackages.map((p) => `  - ${p.name}`).join('\n');
 
   const publishCommands = newPackages
@@ -159,7 +175,7 @@ function printNewPackageError(newPackages) {
   console.error(lines.join('\n'));
 }
 
-function tagExists(name, version) {
+function tagExists(name: string, version: string): boolean {
   const tag = `${name}@${version}`;
   return (
     execSync(`git tag -l "${tag}"`, { stdio: ['pipe', 'pipe', 'pipe'] })
@@ -168,7 +184,7 @@ function tagExists(name, version) {
   );
 }
 
-function ensureTag(name, version) {
+function ensureTag(name: string, version: string): void {
   if (!tagExists(name, version)) {
     execSync(`git tag "${name}@${version}"`);
   }
@@ -178,38 +194,40 @@ function ensureTag(name, version) {
  * Topologically sort packages so dependencies are published before dependents.
  * Uses Kahn's algorithm. Throws on cycles.
  */
-function topoSort(pkgs) {
-  const byName = new Map(pkgs.map((p) => [p.name, p]));
-  const inDegree = new Map(pkgs.map((p) => [p.name, 0]));
-  const edges = new Map(pkgs.map((p) => [p.name, []]));
+function topoSort(pkgs: WorkspacePackage[]): WorkspacePackage[] {
+  const byName = new Map<string, WorkspacePackage>(
+    pkgs.map((p) => [p.name, p]),
+  );
+  const inDegree = new Map<string, number>(pkgs.map((p) => [p.name, 0]));
+  const edges = new Map<string, string[]>(pkgs.map((p) => [p.name, []]));
 
   for (const pkg of pkgs) {
     const pkgJson = JSON.parse(
       readFileSync(join(pkg.path, 'package.json'), 'utf8'),
-    );
+    ) as PackageManifest;
     const allDeps = Object.keys({
       ...pkgJson.dependencies,
       ...pkgJson.peerDependencies,
     });
     for (const dep of allDeps) {
       if (byName.has(dep)) {
-        edges.get(dep).push(pkg.name);
-        inDegree.set(pkg.name, inDegree.get(pkg.name) + 1);
+        edges.get(dep)!.push(pkg.name);
+        inDegree.set(pkg.name, inDegree.get(pkg.name)! + 1);
       }
     }
   }
 
   const queue = pkgs.filter((p) => inDegree.get(p.name) === 0);
-  const sorted = [];
+  const sorted: WorkspacePackage[] = [];
 
   while (queue.length > 0) {
-    const pkg = queue.shift();
+    const pkg = queue.shift()!;
     sorted.push(pkg);
-    for (const dependent of edges.get(pkg.name)) {
-      const newDegree = inDegree.get(dependent) - 1;
+    for (const dependent of edges.get(pkg.name)!) {
+      const newDegree = inDegree.get(dependent)! - 1;
       inDegree.set(dependent, newDegree);
       if (newDegree === 0) {
-        queue.push(byName.get(dependent));
+        queue.push(byName.get(dependent)!);
       }
     }
   }
@@ -225,7 +243,7 @@ const packages = JSON.parse(
   execSync('pnpm ls -r --depth -1 --json', {
     stdio: ['pipe', 'pipe', 'pipe'],
   }).toString(),
-);
+) as WorkspacePackage[];
 
 const publicPackages = packages.filter((pkg) => !pkg.private);
 const alreadyPublished = publicPackages.filter((pkg) =>
@@ -263,32 +281,39 @@ console.log(
   `Packages to publish: ${sorted.map((p) => `${p.name}@${p.version}`).join(', ')}`,
 );
 
-for (const pkg of sorted) {
-  const { name, version, path: pkgPath } = pkg;
-  console.log(`\nPublishing ${name}@${version}...`);
+async function publishAll(): Promise<void> {
+  for (const pkg of sorted) {
+    const { name, version, path: pkgPath } = pkg;
+    console.log(`\nPublishing ${name}@${version}...`);
 
-  const idToken = await getGitHubOidcJwt();
-  const npmToken = await exchangeForNpmToken(idToken, name);
+    const idToken = await getGitHubOidcJwt();
+    const npmToken = await exchangeForNpmToken(idToken, name);
 
-  execFileSync(
-    'pnpm',
-    [
-      'publish',
-      '--access',
-      'public',
-      '--no-git-checks',
-      '--provenance',
-      '--registry',
-      REGISTRY,
-    ],
-    {
-      cwd: pkgPath,
-      stdio: 'inherit',
-      env: { ...process.env, NODE_AUTH_TOKEN: npmToken },
-    },
-  );
+    execFileSync(
+      'pnpm',
+      [
+        'publish',
+        '--access',
+        'public',
+        '--no-git-checks',
+        '--provenance',
+        '--registry',
+        REGISTRY,
+      ],
+      {
+        cwd: pkgPath,
+        stdio: 'inherit',
+        env: { ...process.env, NODE_AUTH_TOKEN: npmToken },
+      },
+    );
 
-  // Create a lightweight git tag — changesets/action reads these to create GitHub releases
-  ensureTag(name, version);
-  console.log(`✓ Published ${name}@${version}`);
+    // Create a lightweight git tag — changesets/action reads these to create GitHub releases
+    ensureTag(name, version);
+    console.log(`✓ Published ${name}@${version}`);
+  }
 }
+
+publishAll().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

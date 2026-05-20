@@ -1,5 +1,10 @@
-import { defineConfig, defineDashboard, defineMetric, secret } from '@rawdash/core';
 import { GitHubActionsConnector } from '@rawdash/connector-github';
+import {
+  defineConfig,
+  defineDashboard,
+  defineMetric,
+  secret,
+} from '@rawdash/core';
 
 const github = new GitHubActionsConnector(
   {

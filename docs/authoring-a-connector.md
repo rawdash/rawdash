@@ -407,7 +407,7 @@ Unit-level tests live next to the source (`*.test.ts`). Mock at the `fetch` boun
 Nothing to add. Both workflows discover workspace packages automatically:
 
 - [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs `pnpm turbo run lint/typecheck/build/test` with an "affected" filter across the whole workspace. As long as your `package.json` defines those script names, your package is exercised on every PR that touches it.
-- [`.github/workflows/publish.yml`](../.github/workflows/publish.yml) runs [`scripts/npm-oidc-publish.mjs`](../scripts/npm-oidc-publish.mjs), which enumerates non-private workspace packages via `pnpm ls -r --json` and publishes anything not already on npm at the current version. No allowlist to maintain.
+- [`.github/workflows/publish.yml`](../.github/workflows/publish.yml) runs [`scripts/npm-oidc-publish.ts`](../scripts/npm-oidc-publish.ts), which enumerates non-private workspace packages via `pnpm ls -r --json` and publishes anything not already on npm at the current version. No allowlist to maintain.
 
 Required `package.json` scripts (copy from `packages/connectors/github/package.json`):
 
