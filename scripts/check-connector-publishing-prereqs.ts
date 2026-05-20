@@ -203,7 +203,7 @@ function packageExistsOnNpm(name: string): boolean {
 }
 
 function bootstrapBlurb(pkg: WorkspacePackage): string {
-  const relPkgPath = relative(REPO_ROOT, pkg.path);
+  const relPkgPath = relative(REPO_ROOT, pkg.path).replaceAll('\\', '/');
   return [
     `  ${pkg.name}:`,
     ``,

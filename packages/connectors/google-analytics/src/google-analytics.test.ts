@@ -361,9 +361,15 @@ describe('GA4Connector.sync', () => {
     // The body of the first GA4 call should have country dimension (geo phase)
     const firstGa4Body = JSON.parse(
       String((ga4Calls[0] as [string, { body: string }])[1].body),
-    ) as { dimensions: Array<{ name: string }> };
+    ) as {
+      dimensions: Array<{ name: string }>;
+      dateRanges: Array<{ startDate: string; endDate: string }>;
+    };
     const dimNames = firstGa4Body.dimensions.map((d) => d.name);
     expect(dimNames).toContain('country');
+
+    expect(firstGa4Body.dateRanges[0]!.startDate).toBe('2025-01-01');
+    expect(firstGa4Body.dateRanges[0]!.endDate).toBe('2025-01-31');
   });
 
   it('sends Authorization header with Bearer token', async () => {

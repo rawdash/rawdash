@@ -16,6 +16,7 @@ export const configFields = defineConfigFields(
     .object({
       propertyId: z
         .string()
+        .trim()
         .regex(/^\d+$/, 'GA4 Property ID must be digits only')
         .meta({
           label: 'GA4 Property ID',
