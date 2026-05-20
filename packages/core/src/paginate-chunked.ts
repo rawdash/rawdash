@@ -51,7 +51,17 @@ export async function paginateChunked<TPhase extends string, TPage>(
           cursor: { phase, page } satisfies ChunkedSyncCursor<TPhase, TPage>,
         };
       }
-      const { items, next } = await fetchPage(phase, page, signal);
+      let items: unknown[];
+      let next: TPage | null;
+      try {
+        ({ items, next } = await fetchPage(phase, page, signal));
+      } catch (err) {
+        return {
+          done: false,
+          cursor: { phase, page } satisfies ChunkedSyncCursor<TPhase, TPage>,
+          transientError: err,
+        };
+      }
       await writeBatch(phase, items, page);
       if (next === null) {
         break;

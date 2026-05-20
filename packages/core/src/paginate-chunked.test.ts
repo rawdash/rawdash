@@ -164,6 +164,58 @@ describe('paginateChunked', () => {
     ]);
   });
 
+  it('returns a resumable cursor with the transient error when fetchPage throws', async () => {
+    const boom = new Error('Too many subrequests by single Worker invocation');
+    let calls = 0;
+    const writes: Array<{ phase: Phase; page: number | null }> = [];
+    const result = await paginateChunked<Phase, number>({
+      phases,
+      cursor: undefined,
+      signal: undefined,
+      fetchPage: async (_phase, page) => {
+        calls += 1;
+        if (calls === 3) {
+          throw boom;
+        }
+        return { items: [], next: (page ?? 0) + 1 };
+      },
+      writeBatch: async (phase, _items, page) => {
+        writes.push({ phase, page });
+      },
+    });
+
+    expect(result).toEqual({
+      done: false,
+      cursor: { phase: 'a', page: 2 },
+      transientError: boom,
+    });
+    expect(writes).toEqual([
+      { phase: 'a', page: null },
+      { phase: 'a', page: 1 },
+    ]);
+  });
+
+  it('does not call writeBatch when fetchPage throws on the first page of a phase', async () => {
+    const boom = new Error('network');
+    const writeBatch = vi.fn(async () => {});
+    const result = await paginateChunked<Phase, number>({
+      phases,
+      cursor: undefined,
+      signal: undefined,
+      fetchPage: async () => {
+        throw boom;
+      },
+      writeBatch,
+    });
+
+    expect(result).toEqual({
+      done: false,
+      cursor: { phase: 'a', page: null },
+      transientError: boom,
+    });
+    expect(writeBatch).not.toHaveBeenCalled();
+  });
+
   it('returns done immediately for an empty phases list', async () => {
     const fetchPage = vi.fn(async () => ({ items: [], next: null }));
     const result = await paginateChunked<Phase, number>({

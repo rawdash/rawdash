@@ -175,6 +175,7 @@ export interface SyncOptions {
 export interface SyncResult {
   done: boolean;
   cursor?: unknown;
+  transientError?: unknown;
 }
 
 export interface Connector {
