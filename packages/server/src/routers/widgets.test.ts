@@ -51,7 +51,9 @@ describe('WidgetsRouter — cachedAt', () => {
     const storage = new InMemoryStorage();
     const app = makeApp(storage);
     const res = await app.request('/dashboards/main/widgets');
-    const widgets = (await res.json()) as Array<{ cachedAt: string | null }>;
+    const { widgets } = (await res.json()) as {
+      widgets: Array<{ cachedAt: string | null }>;
+    };
     expect(widgets).toHaveLength(1);
     expect(widgets[0]!.cachedAt).toBeNull();
   });
@@ -69,7 +71,9 @@ describe('WidgetsRouter — cachedAt', () => {
     const app = makeApp(storage);
     await storage.setSyncSuccess();
     const res = await app.request('/dashboards/main/widgets');
-    const widgets = (await res.json()) as Array<{ cachedAt: string | null }>;
+    const { widgets } = (await res.json()) as {
+      widgets: Array<{ cachedAt: string | null }>;
+    };
     const cachedAt = widgets[0]!.cachedAt;
     expect(cachedAt).not.toBeNull();
     expect(new Date(cachedAt!).toISOString()).toBe(cachedAt);
@@ -80,8 +84,12 @@ describe('WidgetsRouter — cachedAt', () => {
     const app = makeApp(storage);
     const res1 = await app.request('/dashboards/main/widgets');
     const res2 = await app.request('/dashboards/main/widgets');
-    const w1 = (await res1.json()) as Array<{ cachedAt: string | null }>;
-    const w2 = (await res2.json()) as Array<{ cachedAt: string | null }>;
+    const { widgets: w1 } = (await res1.json()) as {
+      widgets: Array<{ cachedAt: string | null }>;
+    };
+    const { widgets: w2 } = (await res2.json()) as {
+      widgets: Array<{ cachedAt: string | null }>;
+    };
     expect(w1[0]!.cachedAt).toBeNull();
     expect(w2[0]!.cachedAt).toBeNull();
   });

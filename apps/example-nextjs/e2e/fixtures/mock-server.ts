@@ -69,7 +69,7 @@ const HEALTH = {
 const server = createServer((req, res) => {
   res.setHeader('Content-Type', 'application/json');
   if (req.method === 'GET' && req.url === '/dashboards/github/widgets') {
-    res.end(JSON.stringify(WIDGETS));
+    res.end(JSON.stringify({ widgets: WIDGETS }));
   } else if (req.method === 'GET' && req.url === '/health') {
     res.end(JSON.stringify(HEALTH));
   } else if (req.method === 'POST' && req.url === '/sync') {

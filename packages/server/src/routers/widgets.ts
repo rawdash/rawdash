@@ -36,7 +36,7 @@ export class WidgetsRouter implements RouterMount {
       const widgets = resolved.filter(
         (w): w is CachedWidget => w !== undefined,
       );
-      return c.json(widgets);
+      return c.json({ widgets });
     });
 
     app.get(`${base}/:widgetId`, async (c) => {

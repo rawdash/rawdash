@@ -56,10 +56,11 @@ export function http(opts: HttpOptions): DataSource {
   }
 
   return {
-    getWidgets(dashboardId) {
-      return get<CachedWidgetData[]>(
+    async getWidgets(dashboardId) {
+      const { widgets } = await get<{ widgets: CachedWidgetData[] }>(
         `/dashboards/${encodeURIComponent(dashboardId)}/widgets`,
       );
+      return widgets;
     },
 
     getWidget(dashboardId, widgetId) {
