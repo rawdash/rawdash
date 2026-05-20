@@ -8,6 +8,7 @@
       "@rawdash/server",
       "@rawdash/nextjs",
       "@rawdash/connector-github",
+      "@rawdash/connector-google-analytics",
       "@rawdash/connector-stripe",
       "@rawdash/adapter-libsql",
       "@rawdash/cli",
