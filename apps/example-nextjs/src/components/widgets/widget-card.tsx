@@ -1,4 +1,4 @@
-import type { CachedWidgetData } from '@rawdash/nextjs';
+import type { CachedWidget } from '@rawdash/core';
 
 import { StatWidget } from './stat-widget';
 import { StatusWidget } from './status-widget';
@@ -46,7 +46,7 @@ function toTimeseriesEntries(
 }
 
 interface WidgetCardProps {
-  widget: CachedWidgetData;
+  widget: CachedWidget;
 }
 
 export function WidgetCard({ widget }: WidgetCardProps) {
@@ -84,7 +84,7 @@ function UnsyncedPlaceholder({
   syncState,
 }: {
   label: string;
-  syncState: NonNullable<CachedWidgetData['syncState']>;
+  syncState: NonNullable<CachedWidget['syncState']>;
 }) {
   const message =
     syncState === 'syncing'

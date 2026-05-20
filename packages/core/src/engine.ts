@@ -1,11 +1,3 @@
-export interface CachedWidget {
-  id: string;
-  widgetId: string;
-  connectorId: string;
-  data: unknown;
-  cachedAt: string | null;
-}
-
 export interface SyncState {
   status: 'idle' | 'syncing' | 'error';
   lastSyncAt: string | null;

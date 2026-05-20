@@ -10,7 +10,6 @@ export { createEngine } from './engine';
 export { computeMetric } from './compute';
 export { InMemoryStorage } from './storage';
 export type { RouterMount } from './router';
-export type { SyncState, CachedWidget } from '@rawdash/core';
 export type { DashboardConfig, ServeOptions, ServerStorage } from './types';
 export type { Engine, EngineOptions } from './engine';
 

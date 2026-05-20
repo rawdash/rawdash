@@ -1,16 +1,9 @@
 import { http as clientHttp } from '@rawdash/client';
-import type { DataSource, HttpOptions } from '@rawdash/client';
+import type { HttpOptions } from '@rawdash/client';
+import type { DataSource } from '@rawdash/core';
 import { revalidateTag } from 'next/cache';
 
-export type {
-  CachedWidgetData,
-  DataSource,
-  HealthStatus,
-  HttpOptions,
-  ServerDataSource,
-  SyncResult,
-  WidgetSyncState,
-} from '@rawdash/client';
+export type { HttpOptions } from '@rawdash/client';
 
 const RAWDASH_CACHE_TAG = 'rawdash';
 
@@ -51,7 +44,7 @@ export function http(opts: HttpOptions): DataSource {
  * A configured Rawdash client for use in Next.js Server Components and Server
  * Actions.
  *
- * Wrap a `DataSource` (from `@rawdash/client`) with Next.js-specific
+ * Wrap a `DataSource` (from `@rawdash/core`) with Next.js-specific
  * behaviour: `triggerSync` waits for the sync to complete, then calls
  * `revalidateTag` so Server Components re-fetch widget data.
  *

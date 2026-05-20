@@ -1,4 +1,9 @@
-import type { CachedWidget, DashboardConfig } from '@rawdash/core';
+import type {
+  CachedWidget,
+  DashboardConfig,
+  SyncState,
+  TriggerSyncResponse,
+} from '@rawdash/core';
 import { InMemoryStorage, resolveWidget } from '@rawdash/core';
 
 import { SyncRouter } from './routers/sync';
@@ -14,12 +19,8 @@ export interface Engine {
     widgetId: string,
   ): Promise<CachedWidget | undefined>;
   getWidgets(dashboardId: string): Promise<CachedWidget[]>;
-  getHealth(): Promise<{
-    status: 'idle' | 'syncing' | 'error';
-    lastSyncAt: string | null;
-    lastError: string | null;
-  }>;
-  triggerSync(): Promise<{ triggered: boolean }>;
+  getHealth(): Promise<SyncState>;
+  triggerSync(): Promise<TriggerSyncResponse>;
 }
 
 export function createEngine(

@@ -1,4 +1,4 @@
-import type { DataSource, ServerDataSource } from './types';
+import type { DataSource, ServerDataSource } from '@rawdash/core';
 
 export function inProcess(engine: ServerDataSource): DataSource {
   return {

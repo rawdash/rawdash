@@ -27,7 +27,8 @@
     "lint": "eslint src"
   },
   "dependencies": {
-    "@rawdash/client": "workspace:*"
+    "@rawdash/client": "workspace:*",
+    "@rawdash/core": "workspace:*"
   },
   "peerDependencies": {
     "next": ">=14.0.0"
