@@ -1,13 +1,11 @@
 import { type HttpRequest, request } from '@rawdash/connector-shared';
 import {
   BaseConnector,
-  type ChunkedSyncCursor,
   type CredentialsSchema,
   type StorageHandle,
   type SyncOptions,
   type SyncResult,
   defineConfigFields,
-  paginateChunked,
 } from '@rawdash/core';
 import { z } from 'zod';
 
@@ -113,14 +111,19 @@ const PHASE_ORDER = [
 
 type GA4Phase = (typeof PHASE_ORDER)[number];
 
-interface GA4Page {
+interface GA4DateRange {
   startDate: string;
   endDate: string;
 }
 
-type GA4SyncCursor = ChunkedSyncCursor<GA4Phase, GA4Page>;
+interface GA4SyncCursor {
+  phase: GA4Phase;
+  // dateRange always populated, even when we abort between phases, so a
+  // resumed run uses the original window for every remaining phase.
+  dateRange: GA4DateRange;
+}
 
-function isGA4Page(value: unknown): value is GA4Page {
+function isGA4DateRange(value: unknown): value is GA4DateRange {
   if (typeof value !== 'object' || value === null) {
     return false;
   }
@@ -132,17 +135,14 @@ function isGA4SyncCursor(value: unknown): value is GA4SyncCursor {
   if (typeof value !== 'object' || value === null) {
     return false;
   }
-  const v = value as { phase?: unknown; page?: unknown };
+  const v = value as { phase?: unknown; dateRange?: unknown };
   if (typeof v.phase !== 'string') {
     return false;
   }
   if (!(PHASE_ORDER as readonly string[]).includes(v.phase)) {
     return false;
   }
-  if (v.page !== null && !isGA4Page(v.page)) {
-    return false;
-  }
-  return true;
+  return isGA4DateRange(v.dateRange);
 }
 
 // ---------------------------------------------------------------------------
@@ -381,7 +381,7 @@ const INCREMENTAL_LOOKBACK_DAYS = 30;
 function getDateRange(
   options: SyncOptions,
   lookbackDays: number,
-): { startDate: string; endDate: string } {
+): GA4DateRange {
   const now = Date.now();
   const endDate = toGA4Date(new Date(now));
   const days =
@@ -536,13 +536,10 @@ export class GA4Connector extends BaseConnector<GA4Settings, GA4Credentials> {
     const lookbackDays = this.settings.lookbackDays ?? 90;
 
     const cursor = isGA4SyncCursor(options.cursor) ? options.cursor : undefined;
-    const resumeDateRange =
-      cursor?.page && isGA4Page(cursor.page)
-        ? { startDate: cursor.page.startDate, endDate: cursor.page.endDate }
-        : null;
-    const dateRange = resumeDateRange ?? getDateRange(options, lookbackDays);
+    // Restore the originally-computed window on resume so phases stay aligned
+    // across midnight rollovers and lookbackDays changes between runs.
+    const dateRange = cursor?.dateRange ?? getDateRange(options, lookbackDays);
 
-    // Lazily resolve access token once per sync (re-fetched if expired mid-run)
     let accessToken: string | null = null;
     const getToken = async (sig?: AbortSignal): Promise<string> => {
       if (!accessToken) {
@@ -570,40 +567,44 @@ export class GA4Connector extends BaseConnector<GA4Settings, GA4Credentials> {
       }
     };
 
-    return paginateChunked<GA4Phase, GA4Page>({
-      phases: PHASE_ORDER,
-      cursor,
-      signal,
-      fetchPage: async (phase, _page, sig) => {
-        // Drain the entire phase in-memory so writeBatch can commit it
-        // atomically. The cursor only advances at phase boundaries; a mid-phase
-        // failure restarts the phase from scratch on the next sync, and the
-        // atomic write in writeBatch ensures previously-written rows for this
-        // phase are cleared in the same operation that writes the new ones.
-        const allRows: GA4ReportRow[] = [];
-        let offset = 0;
-        for (;;) {
-          const response = await runReportWithRetry(phase, offset, sig);
-          const rows = response.rows ?? [];
-          const totalRows = response.rowCount ?? 0;
-          allRows.push(...rows);
-          offset += rows.length;
-          if (rows.length === 0 || offset >= totalRows) {
-            break;
-          }
+    const drainPhase = async (phase: GA4Phase): Promise<GA4ReportRow[]> => {
+      const allRows: GA4ReportRow[] = [];
+      let offset = 0;
+      for (;;) {
+        const response = await runReportWithRetry(phase, offset, signal);
+        const rows = response.rows ?? [];
+        const totalRows = response.rowCount ?? 0;
+        allRows.push(...rows);
+        offset += rows.length;
+        if (rows.length === 0 || offset >= totalRows) {
+          break;
         }
-        return { items: allRows, next: null };
-      },
-      writeBatch: async (phase, items) => {
-        const cfg = PHASE_CONFIGS[phase];
-        const rows = items as GA4ReportRow[];
-        const samples = rows.map((row) =>
-          rowToMetricSample(row, cfg.dimensions, cfg.metrics, cfg.metricName),
-        );
-        // Atomically clear-and-replace this phase's metric. Scoping by name
-        // ensures we wipe stale rows even when `samples` is empty.
-        await storage.metrics(samples, { names: [cfg.metricName] });
-      },
-    });
+      }
+      return allRows;
+    };
+
+    const resumeIdx = cursor ? PHASE_ORDER.indexOf(cursor.phase) : -1;
+    const startIdx = resumeIdx >= 0 ? resumeIdx : 0;
+
+    for (let i = startIdx; i < PHASE_ORDER.length; i++) {
+      const phase = PHASE_ORDER[i]!;
+      if (signal?.aborted) {
+        return { done: false, cursor: { phase, dateRange } };
+      }
+
+      // Drain every page of this phase in-memory before writing so the commit
+      // is one atomic call. A mid-phase failure throws here, leaving prior
+      // phases intact and forcing the next sync to restart this phase from
+      // scratch — the clear-and-replace below cleans any partial state.
+      const rows = await drainPhase(phase);
+      const cfg = PHASE_CONFIGS[phase];
+      const samples = rows.map((row) =>
+        rowToMetricSample(row, cfg.dimensions, cfg.metrics, cfg.metricName),
+      );
+      // Scoping by name ensures stale rows are wiped even when samples is empty.
+      await storage.metrics(samples, { names: [cfg.metricName] });
+    }
+
+    return { done: true };
   }
 }

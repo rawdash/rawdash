@@ -340,7 +340,7 @@ describe('GA4Connector.sync', () => {
         mode: 'full',
         cursor: {
           phase: 'geo',
-          page: { startDate: '2025-01-01', endDate: '2025-01-31' },
+          dateRange: { startDate: '2025-01-01', endDate: '2025-01-31' },
         },
       },
       storage,
@@ -424,6 +424,52 @@ describe('GA4Connector.sync', () => {
     expect(ga4Calls.length).toBeGreaterThan(0);
     const url = String((ga4Calls[0] as [string])[0]);
     expect(url).toContain('987654321');
+  });
+
+  it('uses the cursor dateRange for every remaining phase on resume', async () => {
+    const connector = new GA4Connector(
+      { propertyId: '123456789' },
+      {
+        serviceAccountJson: undefined,
+        refreshToken: 'rtoken' as unknown as { $secret: string },
+        clientId: 'cid',
+        clientSecret: 'csecret' as unknown as { $secret: string },
+      },
+    );
+
+    const fetchSpy = mockFetch({ access_token: 'tok', expires_in: 3600 }, {});
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const storage = makeStorage();
+    // Resume at phase 'events' (index 3) — phases 'events', 'conversions',
+    // and 'geo' should all use the cursor's dateRange, not a recomputed one.
+    await connector.sync(
+      {
+        mode: 'full',
+        cursor: {
+          phase: 'events',
+          dateRange: { startDate: '2024-12-15', endDate: '2025-01-15' },
+        },
+      },
+      storage,
+    );
+
+    const ga4Bodies = fetchSpy.mock.calls
+      .filter((c: unknown[]) =>
+        String(c[0]).includes('analyticsdata.googleapis.com'),
+      )
+      .map(
+        (c) =>
+          JSON.parse(String((c as [string, { body: string }])[1].body)) as {
+            dateRanges: Array<{ startDate: string; endDate: string }>;
+          },
+      );
+
+    expect(ga4Bodies.length).toBeGreaterThanOrEqual(3);
+    for (const body of ga4Bodies) {
+      expect(body.dateRanges[0]!.startDate).toBe('2024-12-15');
+      expect(body.dateRanges[0]!.endDate).toBe('2025-01-15');
+    }
   });
 
   it('writes each phase atomically via a single storage.metrics call', async () => {
