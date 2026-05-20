@@ -1,5 +1,9 @@
 export { request } from './request';
-export type { RequestOptions } from './request';
+export type {
+  RequestObservation,
+  RequestObserver,
+  RequestOptions,
+} from './request';
 export type { FetchLike, HttpMethod, HttpRequest, HttpResponse } from './types';
 export {
   AuthError,
