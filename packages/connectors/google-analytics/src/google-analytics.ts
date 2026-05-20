@@ -114,7 +114,6 @@ const PHASE_ORDER = [
 type GA4Phase = (typeof PHASE_ORDER)[number];
 
 interface GA4Page {
-  offset: number;
   startDate: string;
   endDate: string;
 }
@@ -125,16 +124,8 @@ function isGA4Page(value: unknown): value is GA4Page {
   if (typeof value !== 'object' || value === null) {
     return false;
   }
-  const v = value as {
-    offset?: unknown;
-    startDate?: unknown;
-    endDate?: unknown;
-  };
-  return (
-    typeof v.offset === 'number' &&
-    typeof v.startDate === 'string' &&
-    typeof v.endDate === 'string'
-  );
+  const v = value as { startDate?: unknown; endDate?: unknown };
+  return typeof v.startDate === 'string' && typeof v.endDate === 'string';
 }
 
 function isGA4SyncCursor(value: unknown): value is GA4SyncCursor {
@@ -560,64 +551,58 @@ export class GA4Connector extends BaseConnector<GA4Settings, GA4Credentials> {
       return accessToken;
     };
 
-    const clearedPhases = new Set<GA4Phase>();
+    const runReportWithRetry = async (
+      phase: GA4Phase,
+      offset: number,
+      sig: AbortSignal | undefined,
+    ): Promise<GA4ReportResponse> => {
+      const token = await getToken(sig);
+      try {
+        return await this.runReport(token, phase, dateRange, offset, sig);
+      } catch (err) {
+        console.warn(
+          `[ga4] runReport failed, refreshing token and retrying once`,
+          err,
+        );
+        accessToken = null;
+        const freshToken = await getToken(sig);
+        return this.runReport(freshToken, phase, dateRange, offset, sig);
+      }
+    };
 
     return paginateChunked<GA4Phase, GA4Page>({
       phases: PHASE_ORDER,
       cursor,
       signal,
-      fetchPage: async (phase, page, sig) => {
-        const token = await getToken(sig);
-        const offset = page?.offset ?? 0;
-        let response: GA4ReportResponse;
-        try {
-          response = await this.runReport(token, phase, dateRange, offset, sig);
-        } catch (err) {
-          console.warn(
-            `[ga4] runReport failed, refreshing token and retrying once`,
-            err,
-          );
-          accessToken = null;
-          const freshToken = await getToken(sig);
-          response = await this.runReport(
-            freshToken,
-            phase,
-            dateRange,
-            offset,
-            sig,
-          );
+      fetchPage: async (phase, _page, sig) => {
+        // Drain the entire phase in-memory so writeBatch can commit it
+        // atomically. The cursor only advances at phase boundaries; a mid-phase
+        // failure restarts the phase from scratch on the next sync, and the
+        // atomic write in writeBatch ensures previously-written rows for this
+        // phase are cleared in the same operation that writes the new ones.
+        const allRows: GA4ReportRow[] = [];
+        let offset = 0;
+        for (;;) {
+          const response = await runReportWithRetry(phase, offset, sig);
+          const rows = response.rows ?? [];
+          const totalRows = response.rowCount ?? 0;
+          allRows.push(...rows);
+          offset += rows.length;
+          if (rows.length === 0 || offset >= totalRows) {
+            break;
+          }
         }
-        const rows = response.rows ?? [];
-        const totalRows = response.rowCount ?? 0;
-        const nextOffset = offset + rows.length;
-        const next: GA4Page | null =
-          rows.length > 0 && nextOffset < totalRows
-            ? {
-                offset: nextOffset,
-                startDate: dateRange.startDate,
-                endDate: dateRange.endDate,
-              }
-            : null;
-        return { items: rows, next };
+        return { items: allRows, next: null };
       },
-      writeBatch: async (phase, items, page) => {
+      writeBatch: async (phase, items) => {
         const cfg = PHASE_CONFIGS[phase];
-
-        if (page === null && !clearedPhases.has(phase)) {
-          clearedPhases.add(phase);
-          await storage.metrics([], { names: [cfg.metricName] });
-        }
-
         const rows = items as GA4ReportRow[];
-        for (const row of rows) {
-          const sample = rowToMetricSample(
-            row,
-            cfg.dimensions,
-            cfg.metrics,
-            cfg.metricName,
-          );
-          await storage.metric(sample);
-        }
+        const samples = rows.map((row) =>
+          rowToMetricSample(row, cfg.dimensions, cfg.metrics, cfg.metricName),
+        );
+        // Atomically clear-and-replace this phase's metric. Scoping by name
+        // ensures we wipe stale rows even when `samples` is empty.
+        await storage.metrics(samples, { names: [cfg.metricName] });
       },
     });
   }

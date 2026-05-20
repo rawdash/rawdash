@@ -260,10 +260,9 @@ describe('GA4Connector.sync', () => {
     const storage = makeStorage();
     await connector.sync({ mode: 'full' }, storage);
 
-    const metricsClearCalls = storage.metrics.mock.calls.filter(
-      (c) => Array.isArray(c[0]) && (c[0] as unknown[]).length === 0,
-    );
-    const clearedNames = metricsClearCalls.map(
+    // Each phase writes via a single atomic storage.metrics(samples, {names})
+    // call. With no rows returned, the call still happens and acts as a clear.
+    const clearedNames = storage.metrics.mock.calls.map(
       (c) => (c[1] as { names: string[] }).names[0],
     );
 
@@ -312,12 +311,13 @@ describe('GA4Connector.sync', () => {
     const storage = makeStorage();
     await connector.sync({ mode: 'full' }, storage);
 
-    const metricCalls = storage.metric.mock.calls;
-    const trafficCall = metricCalls.find(
-      (c) => (c[0] as { name: string }).name === 'ga4_traffic_by_day',
+    const trafficCall = storage.metrics.mock.calls.find(
+      (c) => (c[1] as { names: string[] }).names[0] === 'ga4_traffic_by_day',
     );
     expect(trafficCall).toBeDefined();
-    expect((trafficCall![0] as { value: number }).value).toBe(500);
+    const samples = trafficCall![0] as Array<{ name: string; value: number }>;
+    expect(samples).toHaveLength(1);
+    expect(samples[0]!.value).toBe(500);
   });
 
   it('resumes from a saved cursor', async () => {
@@ -340,11 +340,7 @@ describe('GA4Connector.sync', () => {
         mode: 'full',
         cursor: {
           phase: 'geo',
-          page: {
-            offset: 0,
-            startDate: '2025-01-01',
-            endDate: '2025-01-31',
-          },
+          page: { startDate: '2025-01-01', endDate: '2025-01-31' },
         },
       },
       storage,
@@ -428,6 +424,100 @@ describe('GA4Connector.sync', () => {
     expect(ga4Calls.length).toBeGreaterThan(0);
     const url = String((ga4Calls[0] as [string])[0]);
     expect(url).toContain('987654321');
+  });
+
+  it('writes each phase atomically via a single storage.metrics call', async () => {
+    const connector = new GA4Connector(
+      { propertyId: '123456789' },
+      {
+        serviceAccountJson: undefined,
+        refreshToken: 'rtoken' as unknown as { $secret: string },
+        clientId: 'cid',
+        clientSecret: 'csecret' as unknown as { $secret: string },
+      },
+    );
+
+    // Two pages worth of rows for traffic_by_day. fetchPage must drain both
+    // before writeBatch runs so a mid-phase storage failure cannot leave
+    // partial rows behind on retry.
+    const responses = [
+      {
+        rows: [
+          makeReportRow(['20250101'], ['100', '0', '0', '0', '0']),
+          makeReportRow(['20250102'], ['200', '0', '0', '0', '0']),
+        ],
+        rowCount: 3,
+        dimensionHeaders: [{ name: 'date' }],
+        metricHeaders: [
+          { name: 'sessions', type: 'TYPE_INTEGER' },
+          { name: 'totalUsers', type: 'TYPE_INTEGER' },
+          { name: 'newUsers', type: 'TYPE_INTEGER' },
+          { name: 'screenPageViews', type: 'TYPE_INTEGER' },
+          { name: 'engagementRate', type: 'TYPE_FLOAT' },
+        ],
+      },
+      {
+        rows: [makeReportRow(['20250103'], ['300', '0', '0', '0', '0'])],
+        rowCount: 3,
+        dimensionHeaders: [{ name: 'date' }],
+        metricHeaders: [
+          { name: 'sessions', type: 'TYPE_INTEGER' },
+          { name: 'totalUsers', type: 'TYPE_INTEGER' },
+          { name: 'newUsers', type: 'TYPE_INTEGER' },
+          { name: 'screenPageViews', type: 'TYPE_INTEGER' },
+          { name: 'engagementRate', type: 'TYPE_FLOAT' },
+        ],
+      },
+    ];
+
+    let trafficCallIdx = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string, init: RequestInit) => {
+        const urlStr = String(url);
+        if (urlStr.includes('oauth2.googleapis.com/token')) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            statusText: 'OK',
+            headers: new Headers({ 'content-type': 'application/json' }),
+            text: () =>
+              Promise.resolve(
+                JSON.stringify({ access_token: 'tok', expires_in: 3600 }),
+              ),
+          } as Response);
+        }
+        const body = init.body
+          ? (JSON.parse(String(init.body)) as {
+              dimensions: Array<{ name: string }>;
+            })
+          : { dimensions: [] };
+        const firstDim = body.dimensions?.[0]?.name ?? '';
+        const resp =
+          firstDim === 'date' && trafficCallIdx < responses.length
+            ? responses[trafficCallIdx++]
+            : makeEmptyReportResponse();
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          headers: new Headers({ 'content-type': 'application/json' }),
+          text: () => Promise.resolve(JSON.stringify(resp)),
+        } as Response);
+      }),
+    );
+
+    const storage = makeStorage();
+    await connector.sync({ mode: 'full' }, storage);
+
+    const trafficWrites = storage.metrics.mock.calls.filter(
+      (c) => (c[1] as { names: string[] }).names[0] === 'ga4_traffic_by_day',
+    );
+    expect(trafficWrites).toHaveLength(1);
+    const samples = trafficWrites[0]![0] as Array<{ value: number }>;
+    expect(samples).toHaveLength(3);
+    expect(samples.map((s) => s.value)).toEqual([100, 200, 300]);
+    expect(storage.metric).not.toHaveBeenCalled();
   });
 });
 
