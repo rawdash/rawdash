@@ -242,7 +242,9 @@ function computeDependencyLayers(pkgs) {
     if (layer.length === 0) {
       throw new Error('Cycle detected in workspace package dependencies');
     }
-    for (const p of layer) {placed.add(p.name);}
+    for (const p of layer) {
+      placed.add(p.name);
+    }
     layers.push(layer);
   }
   return layers;
@@ -371,7 +373,9 @@ for (const [i, layer] of layers.entries()) {
   outcomes.push(...layerOutcomes);
   if (layerOutcomes.some((o) => !o.ok)) {
     aborted = true;
-    for (let j = i + 1; j < layers.length; j++) {skipped.push(...layers[j]);}
+    for (let j = i + 1; j < layers.length; j++) {
+      skipped.push(...layers[j]);
+    }
     break;
   }
 }
