@@ -71,7 +71,24 @@ export async function paginateChunked<TPhase extends string, TPage>(
           transientError: err,
         };
       }
-      await writeBatch(phase, items, page);
+      try {
+        await writeBatch(phase, items, page);
+      } catch (err) {
+        if (
+          signal?.aborted ||
+          (err instanceof Error && err.name === 'AbortError')
+        ) {
+          return {
+            done: false,
+            cursor: { phase, page } satisfies ChunkedSyncCursor<TPhase, TPage>,
+          };
+        }
+        return {
+          done: false,
+          cursor: { phase, page } satisfies ChunkedSyncCursor<TPhase, TPage>,
+          transientError: err,
+        };
+      }
       if (next === null) {
         break;
       }
