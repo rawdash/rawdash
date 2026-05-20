@@ -21,7 +21,7 @@ export interface RequestObservation {
   url: string;
   method: HttpMethod;
   status: number;
-  resource: string | undefined;
+  resource: string;
   requestId: string;
   body: unknown;
 }
@@ -33,7 +33,7 @@ export type RequestObserver = (
 export interface RequestOptions {
   fetch?: FetchLike;
   observer?: RequestObserver;
-  resource?: string;
+  resource: string;
   requestId?: string;
 }
 
@@ -137,7 +137,7 @@ async function readBody(res: Response, parseJson: boolean): Promise<unknown> {
 
 export async function request<T = unknown>(
   req: HttpRequest,
-  options: RequestOptions = {},
+  options: RequestOptions,
 ): Promise<HttpResponse<T>> {
   const fetchImpl: FetchLike = options.fetch ?? (globalThis.fetch as FetchLike);
   const retry = req.retry ?? {};

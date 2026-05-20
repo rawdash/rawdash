@@ -1,3 +1,10 @@
+import {
+  type HttpRequest,
+  type HttpResponse,
+  type RequestObserver,
+  request as sharedRequest,
+} from '@rawdash/connector-shared';
+
 import { EnvSecretsResolver, type Secret, resolveSecrets } from './secrets';
 
 export type JSONValue =
@@ -189,6 +196,15 @@ export interface Connector {
   ): Promise<SyncResult>;
 }
 
+export interface ConnectorContext {
+  observer?: RequestObserver;
+}
+
+export interface ConnectorRequestOptions {
+  resource: string;
+  requestId?: string;
+}
+
 export interface RetryPolicy {
   maxAttempts?: number;
   initialDelayMs?: number;
@@ -206,8 +222,13 @@ export abstract class BaseConnector<
   protected settings: TSettings;
   protected creds: InferCredentials<TCreds>;
   private rawCredInput: InferCredentialInput<TCreds> | undefined;
+  private ctx: ConnectorContext;
 
-  constructor(settings: TSettings, creds?: InferCredentialInput<TCreds>) {
+  constructor(
+    settings: TSettings,
+    creds?: InferCredentialInput<TCreds>,
+    ctx?: ConnectorContext,
+  ) {
     this.settings = settings;
     this.rawCredInput = creds;
     this.creds = creds
@@ -216,6 +237,60 @@ export abstract class BaseConnector<
           new EnvSecretsResolver(),
         ) as InferCredentials<TCreds>)
       : ({} as InferCredentials<TCreds>);
+    this.ctx = ctx ?? {};
+  }
+
+  protected request<T = unknown>(
+    req: HttpRequest,
+    opts: ConnectorRequestOptions,
+  ): Promise<HttpResponse<T>> {
+    return sharedRequest<T>(req, {
+      resource: opts.resource,
+      requestId: opts.requestId,
+      observer: this.ctx.observer,
+    });
+  }
+
+  protected get<T = unknown>(
+    url: string,
+    opts: ConnectorRequestOptions & {
+      headers?: Record<string, string>;
+      signal?: AbortSignal;
+      rateLimit?: HttpRequest['rateLimit'];
+    },
+  ): Promise<HttpResponse<T>> {
+    return this.request<T>(
+      {
+        url,
+        method: 'GET',
+        headers: opts.headers,
+        signal: opts.signal,
+        rateLimit: opts.rateLimit,
+      },
+      { resource: opts.resource, requestId: opts.requestId },
+    );
+  }
+
+  protected post<T = unknown>(
+    url: string,
+    opts: ConnectorRequestOptions & {
+      body?: HttpRequest['body'];
+      headers?: Record<string, string>;
+      signal?: AbortSignal;
+      rateLimit?: HttpRequest['rateLimit'];
+    },
+  ): Promise<HttpResponse<T>> {
+    return this.request<T>(
+      {
+        url,
+        method: 'POST',
+        headers: opts.headers,
+        body: opts.body,
+        signal: opts.signal,
+        rateLimit: opts.rateLimit,
+      },
+      { resource: opts.resource, requestId: opts.requestId },
+    );
   }
 
   serializeConfig(): Record<string, unknown> {
@@ -299,7 +374,11 @@ export function defineConnector<TSettings>() {
       signal?: AbortSignal,
     ) => Promise<SyncResult>;
   }): {
-    new (settings: TSettings, creds?: InferCredentialInput<TCreds>): Connector;
+    new (
+      settings: TSettings,
+      creds?: InferCredentialInput<TCreds>,
+      ctx?: ConnectorContext,
+    ): Connector;
     readonly id: string;
     readonly credentials: TCreds | undefined;
   } {
@@ -328,6 +407,7 @@ export function defineConnector<TSettings>() {
       new (
         settings: TSettings,
         creds?: InferCredentialInput<TCreds>,
+        ctx?: ConnectorContext,
       ): Connector;
       readonly id: string;
       readonly credentials: TCreds | undefined;

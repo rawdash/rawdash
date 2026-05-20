@@ -1,5 +1,7 @@
 export type {
   Connector,
+  ConnectorContext,
+  ConnectorRequestOptions,
   CredentialField,
   CredentialsSchema,
   InferCredentialInput,

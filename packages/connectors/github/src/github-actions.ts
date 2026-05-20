@@ -1,9 +1,7 @@
 import {
-  type HttpRequest,
   type HttpResponse,
   githubRateLimit,
   parseLinkHeader,
-  request,
 } from '@rawdash/connector-shared';
 import {
   BaseConnector,
@@ -212,17 +210,17 @@ export class GitHubActionsConnector extends BaseConnector<
     return headers;
   }
 
-  private get<T>(
+  private fetch<T>(
     url: string,
+    resource: string,
     signal: AbortSignal | undefined,
   ): Promise<HttpResponse<T>> {
-    const req: HttpRequest = {
-      url,
+    return this.get<T>(url, {
+      resource,
       headers: this.buildHeaders(),
       signal,
       rateLimit: githubRateLimit,
-    };
-    return request<T>(req);
+    });
   }
 
   private allowedPageBasePath(phase: GitHubSyncPhase): string | null {
@@ -284,8 +282,9 @@ export class GitHubActionsConnector extends BaseConnector<
     signal: AbortSignal | undefined,
   ): Promise<FetchPageResult<string>> {
     const { owner, repo } = this.settings;
-    const res = await this.get<GitHubRepo>(
+    const res = await this.fetch<GitHubRepo>(
       `https://api.github.com/repos/${owner}/${repo}`,
+      'repo',
       signal,
     );
     return { items: [res.body], next: null };
@@ -295,8 +294,9 @@ export class GitHubActionsConnector extends BaseConnector<
     signal: AbortSignal | undefined,
   ): Promise<FetchPageResult<string>> {
     const { owner, repo } = this.settings;
-    const res = await this.get<GitHubRunsResponse>(
+    const res = await this.fetch<GitHubRunsResponse>(
       `https://api.github.com/repos/${owner}/${repo}/actions/runs?per_page=1`,
+      'workflow_runs',
       signal,
     );
     const run = res.body.workflow_runs[0];
@@ -312,7 +312,11 @@ export class GitHubActionsConnector extends BaseConnector<
     const url =
       page ??
       `https://api.github.com/repos/${owner}/${repo}/actions/runs?per_page=100`;
-    const res = await this.get<GitHubRunsResponse>(url, signal);
+    const res = await this.fetch<GitHubRunsResponse>(
+      url,
+      'workflow_runs',
+      signal,
+    );
     const nextLink = parseLinkHeader(res.headers.get('link'))['next'] ?? null;
     const runs = res.body.workflow_runs;
     const cutoff = options.since ? new Date(options.since).getTime() : null;
@@ -347,15 +351,16 @@ export class GitHubActionsConnector extends BaseConnector<
     const url =
       page ??
       `https://api.github.com/repos/${owner}/${repo}/pulls?state=all&per_page=100`;
-    const res = await this.get<GitHubPR[]>(url, signal);
+    const res = await this.fetch<GitHubPR[]>(url, 'pull_requests', signal);
     const nextLink = parseLinkHeader(res.headers.get('link'))['next'] ?? null;
     const prs = res.body;
 
     const reviewsByPR = new Map<number, GitHubReview[]>();
     for (const pr of prs) {
       signal?.throwIfAborted();
-      const reviews = await this.get<GitHubReview[]>(
+      const reviews = await this.fetch<GitHubReview[]>(
         `https://api.github.com/repos/${owner}/${repo}/pulls/${pr.number}/reviews`,
+        'pull_request_reviews',
         signal,
       );
       reviewsByPR.set(pr.number, reviews.body);
@@ -383,7 +388,7 @@ export class GitHubActionsConnector extends BaseConnector<
       }
       url = u.toString();
     }
-    const res = await this.get<GitHubIssue[]>(url, signal);
+    const res = await this.fetch<GitHubIssue[]>(url, 'issues', signal);
     const nextLink = parseLinkHeader(res.headers.get('link'))['next'] ?? null;
     return { items: res.body, next: nextLink };
   }
@@ -396,15 +401,20 @@ export class GitHubActionsConnector extends BaseConnector<
     const url =
       page ??
       `https://api.github.com/repos/${owner}/${repo}/deployments?per_page=100`;
-    const res = await this.get<GitHubDeployment[]>(url, signal);
+    const res = await this.fetch<GitHubDeployment[]>(
+      url,
+      'deployments',
+      signal,
+    );
     const nextLink = parseLinkHeader(res.headers.get('link'))['next'] ?? null;
     const deployments = res.body;
 
     const latestStatusById = new Map<number, GitHubDeploymentStatus | null>();
     for (const deployment of deployments) {
       signal?.throwIfAborted();
-      const statusRes = await this.get<GitHubDeploymentStatus[]>(
+      const statusRes = await this.fetch<GitHubDeploymentStatus[]>(
         `https://api.github.com/repos/${owner}/${repo}/deployments/${deployment.id}/statuses?per_page=1`,
+        'deployment_statuses',
         signal,
       );
       latestStatusById.set(deployment.id, statusRes.body[0] ?? null);
@@ -422,7 +432,7 @@ export class GitHubActionsConnector extends BaseConnector<
     const url =
       page ??
       `https://api.github.com/repos/${owner}/${repo}/releases?per_page=100`;
-    const res = await this.get<GitHubRelease[]>(url, signal);
+    const res = await this.fetch<GitHubRelease[]>(url, 'releases', signal);
     const nextLink = parseLinkHeader(res.headers.get('link'))['next'] ?? null;
     return { items: res.body, next: nextLink };
   }
@@ -433,8 +443,9 @@ export class GitHubActionsConnector extends BaseConnector<
     const { owner, repo } = this.settings;
     const contributors = await this.withRetry<GitHubContributorStats[]>(
       async (sig) => {
-        const res = await this.get<GitHubContributorStats[] | null>(
+        const res = await this.fetch<GitHubContributorStats[] | null>(
           `https://api.github.com/repos/${owner}/${repo}/stats/contributors`,
+          'contributors',
           sig,
         );
         if (res.status === 202) {

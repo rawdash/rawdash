@@ -55,6 +55,7 @@ describe('paginateLink', () => {
       for await (const item of paginateLink<number>(
         { url: 'https://api.example/x?page=1' },
         (body) => body as number[],
+        { resource: 'items' },
       )) {
         collected.push(item);
       }
@@ -83,6 +84,7 @@ describe('paginateCursor', () => {
         { url: 'https://api.example/x' },
         (body) => body as { items: string[]; nextCursor: string | null },
         (req, cursor) => ({ ...req, url: `${req.url}?cursor=${cursor}` }),
+        { resource: 'items' },
       )) {
         result.push(item);
       }
@@ -107,6 +109,7 @@ describe('paginatePage', () => {
         { url: 'https://api.example/x' },
         (body) => body as { items: number[]; hasMore: boolean },
         (req, page) => ({ ...req, url: `${req.url}?page=${page}` }),
+        { resource: 'items' },
       )) {
         result.push(item);
       }

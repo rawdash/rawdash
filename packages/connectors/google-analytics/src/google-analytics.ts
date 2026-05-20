@@ -1,4 +1,3 @@
-import { type HttpRequest, request } from '@rawdash/connector-shared';
 import {
   BaseConnector,
   type CredentialsSchema,
@@ -299,10 +298,9 @@ function parseServiceAccountJson(value: string): ServiceAccountKey {
   return JSON.parse(decoded) as ServiceAccountKey;
 }
 
-async function fetchServiceAccountToken(
+async function buildServiceAccountJwt(
   serviceAccountJson: string,
-  signal?: AbortSignal,
-): Promise<{ token: string; expiresAt: number }> {
+): Promise<{ url: string; body: string }> {
   const sa = parseServiceAccountJson(serviceAccountJson);
   const now = Math.floor(Date.now() / 1000);
   const jwt = await signRS256JWT(
@@ -321,44 +319,9 @@ async function fetchServiceAccountToken(
     assertion: jwt,
   }).toString();
 
-  const res = await request<TokenResponse>({
+  return {
     url: sa.token_uri ?? 'https://oauth2.googleapis.com/token',
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body,
-    signal,
-  });
-  const expiresIn = res.body.expires_in ?? 3600;
-  return {
-    token: res.body.access_token,
-    expiresAt: Date.now() + (expiresIn - 60) * 1000,
-  };
-}
-
-async function fetchRefreshToken(
-  refreshToken: string,
-  clientId: string,
-  clientSecret: string,
-  signal?: AbortSignal,
-): Promise<{ token: string; expiresAt: number }> {
-  const body = new URLSearchParams({
-    grant_type: 'refresh_token',
-    refresh_token: refreshToken,
-    client_id: clientId,
-    client_secret: clientSecret,
-  }).toString();
-
-  const res = await request<TokenResponse>({
-    url: 'https://oauth2.googleapis.com/token',
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body,
-    signal,
-  });
-  const expiresIn = res.body.expires_in ?? 3600;
-  return {
-    token: res.body.access_token,
-    expiresAt: Date.now() + (expiresIn - 60) * 1000,
   };
 }
 
@@ -466,6 +429,24 @@ export class GA4Connector extends BaseConnector<GA4Settings, GA4Credentials> {
 
   private cachedToken: { token: string; expiresAt: number } | null = null;
 
+  private async fetchOAuthToken(
+    url: string,
+    body: string,
+    signal: AbortSignal | undefined,
+  ): Promise<{ token: string; expiresAt: number }> {
+    const res = await this.post<TokenResponse>(url, {
+      resource: 'oauth_token',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body,
+      signal,
+    });
+    const expiresIn = res.body.expires_in ?? 3600;
+    return {
+      token: res.body.access_token,
+      expiresAt: Date.now() + (expiresIn - 60) * 1000,
+    };
+  }
+
   private async getAccessToken(signal?: AbortSignal): Promise<string> {
     if (this.cachedToken && Date.now() < this.cachedToken.expiresAt) {
       return this.cachedToken.token;
@@ -475,18 +456,21 @@ export class GA4Connector extends BaseConnector<GA4Settings, GA4Credentials> {
       this.creds;
 
     if (serviceAccountJson) {
-      this.cachedToken = await fetchServiceAccountToken(
-        serviceAccountJson,
-        signal,
-      );
+      const { url, body } = await buildServiceAccountJwt(serviceAccountJson);
+      this.cachedToken = await this.fetchOAuthToken(url, body, signal);
       return this.cachedToken.token;
     }
 
     if (refreshToken && clientId && clientSecret) {
-      this.cachedToken = await fetchRefreshToken(
-        refreshToken,
-        clientId,
-        clientSecret,
+      const body = new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+        client_id: clientId,
+        client_secret: clientSecret,
+      }).toString();
+      this.cachedToken = await this.fetchOAuthToken(
+        'https://oauth2.googleapis.com/token',
+        body,
         signal,
       );
       return this.cachedToken.token;
@@ -517,9 +501,8 @@ export class GA4Connector extends BaseConnector<GA4Settings, GA4Credentials> {
       offset,
     };
 
-    const req: HttpRequest = {
-      url,
-      method: 'POST',
+    const res = await this.post<GA4ReportResponse>(url, {
+      resource: phase,
       headers: {
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
@@ -528,9 +511,7 @@ export class GA4Connector extends BaseConnector<GA4Settings, GA4Credentials> {
       },
       body: JSON.stringify(body),
       signal,
-    };
-
-    const res = await request<GA4ReportResponse>(req);
+    });
     return res.body;
   }
 

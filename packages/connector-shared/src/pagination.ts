@@ -18,13 +18,17 @@ export function parseLinkHeader(header: string | null): Record<string, string> {
 export async function* paginateLink<T>(
   initial: HttpRequest,
   parse: (body: unknown) => T[],
+  options: { resource: string },
 ): AsyncIterable<T> {
   let next: string | null = initial.url;
   while (next) {
-    const res: Awaited<ReturnType<typeof request>> = await request({
-      ...initial,
-      url: next,
-    });
+    const res: Awaited<ReturnType<typeof request>> = await request(
+      {
+        ...initial,
+        url: next,
+      },
+      { resource: options.resource },
+    );
     for (const item of parse(res.body)) {
       yield item;
     }
@@ -37,10 +41,11 @@ export async function* paginateCursor<T>(
   initial: HttpRequest,
   parse: (body: unknown) => { items: T[]; nextCursor: string | null },
   buildNext: (req: HttpRequest, cursor: string) => HttpRequest,
+  options: { resource: string },
 ): AsyncIterable<T> {
   let req: HttpRequest = initial;
   while (true) {
-    const res = await request(req);
+    const res = await request(req, { resource: options.resource });
     const { items, nextCursor } = parse(res.body);
     for (const item of items) {
       yield item;
@@ -56,11 +61,12 @@ export async function* paginatePage<T>(
   initial: HttpRequest,
   parse: (body: unknown) => { items: T[]; hasMore: boolean },
   buildPage: (req: HttpRequest, page: number) => HttpRequest,
+  options: { resource: string },
 ): AsyncIterable<T> {
   let page = 1;
   while (true) {
     const req = page === 1 ? initial : buildPage(initial, page);
-    const res = await request(req);
+    const res = await request(req, { resource: options.resource });
     const { items, hasMore } = parse(res.body);
     for (const item of items) {
       yield item;
