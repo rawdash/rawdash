@@ -325,13 +325,13 @@ importers:
 
   packages/core:
     dependencies:
-      '@rawdash/connector-shared':
-        specifier: workspace:*
-        version: link:../connector-shared
       zod:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
+      '@rawdash/connector-shared':
+        specifier: workspace:*
+        version: link:../connector-shared
       tsup:
         specifier: ^8.0.0
         version: 8.5.1(jiti@1.21.7)(postcss@8.5.9)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.3)
