@@ -57,10 +57,11 @@ function escapePkg(name: string): string {
   if (!name.startsWith('@')) {
     die(`Package must be scoped (start with '@'): got ${name}`);
   }
-  const [scope, rest] = name.split('/');
-  if (!scope || !rest) {
+  const parts = name.split('/');
+  if (parts.length !== 2 || !parts[0] || !parts[1]) {
     die(`Package name must be in the form '@scope/name': got ${name}`);
   }
+  const [scope, rest] = parts as [string, string];
   return `${encodeURIComponent(scope)}%2f${encodeURIComponent(rest)}`;
 }
 
@@ -149,13 +150,25 @@ async function pollForOtp(doneUrl: string, token: string): Promise<string> {
 }
 
 function openUrlInBrowser(url: string): void {
-  const cmd =
-    process.platform === 'darwin'
-      ? 'open'
-      : process.platform === 'win32'
-        ? 'start'
-        : 'xdg-open';
-  const result = spawnSync(cmd, [url], { stdio: 'ignore' });
+  let cmd: string;
+  let args: string[];
+  if (process.platform === 'darwin') {
+    cmd = 'open';
+    args = [url];
+  } else if (process.platform === 'win32') {
+    // `start` is a cmd.exe builtin, not a standalone executable, so we must
+    // invoke it through cmd.exe. The empty `""` title arg is required because
+    // `start` otherwise treats the first quoted string as the new window title,
+    // and URLs containing `&` need to be passed as a single argument (which
+    // spawn does automatically — no manual escaping required because we're not
+    // going through shell:true).
+    cmd = 'cmd.exe';
+    args = ['/c', 'start', '""', url];
+  } else {
+    cmd = 'xdg-open';
+    args = [url];
+  }
+  const result = spawnSync(cmd, args, { stdio: 'ignore' });
   if (result.status !== 0) {
     info(`(could not auto-open browser; visit the URL above manually)`);
   }
