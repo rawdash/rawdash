@@ -31,7 +31,14 @@ export async function runPropertySyncTest<T>(
   const extras = opts.extraInvariants ?? [];
 
   await fc.assert(
-    fc.asyncProperty(arb, async (sample) => {
+    fc.asyncProperty(arb, async (rawSample) => {
+      const parsed = opts.schema.safeParse(rawSample);
+      if (!parsed.success) {
+        throw new Error(
+          `zodToArbitrary generated a value rejected by its own schema (this is a bug in zodToArbitrary's coverage of the schema's constraints): ${parsed.error.message}\nsample=${JSON.stringify(rawSample).slice(0, 500)}`,
+        );
+      }
+      const sample = parsed.data;
       const storage = new InMemoryStorage();
       try {
         await opts.run(sample, storage);

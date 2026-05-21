@@ -26,7 +26,7 @@ function installFetchMock(
     body: { dimensions: Array<{ name: string }> },
   ) => unknown,
 ): ReturnType<typeof vi.fn> {
-  const spy = vi.fn().mockImplementation((url: string, init: RequestInit) => {
+  const spy = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
     const u = String(url);
     if (u.includes('oauth2.googleapis.com/token')) {
       return Promise.resolve(
@@ -34,7 +34,7 @@ function installFetchMock(
       );
     }
     if (u.includes('analyticsdata.googleapis.com')) {
-      const parsed = JSON.parse(String(init.body ?? '{}')) as {
+      const parsed = JSON.parse(String(init?.body ?? '{}')) as {
         dimensions: Array<{ name: string }>;
       };
       const firstDim = parsed.dimensions?.[0]?.name ?? '';
@@ -80,7 +80,9 @@ const trafficByDaySchema = z.object({
             .regex(/^(19|20)\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])$/),
         }),
       ]),
-      metricValues: z.array(z.object({ value: z.string().regex(/^\d+$/) })),
+      metricValues: z
+        .array(z.object({ value: z.string().regex(/^\d+$/) }))
+        .nonempty(),
     }),
   ),
 });

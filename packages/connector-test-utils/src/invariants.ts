@@ -170,6 +170,13 @@ export function checkUniversalInvariants(
 
   for (let i = 0; i < snap.edges.length; i++) {
     const edge = snap.edges[i]!;
+    if (!isFiniteNumber(edge.updated_at)) {
+      violations.push({
+        invariant: 'edge.updated_at is a finite number',
+        location: `edges[${i}] (kind=${edge.kind})`,
+        detail: `got updated_at=${JSON.stringify(edge.updated_at)}`,
+      });
+    }
     for (const field of [
       'from_type',
       'from_id',
@@ -210,6 +217,14 @@ export function checkUniversalInvariants(
         invariant: 'metric.ts is a finite number',
         location: `metrics[${i}] (name=${m.name})`,
         detail: `got ts=${JSON.stringify(m.ts)}`,
+      });
+    }
+    const undefPath = hasUndefinedDeep(m.attributes, 'attributes');
+    if (undefPath) {
+      violations.push({
+        invariant: 'no undefined reaches metric.attributes',
+        location: `metrics[${i}] (name=${m.name})`,
+        detail: `undefined at ${undefPath}`,
       });
     }
   }

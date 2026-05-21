@@ -27,7 +27,14 @@ type ZodDef =
       format?: string | null;
       checks?: Array<{
         _zod?: {
-          def?: { format?: string; minimum?: number; maximum?: number };
+          def?: {
+            check?: string;
+            format?: string;
+            minimum?: number;
+            maximum?: number;
+            value?: number;
+            inclusive?: boolean;
+          };
         };
       }>;
     }
@@ -40,7 +47,15 @@ type ZodDef =
   | { type: 'unknown' }
   | { type: 'literal'; values: ReadonlyArray<string | number | boolean | null> }
   | { type: 'enum'; entries: Record<string, string | number> }
-  | { type: 'array'; element: ZodInternal }
+  | {
+      type: 'array';
+      element: ZodInternal;
+      checks?: Array<{
+        _zod?: {
+          def?: { check?: string; minimum?: number; maximum?: number };
+        };
+      }>;
+    }
   | { type: 'tuple'; items: ZodInternal[]; rest?: ZodInternal | null }
   | { type: 'object'; shape: Record<string, ZodInternal> }
   | { type: 'union'; options: ZodInternal[] }
@@ -134,14 +149,42 @@ function numberArb(
     (c) => c?._zod?.def?.format !== undefined,
   );
   const format = formatCheck?._zod?.def?.format ?? def.format ?? null;
+  let min = -1_000_000;
+  let max = 1_000_000;
+  for (const c of def.checks ?? []) {
+    const cdef = c?._zod?.def as
+      | {
+          check?: string;
+          value?: number;
+          inclusive?: boolean;
+        }
+      | undefined;
+    if (!cdef || typeof cdef.value !== 'number') {
+      continue;
+    }
+    if (cdef.check === 'greater_than') {
+      const candidate = cdef.inclusive ? cdef.value : cdef.value + 1;
+      if (candidate > min) {
+        min = candidate;
+      }
+    } else if (cdef.check === 'less_than') {
+      const candidate = cdef.inclusive ? cdef.value : cdef.value - 1;
+      if (candidate < max) {
+        max = candidate;
+      }
+    }
+  }
+  if (max < min) {
+    max = min;
+  }
   if (format === 'safeint' || format === 'int32' || format === 'int') {
-    return fc.integer({ min: -1_000_000, max: 1_000_000 });
+    return fc.integer({ min, max });
   }
   return fc.double({
     noNaN: true,
     noDefaultInfinity: true,
-    min: -1_000_000,
-    max: 1_000_000,
+    min,
+    max,
   });
 }
 
@@ -173,11 +216,26 @@ function zodToArbitraryInternal(schema: unknown): fc.Arbitrary<unknown> {
       return fc.constantFrom(...(def.values as readonly unknown[]));
     case 'enum':
       return fc.constantFrom(...Object.values(def.entries));
-    case 'array':
+    case 'array': {
+      let arrMin = 0;
+      let arrMax = 5;
+      for (const c of def.checks ?? []) {
+        const cdef = c?._zod?.def;
+        if (cdef?.check === 'min_length' && typeof cdef.minimum === 'number') {
+          arrMin = Math.max(arrMin, cdef.minimum);
+        }
+        if (cdef?.check === 'max_length' && typeof cdef.maximum === 'number') {
+          arrMax = Math.min(arrMax, cdef.maximum);
+        }
+      }
+      if (arrMax < arrMin) {
+        arrMax = arrMin;
+      }
       return fc.array(zodToArbitraryInternal(def.element), {
-        minLength: 0,
-        maxLength: 5,
+        minLength: arrMin,
+        maxLength: Math.max(arrMin, arrMax),
       });
+    }
     case 'tuple': {
       const itemArbs = def.items.map(zodToArbitraryInternal);
       return fc.tuple(...itemArbs);
@@ -210,7 +268,7 @@ function zodToArbitraryInternal(schema: unknown): fc.Arbitrary<unknown> {
     case 'readonly':
       return zodToArbitraryInternal(def.innerType);
     case 'pipe':
-      return zodToArbitraryInternal(def.in);
+      return zodToArbitraryInternal(def.out);
     case 'record':
       return fc.dictionary(
         zodToArbitraryInternal(def.keyType) as fc.Arbitrary<string>,

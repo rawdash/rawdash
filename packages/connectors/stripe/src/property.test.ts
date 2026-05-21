@@ -53,7 +53,7 @@ const customersSchema = z.array(
     id: idString,
     email: z.string().nullable(),
     name: z.string().nullable(),
-    created: z.number().int(),
+    created: z.number().int().nonnegative(),
     currency: z.string().nullable(),
     delinquent: z.boolean(),
     livemode: z.boolean(),
@@ -65,7 +65,7 @@ const productsSchema = z.array(
     id: idString,
     name: z.string(),
     active: z.boolean(),
-    created: z.number().int(),
+    created: z.number().int().nonnegative(),
   }),
 );
 
