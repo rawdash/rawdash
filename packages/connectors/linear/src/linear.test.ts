@@ -319,6 +319,94 @@ describe('LinearConnector.sync', () => {
     expect(stateEvents[0]!.attributes.toStateId).toBe('s-in-progress');
   });
 
+  it('skips history events with createdAt <= since in latest mode', async () => {
+    const connector = new LinearConnector(
+      { resources: ['issues'] },
+      { apiKey: 'lin_api_test' as unknown as { $secret: string } },
+    );
+
+    const since = '2024-05-01T00:00:00.000Z';
+    const issue = {
+      id: 'issue-1',
+      identifier: 'CORE-7',
+      title: 'Fix sync',
+      priority: 2,
+      estimate: null,
+      state: { id: 's-in-progress', name: 'In Progress', type: 'started' },
+      assignee: null,
+      team: { id: 'team-1' },
+      project: null,
+      cycle: null,
+      labels: { nodes: [] },
+      createdAt: '2024-04-01T00:00:00.000Z',
+      updatedAt: '2024-05-02T00:00:00.000Z',
+      completedAt: null,
+      canceledAt: null,
+      startedAt: null,
+      history: {
+        nodes: [
+          {
+            id: 'h-old',
+            createdAt: '2024-04-15T00:00:00.000Z',
+            actor: null,
+            fromState: { id: 's-backlog', name: 'Backlog' },
+            toState: { id: 's-todo', name: 'Todo' },
+            fromAssignee: null,
+            toAssignee: null,
+          },
+          {
+            id: 'h-new',
+            createdAt: '2024-05-02T00:00:00.000Z',
+            actor: null,
+            fromState: { id: 's-todo', name: 'Todo' },
+            toState: { id: 's-in-progress', name: 'In Progress' },
+            fromAssignee: null,
+            toAssignee: null,
+          },
+        ],
+        pageInfo: { hasNextPage: false, endCursor: null },
+      },
+    };
+
+    const { spy } = mockGraphql(() => ({
+      issues: {
+        nodes: [issue],
+        pageInfo: { hasNextPage: false, endCursor: null },
+      },
+    }));
+    vi.stubGlobal('fetch', spy);
+
+    const storage = makeStorage();
+    await connector.sync({ mode: 'latest', since }, storage);
+
+    const stateEvents = storage.event.mock.calls
+      .map((c) => c[0] as { name: string; attributes: Record<string, unknown> })
+      .filter((e) => e.name === 'linear_issue_state_change');
+    expect(stateEvents).toHaveLength(1);
+    expect(stateEvents[0]!.attributes.historyId).toBe('h-new');
+  });
+
+  it('throws an actionable error when GraphQL response is missing data', async () => {
+    const connector = new LinearConnector(
+      { resources: ['teams'] },
+      { apiKey: 'lin_api_test' as unknown as { $secret: string } },
+    );
+
+    const spy = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: new Headers({ 'content-type': 'application/json' }),
+      text: () => Promise.resolve(JSON.stringify({})),
+    } as Response);
+    vi.stubGlobal('fetch', spy);
+
+    const result = await connector.sync({ mode: 'full' }, makeStorage());
+    expect(result.done).toBe(false);
+    expect(result.transientError).toBeInstanceOf(Error);
+    expect((result.transientError as Error).message).toContain('missing data');
+  });
+
   it('passes Authorization header on every GraphQL request', async () => {
     const connector = new LinearConnector(
       {},

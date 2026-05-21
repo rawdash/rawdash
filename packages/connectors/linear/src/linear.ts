@@ -296,6 +296,11 @@ export class LinearConnector extends BaseConnector<
       const messages = res.body.errors.map((e) => e.message).join('; ');
       throw new Error(`Linear GraphQL error: ${messages}`);
     }
+    if (!res.body.data) {
+      throw new Error(
+        `Linear GraphQL response missing data for resource '${resource}'`,
+      );
+    }
     return res;
   }
 
@@ -513,6 +518,7 @@ export class LinearConnector extends BaseConnector<
   private async writeIssues(
     storage: StorageHandle,
     issues: LinearIssue[],
+    historySinceMs: number | null,
   ): Promise<void> {
     for (const i of issues) {
       await storage.entity({
@@ -546,9 +552,13 @@ export class LinearConnector extends BaseConnector<
         if (h.toState.id === h.fromState.id) {
           continue;
         }
+        const eventTs = new Date(h.createdAt).getTime();
+        if (historySinceMs !== null && eventTs <= historySinceMs) {
+          continue;
+        }
         await storage.event({
           name: 'linear_issue_state_change',
-          start_ts: new Date(h.createdAt).getTime(),
+          start_ts: eventTs,
           end_ts: null,
           attributes: {
             historyId: h.id,
@@ -579,6 +589,10 @@ export class LinearConnector extends BaseConnector<
       ? options.cursor
       : undefined;
     const isFull = options.mode === 'full';
+    const historySinceMs =
+      options.mode === 'latest' && options.since
+        ? new Date(options.since).getTime()
+        : null;
 
     const enabled = this.settings.resources;
     const phases =
@@ -630,7 +644,11 @@ export class LinearConnector extends BaseConnector<
           case 'cycles':
             return this.writeCycles(storage, items as LinearCycle[]);
           case 'issues':
-            return this.writeIssues(storage, items as LinearIssue[]);
+            return this.writeIssues(
+              storage,
+              items as LinearIssue[],
+              historySinceMs,
+            );
         }
       },
     });
