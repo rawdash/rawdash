@@ -22,11 +22,15 @@ import { GitHubConnector } from '@rawdash/connector-github';
 import { defineConfig, defineDashboard, secret } from '@rawdash/core';
 import { serve } from '@rawdash/server';
 
-const github = new GitHubConnector({
-  owner: 'my-org',
-  repo: 'my-repo',
-  token: secret('GITHUB_TOKEN'),
-});
+const github = new GitHubConnector(
+  {
+    owner: 'my-org',
+    repo: 'my-repo',
+  },
+  {
+    token: secret('GITHUB_TOKEN'),
+  },
+);
 
 serve(
   defineConfig({

@@ -322,7 +322,7 @@ function isMyCursor(value: unknown): value is MyCursor {
 }
 ```
 
-If the cursor includes a URL the host will pass back to `fetch()`, **sanitize it**: confirm the host, protocol, and path prefix match your API. A malicious or corrupted cursor must not exfiltrate credentials to an attacker-controlled host. See `sanitizeIncomingCursor` in the github connector for a working example.
+If the cursor includes a URL the host will pass back to `fetch()`, **sanitize it**: confirm the host, protocol, and path prefix match your API. A malicious or corrupted cursor must not exfiltrate credentials to an attacker-controlled host. See `resolveCursor`/`sanitizePageUrl` in the GitHub connector for a working example.
 
 ### What the host guarantees
 

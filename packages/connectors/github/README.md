@@ -26,11 +26,15 @@ import {
   secret,
 } from '@rawdash/core';
 
-const github = new GitHubConnector({
-  owner: 'my-org',
-  repo: 'my-repo',
-  token: secret('GITHUB_TOKEN'), // optional for public repos
-});
+const github = new GitHubConnector(
+  {
+    owner: 'my-org',
+    repo: 'my-repo',
+  },
+  {
+    token: secret('GITHUB_TOKEN'), // optional for public repos
+  },
+);
 
 export default defineConfig({
   connectors: [{ connector: github }],
