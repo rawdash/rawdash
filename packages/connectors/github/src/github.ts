@@ -37,7 +37,7 @@ export const configFields = defineConfigFields(
   }),
 );
 
-export interface GitHubActionsSettings {
+export interface GitHubSettings {
   owner: string;
   repo: string;
 }
@@ -181,18 +181,15 @@ function isGitHubSyncCursor(value: unknown): value is GitHubSyncCursor {
   return true;
 }
 
-export class GitHubActionsConnector extends BaseConnector<
-  GitHubActionsSettings,
+export class GitHubConnector extends BaseConnector<
+  GitHubSettings,
   GitHubCredentials
 > {
   static readonly id = 'github-actions';
 
-  static create(
-    input: unknown,
-    ctx?: ConnectorContext,
-  ): GitHubActionsConnector {
+  static create(input: unknown, ctx?: ConnectorContext): GitHubConnector {
     const parsed = configFields.parse(input);
-    return new GitHubActionsConnector(
+    return new GitHubConnector(
       { owner: parsed.owner, repo: parsed.repo },
       { token: parsed.token },
       ctx,

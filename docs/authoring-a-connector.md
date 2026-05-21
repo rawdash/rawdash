@@ -296,7 +296,7 @@ while (nextUrl) {
 return { done: true };
 ```
 
-The canonical implementation lives in [`packages/connectors/github/src/github-actions.ts`](../packages/connectors/github/src/github-actions.ts) — read it before writing your own.
+The canonical implementation lives in [`packages/connectors/github/src/github.ts`](../packages/connectors/github/src/github.ts) — read it before writing your own.
 
 > **Helper coming:** a `paginateChunked` helper in `@rawdash/connector-shared` will absorb the phase-loop boilerplate (you supply the phases array, a `fetchPage` and `writeBatch` per phase, and it produces the cursor for you). Adopt it when it ships; the underlying contract — the `(phase, page)` cursor shape — won't change.
 
@@ -322,7 +322,7 @@ function isMyCursor(value: unknown): value is MyCursor {
 }
 ```
 
-If the cursor includes a URL the host will pass back to `fetch()`, **sanitize it**: confirm the host, protocol, and path prefix match your API. A malicious or corrupted cursor must not exfiltrate credentials to an attacker-controlled host. See `sanitizeIncomingCursor` in the github-actions connector for a working example.
+If the cursor includes a URL the host will pass back to `fetch()`, **sanitize it**: confirm the host, protocol, and path prefix match your API. A malicious or corrupted cursor must not exfiltrate credentials to an attacker-controlled host. See `resolveCursor`/`sanitizePageUrl` in the GitHub connector for a working example.
 
 ### What the host guarantees
 
@@ -468,4 +468,4 @@ The four steps, run once per new package from a maintainer machine with publish 
 
 - [`packages/core/README.md`](../packages/core/README.md) — the consumer-facing core API.
 - [`packages/connector-shared/README.md`](../packages/connector-shared/README.md) — full HTTP substrate reference.
-- [`packages/connectors/github/`](../packages/connectors/github/) — the canonical connector. Read its `github-actions.ts` source.
+- [`packages/connectors/github/`](../packages/connectors/github/) — the canonical connector. Read its `github.ts` source.

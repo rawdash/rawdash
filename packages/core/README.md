@@ -20,7 +20,7 @@ npm install @rawdash/core @rawdash/connector-github
 ## Quick example
 
 ```ts
-import { GitHubActionsConnector } from '@rawdash/connector-github';
+import { GitHubConnector } from '@rawdash/connector-github';
 import {
   defineConfig,
   defineDashboard,
@@ -28,11 +28,15 @@ import {
   secret,
 } from '@rawdash/core';
 
-const github = new GitHubActionsConnector({
-  owner: 'my-org',
-  repo: 'my-repo',
-  token: secret('GITHUB_TOKEN'),
-});
+const github = new GitHubConnector(
+  {
+    owner: 'my-org',
+    repo: 'my-repo',
+  },
+  {
+    token: secret('GITHUB_TOKEN'),
+  },
+);
 
 export default defineConfig({
   connectors: [{ connector: github }],
