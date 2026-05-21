@@ -11,6 +11,61 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changeset:
+    name: Changeset check
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Detect publishable code changes
+        id: filter
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          CHANGED=$(git diff --name-only "$BASE_SHA" HEAD \
+            | grep -E '^packages/.+\.(ts|tsx|js|mjs|cjs|jsx|json)$' \
+            | grep -Ev '^packages/connector-shared/' \
+            | grep -Ev '\.(test|spec)\.[^/]+$' \
+            | grep -Ev '(^|/)(__tests__|tests)/' \
+            || true)
+          if [ -n "$CHANGED" ]; then
+            echo "has_publishable=true" >> "$GITHUB_OUTPUT"
+            echo "Publishable source changes detected:"
+            echo "$CHANGED"
+          else
+            echo "has_publishable=false" >> "$GITHUB_OUTPUT"
+            echo "No publishable source changes; changeset not required."
+          fi
+
+      - name: Setup pnpm
+        if: steps.filter.outputs.has_publishable == 'true'
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+
+      - name: Setup Node.js
+        if: steps.filter.outputs.has_publishable == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        if: steps.filter.outputs.has_publishable == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify changeset for publishable package changes
+        if: steps.filter.outputs.has_publishable == 'true'
+        run: pnpm changeset status --since=origin/${{ github.event.pull_request.base.ref }}
+
   ci:
     name: CI
     runs-on: ubuntu-latest
@@ -23,6 +78,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
