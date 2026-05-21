@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/client",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "description": "Rawdash framework-agnostic data sources",
   "license": "Apache-2.0",
   "type": "module",

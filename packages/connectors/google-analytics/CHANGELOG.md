@@ -1,5 +1,13 @@
 # @rawdash/connector-google-analytics
 
+## 0.13.0
+
+### Patch Changes
+
+- 04d849e: Add `default` export pointing at the connector class on every `@rawdash/connector-*` package. Enables symbol-name-agnostic build-time codegen for rawdash cloud's connector registry. Existing named exports (`GitHubConnector`, `StripeConnector`, `GA4Connector`) are unchanged.
+- Updated dependencies [27254b6]
+  - @rawdash/core@0.13.0
+
 ## 0.12.0
 
 ### Minor Changes
