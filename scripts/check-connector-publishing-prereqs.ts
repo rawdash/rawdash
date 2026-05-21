@@ -539,29 +539,46 @@ function checkPackedTarballHasNoSharedDep(
   }
 }
 
-function extendsBaseConnectorByName(ctor: unknown): boolean {
+type ConstructorLike = abstract new (...args: never[]) => unknown;
+
+function extendsBaseConnector(
+  ctor: unknown,
+  baseConnector: ConstructorLike,
+): boolean {
   if (typeof ctor !== 'function') {
     return false;
   }
-  let proto: unknown = (ctor as { prototype?: unknown }).prototype;
-  while (proto && proto !== Object.prototype) {
-    const c = (proto as { constructor?: { name?: string } }).constructor;
-    if (c?.name === 'BaseConnector') {
-      return true;
-    }
-    proto = Object.getPrototypeOf(proto);
+  const proto = (ctor as { prototype?: object }).prototype;
+  return (
+    proto != null &&
+    Object.prototype.isPrototypeOf.call(baseConnector.prototype, proto)
+  );
+}
+
+async function loadBaseConnector(): Promise<ConstructorLike> {
+  const coreEntry = join(REPO_ROOT, 'packages/core/src/index.ts');
+  const mod = (await import(pathToFileURL(coreEntry).href)) as {
+    BaseConnector?: unknown;
+  };
+  if (typeof mod.BaseConnector !== 'function') {
+    throw new Error(
+      `Could not load BaseConnector from ${relative(REPO_ROOT, coreEntry)} — ` +
+        `the default-export check needs it as the reference identity for ` +
+        `prototype-chain comparison.`,
+    );
   }
-  return false;
+  return mod.BaseConnector as ConstructorLike;
 }
 
 async function checkConnectorDefaultExports(
   publicPackages: WorkspacePackage[],
 ): Promise<void> {
-  for (const pkg of publicPackages) {
-    if (!isConnectorPackage(pkg)) {
-      continue;
-    }
-
+  const connectorPackages = publicPackages.filter(isConnectorPackage);
+  if (connectorPackages.length === 0) {
+    return;
+  }
+  const baseConnector = await loadBaseConnector();
+  for (const pkg of connectorPackages) {
     const distEntry = join(pkg.path, 'dist/index.js');
     const srcEntry = join(pkg.path, 'src/index.ts');
     const entry = existsSync(distEntry)
@@ -601,7 +618,7 @@ async function checkConnectorDefaultExports(
       continue;
     }
 
-    if (!extendsBaseConnectorByName(def)) {
+    if (!extendsBaseConnector(def, baseConnector)) {
       recordError(
         `${pkg.name}: default export of ${relative(REPO_ROOT, entry)} does ` +
           `not extend BaseConnector from @rawdash/core. The default export ` +
