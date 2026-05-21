@@ -49,7 +49,7 @@ const ga4 = new GA4Connector(
 Or using `GA4Connector.create` (validates via `configFields` Zod schema):
 
 ```ts
-const { connector: ga4 } = GA4Connector.create({
+const ga4 = GA4Connector.create({
   propertyId: '123456789',
   serviceAccountJson: { $secret: 'GA_SERVICE_ACCOUNT_JSON' },
   // lookbackDays: 90,  // optional, default 90 for full sync

@@ -2,6 +2,7 @@ import type { HttpResponse } from '@rawdash/connector-shared';
 import {
   BaseConnector,
   type ChunkedSyncCursor,
+  type ConnectorContext,
   type CredentialsSchema,
   type StorageHandle,
   type SyncOptions,
@@ -293,14 +294,13 @@ export class StripeConnector extends BaseConnector<
 > {
   static readonly id = 'stripe';
 
-  static create(input: unknown): { connector: StripeConnector } {
+  static create(input: unknown, ctx?: ConnectorContext): StripeConnector {
     const parsed = configFields.parse(input);
-    return {
-      connector: new StripeConnector(
-        { accountId: parsed.accountId, resources: parsed.resources },
-        { apiKey: parsed.apiKey },
-      ),
-    };
+    return new StripeConnector(
+      { accountId: parsed.accountId, resources: parsed.resources },
+      { apiKey: parsed.apiKey },
+      ctx,
+    );
   }
 
   readonly id = 'stripe';

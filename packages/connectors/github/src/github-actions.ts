@@ -6,6 +6,7 @@ import {
 import {
   BaseConnector,
   type ChunkedSyncCursor,
+  type ConnectorContext,
   type CredentialsSchema,
   type FetchPageResult,
   type StorageHandle,
@@ -186,11 +187,15 @@ export class GitHubActionsConnector extends BaseConnector<
 > {
   static readonly id = 'github-actions';
 
-  static create(input: unknown): GitHubActionsConnector {
+  static create(
+    input: unknown,
+    ctx?: ConnectorContext,
+  ): GitHubActionsConnector {
     const parsed = configFields.parse(input);
     return new GitHubActionsConnector(
       { owner: parsed.owner, repo: parsed.repo },
       { token: parsed.token },
+      ctx,
     );
   }
 

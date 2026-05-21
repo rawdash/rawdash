@@ -466,12 +466,12 @@ describe('StripeConnector.create', () => {
     vi.unstubAllEnvs();
   });
 
-  it('returns a connector wrapped in a ConfiguredConnector shape', () => {
+  it('returns the connector instance directly', () => {
     vi.stubEnv('STRIPE_TEST_KEY', 'test_stripe_key_fixture');
-    const entry = StripeConnector.create({
+    const connector = StripeConnector.create({
       apiKey: { $secret: 'STRIPE_TEST_KEY' },
     });
-    expect(entry.connector).toBeInstanceOf(StripeConnector);
-    expect(entry.connector.id).toBe('stripe');
+    expect(connector).toBeInstanceOf(StripeConnector);
+    expect(connector.id).toBe('stripe');
   });
 });
