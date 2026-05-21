@@ -66,7 +66,7 @@ The lower-level `defineConnector<TSettings>()` factory is available for connecto
 Every `@rawdash/connector-*` package **must** export its connector class as the package's default export, in addition to any named exports:
 
 ```ts
-// packages/connector-<name>/src/index.ts
+// packages/connectors/<name>/src/index.ts
 import { MyConnector } from './my-connector';
 
 export { configFields, MyConnector } from './my-connector';
