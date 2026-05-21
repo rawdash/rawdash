@@ -1,5 +1,12 @@
 # @rawdash/client
 
+## 0.13.0
+
+### Patch Changes
+
+- Updated dependencies [27254b6]
+  - @rawdash/core@0.13.0
+
 ## 0.12.0
 
 ### Patch Changes
