@@ -225,6 +225,8 @@ export class GitHubConnector extends BaseConnector<
 
   override readonly credentials = githubCredentials;
 
+  private seenWorkflowRunIds = new Set<string>();
+
   private buildHeaders(): Record<string, string> {
     const headers: Record<string, string> = {
       Accept: 'application/vnd.github+json',
@@ -554,12 +556,29 @@ export class GitHubConnector extends BaseConnector<
   ): Promise<void> {
     if (page === null) {
       await storage.events([], { names: ['workflow_run'] });
+      this.seenWorkflowRunIds.clear();
     }
-    const runs = dedupeByKey(
+    const withinPage = dedupeByKey(
       items as GitHubRunsResponse['workflow_runs'],
       (run) => String(run.id),
       'workflow_runs',
     );
+    let crossPageDuplicates = 0;
+    const runs: GitHubRunsResponse['workflow_runs'] = [];
+    for (const run of withinPage) {
+      const key = String(run.id);
+      if (this.seenWorkflowRunIds.has(key)) {
+        crossPageDuplicates++;
+        continue;
+      }
+      this.seenWorkflowRunIds.add(key);
+      runs.push(run);
+    }
+    if (crossPageDuplicates > 0) {
+      console.warn(
+        `[github-actions] workflow_runs: dropped ${crossPageDuplicates} duplicate id(s) seen on an earlier page`,
+      );
+    }
     for (const run of runs) {
       await storage.event({
         name: 'workflow_run',

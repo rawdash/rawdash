@@ -84,7 +84,7 @@ export default defineConfig({
 
 The GitHub REST API can return the same item more than once within a single sync — for example when cursor pagination overlaps as the underlying collection mutates mid-fetch, when a retried request re-introduces items already seen, or when the same entity appears via more than one endpoint.
 
-Per resource (`workflow_runs`, `pull_requests`, `issues`, `deployments`, `releases`, `contributors`, `repo_stats`), the connector dedupes by stable id before writing to storage. The strategy is **keep last**: when two copies share an id, the later copy in the API response wins. When duplicates are dropped, the connector emits a `console.warn` with the count so the behavior is observable.
+Per resource (`workflow_runs`, `pull_requests`, `issues`, `deployments`, `releases`, `contributors`), the connector dedupes by stable id before writing to storage. The strategy is **keep last**: when two copies share an id, the later copy in the API response wins. `workflow_runs` additionally tracks ids across paginated pages within a single sync so the same run can't be written as two separate events. When duplicates are dropped, the connector emits a `console.warn` with the count so the behavior is observable. `repo_stats` is a single-document resource so dedupe doesn't apply.
 
 ## Property tests
 
