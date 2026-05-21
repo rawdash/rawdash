@@ -1,6 +1,6 @@
 import { createClient } from '@libsql/client';
 import { LibsqlStorage } from '@rawdash/adapter-libsql';
-import { GitHubActionsConnector } from '@rawdash/connector-github';
+import { GitHubConnector } from '@rawdash/connector-github';
 import {
   defineConfig,
   defineDashboard,
@@ -24,7 +24,7 @@ function resolvePort(): number {
   return parsed;
 }
 
-const github = new GitHubActionsConnector(
+const github = new GitHubConnector(
   {
     owner: process.env['GITHUB_OWNER'] ?? 'rawdash',
     repo: process.env['GITHUB_REPO'] ?? 'rawdash',

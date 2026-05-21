@@ -18,11 +18,11 @@ npm install @rawdash/server
 ## Quick example
 
 ```ts
-import { GitHubActionsConnector } from '@rawdash/connector-github';
+import { GitHubConnector } from '@rawdash/connector-github';
 import { defineConfig, defineDashboard, secret } from '@rawdash/core';
 import { serve } from '@rawdash/server';
 
-const github = new GitHubActionsConnector({
+const github = new GitHubConnector({
   owner: 'my-org',
   repo: 'my-repo',
   token: secret('GITHUB_TOKEN'),

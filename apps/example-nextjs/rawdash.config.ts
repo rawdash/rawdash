@@ -1,4 +1,4 @@
-import { GitHubActionsConnector } from '@rawdash/connector-github';
+import { GitHubConnector } from '@rawdash/connector-github';
 import {
   defineConfig,
   defineDashboard,
@@ -6,7 +6,7 @@ import {
   secret,
 } from '@rawdash/core';
 
-const github = new GitHubActionsConnector(
+const github = new GitHubConnector(
   {
     owner: process.env['GITHUB_OWNER'] ?? 'rawdash',
     repo: process.env['GITHUB_REPO'] ?? 'rawdash',

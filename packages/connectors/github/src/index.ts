@@ -1,2 +1,2 @@
-export { configFields, GitHubActionsConnector } from './github-actions';
-export type { GitHubActionsSettings } from './github-actions';
+export { configFields, GitHubConnector } from './github';
+export type { GitHubSettings } from './github';
