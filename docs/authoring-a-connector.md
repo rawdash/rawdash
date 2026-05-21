@@ -61,6 +61,21 @@ export class MyConnector extends BaseConnector<
 
 The lower-level `defineConnector<TSettings>()` factory is available for connectors that don't fit the class shape (rare). Prefer `BaseConnector`.
 
+### Package entry point
+
+Every `@rawdash/connector-*` package **must** export its connector class as the package's default export, in addition to any named exports:
+
+```ts
+// packages/connectors/<name>/src/index.ts
+import { MyConnector } from './my-connector';
+
+export { configFields, MyConnector } from './my-connector';
+export type { MySettings } from './my-connector';
+export default MyConnector;
+```
+
+This is a hard requirement, not a style preference: rawdash cloud's sync-consumer Worker can't use runtime `import()` (Cloudflare bundles the module graph statically), so it relies on a build-time codegen step that scans `@rawdash/connector-*` dependencies and emits static `import` statements. A symbol-name-agnostic default export is what makes that codegen generic — without it, each new connector would require hand-edited registry code in cloud. Named exports stay as-is for ergonomic direct consumers; only the default export needs to point at the connector class.
+
 ## 2. Picking shapes
 
 Connectors write into five storage shapes. Choose by the access pattern, not the source's data model:
