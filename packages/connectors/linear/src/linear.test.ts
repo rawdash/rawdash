@@ -355,6 +355,15 @@ describe('LinearConnector.sync', () => {
             toAssignee: null,
           },
           {
+            id: 'h-boundary',
+            createdAt: since,
+            actor: null,
+            fromState: { id: 's-todo', name: 'Todo' },
+            toState: { id: 's-ready', name: 'Ready' },
+            fromAssignee: null,
+            toAssignee: null,
+          },
+          {
             id: 'h-new',
             createdAt: '2024-05-02T00:00:00.000Z',
             actor: null,
