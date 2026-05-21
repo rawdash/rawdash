@@ -76,6 +76,8 @@ export default MyConnector;
 
 This is a hard requirement, not a style preference: rawdash cloud's sync-consumer Worker can't use runtime `import()` (Cloudflare bundles the module graph statically), so it relies on a build-time codegen step that scans `@rawdash/connector-*` dependencies and emits static `import` statements. A symbol-name-agnostic default export is what makes that codegen generic — without it, each new connector would require hand-edited registry code in cloud. Named exports stay as-is for ergonomic direct consumers; only the default export needs to point at the connector class.
 
+CI enforces this via `scripts/check-connector-publishing-prereqs.ts`, which dynamically imports each `@rawdash/connector-*` package and asserts the default export is a `BaseConnector` subclass. A connector PR that forgets `export default` will fail the **Check connector publishing prerequisites** step.
+
 ## 2. Picking shapes
 
 Connectors write into five storage shapes. Choose by the access pattern, not the source's data model:

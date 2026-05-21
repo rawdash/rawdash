@@ -29,17 +29,50 @@
  *      `@rawdash/connector-shared` entry under `dependencies` — proving the
  *      shared substrate was actually inlined.
  *
- * See §7 and §9 of docs/authoring-a-connector.md for the underlying rules.
+ *   5. default-export discipline: every `@rawdash/connector-*` (other than
+ *      `@rawdash/connector-shared`) must export its connector class as the
+ *      module's default export, and that class must extend `BaseConnector`
+ *      from `@rawdash/core`. Cloud's sync-consumer Worker depends on this
+ *      via build-time codegen — without a `BaseConnector`-derived default
+ *      export, cloud breaks at compile time.
+ *
+ * See §1, §7, and §9 of docs/authoring-a-connector.md for the underlying rules.
  */
 import { execFileSync, execSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const REGISTRY = 'https://registry.npmjs.org';
 const REGISTRY_HOST = new URL(REGISTRY).hostname;
 const NETWORK_TIMEOUT_MS = 30_000;
 const SHARED_PKG = '@rawdash/connector-shared';
+const SOURCE_CONDITION = '@rawdash/source';
+const SOURCE_CONDITION_FLAG = `--conditions=${SOURCE_CONDITION}`;
+
+// Re-exec with --conditions=@rawdash/source so the layer-5 dynamic import of
+// each connector's src/index.ts can resolve sibling workspace packages
+// (@rawdash/core, @rawdash/connector-shared) through their "@rawdash/source"
+// export condition without requiring a prior build.
+if (!(process.env['NODE_OPTIONS'] ?? '').includes(SOURCE_CONDITION_FLAG)) {
+  const nextOpts = [process.env['NODE_OPTIONS'], SOURCE_CONDITION_FLAG]
+    .filter(Boolean)
+    .join(' ');
+  try {
+    execFileSync(
+      process.argv[0]!,
+      [...process.execArgv, ...process.argv.slice(1)],
+      {
+        stdio: 'inherit',
+        env: { ...process.env, NODE_OPTIONS: nextOpts },
+      },
+    );
+    process.exit(0);
+  } catch (err) {
+    const status = (err as { status?: number }).status;
+    process.exit(typeof status === 'number' ? status : 1);
+  }
+}
 
 const REPO_ROOT = resolve(fileURLToPath(import.meta.url), '../..');
 const CHANGESET_CONFIG_PATH = join(REPO_ROOT, '.changeset/config.json');
@@ -513,6 +546,97 @@ function checkPackedTarballHasNoSharedDep(
   }
 }
 
+type ConstructorLike = abstract new (...args: never[]) => unknown;
+
+function extendsBaseConnector(
+  ctor: unknown,
+  baseConnector: ConstructorLike,
+): boolean {
+  if (typeof ctor !== 'function') {
+    return false;
+  }
+  const proto = (ctor as { prototype?: object }).prototype;
+  return (
+    proto != null &&
+    Object.prototype.isPrototypeOf.call(baseConnector.prototype, proto)
+  );
+}
+
+async function loadBaseConnector(): Promise<ConstructorLike> {
+  const coreEntry = join(REPO_ROOT, 'packages/core/src/index.ts');
+  const mod = (await import(pathToFileURL(coreEntry).href)) as {
+    BaseConnector?: unknown;
+  };
+  if (typeof mod.BaseConnector !== 'function') {
+    throw new Error(
+      `Could not load BaseConnector from ${relative(REPO_ROOT, coreEntry)} — ` +
+        `the default-export check needs it as the reference identity for ` +
+        `prototype-chain comparison.`,
+    );
+  }
+  return mod.BaseConnector as ConstructorLike;
+}
+
+async function checkConnectorDefaultExports(
+  publicPackages: WorkspacePackage[],
+): Promise<void> {
+  const connectorPackages = publicPackages.filter(isConnectorPackage);
+  if (connectorPackages.length === 0) {
+    return;
+  }
+  const baseConnector = await loadBaseConnector();
+  for (const pkg of connectorPackages) {
+    const distEntry = join(pkg.path, 'dist/index.js');
+    const srcEntry = join(pkg.path, 'src/index.ts');
+    const entry = existsSync(distEntry)
+      ? distEntry
+      : existsSync(srcEntry)
+        ? srcEntry
+        : null;
+    if (!entry) {
+      recordError(
+        `${pkg.name}: could not find an entry point to load (looked for ` +
+          `${relative(REPO_ROOT, distEntry)} and ${relative(REPO_ROOT, srcEntry)}). ` +
+          `Connectors must expose either a built dist/index.js or src/index.ts.`,
+      );
+      continue;
+    }
+
+    let mod: { default?: unknown };
+    try {
+      mod = (await import(pathToFileURL(entry).href)) as { default?: unknown };
+    } catch (err) {
+      recordError(
+        `${pkg.name}: failed to import ${relative(REPO_ROOT, entry)} while ` +
+          `verifying the default export: ${(err as Error).message}`,
+      );
+      continue;
+    }
+
+    const def = mod.default;
+    if (typeof def !== 'function') {
+      recordError(
+        `${pkg.name}: ${relative(REPO_ROOT, entry)} has no default export ` +
+          `(or it is not a constructor). Every @rawdash/connector-* package ` +
+          `must \`export default <ConnectorClass>\` so cloud's sync-consumer ` +
+          `codegen can emit \`import Connector from '${pkg.name}'\`. See the ` +
+          `"Package entry point" section of docs/authoring-a-connector.md.`,
+      );
+      continue;
+    }
+
+    if (!extendsBaseConnector(def, baseConnector)) {
+      recordError(
+        `${pkg.name}: default export of ${relative(REPO_ROOT, entry)} does ` +
+          `not extend BaseConnector from @rawdash/core. The default export ` +
+          `must be the connector class itself, not a factory or unrelated ` +
+          `symbol. See the "Package entry point" section of ` +
+          `docs/authoring-a-connector.md.`,
+      );
+    }
+  }
+}
+
 async function main(): Promise<void> {
   const allPackages = listWorkspacePackages();
   const publicPackages = allPackages.filter((p) => !p.private && p.name);
@@ -522,6 +646,9 @@ async function main(): Promise<void> {
 
   // Layer 4: connector-shared discipline (cheap, no network)
   checkConnectorSharedDiscipline(publicPackages);
+
+  // Layer 5: default-export discipline for every connector package
+  await checkConnectorDefaultExports(publicPackages);
 
   // Layers 2, 3, and the Layer 4 tarball assertion only need to run when new
   // packages were added.
