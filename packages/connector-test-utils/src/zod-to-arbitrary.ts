@@ -288,7 +288,9 @@ function zodToArbitraryInternal(schema: unknown): fc.Arbitrary<unknown> {
         { maxKeys: 4 },
       );
     case 'lazy':
-      return fc.constant(undefined);
+      throw new Error(
+        'zodToArbitrary: z.lazy() (recursive) schemas are not supported. Inline the schema or hand-write a fast-check arbitrary instead.',
+      );
     case 'intersection': {
       const left = zodToArbitraryInternal(def.left);
       const right = zodToArbitraryInternal(def.right);
