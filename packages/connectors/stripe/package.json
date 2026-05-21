@@ -33,6 +33,8 @@
   },
   "devDependencies": {
     "@rawdash/connector-shared": "workspace:*",
+    "@rawdash/connector-test-utils": "workspace:*",
+    "fast-check": "^4.8.0",
     "tsup": "^8.0.0",
     "typescript": "^5.7.2",
     "vitest": "^4.1.4"

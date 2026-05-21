@@ -80,6 +80,16 @@ export default defineConfig({
 - **Releases** — published GitHub releases (shape: `event`)
 - **Contributors** — commit activity per author (shape: `metric`)
 
+## Property tests
+
+Every resource in this connector has a fast-check property test under `src/property.test.ts` that:
+
+1. Generates N≥100 synthetic API payloads from a Zod schema mirroring the GitHub API response.
+2. Pipes them through `connector.sync()` against an `InMemoryStorage` instance.
+3. Asserts universal invariants — non-empty entity ids, finite event timestamps, no `undefined` leaking into storage, no thrown errors on any valid input — plus per-resource counts.
+
+The helper lives in `@rawdash/connector-test-utils`. When extending the connector with a new resource, add a Zod schema for its payload and a test wired up via `runPropertySyncTest`.
+
 ## Links
 
 - [rawdash docs](https://rawdash.dev)
