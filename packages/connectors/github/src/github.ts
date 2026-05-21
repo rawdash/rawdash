@@ -164,6 +164,31 @@ interface DeploymentPageItems {
 
 const CONTRIBUTORS_SKIPPED = Symbol('contributors-skipped');
 
+function dedupeByKey<T>(
+  items: T[],
+  keyFn: (item: T) => string,
+  resource: string,
+): T[] {
+  if (items.length < 2) {
+    return items;
+  }
+  const seen = new Map<string, T>();
+  let duplicates = 0;
+  for (const item of items) {
+    const key = keyFn(item);
+    if (seen.has(key)) {
+      duplicates++;
+    }
+    seen.set(key, item);
+  }
+  if (duplicates > 0) {
+    console.warn(
+      `[github-actions] ${resource}: dropped ${duplicates} duplicate id(s) — keeping latest copy of each`,
+    );
+  }
+  return Array.from(seen.values());
+}
+
 function isGitHubSyncCursor(value: unknown): value is GitHubSyncCursor {
   if (typeof value !== 'object' || value === null) {
     return false;
@@ -199,6 +224,8 @@ export class GitHubConnector extends BaseConnector<
   readonly id = 'github-actions';
 
   override readonly credentials = githubCredentials;
+
+  private seenWorkflowRunIds = new Set<string>();
 
   private buildHeaders(): Record<string, string> {
     const headers: Record<string, string> = {
@@ -529,8 +556,29 @@ export class GitHubConnector extends BaseConnector<
   ): Promise<void> {
     if (page === null) {
       await storage.events([], { names: ['workflow_run'] });
+      this.seenWorkflowRunIds.clear();
     }
-    const runs = items as GitHubRunsResponse['workflow_runs'];
+    const withinPage = dedupeByKey(
+      items as GitHubRunsResponse['workflow_runs'],
+      (run) => String(run.id),
+      'workflow_runs',
+    );
+    let crossPageDuplicates = 0;
+    const runs: GitHubRunsResponse['workflow_runs'] = [];
+    for (const run of withinPage) {
+      const key = String(run.id);
+      if (this.seenWorkflowRunIds.has(key)) {
+        crossPageDuplicates++;
+        continue;
+      }
+      this.seenWorkflowRunIds.add(key);
+      runs.push(run);
+    }
+    if (crossPageDuplicates > 0) {
+      console.warn(
+        `[github-actions] workflow_runs: dropped ${crossPageDuplicates} duplicate id(s) seen on an earlier page`,
+      );
+    }
     for (const run of runs) {
       await storage.event({
         name: 'workflow_run',
@@ -559,7 +607,12 @@ export class GitHubConnector extends BaseConnector<
       await storage.edges([], { kinds: ['reviewed_by'] });
     }
     const pageItems = items as PRPageItems[];
-    for (const { prs, reviewsByPR } of pageItems) {
+    for (const { prs: rawPrs, reviewsByPR } of pageItems) {
+      const prs = dedupeByKey(
+        rawPrs,
+        (pr) => String(pr.number),
+        'pull_requests',
+      );
       for (const pr of prs) {
         await storage.entity({
           type: 'pull_request',
@@ -602,11 +655,12 @@ export class GitHubConnector extends BaseConnector<
     if (page === null) {
       await storage.entities([], { types: ['issue'] });
     }
-    const issues = items as GitHubIssue[];
+    const issues = dedupeByKey(
+      (items as GitHubIssue[]).filter((i) => i.pull_request === undefined),
+      (issue) => String(issue.number),
+      'issues',
+    );
     for (const issue of issues) {
-      if (issue.pull_request !== undefined) {
-        continue;
-      }
       await storage.entity({
         type: 'issue',
         id: String(issue.number),
@@ -637,7 +691,12 @@ export class GitHubConnector extends BaseConnector<
       await storage.entities([], { types: ['deployment'] });
     }
     const pageItems = items as DeploymentPageItems[];
-    for (const { deployments, latestStatusById } of pageItems) {
+    for (const { deployments: rawDeployments, latestStatusById } of pageItems) {
+      const deployments = dedupeByKey(
+        rawDeployments,
+        (d) => String(d.id),
+        'deployments',
+      );
       for (const deployment of deployments) {
         const status = latestStatusById.get(deployment.id) ?? null;
         const createdMs = new Date(deployment.created_at).getTime();
@@ -669,7 +728,11 @@ export class GitHubConnector extends BaseConnector<
     if (page === null) {
       await storage.entities([], { types: ['release'] });
     }
-    const releases = items as GitHubRelease[];
+    const releases = dedupeByKey(
+      items as GitHubRelease[],
+      (r) => String(r.id),
+      'releases',
+    );
     for (const release of releases) {
       await storage.entity({
         type: 'release',
@@ -699,7 +762,11 @@ export class GitHubConnector extends BaseConnector<
     if (items[0] === CONTRIBUTORS_SKIPPED) {
       return;
     }
-    const contributors = items as GitHubContributorStats[];
+    const contributors = dedupeByKey(
+      items as GitHubContributorStats[],
+      (c) => c.author.login,
+      'contributors',
+    );
     await storage.entities(
       contributors.map((c) => {
         const additions = c.weeks.reduce((sum, w) => sum + w.a, 0);
