@@ -10,6 +10,7 @@
       "@rawdash/connector-github",
       "@rawdash/connector-google-analytics",
       "@rawdash/connector-stripe",
+      "@rawdash/connector-linear",
       "@rawdash/adapter-libsql",
       "@rawdash/cli",
       "@rawdash/client",

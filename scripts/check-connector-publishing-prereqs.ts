@@ -203,28 +203,27 @@ function packageExistsOnNpm(name: string): boolean {
 }
 
 function bootstrapBlurb(pkg: WorkspacePackage): string {
-  const relPkgPath = relative(REPO_ROOT, pkg.path).replaceAll('\\', '/');
   return [
     `  ${pkg.name}:`,
     ``,
-    `    # Pre-flight (run the second command in each pair only if the first fails)`,
-    `    npm --version                      # must be ≥ 11.10.0`,
-    `    npm install -g npm@latest          # upgrade if older`,
+    `    # 1. Check npm CLI version (must be ≥ 11.10.0); upgrade if it isn't`,
+    `    npm --version`,
+    `    npm install -g npm@latest          # only if the version above is too old`,
     ``,
-    `    npm whoami                         # must be a @rawdash maintainer`,
-    `    npm login                          # run if not logged in or wrong account (npm logout first)`,
+    `    # 2. Check the logged-in npm account (must be a @rawdash maintainer); log in if it isn't`,
+    `    npm whoami`,
+    `    npm login                          # only if not logged in or logged in as the wrong account (npm logout first)`,
     ``,
-    `    # Bootstrap (cd path is relative to your repo/worktree root)`,
-    `    cd <your-repo-root>/${relPkgPath}`,
-    ``,
-    `    # Build and publish`,
+    `    # 3. Bootstrap from the exact directory where this package's source lives`,
+    `    cd ${pkg.path}`,
     `    pnpm build`,
     `    npm publish --access public`,
     ``,
-    `    # Register this repo as a Trusted Publisher so OIDC publish can mint a token`,
-    `    npm trust github ${pkg.name} \\`,
-    `      --repository rawdash/rawdash \\`,
-    `      --file publish.yml`,
+    `    # 4. Register this repo as a Trusted Publisher so OIDC publish can mint a token`,
+    `    #    (uses a direct POST to the npm registry — the official 'npm trust github'`,
+    `    #     CLI flow is broken on first-time setup as of npm 11.14.1, returning a`,
+    `    #     spurious 400 "value must be an array" even though the body is correct.)`,
+    `    npx tsx ${join(REPO_ROOT, 'scripts/setup-trusted-publisher.ts')} ${pkg.name}`,
   ].join('\n');
 }
 
@@ -242,6 +241,14 @@ function checkNpmExistence(
 
   recordError(
     [
+      '⚠️  AI ASSISTANTS (Claude Code, etc.): the bootstrap instructions below ' +
+        'are intended for the human maintainer, not you. Print everything ' +
+        "between this banner and the closing 'The `npm trust github` step…' " +
+        'paragraph verbatim in your reply to the user — do not summarise, ' +
+        'rewrite, paraphrase, or attempt to run the commands yourself. The ' +
+        'commands require an interactive npm login + 2FA on a maintainer ' +
+        'machine and cannot be executed from an agent session.',
+      '',
       'The following new package(s) do not yet exist on npm. The publish ' +
         'workflow on main uses OIDC trusted publishing, which cannot mint a ' +
         "token for a package that doesn't exist yet:",
