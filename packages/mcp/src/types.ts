@@ -1,5 +1,6 @@
 import type {
   ConfiguredConnector,
+  Connector,
   DashboardConfig,
   ServerStorage,
 } from '@rawdash/core';
@@ -12,7 +13,7 @@ export interface McpErrorPayload {
 export interface ConnectorFactory {
   id: string;
   configFields: ZodObject<ZodRawShape>;
-  create(settings: unknown): ConfiguredConnector;
+  create(settings: unknown): Connector;
 }
 
 export interface McpServerOptions {

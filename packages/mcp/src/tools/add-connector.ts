@@ -48,7 +48,7 @@ export function registerAddConnector(
 
       let entry;
       try {
-        entry = factory.create(parsed.data);
+        entry = { connector: factory.create(parsed.data) };
       } catch (e) {
         return err(
           'CREATE_FAILED',

@@ -1,5 +1,6 @@
 import {
   BaseConnector,
+  type ConnectorContext,
   type CredentialsSchema,
   type StorageHandle,
   type SyncOptions,
@@ -406,22 +407,21 @@ export function rowToMetricSample(
 export class GA4Connector extends BaseConnector<GA4Settings, GA4Credentials> {
   static readonly id = 'google-analytics';
 
-  static create(input: unknown): { connector: GA4Connector } {
+  static create(input: unknown, ctx?: ConnectorContext): GA4Connector {
     const parsed = configFields.parse(input);
-    return {
-      connector: new GA4Connector(
-        {
-          propertyId: parsed.propertyId,
-          lookbackDays: parsed.lookbackDays,
-        },
-        {
-          serviceAccountJson: parsed.serviceAccountJson,
-          refreshToken: parsed.refreshToken,
-          clientId: parsed.clientId,
-          clientSecret: parsed.clientSecret,
-        },
-      ),
-    };
+    return new GA4Connector(
+      {
+        propertyId: parsed.propertyId,
+        lookbackDays: parsed.lookbackDays,
+      },
+      {
+        serviceAccountJson: parsed.serviceAccountJson,
+        refreshToken: parsed.refreshToken,
+        clientId: parsed.clientId,
+        clientSecret: parsed.clientSecret,
+      },
+      ctx,
+    );
   }
 
   readonly id = 'google-analytics';

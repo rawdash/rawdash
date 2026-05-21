@@ -715,16 +715,16 @@ describe('GA4Connector.create', () => {
     vi.unstubAllEnvs();
   });
 
-  it('returns a connector wrapped in the expected shape', () => {
+  it('returns the connector instance directly', () => {
     vi.stubEnv('GA_REFRESH_TOKEN', 'test-refresh-token');
     vi.stubEnv('GA_CLIENT_SECRET', 'test-client-secret');
-    const entry = GA4Connector.create({
+    const connector = GA4Connector.create({
       propertyId: '123456789',
       refreshToken: { $secret: 'GA_REFRESH_TOKEN' },
       clientId: 'my-client-id',
       clientSecret: { $secret: 'GA_CLIENT_SECRET' },
     });
-    expect(entry.connector).toBeInstanceOf(GA4Connector);
-    expect(entry.connector.id).toBe('google-analytics');
+    expect(connector).toBeInstanceOf(GA4Connector);
+    expect(connector.id).toBe('google-analytics');
   });
 });

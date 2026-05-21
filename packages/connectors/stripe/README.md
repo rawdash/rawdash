@@ -47,7 +47,7 @@ const stripe = new StripeConnector(
 Or using `StripeConnector.create` (validates via `configFields` Zod schema):
 
 ```ts
-const { connector: stripe } = StripeConnector.create({
+const stripe = StripeConnector.create({
   apiKey: { $secret: 'STRIPE_API_KEY' },
   // accountId: 'acct_…',
   // resources: ['customers', 'subscriptions', 'invoices'],
