@@ -149,6 +149,14 @@ function numberArb(
     (c) => c?._zod?.def?.format !== undefined,
   );
   const format = formatCheck?._zod?.def?.format ?? def.format ?? null;
+  const isIntegerFormat =
+    format === 'safeint' || format === 'int32' || format === 'int';
+  const exclusiveDelta = (value: number, dir: 1 | -1): number => {
+    if (isIntegerFormat) {
+      return value + dir;
+    }
+    return value + dir * Math.max(Math.abs(value), 1) * Number.EPSILON;
+  };
   let min = -1_000_000;
   let max = 1_000_000;
   for (const c of def.checks ?? []) {
@@ -163,12 +171,16 @@ function numberArb(
       continue;
     }
     if (cdef.check === 'greater_than') {
-      const candidate = cdef.inclusive ? cdef.value : cdef.value + 1;
+      const candidate = cdef.inclusive
+        ? cdef.value
+        : exclusiveDelta(cdef.value, 1);
       if (candidate > min) {
         min = candidate;
       }
     } else if (cdef.check === 'less_than') {
-      const candidate = cdef.inclusive ? cdef.value : cdef.value - 1;
+      const candidate = cdef.inclusive
+        ? cdef.value
+        : exclusiveDelta(cdef.value, -1);
       if (candidate < max) {
         max = candidate;
       }
@@ -177,7 +189,7 @@ function numberArb(
   if (max < min) {
     max = min;
   }
-  if (format === 'safeint' || format === 'int32' || format === 'int') {
+  if (isIntegerFormat) {
     return fc.integer({ min, max });
   }
   return fc.double({
