@@ -145,3 +145,13 @@ createMcpServer({
   ],
 });
 ```
+
+## Property tests
+
+Resources in this connector have fast-check property tests under `src/property.test.ts` that:
+
+1. Generate N≥50 synthetic API payloads from a Zod schema mirroring the upstream API response.
+2. Pipe them through `connector.sync()` against an `InMemoryStorage` instance.
+3. Assert universal invariants — non-empty entity ids, finite event timestamps, no `undefined` leaking into storage, no thrown errors on any valid input — plus per-resource counts.
+
+The helper lives in `@rawdash/connector-test-utils`. When adding a new resource, add a Zod schema for its payload and a test wired up via `runPropertySyncTest`.
