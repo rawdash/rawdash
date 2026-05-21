@@ -5,7 +5,12 @@ import {
   request as sharedRequest,
 } from '@rawdash/connector-shared';
 
-import { EnvSecretsResolver, type Secret, resolveSecrets } from './secrets';
+import {
+  EnvSecretsResolver,
+  type Secret,
+  type SecretsResolver,
+  resolveSecrets,
+} from './secrets';
 
 export type JSONValue =
   | string
@@ -198,6 +203,7 @@ export interface Connector {
 
 export interface ConnectorContext {
   observer?: RequestObserver;
+  secretsResolver?: SecretsResolver;
 }
 
 export interface ConnectorRequestOptions {
@@ -231,13 +237,13 @@ export abstract class BaseConnector<
   ) {
     this.settings = settings;
     this.rawCredInput = creds;
+    this.ctx = ctx ?? {};
     this.creds = creds
       ? (resolveSecrets(
           creds,
-          new EnvSecretsResolver(),
+          this.ctx.secretsResolver ?? new EnvSecretsResolver(),
         ) as InferCredentials<TCreds>)
       : ({} as InferCredentials<TCreds>);
-    this.ctx = ctx ?? {};
   }
 
   protected request<T = unknown>(
