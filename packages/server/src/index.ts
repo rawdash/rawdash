@@ -31,6 +31,7 @@ export { InMemoryStorage } from './storage';
 export type {
   CachedWidget,
   ConfiguredConnector,
+  ConnectorHealth,
   DashboardConfig,
   HealthResponse,
   ServerStorage,
@@ -38,6 +39,7 @@ export type {
   SyncStatus,
   TriggerSyncResponse,
   Widget,
+  WidgetSyncState,
   WidgetsListResponse,
 } from './types';
 export { isSyncActive, ACTIVE_SYNC_STATUSES } from '@rawdash/core';

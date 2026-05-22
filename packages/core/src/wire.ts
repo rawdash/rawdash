@@ -1,11 +1,11 @@
 import type { SyncState } from './engine';
 
 export type WidgetSyncState =
-  | 'synced'
+  | 'fresh'
+  | 'stale'
   | 'unsynced'
   | 'syncing'
-  | 'stale'
-  | 'error';
+  | 'failing';
 
 export interface CachedWidget<TData = unknown> {
   widgetId: string;

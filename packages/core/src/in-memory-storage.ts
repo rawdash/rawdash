@@ -1,4 +1,5 @@
 import type {
+  ConnectorHealth,
   Distribution,
   DistributionQuery,
   Edge,
@@ -21,6 +22,7 @@ export class InMemoryStorage implements ServerStorage {
   private metricStore = new Map<string, MetricSample[]>();
   private edgeStore = new Map<string, Edge[]>();
   private distributionStore = new Map<string, Distribution[]>();
+  private lastWriteAt = new Map<string, string>();
   private syncState: SyncState = {
     status: 'idle',
     queuedAt: null,
@@ -38,6 +40,9 @@ export class InMemoryStorage implements ServerStorage {
   }
 
   private buildHandle(connectorId: string): StorageHandle {
+    const touch = (): void => {
+      this.lastWriteAt.set(connectorId, new Date().toISOString());
+    };
     const getEntityMap = (): Map<string, Map<string, Entity>> => {
       if (!this.entityStore.has(connectorId)) {
         this.entityStore.set(connectorId, new Map());
@@ -84,10 +89,12 @@ export class InMemoryStorage implements ServerStorage {
           this.eventStore.set(connectorId, []);
         }
         this.eventStore.get(connectorId)!.push(e);
+        touch();
       },
 
       entity: async (e) => {
         upsertEntities([e]);
+        touch();
       },
 
       metric: async (m) => {
@@ -95,10 +102,12 @@ export class InMemoryStorage implements ServerStorage {
           this.metricStore.set(connectorId, []);
         }
         this.metricStore.get(connectorId)!.push(m);
+        touch();
       },
 
       edge: async (e) => {
         upsertEdges([e]);
+        touch();
       },
 
       distribution: async (d) => {
@@ -106,6 +115,7 @@ export class InMemoryStorage implements ServerStorage {
           this.distributionStore.set(connectorId, []);
         }
         this.distributionStore.get(connectorId)!.push(d);
+        touch();
       },
 
       events: async (es, scope) => {
@@ -114,6 +124,7 @@ export class InMemoryStorage implements ServerStorage {
           (e) => !names.has(e.name),
         );
         this.eventStore.set(connectorId, [...kept, ...es]);
+        touch();
       },
 
       entities: async (es, scope) => {
@@ -123,6 +134,7 @@ export class InMemoryStorage implements ServerStorage {
           byType.set(type, new Map());
         }
         upsertEntities(es);
+        touch();
       },
 
       metrics: async (ms, scope) => {
@@ -131,6 +143,7 @@ export class InMemoryStorage implements ServerStorage {
           (m) => !names.has(m.name),
         );
         this.metricStore.set(connectorId, [...kept, ...ms]);
+        touch();
       },
 
       edges: async (es, scope) => {
@@ -140,6 +153,7 @@ export class InMemoryStorage implements ServerStorage {
         );
         this.edgeStore.set(connectorId, kept);
         upsertEdges(es);
+        touch();
       },
 
       distributions: async (ds, scope) => {
@@ -148,6 +162,7 @@ export class InMemoryStorage implements ServerStorage {
           (d) => !names.has(d.name),
         );
         this.distributionStore.set(connectorId, [...kept, ...ds]);
+        touch();
       },
 
       queryEvents: async (q: EventQuery) => {
@@ -245,6 +260,15 @@ export class InMemoryStorage implements ServerStorage {
             `Unsupported shape for deleteOlderThan: ${String(shape)}`,
           );
         }
+      },
+
+      getHealth: async (): Promise<ConnectorHealth> => {
+        return {
+          status: 'idle',
+          lastSyncAt: this.lastWriteAt.get(connectorId) ?? null,
+          lastError: null,
+          syncIntervalSeconds: 0,
+        };
       },
     };
   }

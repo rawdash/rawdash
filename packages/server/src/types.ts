@@ -1,6 +1,7 @@
 export type {
   CachedWidget,
   ConfiguredConnector,
+  ConnectorHealth,
   DashboardConfig,
   HealthResponse,
   ServerStorage,
@@ -8,5 +9,6 @@ export type {
   SyncStatus,
   TriggerSyncResponse,
   Widget,
+  WidgetSyncState,
   WidgetsListResponse,
 } from '@rawdash/core';

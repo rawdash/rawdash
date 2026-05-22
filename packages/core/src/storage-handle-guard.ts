@@ -99,5 +99,6 @@ export function withAbortSignal(
     queryMetrics: (q) => handle.queryMetrics(q),
     traverse: (q) => handle.traverse(q),
     queryDistributions: (q) => handle.queryDistributions(q),
+    ...(handle.getHealth ? { getHealth: handle.getHealth.bind(handle) } : {}),
   };
 }

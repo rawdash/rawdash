@@ -89,7 +89,7 @@ function UnsyncedPlaceholder({
   const message =
     syncState === 'syncing'
       ? 'Syncing…'
-      : syncState === 'error'
+      : syncState === 'failing'
         ? 'Sync failed'
         : 'Not yet synced';
   return (

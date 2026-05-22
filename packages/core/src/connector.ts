@@ -149,6 +149,15 @@ export interface StorageHandle {
     shape: 'events' | 'metrics' | 'distributions',
     tsUnixMs: number,
   ): Promise<{ rowsDeleted: number }>;
+
+  getHealth?(): Promise<ConnectorHealth | null>;
+}
+
+export interface ConnectorHealth {
+  status: 'idle' | 'syncing' | 'error' | 'auth_failed' | 'paused';
+  lastSyncAt: string | null;
+  lastError: string | null;
+  syncIntervalSeconds: number;
 }
 
 // ---------------------------------------------------------------------------
