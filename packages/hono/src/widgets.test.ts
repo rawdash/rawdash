@@ -123,10 +123,16 @@ describe('createWidgetsRouter', () => {
     expect(body.data.hit).toBe(true);
   });
 
-  it('cachedAt is populated after markSyncSucceeded', async () => {
+  it('cachedAt is populated after a connector writes data', async () => {
     const storage = new InMemoryStorage();
     const app = makeApp(storage);
-    await storage.markSyncSucceeded();
+    const handle = storage.getStorageHandle(CONNECTOR_ID);
+    await handle.event({
+      name: 'run',
+      start_ts: Date.now(),
+      end_ts: null,
+      attributes: {},
+    });
     const res = await app.request('/dashboards/main/widgets');
     const { widgets } = (await res.json()) as {
       widgets: Array<{ cachedAt: string | null }>;

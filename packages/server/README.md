@@ -99,6 +99,20 @@ Transitions:
 
 Clients (`@rawdash/client`) poll `/sync/state` and wait for `!isSyncActive(status)` to settle.
 
+### `CachedWidget.syncState`
+
+`listWidgets` and `getWidget` populate `syncState` (and `meta.connectorStatus`) on each `CachedWidget` from the underlying `StorageHandle.getHealth?()`. When storage doesn't implement `getHealth`, `syncState` falls back to `'unsynced'` (no data) or `'fresh'` (data exists).
+
+| Value        | Meaning                                                                              |
+| ------------ | ------------------------------------------------------------------------------------ |
+| `'fresh'`    | Data exists and the connector's `lastSyncAt` is within `2 × syncIntervalSeconds`     |
+| `'stale'`    | Data exists but the connector hasn't synced inside its freshness window              |
+| `'unsynced'` | No successful sync yet for this connector                                            |
+| `'syncing'`  | A sync is actively in progress for the connector backing this widget                 |
+| `'failing'`  | Connector is in `error` / `auth_failed` / `paused` — surface a reauthorize CTA in UI |
+
+Storage adapters implement `getHealth?(): Promise<ConnectorHealth | null>` per `StorageHandle` to expose `status`, `lastSyncAt`, `lastError`, and `syncIntervalSeconds`. `InMemoryStorage` provides a minimal implementation (last-write time as `lastSyncAt`, `syncIntervalSeconds: 0`); adapters with first-class per-connector status (e.g. cloud, libSQL) populate it richly.
+
 ### `triggerSync` modes
 
 `triggerSync(ctx, opts?)` accepts an optional `opts.mode`:

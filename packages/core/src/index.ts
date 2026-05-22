@@ -1,6 +1,7 @@
 export type {
   Connector,
   ConnectorContext,
+  ConnectorHealth,
   ConnectorRequestOptions,
   CredentialField,
   CredentialsSchema,

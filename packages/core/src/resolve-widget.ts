@@ -1,7 +1,34 @@
 import { computeMetric } from './compute';
 import type { Widget } from './config';
+import type { ConnectorHealth } from './connector';
 import type { ServerStorage } from './server-storage';
-import type { CachedWidget } from './wire';
+import type { CachedWidget, WidgetSyncState } from './wire';
+
+const FAILING_CONNECTOR_STATUSES: ReadonlySet<ConnectorHealth['status']> =
+  new Set(['error', 'auth_failed', 'paused']);
+
+function deriveSyncStateFromHealth(health: ConnectorHealth): WidgetSyncState {
+  if (health.status === 'syncing') {
+    return 'syncing';
+  }
+  if (FAILING_CONNECTOR_STATUSES.has(health.status)) {
+    return 'failing';
+  }
+  if (!health.lastSyncAt) {
+    return 'unsynced';
+  }
+  const ageMs = Date.now() - new Date(health.lastSyncAt).getTime();
+  const windowMs = 2 * health.syncIntervalSeconds * 1000;
+  return ageMs <= windowMs ? 'fresh' : 'stale';
+}
+
+function buildMetaFromHealth(health: ConnectorHealth): Record<string, unknown> {
+  const meta: Record<string, unknown> = { connectorStatus: health.status };
+  if (health.lastError) {
+    meta['lastError'] = health.lastError;
+  }
+  return meta;
+}
 
 export async function resolveWidget(
   widgetId: string,
@@ -9,24 +36,35 @@ export async function resolveWidget(
   connectors: readonly string[] | undefined,
   storage: ServerStorage,
 ): Promise<CachedWidget | undefined> {
-  if (widget.kind === 'status') {
-    return {
-      widgetId,
-      connectorId: widget.source,
-      data: null,
-      cachedAt: null,
-    };
-  }
-  const { connectorId } = widget.metric;
+  const connectorId =
+    widget.kind === 'status' ? widget.source : widget.metric.connectorId;
   if (connectors !== undefined && !connectors.includes(connectorId)) {
     return undefined;
   }
   const handle = storage.getStorageHandle(connectorId);
-  const data = await computeMetric(handle, widget.metric);
+  const health = (await handle.getHealth?.()) ?? null;
+  const data =
+    widget.kind === 'status'
+      ? null
+      : await computeMetric(handle, widget.metric);
+
+  let syncState: WidgetSyncState | undefined;
+  let meta: Record<string, unknown> | undefined;
+  if (health) {
+    syncState = deriveSyncStateFromHealth(health);
+    meta = buildMetaFromHealth(health);
+  } else if (data === null || data === undefined) {
+    syncState = 'unsynced';
+  } else {
+    syncState = 'fresh';
+  }
+
   return {
     widgetId,
     connectorId,
     data,
-    cachedAt: (await storage.getSyncState()).lastSyncAt,
+    cachedAt: health?.lastSyncAt ?? null,
+    syncState,
+    meta,
   };
 }
