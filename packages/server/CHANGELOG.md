@@ -1,5 +1,66 @@
 # @rawdash/server
 
+## 0.15.0
+
+### Minor Changes
+
+- 05ecf90: **Breaking:** Split declarative `DashboardConfig` from runtime `Connector` instances.
+
+  `DashboardConfig.connectors` is now an array of declarative entries (`{ name, connectorId, config, syncIntervalSeconds?, enabled?, displayName? }`) instead of `{ connector: Connector }` wrappers around live instances. Connector implementations are wired separately via a `connectorRegistry` option on `mountEngine`, `createSyncRouter`, `createEngine`, and `triggerSync` (in-process mode). `secretsResolver` is exposed as the same per-deployment channel.
+
+  Migration:
+
+  ```ts
+  // before
+  const github = new GitHubConnector(
+    { owner: 'acme', repo: 'web' },
+    { token: secret('GH_TOKEN') },
+  );
+  mountEngine(
+    defineConfig({
+      connectors: [{ connector: github }],
+      dashboards: { /* ... */ },
+    }),
+    { storage },
+  );
+
+  // after
+  const github = {
+    name: 'main',
+    connectorId: 'github-actions',
+    config: { owner: 'acme', repo: 'web', token: secret('GH_TOKEN') },
+  };
+  mountEngine(
+    defineConfig({
+      connectors: [github],
+      dashboards: { /* ... */ },
+    }),
+    {
+      connectorRegistry: { 'github-actions': GitHubConnector },
+      storage,
+    },
+  );
+  ```
+
+  Same config object now works in-process, in deferred-runner mode, and in cloud. `resolveWidget` accepts `readonly string[] | undefined` (connector instance names) instead of the previous `ConfiguredConnector[] | string[]` union. `toWireConfig` is now a near-identity passthrough; the wire format is the in-memory shape.
+
+- 686da2b: Populate `CachedWidget.syncState` and `CachedWidget.meta` from per-connector health.
+
+  `WidgetSyncState` is now `'fresh' | 'stale' | 'unsynced' | 'syncing' | 'failing'` — the previous `'synced'` / `'error'` variants are gone (they were declared in the wire types but never populated, so no consumer should depend on them).
+
+  `StorageHandle` gains an optional `getHealth?(): Promise<ConnectorHealth | null>` accessor, and `ConnectorHealth` is exported from `@rawdash/core` and re-exported from `@rawdash/server`. `resolveWidget` calls it to derive `syncState` and `meta.connectorStatus` per widget, falling back to `fresh|unsynced` from the resolved data when health is absent. `CachedWidget.cachedAt` is now sourced from the connector's `lastSyncAt` instead of the global `SyncState.lastSyncAt`.
+
+  `InMemoryStorage` implements `getHealth()` with a minimal shape — `lastSyncAt` is the last write timestamp per connector, `syncIntervalSeconds: 0`. Cloud / libSQL adapters that track per-connector status can implement `getHealth()` to surface rich `failing` / `syncing` states; adapters that don't implement it still get a `syncState` fallback (`'fresh'` when data exists, `'unsynced'` otherwise) but no `meta`.
+
+### Patch Changes
+
+- 09f4ed8: Add deferred-runner mode to `triggerSync` (`@rawdash/server`) and `createSyncRouter` (`@rawdash/hono`). Pass `mode: 'deferred'` to skip `runSync` and the `getConfig` call — the handler only persists the `queued` transition, leaving `running → succeeded/failed` to an external runner (e.g. a queue consumer worker). Default `mode: 'in-process'` keeps existing behavior unchanged.
+- 479ca27: Add an optional `WidgetCache` hook to `listWidgets` / `getWidget` (`@rawdash/server`) and `createWidgetsRouter` (`@rawdash/hono`). Deployments can plug in any cache (in-memory LRU, KV, Redis, …) without forking the resolver; the impl owns TTL, eviction, and the backing store. When omitted, behavior is unchanged. `createWidgetsRouter` accepts a `cache: (c: Context) => WidgetCache` factory invoked once per request, so the cache can be scoped to the request's tenant/auth context. Cache errors are isolated — `get` failures fall through to fresh resolution, `set` failures are logged via `console.warn`.
+- Updated dependencies [1ad2bc0]
+- Updated dependencies [05ecf90]
+- Updated dependencies [686da2b]
+  - @rawdash/core@0.15.0
+
 ## 0.14.0
 
 ### Minor Changes
