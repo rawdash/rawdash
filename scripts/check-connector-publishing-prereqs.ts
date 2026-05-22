@@ -257,11 +257,9 @@ function bootstrapBlurb(pkg: WorkspacePackage): string {
     `    npm publish --access public`,
     ``,
     `    # 4. Register this repo as a Trusted Publisher so OIDC publish can mint a token`,
-    `    #    (uses a direct POST to the npm registry — the official 'npm trust github'`,
-    `    #     CLI flow is broken on first-time setup as of npm 11.14.1, returning a`,
-    `    #     spurious 400 "value must be an array" even though the body is correct.)`,
-    `    cd <your-repo-root>`,
-    `    npx tsx scripts/setup-trusted-publisher.ts ${pkg.name}`,
+    `    npm trust github ${pkg.name} \\`,
+    `      --repository rawdash/rawdash \\`,
+    `      --file publish.yml`,
   ].join('\n');
 }
 
