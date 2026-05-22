@@ -374,15 +374,28 @@ describe('InMemoryStorage — sync state', () => {
   it('tracks sync lifecycle', async () => {
     const { storage } = makeStorage();
     expect((await storage.getSyncState()).status).toBe('idle');
-    expect(await storage.setSyncing()).toBe(true);
-    expect((await storage.getSyncState()).status).toBe('syncing');
-    expect(await storage.setSyncing()).toBe(false);
-    await storage.setSyncSuccess();
-    expect((await storage.getSyncState()).status).toBe('idle');
+    expect(await storage.markSyncRunning()).toBe(true);
+    expect((await storage.getSyncState()).status).toBe('running');
+    expect(await storage.markSyncRunning()).toBe(false);
+    await storage.markSyncSucceeded();
+    expect((await storage.getSyncState()).status).toBe('succeeded');
     expect((await storage.getSyncState()).lastSyncAt).not.toBeNull();
-    await storage.setSyncError('oops');
-    expect((await storage.getSyncState()).status).toBe('error');
+    await storage.markSyncFailed('oops');
+    expect((await storage.getSyncState()).status).toBe('failed');
     expect((await storage.getSyncState()).lastError).toBe('oops');
+  });
+
+  it('tracks queued → running transition', async () => {
+    const { storage } = makeStorage();
+    expect(await storage.markSyncQueued()).toBe(true);
+    let state = await storage.getSyncState();
+    expect(state.status).toBe('queued');
+    expect(state.queuedAt).not.toBeNull();
+    expect(await storage.markSyncQueued()).toBe(false);
+    expect(await storage.markSyncRunning()).toBe(true);
+    state = await storage.getSyncState();
+    expect(state.status).toBe('running');
+    expect(state.startedAt).not.toBeNull();
   });
 
   it('isolates connectors', async () => {

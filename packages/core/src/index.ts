@@ -71,11 +71,13 @@ export {
   widgetSchemas,
 } from './widget-schemas';
 
-export type { SyncState } from './engine';
+export type { SyncState, SyncStatus } from './engine';
+export { ACTIVE_SYNC_STATUSES, isSyncActive } from './engine';
 
 export type {
   CachedWidget,
   DataSource,
+  HealthResponse,
   ServerDataSource,
   TriggerSyncResponse,
   WidgetSyncState,

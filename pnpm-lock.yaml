@@ -59,12 +59,18 @@ importers:
 
   apps/example-nextjs:
     dependencies:
+      '@hono/node-server':
+        specifier: ^1.13.7
+        version: 1.19.13(hono@4.12.12)
       '@rawdash/connector-github':
         specifier: workspace:*
         version: link:../../packages/connectors/github
       '@rawdash/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@rawdash/hono':
+        specifier: workspace:*
+        version: link:../../packages/hono
       '@rawdash/nextjs':
         specifier: workspace:*
         version: link:../../packages/nextjs
@@ -132,6 +138,9 @@ importers:
 
   apps/example-server:
     dependencies:
+      '@hono/node-server':
+        specifier: ^1.13.7
+        version: 1.19.13(hono@4.12.12)
       '@libsql/client':
         specifier: ^0.17.0
         version: 0.17.3
@@ -144,6 +153,9 @@ importers:
       '@rawdash/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@rawdash/hono':
+        specifier: workspace:*
+        version: link:../../packages/hono
       '@rawdash/server':
         specifier: workspace:*
         version: link:../../packages/server
@@ -411,6 +423,28 @@ importers:
         specifier: ^5.7.2
         version: 5.9.3
 
+  packages/hono:
+    dependencies:
+      '@rawdash/core':
+        specifier: workspace:*
+        version: link:../core
+      '@rawdash/server':
+        specifier: workspace:*
+        version: link:../server
+    devDependencies:
+      hono:
+        specifier: ^4.7.7
+        version: 4.12.12
+      tsup:
+        specifier: ^8.0.0
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.9)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.3)
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.4
+        version: 4.1.4(@types/node@24.12.2)(vite@8.0.8(@types/node@24.12.2)(esbuild@0.27.7)(jiti@1.21.7)(tsx@4.21.0)(yaml@2.8.3))
+
   packages/mcp:
     dependencies:
       '@modelcontextprotocol/sdk':
@@ -419,9 +453,6 @@ importers:
       '@rawdash/core':
         specifier: workspace:*
         version: link:../core
-      '@rawdash/server':
-        specifier: workspace:*
-        version: link:../server
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -454,22 +485,13 @@ importers:
 
   packages/server:
     dependencies:
-      '@hono/node-server':
-        specifier: ^1.13.7
-        version: 1.19.13(hono@4.12.12)
       '@rawdash/core':
         specifier: workspace:*
         version: link:../core
-      hono:
-        specifier: ^4.7.7
-        version: 4.12.12
     devDependencies:
       tsup:
         specifier: ^8.0.0
         version: 8.5.1(jiti@1.21.7)(postcss@8.5.9)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.3)
-      tsx:
-        specifier: ^4.19.2
-        version: 4.21.0
       typescript:
         specifier: ^5.7.2
         version: 5.9.3

@@ -1,6 +1,6 @@
 # example-server
 
-Minimal self-hosted Rawdash server using `@rawdash/server` with `@rawdash/turso` for persistent SQLite storage and `@rawdash/github` as the connector.
+Minimal self-hosted Rawdash server built on `@rawdash/server` + `@rawdash/hono`, with `@rawdash/adapter-libsql` for persistent SQLite storage and `@rawdash/connector-github` as the connector. The Node binding happens via a local `src/serve.ts` (~10 lines using `@hono/node-server`).
 
 ## Local dev
 

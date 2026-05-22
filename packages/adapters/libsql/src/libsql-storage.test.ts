@@ -348,26 +348,40 @@ describe('LibsqlStorage — isolation + sync state', () => {
   it('sync state is durable across storage instances sharing a file', async () => {
     const tmp = `/tmp/rawdash-sync-${Date.now()}-${Math.random()}.db`;
     const { storage: s1 } = makeStorage(`file:${tmp}`);
-    expect(await s1.setSyncing()).toBe(true);
+    expect(await s1.markSyncRunning()).toBe(true);
     await s1.close();
     const { storage: s2 } = makeStorage(`file:${tmp}`);
-    expect((await s2.getSyncState()).status).toBe('syncing');
-    expect(await s2.setSyncing()).toBe(false);
+    expect((await s2.getSyncState()).status).toBe('running');
+    expect(await s2.markSyncRunning()).toBe(false);
     await s2.close();
   });
 
   it('tracks sync lifecycle with durable CAS lock', async () => {
     const { storage: s } = makeStorage();
     expect((await s.getSyncState()).status).toBe('idle');
-    expect(await s.setSyncing()).toBe(true);
-    expect((await s.getSyncState()).status).toBe('syncing');
-    expect(await s.setSyncing()).toBe(false);
-    await s.setSyncSuccess();
-    expect((await s.getSyncState()).status).toBe('idle');
+    expect(await s.markSyncRunning()).toBe(true);
+    expect((await s.getSyncState()).status).toBe('running');
+    expect(await s.markSyncRunning()).toBe(false);
+    await s.markSyncSucceeded();
+    expect((await s.getSyncState()).status).toBe('succeeded');
     expect((await s.getSyncState()).lastSyncAt).not.toBeNull();
-    await s.setSyncError('boom');
-    expect((await s.getSyncState()).status).toBe('error');
+    await s.markSyncFailed('boom');
+    expect((await s.getSyncState()).status).toBe('failed');
     expect((await s.getSyncState()).lastError).toBe('boom');
+    await s.close();
+  });
+
+  it('tracks queued → running transition', async () => {
+    const { storage: s } = makeStorage();
+    expect(await s.markSyncQueued()).toBe(true);
+    let state = await s.getSyncState();
+    expect(state.status).toBe('queued');
+    expect(state.queuedAt).not.toBeNull();
+    expect(await s.markSyncQueued()).toBe(false);
+    expect(await s.markSyncRunning()).toBe(true);
+    state = await s.getSyncState();
+    expect(state.status).toBe('running');
+    expect(state.startedAt).not.toBeNull();
     await s.close();
   });
 });

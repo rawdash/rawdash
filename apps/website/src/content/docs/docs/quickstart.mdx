@@ -15,17 +15,17 @@ and mounting the request handler in a Node.js server.
    <Tabs>
      <TabItem label="npm">
        ```sh
-       npm install @rawdash/core @rawdash/server @rawdash/connector-github @rawdash/adapter-turso
+       npm install @rawdash/core @rawdash/server @rawdash/hono @rawdash/connector-github @rawdash/adapter-turso @hono/node-server
        ```
      </TabItem>
      <TabItem label="pnpm">
        ```sh
-       pnpm add @rawdash/core @rawdash/server @rawdash/connector-github @rawdash/adapter-turso
+       pnpm add @rawdash/core @rawdash/server @rawdash/hono @rawdash/connector-github @rawdash/adapter-turso @hono/node-server
        ```
      </TabItem>
      <TabItem label="yarn">
        ```sh
-       yarn add @rawdash/core @rawdash/server @rawdash/connector-github @rawdash/adapter-turso
+       yarn add @rawdash/core @rawdash/server @rawdash/hono @rawdash/connector-github @rawdash/adapter-turso @hono/node-server
        ```
      </TabItem>
    </Tabs>
@@ -53,17 +53,18 @@ and mounting the request handler in a Node.js server.
 2. **Create your config file**
 
    ```ts title="rawdash.config.ts"
+   import { serve as honoServe } from '@hono/node-server';
    import { defineConfig, defineDashboard } from '@rawdash/core';
    import { GitHubActionsConnector } from '@rawdash/connector-github';
    import { TursoStorage } from '@rawdash/adapter-turso';
-   import { serve } from '@rawdash/server';
+   import { mountEngine } from '@rawdash/hono';
 
    const github = new GitHubActionsConnector(
      { owner: 'myorg', repo: 'backend' },
      { token: process.env.GITHUB_TOKEN },
    );
 
-   serve(
+   const { app } = mountEngine(
      defineConfig({
        connectors: [{ connector: github }],
        dashboards: {
@@ -77,6 +78,7 @@ and mounting the request handler in a Node.js server.
        }),
      },
    );
+   honoServe({ fetch: app.fetch, port: 8080 });
    ```
 
 3. **Connect your frontend**

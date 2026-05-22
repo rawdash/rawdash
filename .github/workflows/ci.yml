@@ -114,6 +114,14 @@ jobs:
           fi
           echo "filter=...[${BASE}...HEAD]" >> $GITHUB_OUTPUT
 
+      - name: Verify libsql migrations bundle is up-to-date
+        run: |
+          pnpm --filter @rawdash/adapter-libsql db:bundle
+          if ! git diff --exit-code -- packages/adapters/libsql/src/migrations-bundle.ts; then
+            echo "::error::packages/adapters/libsql/src/migrations-bundle.ts is stale. Run \`pnpm --filter @rawdash/adapter-libsql db:bundle\` after adding/modifying SQL migrations and commit the result."
+            exit 1
+          fi
+
       - name: Lint
         run: pnpm turbo run lint --filter="${{ steps.affected.outputs.filter }}"
 

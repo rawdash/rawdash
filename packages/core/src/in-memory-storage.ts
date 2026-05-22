@@ -22,6 +22,8 @@ export class InMemoryStorage implements ServerStorage {
   private distributionStore = new Map<string, Distribution[]>();
   private syncState: SyncState = {
     status: 'idle',
+    queuedAt: null,
+    startedAt: null,
     lastSyncAt: null,
     lastError: null,
   };
@@ -242,26 +244,51 @@ export class InMemoryStorage implements ServerStorage {
     return { ...this.syncState };
   }
 
-  async setSyncing(): Promise<boolean> {
-    if (this.syncState.status === 'syncing') {
+  async markSyncQueued(): Promise<boolean> {
+    if (
+      this.syncState.status === 'queued' ||
+      this.syncState.status === 'running'
+    ) {
       return false;
     }
-    this.syncState = { ...this.syncState, status: 'syncing' };
+    this.syncState = {
+      ...this.syncState,
+      status: 'queued',
+      queuedAt: new Date().toISOString(),
+      startedAt: null,
+    };
     return true;
   }
 
-  async setSyncSuccess(): Promise<void> {
+  async markSyncRunning(): Promise<boolean> {
+    if (this.syncState.status === 'running') {
+      return false;
+    }
     this.syncState = {
-      status: 'idle',
-      lastSyncAt: new Date().toISOString(),
+      ...this.syncState,
+      status: 'running',
+      startedAt: new Date().toISOString(),
+    };
+    return true;
+  }
+
+  async markSyncSucceeded(): Promise<void> {
+    const now = new Date().toISOString();
+    this.syncState = {
+      status: 'succeeded',
+      queuedAt: null,
+      startedAt: null,
+      lastSyncAt: now,
       lastError: null,
     };
   }
 
-  async setSyncError(error: string): Promise<void> {
+  async markSyncFailed(error: string): Promise<void> {
     this.syncState = {
-      status: 'error',
-      lastSyncAt: this.syncState.lastSyncAt,
+      ...this.syncState,
+      status: 'failed',
+      queuedAt: null,
+      startedAt: null,
       lastError: error,
     };
   }

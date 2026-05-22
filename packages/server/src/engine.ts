@@ -1,13 +1,14 @@
 import type {
   CachedWidget,
   DashboardConfig,
+  HealthResponse,
+  ServerStorage,
   SyncState,
   TriggerSyncResponse,
 } from '@rawdash/core';
-import { InMemoryStorage, resolveWidget } from '@rawdash/core';
+import { InMemoryStorage, isSyncActive, resolveWidget } from '@rawdash/core';
 
-import { SyncRouter } from './routers/sync';
-import type { ServerStorage } from './types';
+import { runSync } from './sync';
 
 export interface EngineOptions {
   storage?: ServerStorage;
@@ -19,7 +20,8 @@ export interface Engine {
     widgetId: string,
   ): Promise<CachedWidget | undefined>;
   getWidgets(dashboardId: string): Promise<CachedWidget[]>;
-  getHealth(): Promise<SyncState>;
+  getHealth(): Promise<HealthResponse>;
+  getSyncState(): Promise<SyncState>;
   triggerSync(): Promise<TriggerSyncResponse>;
 }
 
@@ -28,7 +30,6 @@ export function createEngine(
   options: EngineOptions = {},
 ): Engine {
   const storage: ServerStorage = options.storage ?? new InMemoryStorage();
-  const syncRouter = new SyncRouter(config, storage);
 
   return {
     async getWidget(dashboardId, widgetId) {
@@ -58,18 +59,22 @@ export function createEngine(
     },
 
     async getHealth() {
+      return { status: 'ok' };
+    },
+
+    async getSyncState() {
       return storage.getSyncState();
     },
 
     async triggerSync() {
       const state = await storage.getSyncState();
-      if (state.status === 'syncing') {
-        return { triggered: false };
+      if (isSyncActive(state.status)) {
+        return { queued: false };
       }
-      void syncRouter.runSync().catch((error) => {
+      void runSync(config, storage).catch((error) => {
         console.error('Rawdash sync failed', error);
       });
-      return { triggered: true };
+      return { queued: true };
     },
   };
 }

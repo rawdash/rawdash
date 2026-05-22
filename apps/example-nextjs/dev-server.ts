@@ -1,4 +1,5 @@
-import { serve } from '@rawdash/server';
+import { serve as honoServe } from '@hono/node-server';
+import { mountEngine } from '@rawdash/hono';
 
 import config from './rawdash.config';
 
@@ -17,4 +18,5 @@ function resolvePort(): number {
   return parsed;
 }
 
-serve(config, { port: resolvePort() });
+const { app } = mountEngine(config);
+honoServe({ fetch: app.fetch, port: resolvePort() });

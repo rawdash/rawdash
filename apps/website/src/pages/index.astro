@@ -63,7 +63,7 @@ import '../styles/landing.css';
       </div>
       <div class="install-snippet">
         <span class="prompt">$</span>
-        <span class="cmd">npm install @rawdash/core @rawdash/server</span>
+        <span class="cmd">npm install @rawdash/core @rawdash/server @rawdash/hono</span>
       </div>
     </section>
 
@@ -121,21 +121,23 @@ import '../styles/landing.css';
           <span>📄</span>
           rawdash.config.ts
         </div>
-        <pre><code><span class="kw">import</span> &#123; <span class="fn">defineConfig</span>, <span class="fn">defineDashboard</span> &#125; <span class="kw">from</span> <span class="str">'@rawdash/core'</span>;
+        <pre><code><span class="kw">import</span> &#123; <span class="fn">serve</span> <span class="kw">as</span> <span class="fn">honoServe</span> &#125; <span class="kw">from</span> <span class="str">'@hono/node-server'</span>;
+<span class="kw">import</span> &#123; <span class="fn">defineConfig</span>, <span class="fn">defineDashboard</span> &#125; <span class="kw">from</span> <span class="str">'@rawdash/core'</span>;
 <span class="kw">import</span> &#123; <span class="fn">GitHubConnector</span> &#125; <span class="kw">from</span> <span class="str">'@rawdash/connector-github'</span>;
 <span class="kw">import</span> &#123; <span class="fn">TursoStorage</span> &#125; <span class="kw">from</span> <span class="str">'@rawdash/adapter-turso'</span>;
-<span class="kw">import</span> &#123; <span class="fn">serve</span> &#125; <span class="kw">from</span> <span class="str">'@rawdash/server'</span>;
+<span class="kw">import</span> &#123; <span class="fn">mountEngine</span> &#125; <span class="kw">from</span> <span class="str">'@rawdash/hono'</span>;
 
 <span class="kw">const</span> github = <span class="kw">new</span> <span class="fn">GitHubConnector</span>(&#123;
   token: process.env.<span class="fn">GITHUB_TOKEN</span>,
 &#125;);
 
-<span class="fn">serve</span>(<span class="fn">defineConfig</span>(&#123;
+<span class="kw">const</span> &#123; app &#125; = <span class="fn">mountEngine</span>(<span class="fn">defineConfig</span>(&#123;
   connectors: [&#123; connector: github &#125;],
   dashboards: &#123;
     <span class="str">'eng-health'</span>: <span class="fn">defineDashboard</span>(&#123; widgets: &#123;&#125; &#125;),
   &#125;,
-&#125;), &#123; storage: <span class="kw">new</span> <span class="fn">TursoStorage</span>(&#123; url: process.env.<span class="fn">TURSO_URL</span> &#125;) &#125;);</code></pre>
+&#125;), &#123; storage: <span class="kw">new</span> <span class="fn">TursoStorage</span>(&#123; url: process.env.<span class="fn">TURSO_URL</span> &#125;) &#125;);
+<span class="fn">honoServe</span>(&#123; fetch: app.fetch, port: 8080 &#125;);</code></pre>
       </div>
     </section>
 

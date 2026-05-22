@@ -6,6 +6,7 @@
     [
       "@rawdash/core",
       "@rawdash/server",
+      "@rawdash/hono",
       "@rawdash/nextjs",
       "@rawdash/connector-github",
       "@rawdash/connector-google-analytics",

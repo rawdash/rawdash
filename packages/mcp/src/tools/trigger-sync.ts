@@ -35,7 +35,7 @@ export function registerTriggerSync(
         return err('NOT_FOUND', `Connector "${connector_id}" not found`);
       }
 
-      const acquired = await storage.setSyncing();
+      const acquired = await storage.markSyncRunning();
       if (!acquired) {
         return err('ALREADY_SYNCING', 'A sync is already in progress');
       }
@@ -52,19 +52,19 @@ export function registerTriggerSync(
               controller.signal,
             );
           }
-          await storage.setSyncSuccess();
+          await storage.markSyncSucceeded();
         } catch (e) {
           const message = e instanceof Error ? e.message : String(e);
           try {
-            await storage.setSyncError(message);
-          } catch {
-            // Intentionally swallow to avoid unhandled background rejection.
+            await storage.markSyncFailed(message);
+          } catch (markErr) {
+            console.error('Failed to record sync failure in storage:', markErr);
           }
         }
       };
 
-      void run().catch(() => {
-        // Defensive terminal catch for any unexpected rejection path.
+      void run().catch((rejection) => {
+        console.error('Unexpected background sync rejection:', rejection);
       });
 
       return text({

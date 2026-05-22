@@ -1,17 +1,20 @@
 ---
 title: API Reference
-description: Full HTTP endpoint reference for the Rawdash server.
+description: Full HTTP endpoint reference for the Rawdash wire contract.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-All endpoints are served by the Rawdash standalone server (started via `serve()`
-from `@rawdash/server`). The examples below use the default base path `/`.
+All endpoints listed here are the canonical Rawdash wire contract — served by
+`@rawdash/hono`'s router factories (or any other framework adapter wrapping
+`@rawdash/server`'s pure handlers). The examples below assume the default base
+path `/`.
 
 ## Authentication
 
-Rawdash does not apply authentication by default. Place an authenticating reverse
-proxy in front of the Rawdash server if you need to restrict access.
+Rawdash does not apply authentication by default. Add auth as Hono `before`
+middleware on each router factory, or place an authenticating reverse proxy in
+front of the server.
 
 For Rawdash Cloud, pass your API key as a `Bearer` token:
 
@@ -25,23 +28,72 @@ Authorization: Bearer <api-key>
 
 ### `GET /health`
 
-Returns the current sync state for the server.
+Liveness probe. Returns synchronously with no storage access — safe to call
+from uptime checks, Kubernetes probes, etc.
+
+**Response**
+
+```json
+{ "status": "ok" }
+```
+
+| Field    | Type        | Description    |
+| -------- | ----------- | -------------- |
+| `status` | `"ok"`      | Always `"ok"`. |
+
+For sync state (last sync, in-flight progress, errors) see `GET /sync/state`.
+
+---
+
+## Sync
+
+### `GET /sync/state`
+
+Returns the current sync lifecycle state.
 
 **Response**
 
 ```json
 {
-  "status": "idle",
-  "lastSyncAt": "2025-04-25T10:00:00.000Z",
+  "status": "succeeded",
+  "queuedAt": null,
+  "startedAt": null,
+  "lastSyncAt": "2026-04-25T10:00:00.000Z",
   "lastError": null
 }
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `status` | `"idle" \| "syncing" \| "error"` | Current sync lifecycle status |
-| `lastSyncAt` | ISO 8601 string \| `null` | Timestamp of the last successful sync |
-| `lastError` | string \| `null` | Last sync error message, if any |
+| Field        | Type                                                                | Description                                          |
+| ------------ | ------------------------------------------------------------------- | ---------------------------------------------------- |
+| `status`     | `"idle" \| "queued" \| "running" \| "succeeded" \| "failed"`        | Current sync lifecycle state                         |
+| `queuedAt`   | ISO 8601 string \| `null`                                           | When the current run was enqueued (cloud only)       |
+| `startedAt`  | ISO 8601 string \| `null`                                           | When the current run started executing               |
+| `lastSyncAt` | ISO 8601 string \| `null`                                           | Timestamp of the last successful sync                |
+| `lastError`  | string \| `null`                                                    | Last sync error message, if `status` is `"failed"`   |
+
+State transitions: `idle → (queued →) running → succeeded` on success, or
+`running → failed` on error. Terminal states (`succeeded`, `failed`, `idle`)
+transition back to `queued`/`running` when a new sync is triggered.
+
+### `POST /sync`
+
+Triggers a sync and returns immediately. The sync runs in the background.
+
+<Aside type="caution">
+  This endpoint never blocks waiting for the sync to finish. To know when the
+  sync completes, poll `GET /sync/state` until `status` is one of `succeeded`,
+  `failed`, or `idle`. The `@rawdash/client.ensureFresh()` helper does this
+  for you.
+</Aside>
+
+**Response**
+
+```json
+{ "queued": true }
+```
+
+Returns `{ "queued": false }` if a sync is already in flight (`status` is
+`queued` or `running`).
 
 ---
 
@@ -53,45 +105,56 @@ Fetch all widget data for a dashboard.
 
 **Path parameters**
 
-| Parameter | Description |
-|-----------|-------------|
+| Parameter     | Description                                              |
+| ------------- | -------------------------------------------------------- |
 | `dashboardId` | Dashboard ID as defined in `defineConfig({ dashboards })` |
 
 **Response**
 
-Returns a JSON array of widget entries:
-
 ```json
-[
-  {
-    "id": "open_prs",
-    "widgetId": "open_prs",
-    "connectorId": "github",
-    "data": { "value": 12 },
-    "cachedAt": "2025-04-25T10:00:00.000Z"
-  }
-]
+{
+  "widgets": [
+    {
+      "id": "open_prs",
+      "widgetId": "open_prs",
+      "connectorId": "github",
+      "data": { "value": 12 },
+      "cachedAt": "2026-04-25T10:00:00.000Z"
+    }
+  ]
+}
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` / `widgetId` | string | Widget key from your dashboard config |
-| `connectorId` | string | ID of the connector that sourced this widget |
-| `data` | object | Computed metric result |
-| `cachedAt` | ISO 8601 string \| `null` | Timestamp of the sync that produced this data |
+| Field             | Type                      | Description                                  |
+| ----------------- | ------------------------- | -------------------------------------------- |
+| `widgets`         | array                     | Widget entries for this dashboard            |
+| `id` / `widgetId` | string                    | Widget key from your dashboard config        |
+| `connectorId`     | string                    | ID of the connector that sourced this widget |
+| `data`            | object                    | Computed metric result                       |
+| `cachedAt`        | ISO 8601 string \| `null` | Timestamp of the sync that produced the data |
+
+### `GET /dashboards/:dashboardId/widgets/:widgetId`
+
+Fetch a single widget.
+
+**Response (200)** — a single widget entry (same shape as the list items above).
+
+**Response (404)**
+
+```json
+{ "error": "Widget not found", "code": "WIDGET_NOT_FOUND" }
+```
+
+Also returns 404 with `code: "DASHBOARD_NOT_FOUND"` if the dashboard doesn't
+exist.
 
 ---
 
-## Sync
+## Retention
 
-### `POST /sync`
+### `POST /retention/retain`
 
-Trigger an immediate full sync across all configured connectors.
-
-<Aside type="caution">
-  Sync runs asynchronously. The response confirms whether a new sync was
-  triggered. Poll the health endpoint to observe completion.
-</Aside>
+Runs the configured retention policy once across all connectors.
 
 **Response**
 
@@ -99,21 +162,8 @@ Trigger an immediate full sync across all configured connectors.
 { "triggered": true }
 ```
 
-Returns `triggered: false` if a sync is already in progress.
-
----
-
-### `GET /dashboards/:dashboardId/widgets/:widgetId`
-
-Fetch data for a single widget.
-
-**Response (200)**
-
-Returns a single widget entry object (same shape as an array item above).
-
-**Response (404)**
-
-```json
-{ "error": "Widget not found" }
-```
-
+On long-lived runtimes (Node), `mountEngine` also starts a background loop
+that calls this on the interval configured by `config.retention.intervalMs`
+(default 1 hour). On serverless runtimes, disable the loop with
+`mountEngine(config, { startRetention: false })` and invoke this endpoint
+from your platform's scheduler instead.

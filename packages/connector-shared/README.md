@@ -133,7 +133,7 @@ await request({
 - GraphQL helpers — separate package if/when.
 - AWS SigV4 — use `@aws-sdk/*` directly.
 - OAuth flows — separate package if/when.
-- Anything tenant-specific (KEK, secrets, D1). This is a pure HTTP layer.
+- Secrets management, KEK handling, or storage backends. This is a pure HTTP layer.
 
 ## Authoring a new connector
 

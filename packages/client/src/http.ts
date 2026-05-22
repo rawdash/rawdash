@@ -1,17 +1,31 @@
 import type {
   CachedWidget,
   DataSource,
+  HealthResponse,
   SyncState,
   TriggerSyncResponse,
   WidgetsListResponse,
 } from '@rawdash/core';
+import { isSyncActive } from '@rawdash/core';
 
 export interface HttpOptions {
   baseUrl: string;
   apiKey?: string;
   fetch?: typeof globalThis.fetch;
   timeoutMs?: number;
+  /** Total time to wait for an in-flight sync to finish before throwing. Defaults to 30s. */
+  syncTimeoutMs?: number;
+  /** Delay between sync-state polls. Defaults to 500ms. */
+  syncPollIntervalMs?: number;
 }
+
+const KNOWN_SYNC_STATUSES = new Set([
+  'idle',
+  'queued',
+  'running',
+  'succeeded',
+  'failed',
+]);
 
 export function http(opts: HttpOptions): DataSource {
   const {
@@ -19,6 +33,8 @@ export function http(opts: HttpOptions): DataSource {
     apiKey,
     fetch: fetchFn = globalThis.fetch,
     timeoutMs = 5000,
+    syncTimeoutMs = 30_000,
+    syncPollIntervalMs = 500,
   } = opts;
 
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
@@ -56,6 +72,34 @@ export function http(opts: HttpOptions): DataSource {
     return res.json() as Promise<T>;
   }
 
+  async function getSyncState(): Promise<SyncState> {
+    const state = await get<SyncState>('/sync/state', { cache: 'no-store' });
+    if (!KNOWN_SYNC_STATUSES.has(state.status)) {
+      throw new Error(
+        `Rawdash returned unrecognized sync status "${String(state.status)}" — the server is likely speaking a different protocol version.`,
+      );
+    }
+    return state;
+  }
+
+  async function waitForSyncToSettle(): Promise<SyncState> {
+    const deadline = Date.now() + syncTimeoutMs;
+    for (;;) {
+      const state = await getSyncState();
+      if (!isSyncActive(state.status)) {
+        return state;
+      }
+      if (Date.now() >= deadline) {
+        throw new Error(
+          `Rawdash sync did not settle within ${syncTimeoutMs}ms (last status: ${state.status})`,
+        );
+      }
+      await new Promise<void>((resolve) =>
+        setTimeout(resolve, syncPollIntervalMs),
+      );
+    }
+  }
+
   return {
     async getWidgets(dashboardId) {
       const { widgets } = await get<WidgetsListResponse>(
@@ -71,8 +115,10 @@ export function http(opts: HttpOptions): DataSource {
     },
 
     getHealth() {
-      return get<SyncState>('/health', { cache: 'no-store' });
+      return get<HealthResponse>('/health', { cache: 'no-store' });
     },
+
+    getSyncState,
 
     async triggerSync() {
       const res = await fetchWithTimeout(`${baseUrl}/sync`, { method: 'POST' });
@@ -83,44 +129,44 @@ export function http(opts: HttpOptions): DataSource {
     },
 
     async ensureFresh(maxAgeMs = 5 * 60 * 1000) {
-      const health = await get<SyncState>('/health', {
-        cache: 'no-store',
-      });
+      const state = await getSyncState();
 
-      if (health.status === 'syncing') {
-        return false;
+      if (isSyncActive(state.status)) {
+        const settled = await waitForSyncToSettle();
+        if (settled.status === 'failed') {
+          throw new Error(
+            `Rawdash sync failed: ${settled.lastError ?? 'unknown error'}`,
+          );
+        }
+        return true;
       }
 
-      const lastSyncMs = health.lastSyncAt
-        ? new Date(health.lastSyncAt).getTime()
+      const lastSyncMs = state.lastSyncAt
+        ? new Date(state.lastSyncAt).getTime()
         : null;
       const isFresh = lastSyncMs !== null && Date.now() - lastSyncMs < maxAgeMs;
-
       if (isFresh) {
         return false;
       }
 
-      const res = await fetchWithTimeout(`${baseUrl}/sync`, { method: 'POST' });
-      if (!res.ok) {
-        throw new Error(`Rawdash sync error ${res.status}: ${res.statusText}`);
-      }
-
-      const maxAttempts = 60;
-      for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        const h = await get<SyncState>('/health', { cache: 'no-store' });
-        if (h.status === 'error') {
+      const trigger = await this.triggerSync();
+      if (!trigger.queued) {
+        const settled = await waitForSyncToSettle();
+        if (settled.status === 'failed') {
           throw new Error(
-            `Rawdash sync failed: ${h.lastError ?? 'unknown error'}`,
+            `Rawdash sync failed: ${settled.lastError ?? 'unknown error'}`,
           );
         }
-        if (h.status === 'idle') {
-          return true;
-        }
-        await new Promise<void>((resolve) => setTimeout(resolve, 500));
+        return true;
       }
-      throw new Error(
-        `Rawdash sync did not complete within ${maxAttempts * 500}ms`,
-      );
+
+      const settled = await waitForSyncToSettle();
+      if (settled.status === 'failed') {
+        throw new Error(
+          `Rawdash sync failed: ${settled.lastError ?? 'unknown error'}`,
+        );
+      }
+      return true;
     },
   };
 }
