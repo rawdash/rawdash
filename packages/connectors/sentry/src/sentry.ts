@@ -237,7 +237,7 @@ const issueResponseSchema = z.array(
     status: z.enum(['resolved', 'unresolved', 'ignored']),
     firstSeen: z.iso.datetime(),
     lastSeen: z.iso.datetime(),
-    count: z.number().int().nonnegative(),
+    count: z.union([z.string().regex(/^\d+$/), z.number().int().nonnegative()]),
     userCount: z.number().int().nonnegative(),
     project: z.object({ slug: z.string().min(1) }),
   }),

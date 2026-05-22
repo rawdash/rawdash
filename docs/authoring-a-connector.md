@@ -103,7 +103,7 @@ Two consumers rely on this map:
 - **Cloud baseline generator**: at deploy time, rawdash cloud walks `ConnectorClass.schemas` for each `@rawdash/connector-*` dependency and writes one `connector_baselines` row per resource. Those baselines feed the shape-drift detection pipeline that flags upstream API changes at sync time.
 - **Property tests** in `@rawdash/connector-test-utils`: `runPropertySyncTest({ connectorClass, resource, ... })` reads the schema from `connectorClass.schemas[resource]` and fuzzes against it. If you drop or misname a key, your own property tests break — that's a deliberate second layer of enforcement on top of the TypeScript contract.
 
-**Resource keys must match the `resource` tag** passed to `request()` (see [§7](#7-using-rawdashconnector-shared) and [Request-tagging via the `resource` field](#)). The keys are the join column between schemas and runtime observations; a mismatch silently disables drift detection for that resource.
+**Resource keys must match the `resource` tag** passed to `request()` (see [§7](#7-using-rawdashconnector-shared)). The keys are the join column between schemas and runtime observations; a mismatch silently disables drift detection for that resource.
 
 ## 2. Picking shapes
 

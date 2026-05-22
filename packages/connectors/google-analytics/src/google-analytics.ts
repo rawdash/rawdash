@@ -413,7 +413,9 @@ const dateDimensionValue = z.object({
 });
 
 const stringDimensionValue = z.object({ value: z.string() });
-const numericMetricValue = z.object({ value: z.string().regex(/^\d+$/) });
+const numericMetricValue = z.object({
+  value: z.string().regex(/^-?\d+(\.\d+)?$/),
+});
 
 function reportSchema(dimensionCount: number) {
   const dims =
@@ -424,12 +426,14 @@ function reportSchema(dimensionCount: number) {
           ...Array(dimensionCount - 1).fill(stringDimensionValue),
         ] as [typeof dateDimensionValue, ...z.ZodType[]]);
   return z.object({
-    rows: z.array(
-      z.object({
-        dimensionValues: dims,
-        metricValues: z.array(numericMetricValue).nonempty(),
-      }),
-    ),
+    rows: z
+      .array(
+        z.object({
+          dimensionValues: dims,
+          metricValues: z.array(numericMetricValue).nonempty(),
+        }),
+      )
+      .optional(),
   });
 }
 

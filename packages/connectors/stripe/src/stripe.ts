@@ -296,7 +296,7 @@ const customerSchema = z.object({
   name: z.string().nullable(),
   created: z.number().int().nonnegative(),
   currency: z.string().nullable(),
-  delinquent: z.boolean(),
+  delinquent: z.boolean().nullable(),
   livemode: z.boolean(),
 });
 

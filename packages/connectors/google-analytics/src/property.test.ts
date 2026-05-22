@@ -84,14 +84,15 @@ describe('GA4Connector property tests', () => {
       sample: TrafficByDaySample,
     ): InvariantViolation[] => {
       const violations: InvariantViolation[] = [];
+      const rows = sample.rows ?? [];
       const samples = metricStoreFor(storage).filter(
         (m) => m.name === 'ga4_traffic_by_day',
       );
-      if (samples.length !== sample.rows.length) {
+      if (samples.length !== rows.length) {
         violations.push({
           invariant: 'one ga4_traffic_by_day metric per row',
           location: 'traffic_by_day phase',
-          detail: `expected ${sample.rows.length} metrics, got ${samples.length}`,
+          detail: `expected ${rows.length} metrics, got ${samples.length}`,
         });
       }
       return violations;
@@ -104,9 +105,10 @@ describe('GA4Connector property tests', () => {
       runs: 50,
       extraInvariants: [extra],
       run: async (sample, storage) => {
+        const rows = sample.rows ?? [];
         installFetchMock((firstDim) => {
           if (firstDim === 'date') {
-            return { rows: sample.rows, rowCount: sample.rows.length };
+            return { rows, rowCount: rows.length };
           }
           return { rows: [], rowCount: 0 };
         });
