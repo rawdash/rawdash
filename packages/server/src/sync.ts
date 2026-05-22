@@ -86,12 +86,19 @@ export async function runSync(
           // abort signal, we move on after the grace period rather than
           // hang forever.
           if (syncPromise !== undefined) {
-            await Promise.race([
-              syncPromise.catch(() => undefined),
-              new Promise<void>((resolve) =>
-                setTimeout(resolve, ABORT_GRACE_MS),
-              ),
-            ]);
+            let graceTimer: ReturnType<typeof setTimeout> | undefined;
+            try {
+              await Promise.race([
+                syncPromise.catch(() => undefined),
+                new Promise<void>((resolve) => {
+                  graceTimer = setTimeout(resolve, ABORT_GRACE_MS);
+                }),
+              ]);
+            } finally {
+              if (graceTimer !== undefined) {
+                clearTimeout(graceTimer);
+              }
+            }
           }
         } else {
           errors.push(err instanceof Error ? err.message : String(err));
