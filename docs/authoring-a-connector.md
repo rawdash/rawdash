@@ -346,6 +346,7 @@ If the cursor includes a URL the host will pass back to `fetch()`, **sanitize it
 - The host persists the cursor between invocations and passes it back verbatim.
 - The host bounds total chunk attempts (currently `MAX_CHUNK_ATTEMPTS`); a connector that always returns `{ done: false }` will eventually be force-completed.
 - The host calls `sync()` with `signal` and may abort at any time — including mid-page. Respect it.
+- As a safety net, the `StorageHandle` itself is wired to the same `signal`: once the host aborts the run, any subsequent write call on the handle becomes a no-op (with a `console.warn`) instead of leaking into the next sync. This means a misbehaving connector that ignores `signal` can no longer overlap with the next run — but you should still honor `signal` so that wasted work stops promptly and your error messages remain accurate. Reads on the handle are unaffected.
 
 ## 6. Rate-limit awareness
 

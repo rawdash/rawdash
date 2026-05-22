@@ -1,16 +1,6 @@
 import type { DashboardConfig, ServerStorage } from '@rawdash/core';
 
 export const FULL_SYNC_TIMEOUT_MS = 300_000;
-/**
- * After a connector times out and the abort signal fires, how long to
- * wait for the connector's promise to actually settle before we move on
- * to mark sync state. Bounded so a connector that ignores `AbortSignal`
- * entirely can't hang the whole sync, but long enough that a cooperative
- * connector has time to release its in-flight storage writes before the
- * next sync starts. Connectors should honor `signal` to make this
- * effective — see `docs/authoring-a-connector.md`.
- */
-export const ABORT_GRACE_MS = 10_000;
 
 /**
  * Run a full sync across all connectors in the config in parallel via
@@ -20,12 +10,12 @@ export const ABORT_GRACE_MS = 10_000;
  * ignores `AbortSignal` (or a storage call that hangs) can still not
  * pin sync state in `running` indefinitely.
  *
- * When a connector times out, we also wait up to `ABORT_GRACE_MS` for
- * the aborted promise to actually settle before proceeding to mark sync
- * state. This bounds the window in which a connector that ignores
- * `AbortSignal` could overlap its tail writes with the next sync.
- * Cooperative connectors that honor `signal.aborted` will settle well
- * within this window.
+ * The per-run storage handle is bound to the same `AbortController`, so
+ * once the timeout fires every subsequent write call on that handle
+ * becomes a no-op. That makes tail writes from a timed-out connector
+ * invisible to the next sync even if the connector itself keeps running
+ * — see `withAbortSignal` in `@rawdash/core` and the safety-net note in
+ * `docs/authoring-a-connector.md`.
  *
  * Transitions storage through `queued` → `running` → `succeeded`/`failed`.
  * The `queued` step is a no-op if the caller (typically `triggerSync`)
@@ -48,12 +38,13 @@ export async function runSync(
   const errors: string[] = [];
   await Promise.allSettled(
     config.connectors.map(async ({ connector }) => {
-      const handle = storage.getStorageHandle(connector.id);
       const controller = new AbortController();
+      const handle = storage.getStorageHandle(connector.id, {
+        signal: controller.signal,
+      });
       let timer: ReturnType<typeof setTimeout> | undefined;
-      let syncPromise: Promise<{ done: boolean }> | undefined;
       try {
-        syncPromise = connector.sync(
+        const syncPromise = connector.sync(
           { mode: 'full' },
           handle,
           controller.signal,
@@ -79,27 +70,6 @@ export async function runSync(
           errors.push(
             `${connector.id} timed out after ${FULL_SYNC_TIMEOUT_MS}ms`,
           );
-          // Promise.race only stops waiting — it doesn't cancel the
-          // losing promise. Wait up to ABORT_GRACE_MS for the aborted
-          // connector to actually settle, so its tail writes don't
-          // overlap with the next sync. If the connector ignores the
-          // abort signal, we move on after the grace period rather than
-          // hang forever.
-          if (syncPromise !== undefined) {
-            let graceTimer: ReturnType<typeof setTimeout> | undefined;
-            try {
-              await Promise.race([
-                syncPromise.catch(() => undefined),
-                new Promise<void>((resolve) => {
-                  graceTimer = setTimeout(resolve, ABORT_GRACE_MS);
-                }),
-              ]);
-            } finally {
-              if (graceTimer !== undefined) {
-                clearTimeout(graceTimer);
-              }
-            }
-          }
         } else {
           errors.push(err instanceof Error ? err.message : String(err));
         }

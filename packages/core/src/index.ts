@@ -106,7 +106,9 @@ export { computeMetric } from './compute';
 
 export { resolveWidget } from './resolve-widget';
 
-export type { ServerStorage } from './server-storage';
+export type { GetStorageHandleOptions, ServerStorage } from './server-storage';
+
+export { withAbortSignal } from './storage-handle-guard';
 
 export { InMemoryStorage } from './in-memory-storage';
 

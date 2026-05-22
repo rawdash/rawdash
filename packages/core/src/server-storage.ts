@@ -1,8 +1,15 @@
 import type { StorageHandle } from './connector';
 import type { SyncState } from './engine';
 
+export interface GetStorageHandleOptions {
+  signal?: AbortSignal;
+}
+
 export interface ServerStorage {
-  getStorageHandle(connectorId: string): StorageHandle;
+  getStorageHandle(
+    connectorId: string,
+    options?: GetStorageHandleOptions,
+  ): StorageHandle;
   getSyncState(): Promise<SyncState>;
   markSyncQueued(): Promise<boolean>;
   markSyncRunning(): Promise<boolean>;

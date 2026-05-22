@@ -12,7 +12,8 @@ import type {
   StorageHandle,
 } from './connector';
 import type { SyncState } from './engine';
-import type { ServerStorage } from './server-storage';
+import type { GetStorageHandleOptions, ServerStorage } from './server-storage';
+import { withAbortSignal } from './storage-handle-guard';
 
 export class InMemoryStorage implements ServerStorage {
   private eventStore = new Map<string, Event[]>();
@@ -28,7 +29,15 @@ export class InMemoryStorage implements ServerStorage {
     lastError: null,
   };
 
-  getStorageHandle(connectorId: string): StorageHandle {
+  getStorageHandle(
+    connectorId: string,
+    options?: GetStorageHandleOptions,
+  ): StorageHandle {
+    const handle = this.buildHandle(connectorId);
+    return options?.signal ? withAbortSignal(handle, options.signal) : handle;
+  }
+
+  private buildHandle(connectorId: string): StorageHandle {
     const getEntityMap = (): Map<string, Map<string, Entity>> => {
       if (!this.entityStore.has(connectorId)) {
         this.entityStore.set(connectorId, new Map());
