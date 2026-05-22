@@ -1,5 +1,9 @@
-import type { ConnectorRegistry, DashboardConfig } from '@rawdash/core';
-import { describe, expect, it } from 'vitest';
+import type {
+  CachedWidget,
+  ConnectorRegistry,
+  DashboardConfig,
+} from '@rawdash/core';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { EngineContext } from './context';
 import { RawdashError } from './errors';
@@ -12,6 +16,7 @@ import {
   triggerSync,
 } from './handlers';
 import { InMemoryStorage } from './storage';
+import type { WidgetCache, WidgetCacheKey } from './widget-cache';
 
 const CONNECTOR_NAME = 'test';
 
@@ -219,5 +224,97 @@ describe('getWidget', () => {
       status: 404,
       code: 'WIDGET_NOT_FOUND',
     });
+  });
+});
+
+class MapWidgetCache implements WidgetCache {
+  store = new Map<string, CachedWidget>();
+  getCalls = 0;
+  setCalls = 0;
+  private k(key: WidgetCacheKey): string {
+    return `${key.dashboardId}/${key.widgetId}`;
+  }
+  async get(key: WidgetCacheKey): Promise<CachedWidget | undefined> {
+    this.getCalls += 1;
+    return this.store.get(this.k(key));
+  }
+  async set(key: WidgetCacheKey, value: CachedWidget): Promise<void> {
+    this.setCalls += 1;
+    this.store.set(this.k(key), value);
+  }
+}
+
+describe('widget cache', () => {
+  it('listWidgets calls cache.get and populates via cache.set on miss', async () => {
+    const { ctx } = makeCtx();
+    const cache = new MapWidgetCache();
+    const res = await listWidgets(ctx, 'main', cache);
+    expect(res.widgets).toHaveLength(1);
+    expect(cache.getCalls).toBe(1);
+    expect(cache.setCalls).toBe(1);
+    expect(cache.store.size).toBe(1);
+  });
+
+  it('listWidgets returns the cached value on hit and skips resolution', async () => {
+    const { ctx } = makeCtx();
+    const cache = new MapWidgetCache();
+    const sentinel: CachedWidget = {
+      widgetId: 'my_widget',
+      connectorId: 'test',
+      data: { hit: true },
+      cachedAt: null,
+    };
+    cache.store.set('main/my_widget', sentinel);
+    const res = await listWidgets(ctx, 'main', cache);
+    expect(res.widgets[0]).toBe(sentinel);
+    expect(cache.setCalls).toBe(0);
+  });
+
+  it('getWidget passes widget through to cache key', async () => {
+    const { ctx } = makeCtx();
+    const cache = new MapWidgetCache();
+    const getSpy = vi.spyOn(cache, 'get');
+    await getWidget(ctx, 'main', 'my_widget', cache);
+    expect(getSpy).toHaveBeenCalledTimes(1);
+    const key = getSpy.mock.calls[0]![0];
+    expect(key.dashboardId).toBe('main');
+    expect(key.widgetId).toBe('my_widget');
+    expect(key.widget.kind).toBe('stat');
+  });
+
+  it('cache.get errors fall through to fresh resolution', async () => {
+    const { ctx } = makeCtx();
+    const cache: WidgetCache = {
+      get: async () => {
+        throw new Error('boom');
+      },
+      set: async () => {},
+    };
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const res = await listWidgets(ctx, 'main', cache);
+    expect(res.widgets).toHaveLength(1);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('cache.set errors are logged but do not fail the response', async () => {
+    const { ctx } = makeCtx();
+    const cache: WidgetCache = {
+      get: async () => undefined,
+      set: async () => {
+        throw new Error('boom');
+      },
+    };
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const w = await getWidget(ctx, 'main', 'my_widget', cache);
+    expect(w.widgetId).toBe('my_widget');
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('omitted cache → no behavior change', async () => {
+    const { ctx } = makeCtx();
+    const res = await listWidgets(ctx, 'main');
+    expect(res.widgets).toHaveLength(1);
   });
 });

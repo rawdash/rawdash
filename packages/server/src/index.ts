@@ -16,6 +16,7 @@ export type {
   TriggerSyncMode,
   TriggerSyncOptions,
 } from './handlers';
+export type { WidgetCache, WidgetCacheKey } from './widget-cache';
 export { runSync, FULL_SYNC_TIMEOUT_MS } from './sync';
 export type { RunSyncOptions } from './sync';
 export {
@@ -36,6 +37,7 @@ export type {
   SyncState,
   SyncStatus,
   TriggerSyncResponse,
+  Widget,
   WidgetsListResponse,
 } from './types';
 export { isSyncActive, ACTIVE_SYNC_STATUSES } from '@rawdash/core';

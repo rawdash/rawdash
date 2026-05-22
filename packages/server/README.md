@@ -128,6 +128,37 @@ const state = await engine.getSyncState();
 
 `createEngine` exposes the same shape as the handlers but bypasses HTTP entirely — useful for jobs, CLI tools, or the MCP server.
 
+## Widget cache (optional)
+
+`listWidgets` and `getWidget` accept an optional `WidgetCache` so deployments can avoid hitting storage for every widget on every request:
+
+```ts
+import type { WidgetCache } from '@rawdash/server';
+
+class LruWidgetCache implements WidgetCache {
+  private store = new Map<string, { value: CachedWidget; expiresAt: number }>();
+  async get({ dashboardId, widgetId }) {
+    const hit = this.store.get(`${dashboardId}/${widgetId}`);
+    if (!hit || hit.expiresAt < Date.now()) return undefined;
+    return hit.value;
+  }
+  async set({ dashboardId, widgetId, widget }, value) {
+    const ttlMs = ttlForWidget(widget); // e.g. derive from connector syncIntervalSeconds
+    this.store.set(`${dashboardId}/${widgetId}`, {
+      value,
+      expiresAt: Date.now() + ttlMs,
+    });
+  }
+}
+
+const cache = new LruWidgetCache();
+await listWidgets(ctx, 'engineering', cache);
+```
+
+The cache impl owns TTL, eviction, and the backing store (LRU, KV, Redis…). If `cache` is omitted, behavior is identical to the no-cache path. Errors thrown from `cache.get` fall through to a fresh resolution; errors from `cache.set` are logged via `console.warn` and do not affect the response.
+
+`@rawdash/hono`'s `createWidgetsRouter` accepts a `cache: (c: Context) => WidgetCache` factory invoked once per request, so the cache can be scoped to the request's tenant/auth context.
+
 ## Storage
 
 Provide any `ServerStorage` implementation:

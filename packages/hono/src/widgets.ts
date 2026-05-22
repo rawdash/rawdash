@@ -1,8 +1,19 @@
+import type { WidgetCache } from '@rawdash/server';
 import { getWidget, listWidgets } from '@rawdash/server';
+import type { Context } from 'hono';
 import { Hono } from 'hono';
 
 import type { HonoRouterOptions } from './shared';
 import { applyBefore, makeEngineContext, mapError } from './shared';
+
+export interface HonoWidgetsRouterOptions extends HonoRouterOptions {
+  /**
+   * Optional per-request factory returning a `WidgetCache`. Invoked once
+   * per request so the cache can be scoped to the request's tenant/auth
+   * context. When omitted, widgets are resolved fresh on every request.
+   */
+  cache?: (c: Context) => WidgetCache;
+}
 
 /**
  * - `GET /:dashboardId/widgets` → `WidgetsListResponse`
@@ -10,7 +21,7 @@ import { applyBefore, makeEngineContext, mapError } from './shared';
  *
  * Mount at `/dashboards`.
  */
-export function createWidgetsRouter(opts: HonoRouterOptions): Hono {
+export function createWidgetsRouter(opts: HonoWidgetsRouterOptions): Hono {
   const app = new Hono();
   applyBefore(app, opts.before);
 
@@ -20,6 +31,7 @@ export function createWidgetsRouter(opts: HonoRouterOptions): Hono {
         await listWidgets(
           makeEngineContext(c, opts),
           c.req.param('dashboardId'),
+          opts.cache?.(c),
         ),
       );
     } catch (err) {
@@ -34,6 +46,7 @@ export function createWidgetsRouter(opts: HonoRouterOptions): Hono {
           makeEngineContext(c, opts),
           c.req.param('dashboardId'),
           c.req.param('widgetId'),
+          opts.cache?.(c),
         ),
       );
     } catch (err) {

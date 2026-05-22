@@ -7,5 +7,6 @@ export type {
   SyncState,
   SyncStatus,
   TriggerSyncResponse,
+  Widget,
   WidgetsListResponse,
 } from '@rawdash/core';
