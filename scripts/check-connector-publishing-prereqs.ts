@@ -247,8 +247,12 @@ function bootstrapBlurb(pkg: WorkspacePackage): string {
     `    npm whoami`,
     `    npm login                          # only if not logged in or logged in as the wrong account (npm logout first)`,
     ``,
-    `    # 3. Bootstrap from the exact directory where this package's source lives`,
-    `    cd ${pkg.path}`,
+    `    # 3. Bootstrap from this package's directory in YOUR local checkout`,
+    `    #    (the path below is relative to the repo root — if you're working`,
+    `    #     in a git worktree, it's relative to that worktree, not the main`,
+    `    #     clone). Don't use any path printed by CI — those reference the`,
+    `    #     CI runner's filesystem and won't exist on your machine.`,
+    `    cd <your-repo-root>/${relative(REPO_ROOT, pkg.path)}`,
     `    pnpm build`,
     `    npm publish --access public`,
     ``,
@@ -256,7 +260,8 @@ function bootstrapBlurb(pkg: WorkspacePackage): string {
     `    #    (uses a direct POST to the npm registry — the official 'npm trust github'`,
     `    #     CLI flow is broken on first-time setup as of npm 11.14.1, returning a`,
     `    #     spurious 400 "value must be an array" even though the body is correct.)`,
-    `    npx tsx ${join(REPO_ROOT, 'scripts/setup-trusted-publisher.ts')} ${pkg.name}`,
+    `    cd <your-repo-root>`,
+    `    npx tsx scripts/setup-trusted-publisher.ts ${pkg.name}`,
   ].join('\n');
 }
 
