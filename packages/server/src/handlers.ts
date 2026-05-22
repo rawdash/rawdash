@@ -6,11 +6,64 @@ import type {
   WidgetsListResponse,
 } from '@rawdash/core';
 import { isSyncActive, resolveWidget } from '@rawdash/core';
+import type { DashboardConfig, ServerStorage } from '@rawdash/core';
 
 import type { EngineContext } from './context';
 import { RawdashError } from './errors';
 import { runRetention } from './retention';
 import { runSync } from './sync';
+
+/**
+ * Per-request lookup shape accepted by `triggerSync`. In `deferred` mode,
+ * the trigger handler never calls `runSync`, so `getConfig` is optional —
+ * deployments that delegate the actual sync work to an external runner
+ * (queue/worker) may not be able to materialize a `DashboardConfig` at
+ * request time.
+ */
+/**
+ * Per-request lookup shape accepted by `triggerSync` in deferred mode.
+ * `getConfig` is optional because the trigger handler never calls
+ * `runSync` — deployments that delegate the actual sync work to an
+ * external runner may not be able to materialize a `DashboardConfig` at
+ * request time.
+ */
+export interface DeferredTriggerSyncContext {
+  getConfig?: () => DashboardConfig | Promise<DashboardConfig>;
+  getStorage: () => ServerStorage | Promise<ServerStorage>;
+}
+
+/**
+ * Per-request lookup shape accepted by `triggerSync` in in-process
+ * mode. `getConfig` is required because the trigger handler kicks off
+ * `runSync(config, storage)` in the background.
+ */
+export interface InProcessTriggerSyncContext {
+  getConfig: () => DashboardConfig | Promise<DashboardConfig>;
+  getStorage: () => ServerStorage | Promise<ServerStorage>;
+}
+
+/**
+ * @deprecated Prefer `InProcessTriggerSyncContext` /
+ * `DeferredTriggerSyncContext`. Retained as the union for callers that
+ * need a single type covering both modes.
+ */
+export type TriggerSyncContext = DeferredTriggerSyncContext;
+
+export type TriggerSyncMode = 'in-process' | 'deferred';
+
+export interface TriggerSyncOptions {
+  /**
+   * `'in-process'` (default): the trigger handler also runs the sync in
+   * the background by invoking `runSync(config, storage)`. Suitable for
+   * self-hosted, single-process deployments.
+   *
+   * `'deferred'`: the trigger handler only persists the `queued`
+   * transition and returns. The `running → succeeded/failed` transitions
+   * are the responsibility of an external runner (e.g. a queue consumer
+   * worker), which must drive the storage accordingly.
+   */
+  mode?: TriggerSyncMode;
+}
 
 /**
  * Framework-agnostic request handlers for the rawdash wire contract.
@@ -33,18 +86,39 @@ export async function getSyncStateHandler(
   return storage.getSyncState();
 }
 
+export function triggerSync(
+  ctx: InProcessTriggerSyncContext,
+  opts?: { mode?: 'in-process' },
+): Promise<TriggerSyncResponse>;
+export function triggerSync(
+  ctx: DeferredTriggerSyncContext,
+  opts: { mode: 'deferred' },
+): Promise<TriggerSyncResponse>;
 export async function triggerSync(
-  ctx: EngineContext,
+  ctx: DeferredTriggerSyncContext,
+  opts: TriggerSyncOptions = {},
 ): Promise<TriggerSyncResponse> {
+  const mode: TriggerSyncMode = opts.mode ?? 'in-process';
   const storage = await ctx.getStorage();
   const state = await storage.getSyncState();
   if (isSyncActive(state.status)) {
     return { queued: false };
   }
-  // Load the config *before* marking queued — if config loading rejects
-  // after we've persisted the queued transition, the sync state would be
-  // stuck in `queued` with no background run to drain it.
-  const config = await ctx.getConfig();
+  // In-process mode loads the config *before* marking queued — if config
+  // loading rejects after we've persisted the queued transition, the sync
+  // state would be stuck in `queued` with no background run to drain it.
+  // In deferred mode, `runSync` never fires here; an external runner is
+  // responsible for the running/succeeded/failed transitions, so we skip
+  // loading config entirely.
+  let config: DashboardConfig | undefined;
+  if (mode === 'in-process') {
+    if (!ctx.getConfig) {
+      throw new Error(
+        'triggerSync: getConfig is required when mode is "in-process"',
+      );
+    }
+    config = await ctx.getConfig();
+  }
   // Persist the queued transition synchronously so clients polling
   // /sync/state right after the trigger see `queued` (with queuedAt),
   // not a stale terminal state.
@@ -52,7 +126,10 @@ export async function triggerSync(
   if (!queued) {
     return { queued: false };
   }
-  void runSync(config, storage).catch((err) => {
+  if (mode === 'deferred') {
+    return { queued: true };
+  }
+  void runSync(config!, storage).catch((err) => {
     console.error('Rawdash sync failed', err);
   });
   return { queued: true };

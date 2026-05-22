@@ -9,6 +9,13 @@ export {
   runRetentionOnce,
   triggerSync,
 } from './handlers';
+export type {
+  DeferredTriggerSyncContext,
+  InProcessTriggerSyncContext,
+  TriggerSyncContext,
+  TriggerSyncMode,
+  TriggerSyncOptions,
+} from './handlers';
 export { runSync, FULL_SYNC_TIMEOUT_MS } from './sync';
 export {
   runRetention,
