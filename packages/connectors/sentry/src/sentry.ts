@@ -44,10 +44,10 @@ export const configFields = defineConfigFields(
         description:
           "Which Sentry resources to sync. Omit to sync all of them. 'issue_events' depends on 'issues' being fetched — enabling it without 'issues' still runs the issues query, but skips writing issue entities.",
       }),
-    eventsPerIssueCap: z.number().int().positive().max(1000).optional().meta({
+    eventsPerIssueCap: z.number().int().positive().max(100).optional().meta({
       label: 'Events per issue cap',
       description:
-        'Maximum number of recent events (occurrences) to sample per issue on each sync. Defaults to 100.',
+        'Maximum number of recent events (occurrences) to sample per issue on each sync. Defaults to 100 (the max page size Sentry allows for the issue events endpoint).',
       placeholder: '100',
     }),
     statsLookbackHours: z.number().int().positive().max(168).optional().meta({
@@ -176,6 +176,14 @@ interface IssuesPageItem {
 interface SentryLink {
   url: string;
   hasResults: boolean;
+}
+
+function safeTimestamp(iso: string | null | undefined): number | null {
+  if (iso === null || iso === undefined) {
+    return null;
+  }
+  const ms = new Date(iso).getTime();
+  return Number.isFinite(ms) ? ms : null;
 }
 
 function parseSentryLink(
@@ -385,7 +393,10 @@ export class SentryConnector extends BaseConnector<
   private buildIssueEventsUrl(issueId: string): string {
     const cap = this.settings.eventsPerIssueCap ?? DEFAULT_EVENTS_PER_ISSUE;
     const u = new URL(`${SENTRY_API_BASE}/issues/${issueId}/events/`);
-    u.searchParams.set('limit', String(Math.min(cap, 100)));
+    u.searchParams.set(
+      'limit',
+      String(Math.min(cap, DEFAULT_EVENTS_PER_ISSUE)),
+    );
     return u.toString();
   }
 
@@ -463,6 +474,8 @@ export class SentryConnector extends BaseConnector<
       if (writeEntities) {
         const count =
           typeof issue.count === 'string' ? Number(issue.count) : issue.count;
+        const firstSeenMs = safeTimestamp(issue.firstSeen);
+        const lastSeenMs = safeTimestamp(issue.lastSeen);
         await storage.entity({
           type: 'sentry_issue',
           id: issue.id,
@@ -471,13 +484,13 @@ export class SentryConnector extends BaseConnector<
             title: issue.title,
             level: issue.level,
             status: issue.status,
-            firstSeen: new Date(issue.firstSeen).getTime(),
-            lastSeen: new Date(issue.lastSeen).getTime(),
+            firstSeen: firstSeenMs,
+            lastSeen: lastSeenMs,
             count: Number.isFinite(count) ? count : 0,
             userCount: issue.userCount,
             projectSlug: issue.project.slug,
           },
-          updated_at: new Date(issue.lastSeen).getTime(),
+          updated_at: lastSeenMs ?? 0,
         });
       }
 
@@ -488,9 +501,13 @@ export class SentryConnector extends BaseConnector<
           if (eventId === null) {
             continue;
           }
+          const startTs = safeTimestamp(ev.dateCreated);
+          if (startTs === null) {
+            continue;
+          }
           await storage.event({
             name: 'sentry_issue_event',
-            start_ts: new Date(ev.dateCreated).getTime(),
+            start_ts: startTs,
             end_ts: null,
             attributes: {
               eventId,
@@ -513,11 +530,9 @@ export class SentryConnector extends BaseConnector<
     releases: SentryRelease[],
   ): Promise<void> {
     for (const r of releases) {
-      const createdMs = new Date(r.dateCreated).getTime();
-      const releasedMs = r.dateReleased
-        ? new Date(r.dateReleased).getTime()
-        : null;
-      const lastEventMs = r.lastEvent ? new Date(r.lastEvent).getTime() : null;
+      const createdMs = safeTimestamp(r.dateCreated);
+      const releasedMs = safeTimestamp(r.dateReleased);
+      const lastEventMs = safeTimestamp(r.lastEvent);
       await storage.entity({
         type: 'sentry_release',
         id: r.version,
@@ -528,7 +543,7 @@ export class SentryConnector extends BaseConnector<
           dateReleased: releasedMs,
           lastEvent: lastEventMs,
         },
-        updated_at: Math.max(createdMs, releasedMs ?? 0, lastEventMs ?? 0),
+        updated_at: Math.max(createdMs ?? 0, releasedMs ?? 0, lastEventMs ?? 0),
       });
     }
   }

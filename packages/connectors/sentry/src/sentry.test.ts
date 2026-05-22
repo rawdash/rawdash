@@ -58,13 +58,22 @@ describe('configFields', () => {
     expect(result.success).toBe(false);
   });
 
-  it('rejects eventsPerIssueCap above 1000', () => {
+  it('rejects eventsPerIssueCap above 100', () => {
     const result = configFields.safeParse({
       authToken: { $secret: 'SENTRY_AUTH_TOKEN' },
       organization: 'acme',
-      eventsPerIssueCap: 5000,
+      eventsPerIssueCap: 500,
     });
     expect(result.success).toBe(false);
+  });
+
+  it('accepts eventsPerIssueCap at the boundary of 100', () => {
+    const result = configFields.safeParse({
+      authToken: { $secret: 'SENTRY_AUTH_TOKEN' },
+      organization: 'acme',
+      eventsPerIssueCap: 100,
+    });
+    expect(result.success).toBe(true);
   });
 
   it('rejects statsLookbackHours above 168', () => {
@@ -455,8 +464,10 @@ describe('SentryConnector.sync', () => {
     await connector.sync({ mode: 'full' }, makeStorage());
 
     expect(spy.mock.calls.length).toBeGreaterThan(0);
-    const headers = spy.mock.calls[0]![1].headers as Record<string, string>;
-    expect(headers.authorization).toBe('Bearer sntrys_secret');
+    for (const call of spy.mock.calls) {
+      const headers = call[1].headers as Record<string, string>;
+      expect(headers.authorization).toBe('Bearer sntrys_secret');
+    }
   });
 
   it('adds project query params when projects are configured', async () => {
