@@ -41,6 +41,10 @@ export async function triggerSync(
   if (isSyncActive(state.status)) {
     return { queued: false };
   }
+  // Load the config *before* marking queued — if config loading rejects
+  // after we've persisted the queued transition, the sync state would be
+  // stuck in `queued` with no background run to drain it.
+  const config = await ctx.getConfig();
   // Persist the queued transition synchronously so clients polling
   // /sync/state right after the trigger see `queued` (with queuedAt),
   // not a stale terminal state.
@@ -48,7 +52,6 @@ export async function triggerSync(
   if (!queued) {
     return { queued: false };
   }
-  const config = await ctx.getConfig();
   void runSync(config, storage).catch((err) => {
     console.error('Rawdash sync failed', err);
   });
