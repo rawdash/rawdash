@@ -25,10 +25,11 @@ The connector supports two authentication methods. **Service account JSON** is r
 
 ## Configuration
 
+Service account auth:
+
 ```ts
 import { secret } from '@rawdash/core';
 
-// Service account auth
 const ga4 = {
   name: 'ga4',
   connectorId: 'google-analytics',
@@ -37,8 +38,13 @@ const ga4 = {
     serviceAccountJson: secret('GA_SERVICE_ACCOUNT_JSON'),
   },
 };
+```
 
-// OAuth auth
+OAuth auth:
+
+```ts
+import { secret } from '@rawdash/core';
+
 const ga4 = {
   name: 'ga4',
   connectorId: 'google-analytics',

@@ -112,7 +112,7 @@ data into `storage` using typed write methods (`storage.events()`,
        connectors: [
          {
            name: 'my-api',
-           connectorId: 'my-connector',
+           connectorId: 'my-api',
            config: { apiKey: secret('MY_API_KEY') },
          },
        ],
@@ -121,7 +121,7 @@ data into `storage` using typed write methods (`storage.events()`,
        },
      }),
      {
-       connectorRegistry: { 'my-connector': MyConnector },
+       connectorRegistry: { 'my-api': MyConnector },
      },
    );
    honoServe({ fetch: app.fetch, port: 8080 });

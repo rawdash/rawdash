@@ -240,14 +240,32 @@ function validateConfig(config: DashboardConfig): void {
     );
   }
 
+  if (!Array.isArray(config.connectors)) {
+    throw new Error('defineConfig: "connectors" must be an array');
+  }
+
   const connectorNames = new Set<string>();
   for (const entry of config.connectors) {
+    if (!entry || typeof entry !== 'object') {
+      throw new Error(
+        'defineConfig: every connector entry must be an object with "name", "connectorId", and "config"',
+      );
+    }
     if (!entry.name) {
       throw new Error('defineConfig: every connector entry must have a "name"');
     }
     if (!entry.connectorId) {
       throw new Error(
         `defineConfig: connector "${entry.name}" must have a "connectorId" (the connector type id)`,
+      );
+    }
+    if (
+      entry.config === null ||
+      typeof entry.config !== 'object' ||
+      Array.isArray(entry.config)
+    ) {
+      throw new Error(
+        `defineConfig: connector "${entry.name}" must have a "config" object`,
       );
     }
     if (connectorNames.has(entry.name)) {
