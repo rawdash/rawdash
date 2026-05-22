@@ -11,6 +11,7 @@
       "@rawdash/connector-google-analytics",
       "@rawdash/connector-stripe",
       "@rawdash/connector-linear",
+      "@rawdash/connector-sentry",
       "@rawdash/adapter-libsql",
       "@rawdash/cli",
       "@rawdash/client",
