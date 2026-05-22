@@ -106,7 +106,11 @@ export { computeMetric } from './compute';
 
 export { resolveWidget } from './resolve-widget';
 
-export type { ConnectorClass, ConnectorRegistry } from './registry';
+export type {
+  ConnectorClass,
+  ConnectorRegistry,
+  ConnectorSchemas,
+} from './registry';
 
 export { instantiateConnector } from './registry';
 

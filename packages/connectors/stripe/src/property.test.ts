@@ -46,28 +46,8 @@ function entityStoreFor(
   );
 }
 
-const idString = z.string().min(1);
-
-const customersSchema = z.array(
-  z.object({
-    id: idString,
-    email: z.string().nullable(),
-    name: z.string().nullable(),
-    created: z.number().int().nonnegative(),
-    currency: z.string().nullable(),
-    delinquent: z.boolean(),
-    livemode: z.boolean(),
-  }),
-);
-
-const productsSchema = z.array(
-  z.object({
-    id: idString,
-    name: z.string(),
-    active: z.boolean(),
-    created: z.number().int().nonnegative(),
-  }),
-);
+type CustomersSample = z.infer<typeof StripeConnector.schemas.customers>;
+type ProductsSample = z.infer<typeof StripeConnector.schemas.products>;
 
 describe('StripeConnector property tests', () => {
   afterEach(() => {
@@ -78,7 +58,7 @@ describe('StripeConnector property tests', () => {
     const extra = (
       storage: InMemoryStorage,
       _connectorId: string,
-      sample: z.infer<typeof customersSchema>,
+      sample: CustomersSample,
     ): InvariantViolation[] => {
       const violations: InvariantViolation[] = [];
       const unique = new Set(sample.map((c) => c.id)).size;
@@ -94,7 +74,8 @@ describe('StripeConnector property tests', () => {
     };
 
     await runPropertySyncTest({
-      schema: customersSchema,
+      connectorClass: StripeConnector,
+      resource: 'customers',
       connectorId: CONNECTOR_ID,
       runs: 100,
       extraInvariants: [extra],
@@ -116,7 +97,7 @@ describe('StripeConnector property tests', () => {
     const extra = (
       storage: InMemoryStorage,
       _connectorId: string,
-      sample: z.infer<typeof productsSchema>,
+      sample: ProductsSample,
     ): InvariantViolation[] => {
       const violations: InvariantViolation[] = [];
       const unique = new Set(sample.map((p) => p.id)).size;
@@ -132,7 +113,8 @@ describe('StripeConnector property tests', () => {
     };
 
     await runPropertySyncTest({
-      schema: productsSchema,
+      connectorClass: StripeConnector,
+      resource: 'products',
       connectorId: CONNECTOR_ID,
       runs: 100,
       extraInvariants: [extra],

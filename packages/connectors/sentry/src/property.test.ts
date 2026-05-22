@@ -46,32 +46,8 @@ function entityStoreFor(
   );
 }
 
-const idString = z.string().min(1);
-
-const issuesSchema = z.array(
-  z.object({
-    id: idString,
-    shortId: z.string(),
-    title: z.string(),
-    level: z.enum(['debug', 'info', 'warning', 'error', 'fatal']),
-    status: z.enum(['resolved', 'unresolved', 'ignored']),
-    firstSeen: z.iso.datetime(),
-    lastSeen: z.iso.datetime(),
-    count: z.number().int().nonnegative(),
-    userCount: z.number().int().nonnegative(),
-    project: z.object({ slug: z.string().min(1) }),
-  }),
-);
-
-const releasesSchema = z.array(
-  z.object({
-    version: idString,
-    dateCreated: z.iso.datetime(),
-    dateReleased: z.iso.datetime().nullable(),
-    lastEvent: z.iso.datetime().nullable(),
-    projects: z.array(z.object({ slug: z.string().min(1) })),
-  }),
-);
+type IssuesSample = z.infer<typeof SentryConnector.schemas.issues>;
+type ReleasesSample = z.infer<typeof SentryConnector.schemas.releases>;
 
 describe('SentryConnector property tests', () => {
   afterEach(() => {
@@ -82,7 +58,7 @@ describe('SentryConnector property tests', () => {
     const extra = (
       storage: InMemoryStorage,
       _connectorId: string,
-      sample: z.infer<typeof issuesSchema>,
+      sample: IssuesSample,
     ): InvariantViolation[] => {
       const violations: InvariantViolation[] = [];
       const unique = new Set(sample.map((i) => i.id)).size;
@@ -98,7 +74,8 @@ describe('SentryConnector property tests', () => {
     };
 
     await runPropertySyncTest({
-      schema: issuesSchema,
+      connectorClass: SentryConnector,
+      resource: 'issues',
       connectorId: CONNECTOR_ID,
       runs: 100,
       extraInvariants: [extra],
@@ -120,7 +97,7 @@ describe('SentryConnector property tests', () => {
     const extra = (
       storage: InMemoryStorage,
       _connectorId: string,
-      sample: z.infer<typeof releasesSchema>,
+      sample: ReleasesSample,
     ): InvariantViolation[] => {
       const violations: InvariantViolation[] = [];
       const unique = new Set(sample.map((r) => r.version)).size;
@@ -136,7 +113,8 @@ describe('SentryConnector property tests', () => {
     };
 
     await runPropertySyncTest({
-      schema: releasesSchema,
+      connectorClass: SentryConnector,
+      resource: 'releases',
       connectorId: CONNECTOR_ID,
       runs: 100,
       extraInvariants: [extra],

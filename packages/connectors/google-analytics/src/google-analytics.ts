@@ -404,8 +404,52 @@ export function rowToMetricSample(
 // GA4Connector
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Schemas — describe the per-resource API response shape consumed by request()
+// ---------------------------------------------------------------------------
+
+const dateDimensionValue = z.object({
+  value: z.string().regex(/^(19|20)\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])$/),
+});
+
+const stringDimensionValue = z.object({ value: z.string() });
+const numericMetricValue = z.object({ value: z.string().regex(/^\d+$/) });
+
+function reportSchema(dimensionCount: number) {
+  const dims =
+    dimensionCount === 1
+      ? z.tuple([dateDimensionValue])
+      : z.tuple([
+          dateDimensionValue,
+          ...Array(dimensionCount - 1).fill(stringDimensionValue),
+        ] as [typeof dateDimensionValue, ...z.ZodType[]]);
+  return z.object({
+    rows: z.array(
+      z.object({
+        dimensionValues: dims,
+        metricValues: z.array(numericMetricValue).nonempty(),
+      }),
+    ),
+  });
+}
+
+const tokenResponseSchema = z.object({
+  access_token: z.string().min(1),
+  expires_in: z.number().int().positive().optional(),
+});
+
 export class GA4Connector extends BaseConnector<GA4Settings, GA4Credentials> {
   static readonly id = 'google-analytics';
+
+  static readonly schemas = {
+    oauth_token: tokenResponseSchema,
+    traffic_by_day: reportSchema(1),
+    traffic_by_source: reportSchema(3),
+    top_pages: reportSchema(2),
+    events: reportSchema(2),
+    conversions: reportSchema(2),
+    geo: reportSchema(2),
+  } as const;
 
   static create(input: unknown, ctx?: ConnectorContext): GA4Connector {
     const parsed = configFields.parse(input);

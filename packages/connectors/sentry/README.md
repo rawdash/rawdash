@@ -114,6 +114,17 @@ export default defineConfig({
 
 Timestamps are stored as Unix epoch milliseconds. `sentry_issue_event` rows are sampled — the connector fetches at most `eventsPerIssueCap` recent events per issue per sync (Sentry caps a single `/events` page at 100), so the events shape is a representative sample, not a full audit trail.
 
+## Schemas
+
+`SentryConnector.schemas` declares the Zod schema for each resource's raw API response. Used by the cloud shape-drift pipeline to populate `connector_baselines`, and by the package's property tests.
+
+| Resource       | Represents                                                       |
+| -------------- | ---------------------------------------------------------------- |
+| `issues`       | `GET /api/0/organizations/{org}/issues/` page                    |
+| `issue_events` | `GET /api/0/issues/{id}/events/` page                            |
+| `releases`     | `GET /api/0/organizations/{org}/releases/` page                  |
+| `error_stats`  | `GET /api/0/organizations/{org}/stats_v2/` — hourly error counts |
+
 ## Sync behaviour
 
 - **Backfill** (`mode: 'full'`): paginates `/api/0/organizations/{org}/issues/` and `/releases/` via Sentry's Link header (page size 100), respecting `results="true"` to stop cleanly. Issue and release entity scopes (plus the `sentry_issue_event` event scope) are cleared at the start of their phase so deletions in Sentry converge.

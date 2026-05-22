@@ -114,6 +114,17 @@ export default defineConfig({
 
 Timestamps are stored as Unix epoch milliseconds. `linear_issue_state_change` events are derived from the `history(first: N)` window on each issue — only entries with a non-null `fromState` and `toState` (and where they differ) become events.
 
+## Schemas
+
+`LinearConnector.schemas` declares the Zod schema for each resource's raw GraphQL node shape. Used by the cloud shape-drift pipeline to populate `connector_baselines`, and by the package's property tests.
+
+| Resource | Represents                                              |
+| -------- | ------------------------------------------------------- |
+| `teams`  | `teams(...)` connection nodes                           |
+| `users`  | `users(...)` connection nodes                           |
+| `cycles` | `cycles(...)` connection nodes                          |
+| `issues` | `issues(...)` connection nodes (incl. nested `history`) |
+
 ## Sync behaviour
 
 - **Backfill** (`mode: 'full'`): paginates each phase via Linear's `after`/`endCursor` GraphQL connection (page size 50). Issue and event scopes are cleared at the start of their phase so deletions in Linear converge.

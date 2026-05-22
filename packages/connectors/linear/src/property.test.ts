@@ -63,88 +63,10 @@ function makeConnector(): LinearConnector {
   );
 }
 
-const idString = z.string().min(1);
-
-const teamsSchema = z.array(
-  z.object({
-    id: idString,
-    name: z.string(),
-    key: z.string(),
-    createdAt: z.iso.datetime(),
-    updatedAt: z.iso.datetime(),
-  }),
-);
-
-const usersSchema = z.array(
-  z.object({
-    id: idString,
-    name: z.string(),
-    email: z.string().nullable(),
-    displayName: z.string(),
-    active: z.boolean(),
-    createdAt: z.iso.datetime(),
-    updatedAt: z.iso.datetime(),
-  }),
-);
-
-const cyclesSchema = z.array(
-  z.object({
-    id: idString,
-    number: z.number().int(),
-    name: z.string().nullable(),
-    startsAt: z.iso.datetime(),
-    endsAt: z.iso.datetime(),
-    completedAt: z.iso.datetime().nullable(),
-    progress: z.number().nullable(),
-    scopeHistory: z.array(z.number()).nullable(),
-    completedScopeHistory: z.array(z.number()).nullable(),
-    team: z.object({ id: idString }).nullable(),
-    createdAt: z.iso.datetime(),
-    updatedAt: z.iso.datetime(),
-  }),
-);
-
-const issuesSchema = z.array(
-  z.object({
-    id: idString,
-    identifier: z.string(),
-    title: z.string(),
-    priority: z.number().int(),
-    estimate: z.number().nullable(),
-    state: z
-      .object({ id: idString, name: z.string(), type: z.string() })
-      .nullable(),
-    assignee: z.object({ id: idString }).nullable(),
-    team: z.object({ id: idString }).nullable(),
-    project: z.object({ id: idString }).nullable(),
-    cycle: z.object({ id: idString }).nullable(),
-    labels: z.object({
-      nodes: z.array(z.object({ id: idString, name: z.string() })),
-    }),
-    createdAt: z.iso.datetime(),
-    updatedAt: z.iso.datetime(),
-    completedAt: z.iso.datetime().nullable(),
-    canceledAt: z.iso.datetime().nullable(),
-    startedAt: z.iso.datetime().nullable(),
-    history: z.object({
-      nodes: z.array(
-        z.object({
-          id: idString,
-          createdAt: z.iso.datetime(),
-          actor: z.object({ id: idString }).nullable(),
-          fromState: z.object({ id: idString, name: z.string() }).nullable(),
-          toState: z.object({ id: idString, name: z.string() }).nullable(),
-          fromAssignee: z.object({ id: idString }).nullable(),
-          toAssignee: z.object({ id: idString }).nullable(),
-        }),
-      ),
-      pageInfo: z.object({
-        hasNextPage: z.boolean(),
-        endCursor: z.string().nullable(),
-      }),
-    }),
-  }),
-);
+type TeamsSample = z.infer<typeof LinearConnector.schemas.teams>;
+type UsersSample = z.infer<typeof LinearConnector.schemas.users>;
+type CyclesSample = z.infer<typeof LinearConnector.schemas.cycles>;
+type IssuesSample = z.infer<typeof LinearConnector.schemas.issues>;
 
 describe('LinearConnector property tests', () => {
   afterEach(() => {
@@ -155,7 +77,7 @@ describe('LinearConnector property tests', () => {
     const extra = (
       storage: InMemoryStorage,
       _connectorId: string,
-      sample: z.infer<typeof teamsSchema>,
+      sample: TeamsSample,
     ): InvariantViolation[] => {
       const violations: InvariantViolation[] = [];
       const unique = new Set(sample.map((t) => t.id)).size;
@@ -171,7 +93,8 @@ describe('LinearConnector property tests', () => {
     };
 
     await runPropertySyncTest({
-      schema: teamsSchema,
+      connectorClass: LinearConnector,
+      resource: 'teams',
       connectorId: CONNECTOR_ID,
       runs: 100,
       extraInvariants: [extra],
@@ -204,7 +127,7 @@ describe('LinearConnector property tests', () => {
     const extra = (
       storage: InMemoryStorage,
       _connectorId: string,
-      sample: z.infer<typeof usersSchema>,
+      sample: UsersSample,
     ): InvariantViolation[] => {
       const violations: InvariantViolation[] = [];
       const unique = new Set(sample.map((u) => u.id)).size;
@@ -220,7 +143,8 @@ describe('LinearConnector property tests', () => {
     };
 
     await runPropertySyncTest({
-      schema: usersSchema,
+      connectorClass: LinearConnector,
+      resource: 'users',
       connectorId: CONNECTOR_ID,
       runs: 100,
       extraInvariants: [extra],
@@ -253,7 +177,7 @@ describe('LinearConnector property tests', () => {
     const extra = (
       storage: InMemoryStorage,
       _connectorId: string,
-      sample: z.infer<typeof cyclesSchema>,
+      sample: CyclesSample,
     ): InvariantViolation[] => {
       const violations: InvariantViolation[] = [];
       const unique = new Set(sample.map((c) => c.id)).size;
@@ -269,7 +193,8 @@ describe('LinearConnector property tests', () => {
     };
 
     await runPropertySyncTest({
-      schema: cyclesSchema,
+      connectorClass: LinearConnector,
+      resource: 'cycles',
       connectorId: CONNECTOR_ID,
       runs: 100,
       extraInvariants: [extra],
@@ -302,7 +227,7 @@ describe('LinearConnector property tests', () => {
     const extra = (
       storage: InMemoryStorage,
       _connectorId: string,
-      sample: z.infer<typeof issuesSchema>,
+      sample: IssuesSample,
     ): InvariantViolation[] => {
       const violations: InvariantViolation[] = [];
       const unique = new Set(sample.map((i) => i.id)).size;
@@ -318,7 +243,8 @@ describe('LinearConnector property tests', () => {
     };
 
     await runPropertySyncTest({
-      schema: issuesSchema,
+      connectorClass: LinearConnector,
+      resource: 'issues',
       connectorId: CONNECTOR_ID,
       runs: 50,
       extraInvariants: [extra],

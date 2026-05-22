@@ -137,6 +137,20 @@ All resources are stored as **metric samples** (`shape: 'metric'`). The `ts` fie
 
 The `value` field of each metric sample contains the first metric in the table above (e.g. `sessions` for `ga4_traffic_by_day`). All other metrics are accessible via attribute names.
 
+## Schemas
+
+`GA4Connector.schemas` declares the Zod schema for each `request()` resource — one per `runReport` phase, plus the OAuth token exchange. Used by the cloud shape-drift pipeline to populate `connector_baselines`, and by the package's property tests.
+
+| Resource            | Represents                                                                  |
+| ------------------- | --------------------------------------------------------------------------- |
+| `oauth_token`       | `POST https://oauth2.googleapis.com/token` — access-token exchange response |
+| `traffic_by_day`    | `properties/{id}:runReport` with `dimensions=[date]`                        |
+| `traffic_by_source` | `runReport` with `dimensions=[date, sessionSource, sessionMedium]`          |
+| `top_pages`         | `runReport` with `dimensions=[date, pagePath]`                              |
+| `events`            | `runReport` with `dimensions=[date, eventName]`                             |
+| `conversions`       | `runReport` with `dimensions=[date, eventName]`                             |
+| `geo`               | `runReport` with `dimensions=[date, country]`                               |
+
 ## Sync behaviour
 
 - **Backfill** (`mode: 'full'`): fetches a rolling window (default 90 days, configurable via `lookbackDays`) for all six resources.

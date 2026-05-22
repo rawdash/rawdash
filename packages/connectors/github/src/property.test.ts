@@ -110,107 +110,7 @@ function safeDefaultResponse(url: string): MockResponseInit {
   return { body: [] };
 }
 
-const workflowRunsResponseSchema = z.object({
-  workflow_runs: z.array(
-    z.object({
-      id: z.number().int(),
-      name: z.string(),
-      conclusion: z.string().nullable(),
-      status: z.string(),
-      head_branch: z.string().nullable(),
-      actor: z.object({ login: z.string().min(1) }).nullable(),
-      created_at: z.iso.datetime(),
-      updated_at: z.iso.datetime(),
-      run_attempt: z.number().int(),
-    }),
-  ),
-});
-
-const pullRequestsSchema = z.array(
-  z.object({
-    number: z.number().int(),
-    title: z.string(),
-    state: z.string(),
-    draft: z.boolean(),
-    user: z.object({ login: z.string().min(1) }),
-    created_at: z.iso.datetime(),
-    updated_at: z.iso.datetime(),
-  }),
-);
-
-const reviewsSchema = z.array(
-  z.object({
-    user: z.object({ login: z.string().min(1) }).nullable(),
-    state: z.string(),
-    submitted_at: z.iso.datetime(),
-  }),
-);
-
-const issuesSchema = z.array(
-  z.object({
-    number: z.number().int(),
-    title: z.string(),
-    state: z.string(),
-    labels: z.array(z.object({ name: z.string() })),
-    assignees: z.array(z.object({ login: z.string().min(1) })),
-    user: z.object({ login: z.string().min(1) }),
-    created_at: z.iso.datetime(),
-    updated_at: z.iso.datetime(),
-    closed_at: z.iso.datetime().nullable(),
-  }),
-);
-
-const deploymentsSchema = z.array(
-  z.object({
-    id: z.number().int(),
-    environment: z.string(),
-    ref: z.string(),
-    sha: z.string(),
-    creator: z.object({ login: z.string().min(1) }).nullable(),
-    created_at: z.iso.datetime(),
-  }),
-);
-
-const deploymentStatusesSchema = z.array(
-  z.object({
-    state: z.string(),
-    updated_at: z.iso.datetime(),
-  }),
-);
-
-const releasesSchema = z.array(
-  z.object({
-    id: z.number().int(),
-    tag_name: z.string(),
-    name: z.string().nullable(),
-    draft: z.boolean(),
-    prerelease: z.boolean(),
-    created_at: z.iso.datetime(),
-    published_at: z.iso.datetime().nullable(),
-    author: z.object({ login: z.string().min(1) }),
-  }),
-);
-
-const contributorsSchema = z.array(
-  z.object({
-    total: z.number().int(),
-    weeks: z.array(
-      z.object({
-        w: z.number().int(),
-        a: z.number().int(),
-        d: z.number().int(),
-        c: z.number().int(),
-      }),
-    ),
-    author: z.object({ login: z.string().min(1) }),
-  }),
-);
-
-const repoStatsSchema = z.object({
-  stargazers_count: z.number().int(),
-  forks_count: z.number().int(),
-  subscribers_count: z.number().int(),
-});
+const S = GitHubConnector.schemas;
 
 describe('GitHubConnector property tests', () => {
   beforeEach(() => {
@@ -226,7 +126,7 @@ describe('GitHubConnector property tests', () => {
     const extra = (
       storage: InMemoryStorage,
       _connectorId: string,
-      sample: z.infer<typeof workflowRunsResponseSchema>,
+      sample: z.infer<typeof S.workflow_runs>,
     ): InvariantViolation[] => {
       const violations: InvariantViolation[] = [];
       const lastById = lastByKey(sample.workflow_runs, (r) => String(r.id));
@@ -254,7 +154,8 @@ describe('GitHubConnector property tests', () => {
     };
 
     await runPropertySyncTest({
-      schema: workflowRunsResponseSchema,
+      connectorClass: GitHubConnector,
+      resource: 'workflow_runs',
       connectorId: CONNECTOR_ID,
       runs: 100,
       extraInvariants: [extra],
@@ -275,8 +176,8 @@ describe('GitHubConnector property tests', () => {
 
   it('pull_requests: sync upholds universal invariants for any valid API payload', async () => {
     const combinedSchema = z.object({
-      prs: pullRequestsSchema,
-      reviewsPerPR: reviewsSchema,
+      prs: S.pull_requests,
+      reviewsPerPR: S.pull_request_reviews,
     });
 
     const extra = (
@@ -346,7 +247,7 @@ describe('GitHubConnector property tests', () => {
     const extra = (
       storage: InMemoryStorage,
       _connectorId: string,
-      sample: z.infer<typeof issuesSchema>,
+      sample: z.infer<typeof S.issues>,
     ): InvariantViolation[] => {
       const violations: InvariantViolation[] = [];
       const lastByNumber = lastByKey(sample, (i) => String(i.number));
@@ -383,7 +284,8 @@ describe('GitHubConnector property tests', () => {
     };
 
     await runPropertySyncTest({
-      schema: issuesSchema,
+      connectorClass: GitHubConnector,
+      resource: 'issues',
       connectorId: CONNECTOR_ID,
       runs: 100,
       extraInvariants: [extra],
@@ -404,8 +306,8 @@ describe('GitHubConnector property tests', () => {
 
   it('deployments: sync upholds universal invariants for any valid API payload', async () => {
     const combinedSchema = z.object({
-      deployments: deploymentsSchema,
-      statuses: deploymentStatusesSchema,
+      deployments: S.deployments,
+      statuses: S.deployment_statuses,
     });
 
     const extra = (
@@ -474,7 +376,7 @@ describe('GitHubConnector property tests', () => {
     const extra = (
       storage: InMemoryStorage,
       _connectorId: string,
-      sample: z.infer<typeof releasesSchema>,
+      sample: z.infer<typeof S.releases>,
     ): InvariantViolation[] => {
       const violations: InvariantViolation[] = [];
       const lastById = lastByKey(sample, (r) => String(r.id));
@@ -511,7 +413,8 @@ describe('GitHubConnector property tests', () => {
     };
 
     await runPropertySyncTest({
-      schema: releasesSchema,
+      connectorClass: GitHubConnector,
+      resource: 'releases',
       connectorId: CONNECTOR_ID,
       runs: 100,
       extraInvariants: [extra],
@@ -534,7 +437,7 @@ describe('GitHubConnector property tests', () => {
     const extra = (
       storage: InMemoryStorage,
       _connectorId: string,
-      sample: z.infer<typeof contributorsSchema>,
+      sample: z.infer<typeof S.contributors>,
     ): InvariantViolation[] => {
       const violations: InvariantViolation[] = [];
       const lastByLogin = lastByKey(sample, (c) => c.author.login);
@@ -568,7 +471,8 @@ describe('GitHubConnector property tests', () => {
     };
 
     await runPropertySyncTest({
-      schema: contributorsSchema,
+      connectorClass: GitHubConnector,
+      resource: 'contributors',
       connectorId: CONNECTOR_ID,
       runs: 100,
       extraInvariants: [extra],
@@ -603,7 +507,8 @@ describe('GitHubConnector property tests', () => {
     };
 
     await runPropertySyncTest({
-      schema: repoStatsSchema,
+      connectorClass: GitHubConnector,
+      resource: 'repo',
       connectorId: CONNECTOR_ID,
       runs: 100,
       extraInvariants: [extra],

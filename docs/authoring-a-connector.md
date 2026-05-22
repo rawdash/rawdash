@@ -35,6 +35,8 @@ interface Connector {
 }
 ```
 
+Connector _classes_ additionally satisfy the `ConnectorClass` contract — they declare a static `id`, a static `schemas` map (see [Schemas](#schemas)), and an optional static `credentials`.
+
 - **`id`** is a short, stable, lowercase identifier (`github-actions`, `linear`, `stripe`). It namespaces the connector's data in storage and appears in widget `source` strings (`github-actions:workflow_runs`). Once you publish, treat the id as a permanent contract.
 - **`credentials`** declares what auth material the host should collect. Each key has a `description` and an `auth: 'none' | 'optional' | 'required'` policy. `required` means the host won't run the connector without it.
 - **`serializeConfig()`** returns a plain JSON snapshot of the connector's settings (and any `Secret` references). The host stores it so cloud workers can rehydrate the connector without source access.
@@ -44,12 +46,16 @@ In practice you'll extend `BaseConnector`, which handles `serializeConfig`, secr
 
 ```ts
 import { BaseConnector } from '@rawdash/core';
+import { z } from 'zod';
 
 export class MyConnector extends BaseConnector<
   MySettings,
   MyCredentialsSchema
 > {
   static readonly id = 'my-source';
+  static readonly schemas = {
+    widgets: z.array(z.object({ id: z.string(), name: z.string() })),
+  } as const;
   readonly id = 'my-source';
 
   async sync(options, storage, signal) {
@@ -58,6 +64,8 @@ export class MyConnector extends BaseConnector<
   }
 }
 ```
+
+- **`schemas`** is a static, frozen map of resource name → Zod schema describing the raw API response shape for that resource. It is part of the `ConnectorClass` contract: a connector without `static schemas` is a TypeScript error at the registry site. See [Schemas](#schemas).
 
 The lower-level `defineConnector<TSettings>()` factory is available for connectors that don't fit the class shape (rare). Prefer `BaseConnector`.
 
@@ -77,6 +85,25 @@ export default MyConnector;
 This is a hard requirement, not a style preference: rawdash cloud's sync-consumer Worker can't use runtime `import()` (Cloudflare bundles the module graph statically), so it relies on a build-time codegen step that scans `@rawdash/connector-*` dependencies and emits static `import` statements. A symbol-name-agnostic default export is what makes that codegen generic — without it, each new connector would require hand-edited registry code in cloud. Named exports stay as-is for ergonomic direct consumers; only the default export needs to point at the connector class.
 
 CI enforces this via `scripts/check-connector-publishing-prereqs.ts`, which dynamically imports each `@rawdash/connector-*` package and asserts the default export is a `BaseConnector` subclass. A connector PR that forgets `export default` will fail the **Check connector publishing prerequisites** step.
+
+### Schemas
+
+Every connector class **must** declare a `static schemas: Readonly<Record<string, z.ZodType>>` map of resource name → Zod schema describing the raw API response shape for that resource. This is part of the `ConnectorClass` contract in `@rawdash/core`; a connector class without it is a TypeScript error at the registry site (and won't compile against `ConnectorRegistry`).
+
+```ts
+static readonly schemas = {
+  workflow_runs: z.object({ workflow_runs: z.array(/* ... */) }),
+  pull_requests: z.array(/* ... */),
+  // ...
+} as const;
+```
+
+Two consumers rely on this map:
+
+- **Cloud baseline generator**: at deploy time, rawdash cloud walks `ConnectorClass.schemas` for each `@rawdash/connector-*` dependency and writes one `connector_baselines` row per resource. Those baselines feed the shape-drift detection pipeline that flags upstream API changes at sync time.
+- **Property tests** in `@rawdash/connector-test-utils`: `runPropertySyncTest({ connectorClass, resource, ... })` reads the schema from `connectorClass.schemas[resource]` and fuzzes against it. If you drop or misname a key, your own property tests break — that's a deliberate second layer of enforcement on top of the TypeScript contract.
+
+**Resource keys must match the `resource` tag** passed to `request()` (see [§7](#7-using-rawdashconnector-shared) and [Request-tagging via the `resource` field](#)). The keys are the join column between schemas and runtime observations; a mismatch silently disables drift detection for that resource.
 
 ## 2. Picking shapes
 

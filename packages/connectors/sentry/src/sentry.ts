@@ -222,11 +222,74 @@ const DEFAULT_STATS_LOOKBACK_HOURS = 24;
 const ISSUES_PAGE_SIZE = 100;
 const RELEASES_PAGE_SIZE = 100;
 
+// ---------------------------------------------------------------------------
+// Schemas — describe the per-resource API response shape consumed by request()
+// ---------------------------------------------------------------------------
+
+const idString = z.string().min(1);
+
+const issueResponseSchema = z.array(
+  z.object({
+    id: idString,
+    shortId: z.string(),
+    title: z.string(),
+    level: z.enum(['debug', 'info', 'warning', 'error', 'fatal']),
+    status: z.enum(['resolved', 'unresolved', 'ignored']),
+    firstSeen: z.iso.datetime(),
+    lastSeen: z.iso.datetime(),
+    count: z.number().int().nonnegative(),
+    userCount: z.number().int().nonnegative(),
+    project: z.object({ slug: z.string().min(1) }),
+  }),
+);
+
+const issueEventResponseSchema = z.array(
+  z.object({
+    id: z.string().optional(),
+    eventID: z.string().optional(),
+    dateCreated: z.iso.datetime(),
+    message: z.string().nullable().optional(),
+    platform: z.string().nullable().optional(),
+    groupID: z.string().optional(),
+    environment: z.string().nullable().optional(),
+  }),
+);
+
+const releaseResponseSchema = z.array(
+  z.object({
+    version: idString,
+    dateCreated: z.iso.datetime(),
+    dateReleased: z.iso.datetime().nullable(),
+    lastEvent: z.iso.datetime().nullable(),
+    projects: z.array(z.object({ slug: z.string().min(1) })),
+  }),
+);
+
+const errorStatsResponseSchema = z.object({
+  intervals: z.array(z.iso.datetime()),
+  groups: z.array(
+    z.object({
+      by: z.record(z.string(), z.union([z.string(), z.number()])),
+      totals: z.record(z.string(), z.number()).optional(),
+      series: z.record(z.string(), z.array(z.number())),
+    }),
+  ),
+  start: z.string().optional(),
+  end: z.string().optional(),
+});
+
 export class SentryConnector extends BaseConnector<
   SentrySettings,
   SentryCredentials
 > {
   static readonly id = 'sentry';
+
+  static readonly schemas = {
+    issues: issueResponseSchema,
+    issue_events: issueEventResponseSchema,
+    releases: releaseResponseSchema,
+    error_stats: errorStatsResponseSchema,
+  } as const;
 
   static create(input: unknown, ctx?: ConnectorContext): SentryConnector {
     const parsed = configFields.parse(input);

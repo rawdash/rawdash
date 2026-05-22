@@ -285,6 +285,118 @@ export function computeMrrAmountCents(
 }
 
 // ---------------------------------------------------------------------------
+// Schemas — describe the per-resource API response shape consumed by request()
+// ---------------------------------------------------------------------------
+
+const idString = z.string().min(1);
+
+const customerSchema = z.object({
+  id: idString,
+  email: z.string().nullable(),
+  name: z.string().nullable(),
+  created: z.number().int().nonnegative(),
+  currency: z.string().nullable(),
+  delinquent: z.boolean(),
+  livemode: z.boolean(),
+});
+
+const productSchema = z.object({
+  id: idString,
+  name: z.string(),
+  active: z.boolean(),
+  created: z.number().int().nonnegative(),
+});
+
+const priceSchema = z.object({
+  id: idString,
+  product: idString,
+  unit_amount: z.number().int().nullable(),
+  currency: z.string(),
+  recurring: z
+    .object({
+      interval: z.enum(['day', 'week', 'month', 'year']),
+      interval_count: z.number().int().positive(),
+    })
+    .nullable(),
+  active: z.boolean(),
+  created: z.number().int().nonnegative(),
+});
+
+const subscriptionSchema = z.object({
+  id: idString,
+  customer: idString,
+  status: z.string(),
+  items: z.object({
+    data: z.array(
+      z.object({
+        price: priceSchema,
+        quantity: z.number().int().nullable(),
+      }),
+    ),
+  }),
+  current_period_start: z.number().int().nonnegative(),
+  current_period_end: z.number().int().nonnegative(),
+  cancel_at_period_end: z.boolean(),
+  canceled_at: z.number().int().nullable(),
+  trial_end: z.number().int().nullable(),
+  currency: z.string(),
+  created: z.number().int().nonnegative(),
+});
+
+const invoiceSchema = z.object({
+  id: idString,
+  customer: idString.nullable(),
+  subscription: idString.nullable(),
+  status: z.string().nullable(),
+  amount_due: z.number().int(),
+  amount_paid: z.number().int(),
+  currency: z.string(),
+  created: z.number().int().nonnegative(),
+  due_date: z.number().int().nullable(),
+  hosted_invoice_url: z.string().nullable(),
+});
+
+const chargeSchema = z.object({
+  id: idString,
+  customer: idString.nullable(),
+  amount: z.number().int(),
+  currency: z.string(),
+  status: z.string(),
+  failure_code: z.string().nullable(),
+  created: z.number().int().nonnegative(),
+  payment_intent: idString.nullable(),
+});
+
+const paymentIntentSchema = z.object({
+  id: idString,
+  customer: idString.nullable(),
+  amount: z.number().int(),
+  currency: z.string(),
+  status: z.string(),
+  created: z.number().int().nonnegative(),
+});
+
+const disputeSchema = z.object({
+  id: idString,
+  charge: idString,
+  amount: z.number().int(),
+  currency: z.string(),
+  reason: z.string(),
+  status: z.string(),
+  created: z.number().int().nonnegative(),
+});
+
+const refundSchema = z.object({
+  id: idString,
+  charge: idString.nullable(),
+  amount: z.number().int(),
+  currency: z.string(),
+  reason: z.string().nullable(),
+  status: z.string().nullable(),
+  created: z.number().int().nonnegative(),
+});
+
+// ---------------------------------------------------------------------------
 // StripeConnector
 // ---------------------------------------------------------------------------
 
@@ -293,6 +405,18 @@ export class StripeConnector extends BaseConnector<
   StripeCredentials
 > {
   static readonly id = 'stripe';
+
+  static readonly schemas = {
+    customers: z.array(customerSchema),
+    products: z.array(productSchema),
+    prices: z.array(priceSchema),
+    subscriptions: z.array(subscriptionSchema),
+    invoices: z.array(invoiceSchema),
+    charges: z.array(chargeSchema),
+    payment_intents: z.array(paymentIntentSchema),
+    disputes: z.array(disputeSchema),
+    refunds: z.array(refundSchema),
+  } as const;
 
   static create(input: unknown, ctx?: ConnectorContext): StripeConnector {
     const parsed = configFields.parse(input);

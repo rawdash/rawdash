@@ -9,8 +9,12 @@ import {
 } from './invariants';
 import { zodToArbitrary } from './zod-to-arbitrary';
 
-export interface PropertySyncTestOptions<T> {
-  schema: z.ZodType<T>;
+interface ConnectorClassWithSchemas {
+  readonly name?: string;
+  readonly schemas: Readonly<Record<string, z.ZodType>>;
+}
+
+interface BasePropertySyncTestOptions<T> {
   connectorId: string;
   run: (sample: T, storage: InMemoryStorage) => Promise<void>;
   runs?: number;
@@ -24,21 +28,51 @@ export interface PropertySyncTestOptions<T> {
   >;
 }
 
+export type PropertySyncTestOptions<T> = BasePropertySyncTestOptions<T> &
+  (
+    | { schema: z.ZodType<T>; connectorClass?: never; resource?: never }
+    | {
+        connectorClass: ConnectorClassWithSchemas;
+        resource: string;
+        schema?: never;
+      }
+  );
+
+function resolveSchema<T>(opts: PropertySyncTestOptions<T>): z.ZodType<T> {
+  if ('schema' in opts && opts.schema) {
+    return opts.schema;
+  }
+  const { connectorClass, resource } = opts as {
+    connectorClass: ConnectorClassWithSchemas;
+    resource: string;
+  };
+  const schema = connectorClass.schemas[resource];
+  if (!schema) {
+    const available =
+      Object.keys(connectorClass.schemas).join(', ') || '<none>';
+    throw new Error(
+      `${connectorClass.name ?? 'connector'}.schemas has no entry for resource "${resource}". Available: ${available}`,
+    );
+  }
+  return schema as z.ZodType<T>;
+}
+
 export async function runPropertySyncTest<T>(
   opts: PropertySyncTestOptions<T>,
 ): Promise<void> {
-  const arb = zodToArbitrary(opts.schema);
+  const schema = resolveSchema(opts);
+  const arb = zodToArbitrary(schema);
   const extras = opts.extraInvariants ?? [];
 
   await fc.assert(
     fc.asyncProperty(arb, async (rawSample) => {
-      const parsed = opts.schema.safeParse(rawSample);
+      const parsed = schema.safeParse(rawSample);
       if (!parsed.success) {
         throw new Error(
           `zodToArbitrary generated a value rejected by its own schema (this is a bug in zodToArbitrary's coverage of the schema's constraints): ${parsed.error.message}\nsample=${JSON.stringify(rawSample).slice(0, 500)}`,
         );
       }
-      const sample = parsed.data;
+      const sample = parsed.data as T;
       const storage = new InMemoryStorage();
       try {
         await opts.run(sample, storage);
