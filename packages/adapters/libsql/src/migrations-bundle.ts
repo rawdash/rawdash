@@ -29,4 +29,11 @@ export const MIGRATIONS: readonly BundledMigration[] = [
       'CREATE TABLE `sync_state` (\n\t`id` integer PRIMARY KEY NOT NULL,\n\t`status` text NOT NULL,\n\t`last_sync_at` text,\n\t`last_error` text\n);',
     ],
   },
+  {
+    tag: '0002_milky_echo',
+    statements: [
+      'ALTER TABLE `sync_state` ADD `queued_at` text;',
+      'ALTER TABLE `sync_state` ADD `started_at` text;',
+    ],
+  },
 ] as const;

@@ -1,6 +1,67 @@
-import type { DataSource, ServerDataSource } from '@rawdash/core';
+import type { DataSource, ServerDataSource, SyncState } from '@rawdash/core';
+import { isSyncActive } from '@rawdash/core';
 
-export function inProcess(engine: ServerDataSource): DataSource {
+export interface InProcessOptions {
+  /** Total time to wait for an in-flight sync to finish. Defaults to 30s. */
+  syncTimeoutMs?: number;
+  /** Delay between sync-state polls. Defaults to 500ms. */
+  syncPollIntervalMs?: number;
+}
+
+const KNOWN_SYNC_STATUSES = new Set([
+  'idle',
+  'queued',
+  'running',
+  'succeeded',
+  'failed',
+]);
+
+export function inProcess(
+  engine: ServerDataSource,
+  options: InProcessOptions = {},
+): DataSource {
+  const syncTimeoutMs = options.syncTimeoutMs ?? 30_000;
+  const syncPollIntervalMs = options.syncPollIntervalMs ?? 500;
+
+  if (!Number.isFinite(syncTimeoutMs) || syncTimeoutMs <= 0) {
+    throw new Error(
+      `inProcess: syncTimeoutMs must be a finite positive number (received ${syncTimeoutMs})`,
+    );
+  }
+  if (!Number.isFinite(syncPollIntervalMs) || syncPollIntervalMs <= 0) {
+    throw new Error(
+      `inProcess: syncPollIntervalMs must be a finite positive number (received ${syncPollIntervalMs})`,
+    );
+  }
+
+  async function getSyncStateGuarded(): Promise<SyncState> {
+    const state = await engine.getSyncState();
+    if (!KNOWN_SYNC_STATUSES.has(state.status)) {
+      throw new Error(
+        `Rawdash engine returned unrecognized sync status "${String(state.status)}"`,
+      );
+    }
+    return state;
+  }
+
+  async function waitForSyncToSettle(): Promise<SyncState> {
+    const deadline = Date.now() + syncTimeoutMs;
+    for (;;) {
+      const state = await getSyncStateGuarded();
+      if (!isSyncActive(state.status)) {
+        return state;
+      }
+      if (Date.now() >= deadline) {
+        throw new Error(
+          `Rawdash sync did not settle within ${syncTimeoutMs}ms (last status: ${state.status})`,
+        );
+      }
+      await new Promise<void>((resolve) =>
+        setTimeout(resolve, syncPollIntervalMs),
+      );
+    }
+  }
+
   return {
     getWidget: (dashboardId, widgetId) =>
       engine.getWidget(dashboardId, widgetId),
@@ -9,45 +70,49 @@ export function inProcess(engine: ServerDataSource): DataSource {
 
     getHealth: () => engine.getHealth(),
 
+    getSyncState: () => getSyncStateGuarded(),
+
     triggerSync: () => engine.triggerSync(),
 
     async ensureFresh(maxAgeMs = 5 * 60 * 1000) {
-      const health = await engine.getHealth();
+      const state = await getSyncStateGuarded();
 
-      if (health.status === 'syncing') {
-        return false;
+      if (isSyncActive(state.status)) {
+        const settled = await waitForSyncToSettle();
+        if (settled.status === 'failed') {
+          throw new Error(
+            `Rawdash sync failed: ${settled.lastError ?? 'unknown error'}`,
+          );
+        }
+        return true;
       }
 
-      const lastSyncMs = health.lastSyncAt
-        ? new Date(health.lastSyncAt).getTime()
+      const lastSyncMs = state.lastSyncAt
+        ? new Date(state.lastSyncAt).getTime()
         : null;
       const isFresh = lastSyncMs !== null && Date.now() - lastSyncMs < maxAgeMs;
-
       if (isFresh) {
         return false;
       }
 
-      const { triggered } = await engine.triggerSync();
-      if (!triggered) {
-        return false;
-      }
-
-      const maxAttempts = 60;
-      for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        const h = await engine.getHealth();
-        if (h.status === 'error') {
+      const trigger = await engine.triggerSync();
+      if (!trigger.queued) {
+        const settled = await waitForSyncToSettle();
+        if (settled.status === 'failed') {
           throw new Error(
-            `Rawdash sync failed: ${h.lastError ?? 'unknown error'}`,
+            `Rawdash sync failed: ${settled.lastError ?? 'unknown error'}`,
           );
         }
-        if (h.status === 'idle') {
-          return true;
-        }
-        await new Promise<void>((resolve) => setTimeout(resolve, 500));
+        return true;
       }
-      throw new Error(
-        `Rawdash sync did not complete within ${maxAttempts * 500}ms`,
-      );
+
+      const settled = await waitForSyncToSettle();
+      if (settled.status === 'failed') {
+        throw new Error(
+          `Rawdash sync failed: ${settled.lastError ?? 'unknown error'}`,
+        );
+      }
+      return true;
     },
   };
 }

@@ -35,50 +35,82 @@ const source = http({
 // Same API either way
 const widget = await source.getWidget('engineering', 'open_prs');
 const widgets = await source.getWidgets('engineering');
-const health = await source.getHealth();
-await source.triggerSync();
+const health = await source.getHealth(); // {status:'ok'} — liveness only
+const syncState = await source.getSyncState(); // current sync progress
+await source.triggerSync(); // returns immediately with {queued: boolean}
 
-// Wait for fresh data (triggers sync if stale, then polls until idle)
+// Wait for fresh data:
+// - if a sync is in-flight, waits for it to settle
+// - if data is stale, triggers a sync and waits for it
+// - if data is fresh, returns immediately
 await source.ensureFresh(5 * 60 * 1000); // max age 5 minutes
 ```
 
 ## API
 
-### `inProcess(engine): DataSource`
+### `inProcess(engine, options?): DataSource`
 
-Wraps an in-process rawdash engine. Zero network overhead — all calls go directly to the engine's in-memory state.
+Wraps an in-process rawdash engine. Zero network overhead.
+
+| Option               | Type     | Default | Description                           |
+| -------------------- | -------- | ------- | ------------------------------------- |
+| `syncTimeoutMs`      | `number` | `30000` | How long `ensureFresh` waits for sync |
+| `syncPollIntervalMs` | `number` | `500`   | Delay between sync-state polls        |
 
 ### `http(options): DataSource`
 
-Creates an HTTP client pointing at a rawdash server. Options:
+Creates an HTTP client pointing at a rawdash server.
 
-| Option      | Type           | Default            | Description                         |
-| ----------- | -------------- | ------------------ | ----------------------------------- |
-| `baseUrl`   | `string`       | —                  | Base URL of the rawdash server      |
-| `apiKey`    | `string`       | —                  | Bearer token for authentication     |
-| `timeoutMs` | `number`       | `5000`             | Per-request timeout in milliseconds |
-| `fetch`     | `typeof fetch` | `globalThis.fetch` | Custom fetch implementation         |
+| Option               | Type           | Default            | Description                           |
+| -------------------- | -------------- | ------------------ | ------------------------------------- |
+| `baseUrl`            | `string`       | —                  | Base URL of the rawdash server        |
+| `apiKey`             | `string`       | —                  | Bearer token for authentication       |
+| `timeoutMs`          | `number`       | `5000`             | Per-request timeout in milliseconds   |
+| `syncTimeoutMs`      | `number`       | `30000`            | How long `ensureFresh` waits for sync |
+| `syncPollIntervalMs` | `number`       | `500`              | Delay between sync-state polls        |
+| `fetch`              | `typeof fetch` | `globalThis.fetch` | Custom fetch implementation           |
 
 ### `DataSource`
 
-Both factories return the same `DataSource` interface:
-
 ```ts
 interface DataSource {
-  getWidget(
-    dashboardId: string,
-    widgetId: string,
-  ): Promise<CachedWidgetResponse>;
-  getWidgets(dashboardId: string): Promise<CachedWidgetResponse[]>;
+  getWidget(dashboardId: string, widgetId: string): Promise<CachedWidget>;
+  getWidgets(dashboardId: string): Promise<CachedWidget[]>;
+
+  // Liveness probe — {status:'ok'}. No storage access.
   getHealth(): Promise<HealthResponse>;
-  triggerSync(): Promise<SyncTriggerResponse>;
+
+  // Current sync state: idle | queued | running | succeeded | failed,
+  // plus queuedAt / startedAt / lastSyncAt / lastError.
+  getSyncState(): Promise<SyncState>;
+
+  // Triggers a sync. Returns {queued: true|false} immediately —
+  // the sync runs in the background.
+  triggerSync(): Promise<TriggerSyncResponse>;
+
+  // Waits until data is at most maxAgeMs old. Returns true if a sync
+  // ran, false if data was already fresh. Throws on sync failure.
   ensureFresh(maxAgeMs?: number): Promise<boolean>;
 }
 ```
 
+## How `ensureFresh` works
+
+The client polls `/sync/state` (not `/health` — see the [wire contract reference](https://www.npmjs.com/package/@rawdash/server#the-wire-contract)) and walks the state machine:
+
+1. Get the current `SyncState`.
+2. If `status` is `queued` or `running`, wait for it to settle. Return `true` on `succeeded`, throw on `failed`.
+3. Otherwise check `lastSyncAt`. If it's within `maxAgeMs`, return `false`.
+4. Otherwise call `POST /sync`, then poll `/sync/state` until it settles.
+5. If the server returns an unrecognized `status`, **throw immediately** — turns silent contract mismatches into fast, debuggable errors instead of 30s deadlocks.
+
+Tune `syncTimeoutMs` for long-running connectors.
+
 ## Links
 
 - [rawdash docs](https://rawdash.dev)
+- [`@rawdash/server`](https://www.npmjs.com/package/@rawdash/server) — wire contract reference
+- [`@rawdash/hono`](https://www.npmjs.com/package/@rawdash/hono) — Hono adapter for the server side
 - [GitHub](https://github.com/rawdash/rawdash)
 - [Issues](https://github.com/rawdash/rawdash/issues)
 

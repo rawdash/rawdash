@@ -58,11 +58,14 @@ In `app/actions.ts`:
 import { rawdash } from '@/lib/rawdash';
 
 export async function syncDashboard() {
-  // Triggers sync, waits for completion, then calls revalidateTag('rawdash')
-  // so the Server Components re-fetch widget data on next request.
+  // Triggers sync, polls /sync/state until it settles (succeeded or failed),
+  // then calls revalidateTag('rawdash') so the Server Components re-fetch
+  // widget data on next request. Throws on sync failure.
   await rawdash.triggerSync();
 }
 ```
+
+> **Don't block SSR on a sync.** `triggerSync` (and `ensureFresh`) wait for the sync to settle, which can take up to ~30s. Calling either from a Server Component would block every page render. Use them in Server Actions, cron-triggered routes, or webhooks — and let pages render against whatever's cached.
 
 ## Switching between in-process and HTTP
 
@@ -88,7 +91,7 @@ Next.js-aware variant of `http` from `@rawdash/client`. Adds the `'rawdash'` cac
 
 ### `createRawdashClient(dataSource): DataSource`
 
-Wraps any `DataSource` with Next.js behavior: `triggerSync` waits for the sync to finish, then calls `revalidateTag('rawdash')` to bust Server Component caches. All other methods are passed through unchanged.
+Wraps any `DataSource` with Next.js behavior: `triggerSync` polls `/sync/state` until the sync settles (transitions to `succeeded` or `failed`), then calls `revalidateTag('rawdash')` to bust Server Component caches. Throws on `failed` or if the sync doesn't settle within 30s. `ensureFresh` is also tagged to revalidate after a sync. All other methods are passed through unchanged.
 
 ## Links
 

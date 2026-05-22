@@ -44,9 +44,9 @@ function renderStatus(
   },
 ): string {
   const statusEmoji =
-    syncState.status === 'idle'
+    syncState.status === 'succeeded' || syncState.status === 'idle'
       ? '✅'
-      : syncState.status === 'syncing'
+      : syncState.status === 'queued' || syncState.status === 'running'
         ? '🔄'
         : '❌';
   const lastSync = syncState.lastSyncAt

@@ -1,23 +1,33 @@
-import { serve as honoServe } from '@hono/node-server';
-
-import { createEngineRouters } from './engine-router';
-import { createServer } from './server';
-import type { DashboardConfig, ServeOptions } from './types';
-
-export { createServer } from './server';
-export { createEngineRouters } from './engine-router';
+export type { EngineContext } from './context';
+export { RawdashError, isRawdashError } from './errors';
+export { ROUTES } from './routes';
+export {
+  getHealth,
+  getSyncStateHandler,
+  getWidget,
+  listWidgets,
+  runRetentionOnce,
+  triggerSync,
+} from './handlers';
+export { runSync, FULL_SYNC_TIMEOUT_MS } from './sync';
+export {
+  runRetention,
+  hasPruningPolicy,
+  DEFAULT_RETENTION_INTERVAL_MS,
+} from './retention';
 export { createEngine } from './engine';
+export type { Engine, EngineOptions } from './engine';
 export { computeMetric } from './compute';
 export { InMemoryStorage } from './storage';
-export type { RouterMount } from './router';
-export type { DashboardConfig, ServeOptions, ServerStorage } from './types';
-export type { Engine, EngineOptions } from './engine';
-
-export function serve(
-  config: DashboardConfig,
-  options: ServeOptions = {},
-): void {
-  const { port = 8080, storage } = options;
-  const app = createServer(createEngineRouters(config, storage));
-  honoServe({ fetch: app.fetch, port });
-}
+export type {
+  CachedWidget,
+  ConfiguredConnector,
+  DashboardConfig,
+  HealthResponse,
+  ServerStorage,
+  SyncState,
+  SyncStatus,
+  TriggerSyncResponse,
+  WidgetsListResponse,
+} from './types';
+export { isSyncActive, ACTIVE_SYNC_STATUSES } from '@rawdash/core';

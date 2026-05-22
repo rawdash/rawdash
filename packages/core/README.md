@@ -9,7 +9,7 @@ Headless dashboard backend primitives for rawdash. Define connectors, dashboards
 
 `@rawdash/core` is the foundation of the rawdash ecosystem. It provides the types and functions (`defineConfig`, `defineDashboard`, `defineMetric`, `defineConnector`, `secret`) that every rawdash setup is built on. It has no framework dependencies and no I/O — it only models your dashboard configuration and the connector interface.
 
-Other packages (`@rawdash/server`, `@rawdash/nextjs`, `@rawdash/mcp`) take a config produced by this package and add runtime behavior.
+Other packages (`@rawdash/server`, `@rawdash/hono`, `@rawdash/nextjs`, `@rawdash/mcp`) take a config produced by this package and add runtime behavior.
 
 ## Install
 

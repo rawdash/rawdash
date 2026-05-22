@@ -15,6 +15,13 @@
       "when": 1776691516753,
       "tag": "0001_clumsy_siren",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1779427904807,
+      "tag": "0002_milky_echo",
+      "breakpoints": true
     }
   ]
 }

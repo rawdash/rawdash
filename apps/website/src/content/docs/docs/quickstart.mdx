@@ -15,17 +15,17 @@ and mounting the request handler in a Node.js server.
    <Tabs>
      <TabItem label="npm">
        ```sh
-       npm install @rawdash/core @rawdash/server @rawdash/connector-github @rawdash/adapter-turso
+       npm install @rawdash/core @rawdash/server @rawdash/hono @rawdash/connector-github @rawdash/adapter-turso @hono/node-server
        ```
      </TabItem>
      <TabItem label="pnpm">
        ```sh
-       pnpm add @rawdash/core @rawdash/server @rawdash/connector-github @rawdash/adapter-turso
+       pnpm add @rawdash/core @rawdash/server @rawdash/hono @rawdash/connector-github @rawdash/adapter-turso @hono/node-server
        ```
      </TabItem>
      <TabItem label="yarn">
        ```sh
-       yarn add @rawdash/core @rawdash/server @rawdash/connector-github @rawdash/adapter-turso
+       yarn add @rawdash/core @rawdash/server @rawdash/hono @rawdash/connector-github @rawdash/adapter-turso @hono/node-server
        ```
      </TabItem>
    </Tabs>
@@ -53,17 +53,18 @@ and mounting the request handler in a Node.js server.
 2. **Create your config file**
 
    ```ts title="rawdash.config.ts"
+   import { serve as honoServe } from '@hono/node-server';
    import { defineConfig, defineDashboard } from '@rawdash/core';
    import { GitHubActionsConnector } from '@rawdash/connector-github';
    import { TursoStorage } from '@rawdash/adapter-turso';
-   import { serve } from '@rawdash/server';
+   import { mountEngine } from '@rawdash/hono';
 
    const github = new GitHubActionsConnector(
      { owner: 'myorg', repo: 'backend' },
      { token: process.env.GITHUB_TOKEN },
    );
 
-   serve(
+   const { app } = mountEngine(
      defineConfig({
        connectors: [{ connector: github }],
        dashboards: {
@@ -77,6 +78,7 @@ and mounting the request handler in a Node.js server.
        }),
      },
    );
+   honoServe({ fetch: app.fetch, port: 8080 });
    ```
 
 3. **Connect your frontend**
@@ -113,11 +115,13 @@ and mounting the request handler in a Node.js server.
    ```
 
    Rawdash will start on port 8080, run the initial sync, then enter the
-   background polling loop. Check the health endpoint:
+   background polling loop. Check liveness, then sync state:
 
    ```sh
    curl http://localhost:8080/health
-   # {"status":"idle","lastSyncAt":"2025-04-25T10:00:00.000Z","lastError":null}
+   # {"status":"ok"}
+   curl http://localhost:8080/sync/state
+   # {"status":"succeeded","queuedAt":null,"startedAt":null,"lastSyncAt":"2026-04-25T10:00:00.000Z","lastError":null}
    ```
 
 6. **Query from your frontend**

@@ -2,6 +2,7 @@
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import prettier from 'prettier';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS_DIR = resolve(__dirname, '..', 'migrations');
@@ -32,5 +33,11 @@ export interface BundledMigration {
 export const MIGRATIONS: readonly BundledMigration[] = ${JSON.stringify(entries, null, 2)} as const;
 `;
 
-writeFileSync(OUTPUT_FILE, body);
+const prettierConfig = await prettier.resolveConfig(OUTPUT_FILE);
+const formatted = await prettier.format(body, {
+  ...prettierConfig,
+  filepath: OUTPUT_FILE,
+});
+
+writeFileSync(OUTPUT_FILE, formatted);
 console.log(`Wrote ${entries.length} migrations to ${OUTPUT_FILE}`);

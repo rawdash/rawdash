@@ -52,6 +52,8 @@ export interface DistributionsTable {
 export interface SyncStateTable {
   id: number;
   status: string;
+  queued_at: string | null;
+  started_at: string | null;
   last_sync_at: string | null;
   last_error: string | null;
 }

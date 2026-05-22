@@ -20,14 +20,19 @@ export interface WidgetsListResponse {
   widgets: CachedWidget[];
 }
 
+export interface HealthResponse {
+  status: 'ok';
+}
+
 export interface TriggerSyncResponse {
-  triggered: boolean;
+  queued: boolean;
 }
 
 export interface DataSource {
   getWidget(dashboardId: string, widgetId: string): Promise<CachedWidget>;
   getWidgets(dashboardId: string): Promise<CachedWidget[]>;
-  getHealth(): Promise<SyncState>;
+  getHealth(): Promise<HealthResponse>;
+  getSyncState(): Promise<SyncState>;
   triggerSync(): Promise<TriggerSyncResponse>;
   ensureFresh(maxAgeMs?: number): Promise<boolean>;
 }
@@ -35,6 +40,7 @@ export interface DataSource {
 export interface ServerDataSource {
   getWidget(dashboardId: string, widgetId: string): Promise<CachedWidget>;
   getWidgets(dashboardId: string): Promise<CachedWidget[]>;
-  getHealth(): Promise<SyncState>;
+  getHealth(): Promise<HealthResponse>;
+  getSyncState(): Promise<SyncState>;
   triggerSync(): Promise<TriggerSyncResponse>;
 }

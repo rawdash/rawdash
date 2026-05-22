@@ -371,18 +371,46 @@ describe('InMemoryStorage — distributions', () => {
 });
 
 describe('InMemoryStorage — sync state', () => {
-  it('tracks sync lifecycle', async () => {
+  it('tracks full sync lifecycle through queued → running → succeeded', async () => {
     const { storage } = makeStorage();
     expect((await storage.getSyncState()).status).toBe('idle');
-    expect(await storage.setSyncing()).toBe(true);
-    expect((await storage.getSyncState()).status).toBe('syncing');
-    expect(await storage.setSyncing()).toBe(false);
-    await storage.setSyncSuccess();
-    expect((await storage.getSyncState()).status).toBe('idle');
+    expect(await storage.markSyncQueued()).toBe(true);
+    expect((await storage.getSyncState()).status).toBe('queued');
+    expect(await storage.markSyncRunning()).toBe(true);
+    expect((await storage.getSyncState()).status).toBe('running');
+    expect(await storage.markSyncRunning()).toBe(false);
+    await storage.markSyncSucceeded();
+    expect((await storage.getSyncState()).status).toBe('succeeded');
     expect((await storage.getSyncState()).lastSyncAt).not.toBeNull();
-    await storage.setSyncError('oops');
-    expect((await storage.getSyncState()).status).toBe('error');
+  });
+
+  it('failed transition records lastError', async () => {
+    const { storage } = makeStorage();
+    await storage.markSyncQueued();
+    await storage.markSyncRunning();
+    await storage.markSyncFailed('oops');
+    expect((await storage.getSyncState()).status).toBe('failed');
     expect((await storage.getSyncState()).lastError).toBe('oops');
+  });
+
+  it('markSyncRunning rejects non-queued states', async () => {
+    const { storage } = makeStorage();
+    // idle → running is rejected
+    expect(await storage.markSyncRunning()).toBe(false);
+    // succeeded → running is rejected
+    await storage.markSyncQueued();
+    await storage.markSyncRunning();
+    await storage.markSyncSucceeded();
+    expect(await storage.markSyncRunning()).toBe(false);
+  });
+
+  it('markSyncQueued reflects timestamps', async () => {
+    const { storage } = makeStorage();
+    expect(await storage.markSyncQueued()).toBe(true);
+    const state = await storage.getSyncState();
+    expect(state.status).toBe('queued');
+    expect(state.queuedAt).not.toBeNull();
+    expect(await storage.markSyncQueued()).toBe(false);
   });
 
   it('isolates connectors', async () => {
