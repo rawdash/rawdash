@@ -20,10 +20,34 @@ import { runSync } from './sync';
  * (queue/worker) may not be able to materialize a `DashboardConfig` at
  * request time.
  */
-export interface TriggerSyncContext {
+/**
+ * Per-request lookup shape accepted by `triggerSync` in deferred mode.
+ * `getConfig` is optional because the trigger handler never calls
+ * `runSync` — deployments that delegate the actual sync work to an
+ * external runner may not be able to materialize a `DashboardConfig` at
+ * request time.
+ */
+export interface DeferredTriggerSyncContext {
   getConfig?: () => DashboardConfig | Promise<DashboardConfig>;
   getStorage: () => ServerStorage | Promise<ServerStorage>;
 }
+
+/**
+ * Per-request lookup shape accepted by `triggerSync` in in-process
+ * mode. `getConfig` is required because the trigger handler kicks off
+ * `runSync(config, storage)` in the background.
+ */
+export interface InProcessTriggerSyncContext {
+  getConfig: () => DashboardConfig | Promise<DashboardConfig>;
+  getStorage: () => ServerStorage | Promise<ServerStorage>;
+}
+
+/**
+ * @deprecated Prefer `InProcessTriggerSyncContext` /
+ * `DeferredTriggerSyncContext`. Retained as the union for callers that
+ * need a single type covering both modes.
+ */
+export type TriggerSyncContext = DeferredTriggerSyncContext;
 
 export type TriggerSyncMode = 'in-process' | 'deferred';
 
@@ -62,8 +86,16 @@ export async function getSyncStateHandler(
   return storage.getSyncState();
 }
 
+export function triggerSync(
+  ctx: InProcessTriggerSyncContext,
+  opts?: { mode?: 'in-process' },
+): Promise<TriggerSyncResponse>;
+export function triggerSync(
+  ctx: DeferredTriggerSyncContext,
+  opts: { mode: 'deferred' },
+): Promise<TriggerSyncResponse>;
 export async function triggerSync(
-  ctx: TriggerSyncContext,
+  ctx: DeferredTriggerSyncContext,
   opts: TriggerSyncOptions = {},
 ): Promise<TriggerSyncResponse> {
   const mode: TriggerSyncMode = opts.mode ?? 'in-process';

@@ -10,6 +10,8 @@ export {
   triggerSync,
 } from './handlers';
 export type {
+  DeferredTriggerSyncContext,
+  InProcessTriggerSyncContext,
   TriggerSyncContext,
   TriggerSyncMode,
   TriggerSyncOptions,

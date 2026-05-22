@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { EngineContext } from './context';
 import { RawdashError } from './errors';
+import type { InProcessTriggerSyncContext } from './handlers';
 import {
   getHealth,
   getSyncStateHandler,
@@ -156,11 +157,14 @@ describe('triggerSync', () => {
   });
 
   describe('mode: "in-process" (default)', () => {
-    it('throws if getConfig is missing', async () => {
+    it('throws if getConfig is missing (runtime defense for JS callers)', async () => {
       const storage = new InMemoryStorage();
-      await expect(triggerSync({ getStorage: () => storage })).rejects.toThrow(
-        /getConfig is required/,
-      );
+      // The overloads forbid this at compile time; cast to exercise the
+      // runtime guard that protects untyped JS consumers.
+      const ctx = {
+        getStorage: () => storage,
+      } as unknown as InProcessTriggerSyncContext;
+      await expect(triggerSync(ctx)).rejects.toThrow(/getConfig is required/);
     });
   });
 });

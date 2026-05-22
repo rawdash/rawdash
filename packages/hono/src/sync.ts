@@ -1,4 +1,3 @@
-import type { TriggerSyncMode } from '@rawdash/server';
 import { getSyncStateHandler, triggerSync } from '@rawdash/server';
 import type { MiddlewareHandler } from 'hono';
 import { Hono } from 'hono';
@@ -42,18 +41,25 @@ export type SyncRouterOptions =
 export function createSyncRouter(opts: SyncRouterOptions): Hono {
   const app = new Hono();
   applyBefore(app, opts.before);
-  const mode: TriggerSyncMode = opts.mode ?? 'in-process';
   app.post('/', async (c) => {
     try {
-      const getConfig = opts.getConfig;
+      if (opts.mode === 'deferred') {
+        const getConfig = opts.getConfig;
+        return c.json(
+          await triggerSync(
+            {
+              getStorage: () => opts.getStorage(c),
+              getConfig: getConfig ? () => getConfig(c) : undefined,
+            },
+            { mode: 'deferred' },
+          ),
+        );
+      }
       return c.json(
-        await triggerSync(
-          {
-            getStorage: () => opts.getStorage(c),
-            getConfig: getConfig ? () => getConfig(c) : undefined,
-          },
-          { mode },
-        ),
+        await triggerSync({
+          getStorage: () => opts.getStorage(c),
+          getConfig: () => opts.getConfig(c),
+        }),
       );
     } catch (err) {
       return mapError(c, err);
