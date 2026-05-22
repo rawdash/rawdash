@@ -1,8 +1,12 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { InMemoryStorage } from './in-memory-storage';
 
 describe('storage handle abort isolation (InMemoryStorage)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('drops writes after the signal aborts', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const storage = new InMemoryStorage();
@@ -53,11 +57,10 @@ describe('storage handle abort isolation (InMemoryStorage)', () => {
     expect(await handle.queryMetrics({})).toEqual([]);
     expect(await handle.traverse({})).toEqual([]);
     expect(warn).toHaveBeenCalled();
-    warn.mockRestore();
   });
 
   it('returns rowsDeleted=0 for deleteOlderThan after abort', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
     const storage = new InMemoryStorage();
     const controller = new AbortController();
     const handle = storage.getStorageHandle('c', { signal: controller.signal });
@@ -72,11 +75,10 @@ describe('storage handle abort isolation (InMemoryStorage)', () => {
     expect(result).toEqual({ rowsDeleted: 0 });
     const remaining = await handle.queryEvents({});
     expect(remaining).toHaveLength(1);
-    warn.mockRestore();
   });
 
   it('reads still work after abort', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
     const storage = new InMemoryStorage();
     const controller = new AbortController();
     const handle = storage.getStorageHandle('c', { signal: controller.signal });
@@ -88,7 +90,6 @@ describe('storage handle abort isolation (InMemoryStorage)', () => {
     });
     controller.abort();
     expect(await handle.queryEvents({})).toHaveLength(1);
-    warn.mockRestore();
   });
 
   it('a fresh handle without a signal is not affected by an unrelated controller', async () => {
@@ -106,7 +107,7 @@ describe('storage handle abort isolation (InMemoryStorage)', () => {
   });
 
   it('writes from a timed-out run do not leak into the next run', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
     const storage = new InMemoryStorage();
 
     const first = new AbortController();
@@ -134,6 +135,5 @@ describe('storage handle abort isolation (InMemoryStorage)', () => {
 
     const events = await secondHandle.queryEvents({});
     expect(events.map((e) => e.name)).toEqual(['fresh']);
-    warn.mockRestore();
   });
 });
