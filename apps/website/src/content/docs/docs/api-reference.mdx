@@ -32,7 +32,7 @@ Returns the current sync state for the server.
 ```json
 {
   "status": "idle",
-  "lastSyncAt": "2025-04-25T10:00:00.000Z",
+  "lastSyncAt": "2026-04-25T10:00:00.000Z",
   "lastError": null
 }
 ```
@@ -59,26 +59,30 @@ Fetch all widget data for a dashboard.
 
 **Response**
 
-Returns a JSON array of widget entries:
+Returns a JSON object with a `widgets` array:
 
 ```json
-[
-  {
-    "id": "open_prs",
-    "widgetId": "open_prs",
-    "connectorId": "github",
-    "data": { "value": 12 },
-    "cachedAt": "2025-04-25T10:00:00.000Z"
-  }
-]
+{
+  "widgets": [
+    {
+      "widgetId": "open_prs",
+      "connectorId": "github",
+      "data": { "value": 12 },
+      "cachedAt": "2026-04-25T10:00:00.000Z",
+      "syncState": "synced"
+    }
+  ]
+}
 ```
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `id` / `widgetId` | string | Widget key from your dashboard config |
+| `widgetId` | string | Widget key from your dashboard config |
 | `connectorId` | string | ID of the connector that sourced this widget |
-| `data` | object | Computed metric result |
+| `data` | object \| `null` | Computed metric result, or `null` if not yet synced |
 | `cachedAt` | ISO 8601 string \| `null` | Timestamp of the sync that produced this data |
+| `syncState` | `"synced" \| "unsynced" \| "syncing" \| "stale" \| "error"` | Optional. Per-widget sync status |
+| `meta` | object | Optional. Connector-specific metadata about this widget's data |
 
 ---
 
