@@ -368,13 +368,25 @@ describe('SentryConnector.sync', () => {
         return {
           body: [
             {
-              id: 'i-bad',
-              shortId: 'ACME-BAD',
+              id: 'i-bad-first',
+              shortId: 'ACME-BAD-FIRST',
               title: 't',
               level: 'error',
               status: 'unresolved',
               firstSeen: 'not-a-date',
               lastSeen: '2024-05-02T00:00:00.000Z',
+              count: 1,
+              userCount: 1,
+              project: { slug: 'web' },
+            },
+            {
+              id: 'i-bad-last',
+              shortId: 'ACME-BAD-LAST',
+              title: 't',
+              level: 'error',
+              status: 'unresolved',
+              firstSeen: '2024-05-01T00:00:00.000Z',
+              lastSeen: 'not-a-date',
               count: 1,
               userCount: 1,
               project: { slug: 'web' },
@@ -397,15 +409,18 @@ describe('SentryConnector.sync', () => {
       return { body: [] };
     });
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const storage = makeStorage();
-    await connector.sync({ mode: 'full' }, storage);
+    try {
+      const storage = makeStorage();
+      await connector.sync({ mode: 'full' }, storage);
 
-    const written = storage.entity.mock.calls
-      .map((c) => c[0] as { type: string; id: string })
-      .filter((e) => e.type === 'sentry_issue')
-      .map((e) => e.id);
-    expect(written).toEqual(['i-ok']);
-    warnSpy.mockRestore();
+      const written = storage.entity.mock.calls
+        .map((c) => c[0] as { type: string; id: string })
+        .filter((e) => e.type === 'sentry_issue')
+        .map((e) => e.id);
+      expect(written).toEqual(['i-ok']);
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 
   it('skips releases without a parseable dateCreated', async () => {
@@ -434,15 +449,18 @@ describe('SentryConnector.sync', () => {
       return { body: [] };
     });
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const storage = makeStorage();
-    await connector.sync({ mode: 'full' }, storage);
+    try {
+      const storage = makeStorage();
+      await connector.sync({ mode: 'full' }, storage);
 
-    const written = storage.entity.mock.calls
-      .map((c) => c[0] as { type: string; id: string })
-      .filter((e) => e.type === 'sentry_release')
-      .map((e) => e.id);
-    expect(written).toEqual(['good']);
-    warnSpy.mockRestore();
+      const written = storage.entity.mock.calls
+        .map((c) => c[0] as { type: string; id: string })
+        .filter((e) => e.type === 'sentry_release')
+        .map((e) => e.id);
+      expect(written).toEqual(['good']);
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 
   it('writes release entities', async () => {
