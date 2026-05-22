@@ -16,6 +16,7 @@ function makeApp() {
     createSyncRouter({
       getConfig: () => emptyConfig,
       getStorage: () => storage,
+      connectorRegistry: {},
     }),
   );
   app.route(

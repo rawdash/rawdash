@@ -111,7 +111,7 @@ describe('shape types', () => {
 
 describe('defineMetric', () => {
   it('resolves connectorId and shape', () => {
-    const connector = { id: 'my-connector' };
+    const connector = { name: 'my-connector' };
     const resolved = defineMetric({
       connector,
       shape: 'event',
@@ -127,7 +127,7 @@ describe('defineMetric', () => {
   });
 
   it('preserves window, filter, and groupBy', () => {
-    const connector = { id: 'c' };
+    const connector = { name: 'c' };
     const resolved = defineMetric({
       connector,
       shape: 'event',
@@ -146,10 +146,9 @@ describe('defineMetric', () => {
 
 describe('defineConfig validation', () => {
   const connector = {
-    id: 'c',
-    credentials: undefined,
-    serializeConfig: () => ({}),
-    sync: async () => ({ done: true }),
+    name: 'c',
+    connectorId: 'c',
+    config: {},
   };
 
   it('throws if connector not listed', () => {
@@ -179,7 +178,7 @@ describe('defineConfig validation', () => {
   it('throws for invalid shape', () => {
     expect(() =>
       defineConfig({
-        connectors: [{ connector }],
+        connectors: [connector],
         dashboards: {
           main: defineDashboard({
             widgets: {
@@ -203,7 +202,7 @@ describe('defineConfig validation', () => {
   it('throws for invalid fn', () => {
     expect(() =>
       defineConfig({
-        connectors: [{ connector }],
+        connectors: [connector],
         dashboards: {
           main: defineDashboard({
             widgets: {
@@ -227,7 +226,7 @@ describe('defineConfig validation', () => {
   it('allows fn: "count" without a field', () => {
     expect(() =>
       defineConfig({
-        connectors: [{ connector }],
+        connectors: [connector],
         dashboards: {
           main: defineDashboard({
             widgets: {
@@ -251,7 +250,7 @@ describe('defineConfig validation', () => {
   it('throws for non-count fn without a field', () => {
     expect(() =>
       defineConfig({
-        connectors: [{ connector }],
+        connectors: [connector],
         dashboards: {
           main: defineDashboard({
             widgets: {
@@ -274,7 +273,7 @@ describe('defineConfig validation', () => {
   it('throws for dashboard key with URL-unsafe characters', () => {
     expect(() =>
       defineConfig({
-        connectors: [{ connector }],
+        connectors: [connector],
         dashboards: {
           'bad/key': defineDashboard({ widgets: {} }),
         },
@@ -285,7 +284,7 @@ describe('defineConfig validation', () => {
   it('throws for widget key with URL-unsafe characters', () => {
     expect(() =>
       defineConfig({
-        connectors: [{ connector }],
+        connectors: [connector],
         dashboards: {
           main: defineDashboard({
             widgets: {
@@ -311,7 +310,7 @@ describe('defineConfig validation', () => {
   it('passes for valid config', () => {
     expect(() =>
       defineConfig({
-        connectors: [{ connector }],
+        connectors: [connector],
         dashboards: {
           main: defineDashboard({
             widgets: {
@@ -335,7 +334,7 @@ describe('defineConfig validation', () => {
 
   describe('retention validation', () => {
     const base = {
-      connectors: [{ connector }],
+      connectors: [connector],
       dashboards: { main: defineDashboard({ widgets: {} }) },
     };
 
@@ -514,7 +513,7 @@ describe('widgetSchemas', () => {
 
 describe('defineDashboard widget validation', () => {
   const metric = defineMetric({
-    connector: { id: 'c' },
+    connector: { name: 'c' },
     shape: 'event',
     field: 'start_ts',
     fn: 'count',

@@ -1,4 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp';
+import { instantiateConnector } from '@rawdash/core';
 import { z } from 'zod';
 
 import type { McpRuntime } from '../runtime-config';
@@ -9,6 +10,7 @@ export function registerTriggerSync(
   server: McpServer,
   runtime: McpRuntime,
   storage: McpServerOptions['storage'],
+  options: Pick<McpServerOptions, 'connectorRegistry' | 'secretsResolver'>,
 ): void {
   server.tool(
     'trigger_sync',
@@ -17,7 +19,9 @@ export function registerTriggerSync(
       connector_id: z
         .string()
         .optional()
-        .describe('Connector ID to sync. Omit to sync all connectors.'),
+        .describe(
+          'Connector instance name to sync. Omit to sync all connectors.',
+        ),
       mode: z
         .enum(['full', 'latest'])
         .optional()
@@ -26,9 +30,15 @@ export function registerTriggerSync(
         ),
     },
     async ({ connector_id, mode = 'latest' }) => {
+      if (!options.connectorRegistry) {
+        return err(
+          'NO_REGISTRY',
+          'trigger_sync requires connectorRegistry on McpServerOptions',
+        );
+      }
       const connectors = runtime.getConnectors();
       const targets = connector_id
-        ? connectors.filter((e) => e.connector.id === connector_id)
+        ? connectors.filter((e) => e.name === connector_id)
         : connectors;
 
       if (connector_id && targets.length === 0) {
@@ -41,8 +51,6 @@ export function registerTriggerSync(
       }
       const acquired = await storage.markSyncRunning();
       if (!acquired) {
-        // Lost the race to another caller between markSyncQueued and
-        // markSyncRunning. Treat the same as "already syncing".
         return err('ALREADY_SYNCING', 'A sync is already in progress');
       }
 
@@ -51,8 +59,13 @@ export function registerTriggerSync(
       const run = async () => {
         try {
           for (const entry of targets) {
-            const handle = storage.getStorageHandle(entry.connector.id);
-            await entry.connector.sync(
+            const connector = instantiateConnector(
+              entry,
+              options.connectorRegistry!,
+              options.secretsResolver,
+            );
+            const handle = storage.getStorageHandle(entry.name);
+            await connector.sync(
               { mode: mode ?? 'latest' },
               handle,
               controller.signal,
@@ -75,7 +88,7 @@ export function registerTriggerSync(
 
       return text({
         triggered: true,
-        connectors: targets.map((e) => e.connector.id),
+        connectors: targets.map((e) => e.name),
         mode,
       });
     },

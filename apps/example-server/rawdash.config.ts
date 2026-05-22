@@ -25,15 +25,15 @@ function resolvePort(): number {
   return parsed;
 }
 
-const github = new GitHubConnector(
-  {
+const github = {
+  name: 'github',
+  connectorId: 'github-actions',
+  config: {
     owner: process.env['GITHUB_OWNER'] ?? 'rawdash',
     repo: process.env['GITHUB_REPO'] ?? 'rawdash',
-  },
-  {
     token: secret('GITHUB_TOKEN'),
   },
-);
+};
 
 const storage = new LibsqlStorage({
   client: createClient({
@@ -44,7 +44,7 @@ const storage = new LibsqlStorage({
 
 serve(
   defineConfig({
-    connectors: [{ connector: github }],
+    connectors: [github],
     dashboards: {
       github: defineDashboard({
         widgets: {
@@ -102,5 +102,9 @@ serve(
       }),
     },
   }),
-  { port: resolvePort(), storage },
+  {
+    port: resolvePort(),
+    storage,
+    connectorRegistry: { 'github-actions': GitHubConnector },
+  },
 );

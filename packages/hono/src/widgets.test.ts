@@ -7,16 +7,8 @@ import { createWidgetsRouter } from './widgets';
 
 const CONNECTOR_ID = 'test';
 
-const mockConnector = {
-  id: CONNECTOR_ID,
-  serializeConfig: () => ({}),
-  async sync() {
-    return { done: true };
-  },
-};
-
 const config: DashboardConfig = {
-  connectors: [{ connector: mockConnector }],
+  connectors: [{ name: CONNECTOR_ID, connectorId: 'test', config: {} }],
   dashboards: {
     main: {
       widgets: {

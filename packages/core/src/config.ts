@@ -1,4 +1,3 @@
-import type { Connector } from './connector';
 import type { RetentionConfig } from './retention';
 import { getWidgetSchema, widgetSchemas } from './widget-schemas';
 import type { WidgetKind } from './widget-schemas';
@@ -57,7 +56,7 @@ export interface GroupBy {
 // ---------------------------------------------------------------------------
 
 export interface Metric {
-  connector: { id: string };
+  connector: { name: string };
   shape: Shape;
   name?: string;
   entityType?: string;
@@ -126,7 +125,12 @@ export type { WidgetKind };
 // ---------------------------------------------------------------------------
 
 export interface ConfiguredConnector {
-  connector: Connector;
+  name: string;
+  connectorId: string;
+  config: Record<string, unknown>;
+  syncIntervalSeconds?: number;
+  enabled?: boolean;
+  displayName?: string;
 }
 
 export interface Dashboard {
@@ -171,7 +175,7 @@ export function defineDashboard(options: {
 
 export function defineMetric(options: Metric): ComputedMetric {
   return {
-    connectorId: options.connector.id,
+    connectorId: options.connector.name,
     shape: options.shape,
     name: options.name,
     entityType: options.entityType,
@@ -236,7 +240,23 @@ function validateConfig(config: DashboardConfig): void {
     );
   }
 
-  const connectorIds = new Set(config.connectors.map((e) => e.connector.id));
+  const connectorNames = new Set<string>();
+  for (const entry of config.connectors) {
+    if (!entry.name) {
+      throw new Error('defineConfig: every connector entry must have a "name"');
+    }
+    if (!entry.connectorId) {
+      throw new Error(
+        `defineConfig: connector "${entry.name}" must have a "connectorId" (the connector type id)`,
+      );
+    }
+    if (connectorNames.has(entry.name)) {
+      throw new Error(
+        `defineConfig: duplicate connector name "${entry.name}". Each instance must have a unique name.`,
+      );
+    }
+    connectorNames.add(entry.name);
+  }
 
   for (const [dashboardKey, dashboard] of Object.entries(config.dashboards)) {
     if (
@@ -270,7 +290,7 @@ function validateConfig(config: DashboardConfig): void {
 
       const { connectorId, shape, fn } = widget.metric;
 
-      if (!connectorIds.has(connectorId)) {
+      if (!connectorNames.has(connectorId)) {
         throw new Error(
           `${ref}: connector "${connectorId}" is not listed in connectors`,
         );

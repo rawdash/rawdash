@@ -29,7 +29,7 @@ export function createMcpServer(options: McpServerOptions): McpServer {
   registerRemoveConnector(server, runtime, options);
   registerSetSecret(server, trackedSecrets, options);
   registerListSecrets(server, trackedSecrets, options);
-  registerTriggerSync(server, runtime, storage);
+  registerTriggerSync(server, runtime, storage, options);
 
   return server;
 }

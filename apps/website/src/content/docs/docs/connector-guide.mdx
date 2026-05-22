@@ -99,41 +99,30 @@ data into `storage` using typed write methods (`storage.events()`,
    });
    ```
 
-4. **Declare a retention policy (optional)**
-
-   Pass a retention config when registering the connector in `defineConfig`:
-
-   ```ts title="rawdash.config.ts"
-   import { retainLast } from '@rawdash/core';
-
-   defineConfig({
-     connectors: [
-       {
-         connector: new MyConnector({ apiKey: process.env.MY_API_KEY! }),
-         retention: retainLast(90, 'days'),
-       },
-     ],
-     // ...
-   });
-   ```
-
-5. **Register it in your config**
+4. **Register it in your config**
 
    ```ts title="rawdash.config.ts"
    import { serve as honoServe } from '@hono/node-server';
-   import { defineConfig, defineDashboard } from '@rawdash/core';
+   import { defineConfig, defineDashboard, secret } from '@rawdash/core';
    import { mountEngine } from '@rawdash/hono';
    import { MyConnector } from './src/connectors/my-api';
 
-   const myConnector = new MyConnector({ apiKey: process.env.MY_API_KEY! });
-
    const { app } = mountEngine(
      defineConfig({
-       connectors: [{ connector: myConnector }],
+       connectors: [
+         {
+           name: 'my-api',
+           connectorId: 'my-connector',
+           config: { apiKey: secret('MY_API_KEY') },
+         },
+       ],
        dashboards: {
          'my-dashboard': defineDashboard({ widgets: {} }),
        },
      }),
+     {
+       connectorRegistry: { 'my-connector': MyConnector },
+     },
    );
    honoServe({ fetch: app.fetch, port: 8080 });
    ```

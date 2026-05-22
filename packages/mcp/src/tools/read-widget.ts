@@ -43,7 +43,7 @@ export function registerReadWidget(
         const { connectorId } = widget.metric;
         const connectorEntry = runtime
           .getConnectors()
-          .find((e) => e.connector.id === connectorId);
+          .find((e) => e.name === connectorId);
         if (!connectorEntry) {
           return err(
             'CONNECTOR_NOT_FOUND',

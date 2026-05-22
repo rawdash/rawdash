@@ -1,6 +1,17 @@
-import type { DashboardConfig, ServerStorage } from '@rawdash/core';
+import type {
+  ConnectorRegistry,
+  DashboardConfig,
+  SecretsResolver,
+  ServerStorage,
+} from '@rawdash/core';
+import { instantiateConnector } from '@rawdash/core';
 
 export const FULL_SYNC_TIMEOUT_MS = 300_000;
+
+export interface RunSyncOptions {
+  connectorRegistry: ConnectorRegistry;
+  secretsResolver?: SecretsResolver;
+}
 
 /**
  * Run a full sync across all connectors in the config in parallel via
@@ -26,10 +37,8 @@ export const FULL_SYNC_TIMEOUT_MS = 300_000;
 export async function runSync(
   config: DashboardConfig,
   storage: ServerStorage,
+  options: RunSyncOptions,
 ): Promise<void> {
-  // Idempotent: if the caller already queued, this returns false and we
-  // proceed to markSyncRunning anyway. If nothing queued us, we queue
-  // ourselves now so the state machine still goes through `queued`.
   await storage.markSyncQueued();
   const acquired = await storage.markSyncRunning();
   if (!acquired) {
@@ -37,13 +46,21 @@ export async function runSync(
   }
   const errors: string[] = [];
   await Promise.allSettled(
-    config.connectors.map(async ({ connector }) => {
+    config.connectors.map(async (entry) => {
+      if (entry.enabled === false) {
+        return;
+      }
       const controller = new AbortController();
-      const handle = storage.getStorageHandle(connector.id, {
+      const handle = storage.getStorageHandle(entry.name, {
         signal: controller.signal,
       });
       let timer: ReturnType<typeof setTimeout> | undefined;
       try {
+        const connector = instantiateConnector(
+          entry,
+          options.connectorRegistry,
+          options.secretsResolver,
+        );
         const syncPromise = connector.sync(
           { mode: 'full' },
           handle,
@@ -53,7 +70,7 @@ export async function runSync(
           timer = setTimeout(() => {
             controller.abort();
             const err = new Error(
-              `${connector.id} timed out after ${FULL_SYNC_TIMEOUT_MS}ms`,
+              `${entry.name} timed out after ${FULL_SYNC_TIMEOUT_MS}ms`,
             );
             err.name = 'AbortError';
             reject(err);
@@ -62,13 +79,13 @@ export async function runSync(
         const result = await Promise.race([syncPromise, timeoutPromise]);
         if (!result.done) {
           errors.push(
-            `${connector.id} did not complete in one chunk (chunked syncs are only supported in cloud)`,
+            `${entry.name} did not complete in one chunk (chunked syncs are only supported in cloud)`,
           );
         }
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') {
           errors.push(
-            `${connector.id} timed out after ${FULL_SYNC_TIMEOUT_MS}ms`,
+            `${entry.name} timed out after ${FULL_SYNC_TIMEOUT_MS}ms`,
           );
         } else {
           errors.push(err instanceof Error ? err.message : String(err));

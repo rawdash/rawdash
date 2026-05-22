@@ -17,6 +17,7 @@ export type {
   TriggerSyncOptions,
 } from './handlers';
 export { runSync, FULL_SYNC_TIMEOUT_MS } from './sync';
+export type { RunSyncOptions } from './sync';
 export {
   runRetention,
   hasPruningPolicy,
@@ -38,3 +39,9 @@ export type {
   WidgetsListResponse,
 } from './types';
 export { isSyncActive, ACTIVE_SYNC_STATUSES } from '@rawdash/core';
+export { instantiateConnector } from '@rawdash/core';
+export type {
+  ConnectorClass,
+  ConnectorRegistry,
+  SecretsResolver,
+} from '@rawdash/core';

@@ -28,8 +28,8 @@ export async function runRetention(
   const nowMs = Date.now();
 
   const results = await Promise.allSettled(
-    config.connectors.map(async ({ connector }) => {
-      const handle = storage.getStorageHandle(connector.id);
+    config.connectors.map(async (entry) => {
+      const handle = storage.getStorageHandle(entry.name);
 
       const [events, metrics, distributions] = await Promise.all([
         handle.queryEvents({}),

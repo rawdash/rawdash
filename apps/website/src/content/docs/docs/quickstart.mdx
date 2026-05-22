@@ -54,24 +54,30 @@ and mounting the request handler in a Node.js server.
 
    ```ts title="rawdash.config.ts"
    import { serve as honoServe } from '@hono/node-server';
-   import { defineConfig, defineDashboard } from '@rawdash/core';
+   import { defineConfig, defineDashboard, secret } from '@rawdash/core';
    import { GitHubActionsConnector } from '@rawdash/connector-github';
    import { TursoStorage } from '@rawdash/adapter-turso';
    import { mountEngine } from '@rawdash/hono';
 
-   const github = new GitHubActionsConnector(
-     { owner: 'myorg', repo: 'backend' },
-     { token: process.env.GITHUB_TOKEN },
-   );
-
    const { app } = mountEngine(
      defineConfig({
-       connectors: [{ connector: github }],
+       connectors: [
+         {
+           name: 'main',
+           connectorId: 'github-actions',
+           config: {
+             owner: 'myorg',
+             repo: 'backend',
+             token: secret('GITHUB_TOKEN'),
+           },
+         },
+       ],
        dashboards: {
          eng: defineDashboard({ widgets: {} }),
        },
      }),
      {
+       connectorRegistry: { 'github-actions': GitHubActionsConnector },
        storage: new TursoStorage({
          url: process.env.TURSO_URL ?? 'file:rawdash.db',
          authToken: process.env.TURSO_AUTH_TOKEN,

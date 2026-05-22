@@ -1,74 +1,47 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
-import {
-  BaseConnector,
-  type StorageHandle,
-  type SyncOptions,
-  type SyncResult,
-} from './connector';
 import { secret } from './secrets';
 import { toWireConfig } from './wire-config';
 
-class StubConnector extends BaseConnector<
-  { host: string; port: number },
-  { token: { description: string; auth: 'optional' } }
-> {
-  static readonly id = 'stub';
-  readonly id = 'stub';
-
-  async sync(_req: SyncOptions, _storage: StorageHandle): Promise<SyncResult> {
-    return { done: true };
-  }
-}
-
-type NodeLike = { process?: { env?: Record<string, string | undefined> } };
-
 describe('toWireConfig()', () => {
-  const g = globalThis as unknown as NodeLike;
-  g.process ??= { env: {} };
-  const env = (g.process.env ??= {});
-  const prevApiToken = env['API_TOKEN'];
-
-  beforeAll(() => {
-    env['API_TOKEN'] = 'test-secret-value';
-  });
-
-  afterAll(() => {
-    if (prevApiToken === undefined) {
-      delete env['API_TOKEN'];
-    } else {
-      env['API_TOKEN'] = prevApiToken;
-    }
-  });
-
-  it('maps connectors to wire shape with id as name and connectorId', () => {
-    const connector = new StubConnector(
-      { host: 'example.com', port: 443 },
-      { token: secret('API_TOKEN') },
-    );
-
+  it('maps declarative connector entries to the wire shape', () => {
     const result = toWireConfig({
-      connectors: [{ connector }],
+      connectors: [
+        {
+          name: 'main',
+          connectorId: 'stub',
+          config: {
+            host: 'example.com',
+            port: 443,
+            token: secret('API_TOKEN'),
+          },
+        },
+      ],
       dashboards: {},
     });
 
     expect(result.connectors).toHaveLength(1);
     const c = result.connectors![0]!;
-    expect(c.name).toBe('stub');
+    expect(c.name).toBe('main');
     expect(c.connectorId).toBe('stub');
-    expect(c.displayName).toBe('stub');
+    expect(c.displayName).toBe('main');
     expect(c.enabled).toBe(true);
     expect(c.syncIntervalSeconds).toBe(300);
   });
 
   it('preserves secret refs in connector config', () => {
-    const connector = new StubConnector(
-      { host: 'example.com', port: 443 },
-      { token: secret('API_TOKEN') },
-    );
-
     const result = toWireConfig({
-      connectors: [{ connector }],
+      connectors: [
+        {
+          name: 'main',
+          connectorId: 'stub',
+          config: {
+            host: 'example.com',
+            port: 443,
+            token: secret('API_TOKEN'),
+          },
+        },
+      ],
       dashboards: {},
     });
 
@@ -79,22 +52,24 @@ describe('toWireConfig()', () => {
     });
   });
 
-  it('omits undefined credential fields from connector config', () => {
-    const connector = new StubConnector(
-      { host: 'example.com', port: 443 },
-      { token: undefined },
-    );
-
+  it('passes through user overrides for displayName/enabled/syncIntervalSeconds', () => {
     const result = toWireConfig({
-      connectors: [{ connector }],
+      connectors: [
+        {
+          name: 'main',
+          connectorId: 'stub',
+          config: { host: 'a.com' },
+          displayName: 'Main API',
+          enabled: false,
+          syncIntervalSeconds: 60,
+        },
+      ],
       dashboards: {},
     });
 
-    expect(result.connectors![0]!.config).toEqual({
-      host: 'example.com',
-      port: 443,
-    });
-    expect('token' in result.connectors![0]!.config).toBe(false);
+    expect(result.connectors![0]!.displayName).toBe('Main API');
+    expect(result.connectors![0]!.enabled).toBe(false);
+    expect(result.connectors![0]!.syncIntervalSeconds).toBe(60);
   });
 
   it('maps dashboards from Record to Array with id/name/slug', () => {
@@ -128,11 +103,11 @@ describe('toWireConfig()', () => {
   });
 
   it('handles multiple connectors and dashboards', () => {
-    const c1 = new StubConnector({ host: 'a.com', port: 80 });
-    const c2 = new StubConnector({ host: 'b.com', port: 443 });
-
     const result = toWireConfig({
-      connectors: [{ connector: c1 }, { connector: c2 }],
+      connectors: [
+        { name: 'a', connectorId: 'stub', config: { host: 'a.com' } },
+        { name: 'b', connectorId: 'stub', config: { host: 'b.com' } },
+      ],
       dashboards: {
         dash1: { widgets: {} },
         dash2: { widgets: {} },

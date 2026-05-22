@@ -1,4 +1,3 @@
-import { GitHubConnector } from '@rawdash/connector-github';
 import {
   defineConfig,
   defineDashboard,
@@ -6,18 +5,18 @@ import {
   secret,
 } from '@rawdash/core';
 
-const github = new GitHubConnector(
-  {
+const github = {
+  name: 'github',
+  connectorId: 'github-actions',
+  config: {
     owner: process.env['GITHUB_OWNER'] ?? 'rawdash',
     repo: process.env['GITHUB_REPO'] ?? 'rawdash',
-  },
-  {
     token: secret('GITHUB_TOKEN'),
   },
-);
+};
 
 export default defineConfig({
-  connectors: [{ connector: github }],
+  connectors: [github],
   dashboards: {
     github: defineDashboard({
       widgets: {
