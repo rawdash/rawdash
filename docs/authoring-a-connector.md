@@ -445,20 +445,22 @@ The publish workflow uses [npm OIDC trusted publishing](https://docs.npmjs.com/t
 
 The four steps, run once per new package from a maintainer machine with publish rights to the `@rawdash` org and a real 2FA-enabled npm account.
 
-1. **Pre-flight.** Both of the steps below silently fail in confusing ways if either of these isn't satisfied — `npm publish` returns HTTP 404 (not 401) on a brand-new scoped package when you lack publish rights, and `npm trust` simply doesn't exist on older CLIs. Check first:
+1. **Pre-flight.** Both of the steps below silently fail in confusing ways if either of these isn't satisfied — `npm publish` returns HTTP 404 (not 401) on a brand-new scoped package when you lack publish rights, and `npm trust` on npm < 12 sends a request body the registry now rejects with an opaque `400 Bad Request` (it lacks the required `permissions` field added in npm 12). Check first:
 
    ```sh
-   npm --version   # must be ≥ 11.10.0 — older CLIs don't ship `npm trust`
+   npm --version   # must be ≥ 12 — older CLIs send a payload the registry rejects with a 400
    npm whoami      # must be logged in as a maintainer with @rawdash publish rights
    ```
 
-   **If `npm --version` is older than 11.10.0:**
+   **If `npm --version` is older than 12:** at the time of writing, npm 12 has not yet been published to the registry, so `npm install -g npm@latest` will leave you on 11.x. Build from source:
 
    ```sh
-   npm install -g npm@latest
+   cd /tmp && git clone --depth=1 https://github.com/npm/cli.git npm-cli && cd npm-cli
+   node . install -g .
+   npm --version   # confirm 12.x
    ```
 
-   That works on most setups. If your Node was installed through a version manager (nvm, fnm, asdf, volta), the `npm` shipped with Node ≤ 22 is older than 11.10.0 — upgrade Node or reinstall npm under that toolchain so the upgraded npm lands on the active Node. On a macOS Homebrew install, refresh with `brew install node` if `-g` is blocked by permissions. Re-run `npm --version` to confirm.
+   Once npm 12 ships to the registry, `npm install -g npm@latest` will be sufficient. If your Node was installed through a version manager (nvm, fnm, asdf, volta), make sure the upgraded `npm` lands on the active Node. On a macOS Homebrew install, refresh with `brew install node` if `-g` is blocked by permissions.
 
    **If `npm whoami` fails or prints the wrong account:** `npm login`.
 
@@ -470,12 +472,13 @@ The four steps, run once per new package from a maintainer machine with publish 
    npm publish --access public
    ```
 
-3. **Configure the Trusted Publisher entry.** `--file` takes the workflow's basename inside `.github/workflows/`, not a path — passing `.github/workflows/publish.yml` is rejected with "GitHub Actions workflow must be just a file not a path".
+3. **Configure the Trusted Publisher entry.** `--file` takes the workflow's basename inside `.github/workflows/`, not a path — passing `.github/workflows/publish.yml` is rejected with "GitHub Actions workflow must be just a file not a path". `--allow-publish` is required: the registry rejects trust entries without an explicit permission, and omitting it surfaces a cryptic `400 Bad Request` rather than a usable error.
 
    ```sh
    npm trust github @rawdash/connector-<name> \
      --repository rawdash/rawdash \
-     --file publish.yml
+     --file publish.yml \
+     --allow-publish
    ```
 
 4. **Re-run the release workflow.** From here on, every release publishes the new package via OIDC with provenance, in lockstep with the rest of the train.
