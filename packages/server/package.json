@@ -1,7 +1,7 @@
 {
   "name": "@rawdash/server",
   "version": "0.13.0",
-  "description": "Rawdash standalone Hono server",
+  "description": "Framework-agnostic rawdash request handlers, engine, and wire contract. Wrap with @rawdash/hono (or another adapter) to serve over HTTP.",
   "license": "Apache-2.0",
   "type": "module",
   "repository": {
@@ -23,19 +23,15 @@
   },
   "scripts": {
     "build": "tsup",
-    "dev": "tsx src/dev.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
     "test": "vitest run"
   },
   "dependencies": {
-    "@hono/node-server": "^1.13.7",
-    "@rawdash/core": "workspace:*",
-    "hono": "^4.7.7"
+    "@rawdash/core": "workspace:*"
   },
   "devDependencies": {
     "tsup": "^8.0.0",
-    "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   }
 }

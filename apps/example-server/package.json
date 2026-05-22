@@ -9,11 +9,13 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@hono/node-server": "^1.13.7",
     "@libsql/client": "^0.17.0",
-    "@rawdash/core": "workspace:*",
+    "@rawdash/adapter-libsql": "workspace:*",
     "@rawdash/connector-github": "workspace:*",
-    "@rawdash/server": "workspace:*",
-    "@rawdash/adapter-libsql": "workspace:*"
+    "@rawdash/core": "workspace:*",
+    "@rawdash/hono": "workspace:*",
+    "@rawdash/server": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22",

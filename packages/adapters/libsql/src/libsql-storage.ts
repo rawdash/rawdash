@@ -36,7 +36,7 @@ const SYNC_STATE_ID = 1;
 export async function initLibsqlSchema(client: Client): Promise<void> {
   await applyMigrations(client, { assumeLegacyBaselineIfEventsExists: true });
   await client.execute({
-    sql: "INSERT OR IGNORE INTO sync_state (id, status, last_sync_at, last_error) VALUES (?, 'idle', NULL, NULL)",
+    sql: "INSERT OR IGNORE INTO sync_state (id, status, queued_at, started_at, last_sync_at, last_error) VALUES (?, 'idle', NULL, NULL, NULL, NULL)",
     args: [SYNC_STATE_ID],
   });
 }
@@ -588,42 +588,79 @@ export class LibsqlStorage implements ServerStorage {
 
   async getSyncState(): Promise<SyncState> {
     if (this.initError !== null) {
-      return { status: 'error', lastSyncAt: null, lastError: this.initError };
+      return {
+        status: 'failed',
+        queuedAt: null,
+        startedAt: null,
+        lastSyncAt: null,
+        lastError: this.initError,
+      };
     }
     await this.ready;
     const r = await this.db
       .selectFrom('sync_state')
-      .select(['status', 'last_sync_at', 'last_error'])
+      .select([
+        'status',
+        'queued_at',
+        'started_at',
+        'last_sync_at',
+        'last_error',
+      ])
       .where('id', '=', SYNC_STATE_ID)
       .limit(1)
       .executeTakeFirst();
     if (!r) {
-      return { status: 'idle', lastSyncAt: null, lastError: null };
+      return {
+        status: 'idle',
+        queuedAt: null,
+        startedAt: null,
+        lastSyncAt: null,
+        lastError: null,
+      };
     }
     return {
       status: r.status as SyncState['status'],
+      queuedAt: r.queued_at,
+      startedAt: r.started_at,
       lastSyncAt: r.last_sync_at,
       lastError: r.last_error,
     };
   }
 
-  async setSyncing(): Promise<boolean> {
+  async markSyncQueued(): Promise<boolean> {
     await this.ready;
     const r = await this.db
       .updateTable('sync_state')
-      .set({ status: 'syncing' })
+      .set({
+        status: 'queued',
+        queued_at: new Date().toISOString(),
+        started_at: null,
+      })
       .where('id', '=', SYNC_STATE_ID)
-      .where('status', '!=', 'syncing')
+      .where('status', 'not in', ['queued', 'running'])
       .executeTakeFirst();
     return Number(r.numUpdatedRows) > 0;
   }
 
-  async setSyncSuccess(): Promise<void> {
+  async markSyncRunning(): Promise<boolean> {
+    await this.ready;
+    const r = await this.db
+      .updateTable('sync_state')
+      .set({ status: 'running', started_at: new Date().toISOString() })
+      .where('id', '=', SYNC_STATE_ID)
+      .where('status', '=', 'queued')
+      .executeTakeFirst();
+    return Number(r.numUpdatedRows) > 0;
+  }
+
+  async markSyncSucceeded(): Promise<void> {
     await this.ready;
     await this.db
       .updateTable('sync_state')
       .set({
-        status: 'idle',
+        status: 'succeeded',
+        queued_at: null,
+        started_at: null,
         last_sync_at: new Date().toISOString(),
         last_error: null,
       })
@@ -631,11 +668,16 @@ export class LibsqlStorage implements ServerStorage {
       .execute();
   }
 
-  async setSyncError(error: string): Promise<void> {
+  async markSyncFailed(error: string): Promise<void> {
     await this.ready;
     await this.db
       .updateTable('sync_state')
-      .set({ status: 'error', last_error: error })
+      .set({
+        status: 'failed',
+        queued_at: null,
+        started_at: null,
+        last_error: error,
+      })
       .where('id', '=', SYNC_STATE_ID)
       .execute();
   }

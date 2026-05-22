@@ -13,8 +13,10 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
-    "@rawdash/core": "workspace:*",
+    "@hono/node-server": "^1.13.7",
     "@rawdash/connector-github": "workspace:*",
+    "@rawdash/core": "workspace:*",
+    "@rawdash/hono": "workspace:*",
     "@rawdash/nextjs": "workspace:*",
     "@rawdash/server": "workspace:*",
     "@tremor/react": "^3.18.7",

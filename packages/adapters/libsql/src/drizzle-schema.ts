@@ -90,6 +90,8 @@ export const edges = sqliteTable(
 export const syncState = sqliteTable('sync_state', {
   id: integer('id').primaryKey(),
   status: text('status').notNull(),
+  queued_at: text('queued_at'),
+  started_at: text('started_at'),
   last_sync_at: text('last_sync_at'),
   last_error: text('last_error'),
 });

@@ -7,7 +7,8 @@ import {
   defineMetric,
   secret,
 } from '@rawdash/core';
-import { serve } from '@rawdash/server';
+
+import { serve } from './src/serve';
 
 function resolvePort(): number {
   const raw = process.env['PORT'];

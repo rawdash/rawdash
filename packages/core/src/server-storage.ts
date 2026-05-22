@@ -11,7 +11,8 @@ export interface ServerStorage {
     options?: GetStorageHandleOptions,
   ): StorageHandle;
   getSyncState(): Promise<SyncState>;
-  setSyncing(): Promise<boolean>;
-  setSyncSuccess(): Promise<void>;
-  setSyncError(error: string): Promise<void>;
+  markSyncQueued(): Promise<boolean>;
+  markSyncRunning(): Promise<boolean>;
+  markSyncSucceeded(): Promise<void>;
+  markSyncFailed(error: string): Promise<void>;
 }

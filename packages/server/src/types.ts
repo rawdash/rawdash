@@ -1,12 +1,11 @@
-import type { ServerStorage } from '@rawdash/core';
-
 export type {
+  CachedWidget,
   ConfiguredConnector,
   DashboardConfig,
+  HealthResponse,
   ServerStorage,
+  SyncState,
+  SyncStatus,
+  TriggerSyncResponse,
+  WidgetsListResponse,
 } from '@rawdash/core';
-
-export interface ServeOptions {
-  port?: number;
-  storage?: ServerStorage;
-}

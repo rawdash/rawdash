@@ -1,6 +1,25 @@
 import { http as clientHttp } from '@rawdash/client';
 import type { HttpOptions } from '@rawdash/client';
 import type { DataSource } from '@rawdash/core';
+
+/**
+ * A configured Rawdash client for use in Next.js Server Components and Server
+ * Actions.
+ *
+ * Wrap a `DataSource` (from `@rawdash/core`) with Next.js-specific
+ * behaviour: `triggerSync` waits for the sync to complete, then calls
+ * `revalidateTag` so Server Components re-fetch widget data.
+ *
+ * ```ts
+ * // lib/rawdash.ts
+ * import { createRawdashClient, http } from '@rawdash/nextjs';
+ *
+ * export const rawdash = createRawdashClient(
+ *   http({ baseUrl: process.env.RAWDASH_URL! }),
+ * );
+ * ```
+ */
+import { isSyncActive } from '@rawdash/core';
 import { revalidateTag } from 'next/cache';
 
 export type { HttpOptions } from '@rawdash/client';
@@ -40,23 +59,9 @@ export function http(opts: HttpOptions): DataSource {
   return clientHttp({ ...opts, fetch: taggedFetch });
 }
 
-/**
- * A configured Rawdash client for use in Next.js Server Components and Server
- * Actions.
- *
- * Wrap a `DataSource` (from `@rawdash/core`) with Next.js-specific
- * behaviour: `triggerSync` waits for the sync to complete, then calls
- * `revalidateTag` so Server Components re-fetch widget data.
- *
- * ```ts
- * // lib/rawdash.ts
- * import { createRawdashClient, http } from '@rawdash/nextjs';
- *
- * export const rawdash = createRawdashClient(
- *   http({ baseUrl: process.env.RAWDASH_URL! }),
- * );
- * ```
- */
+const DEFAULT_SYNC_TIMEOUT_MS = 30_000;
+const DEFAULT_SYNC_POLL_INTERVAL_MS = 500;
+
 export function createRawdashClient(dataSource: DataSource): DataSource {
   return {
     getWidget: (dashboardId, widgetId) =>
@@ -65,6 +70,8 @@ export function createRawdashClient(dataSource: DataSource): DataSource {
     getWidgets: (dashboardId) => dataSource.getWidgets(dashboardId),
 
     getHealth: () => dataSource.getHealth(),
+
+    getSyncState: () => dataSource.getSyncState(),
 
     async ensureFresh(maxAgeMs) {
       const synced = await dataSource.ensureFresh(maxAgeMs);
@@ -77,23 +84,27 @@ export function createRawdashClient(dataSource: DataSource): DataSource {
     async triggerSync() {
       const result = await dataSource.triggerSync();
 
-      const maxAttempts = 60;
-      for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        const health = await dataSource.getHealth();
-        if (health.status === 'error') {
-          throw new Error(
-            `Rawdash sync failed: ${health.lastError ?? 'unknown error'}`,
-          );
-        }
-        if (health.status === 'idle') {
+      const deadline = Date.now() + DEFAULT_SYNC_TIMEOUT_MS;
+      for (;;) {
+        const state = await dataSource.getSyncState();
+        if (!isSyncActive(state.status)) {
+          if (state.status === 'failed') {
+            throw new Error(
+              `Rawdash sync failed: ${state.lastError ?? 'unknown error'}`,
+            );
+          }
           revalidateTag(RAWDASH_CACHE_TAG);
           return result;
         }
-        await new Promise<void>((resolve) => setTimeout(resolve, 500));
+        if (Date.now() >= deadline) {
+          throw new Error(
+            `Rawdash sync did not settle within ${DEFAULT_SYNC_TIMEOUT_MS}ms (last status: ${state.status})`,
+          );
+        }
+        await new Promise<void>((resolve) =>
+          setTimeout(resolve, DEFAULT_SYNC_POLL_INTERVAL_MS),
+        );
       }
-      throw new Error(
-        `Rawdash sync did not complete within ${maxAttempts * 500}ms`,
-      );
     },
   };
 }

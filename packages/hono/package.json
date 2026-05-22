@@ -1,0 +1,43 @@
+{
+  "name": "@rawdash/hono",
+  "version": "0.13.0",
+  "description": "Hono adapter for rawdash — router factories and helpers that mount @rawdash/server handlers onto a Hono app. Runtime-agnostic (Workers, Node, Bun, Deno).",
+  "license": "Apache-2.0",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rawdash/rawdash.git",
+    "directory": "packages/hono"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": {
+      "@rawdash/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "hono": "^4.0.0"
+  },
+  "dependencies": {
+    "@rawdash/core": "workspace:*",
+    "@rawdash/server": "workspace:*"
+  },
+  "devDependencies": {
+    "hono": "^4.7.7",
+    "tsup": "^8.0.0",
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.4"
+  }
+}
