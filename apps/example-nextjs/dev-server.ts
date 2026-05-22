@@ -1,4 +1,5 @@
 import { serve as honoServe } from '@hono/node-server';
+import { GitHubConnector } from '@rawdash/connector-github';
 import { mountEngine } from '@rawdash/hono';
 
 import config from './rawdash.config';
@@ -18,5 +19,7 @@ function resolvePort(): number {
   return parsed;
 }
 
-const { app } = mountEngine(config);
+const { app } = mountEngine(config, {
+  connectorRegistry: { 'github-actions': GitHubConnector },
+});
 honoServe({ fetch: app.fetch, port: resolvePort() });

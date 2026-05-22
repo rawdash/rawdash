@@ -26,18 +26,18 @@ import {
   secret,
 } from '@rawdash/core';
 
-const github = new GitHubConnector(
-  {
+const github = {
+  name: 'github',
+  connectorId: 'github-actions',
+  config: {
     owner: 'my-org',
     repo: 'my-repo',
-  },
-  {
     token: secret('GITHUB_TOKEN'), // optional for public repos
   },
-);
+};
 
 export default defineConfig({
-  connectors: [{ connector: github }],
+  connectors: [github],
   dashboards: {
     engineering: defineDashboard({
       widgets: {
@@ -55,12 +55,15 @@ export default defineConfig({
         ci_status: {
           kind: 'status',
           title: 'CI',
-          source: `${github.id}:workflow_runs`,
+          source: `${github.name}:workflow_runs`,
         },
       },
     }),
   },
 });
+
+// Wire the registry separately when mounting:
+//   mountEngine(config, { connectorRegistry: { 'github-actions': GitHubConnector } });
 ```
 
 ## Configuration

@@ -20,7 +20,6 @@ npm install @rawdash/core @rawdash/connector-github
 ## Quick example
 
 ```ts
-import { GitHubConnector } from '@rawdash/connector-github';
 import {
   defineConfig,
   defineDashboard,
@@ -28,18 +27,18 @@ import {
   secret,
 } from '@rawdash/core';
 
-const github = new GitHubConnector(
-  {
+const github = {
+  name: 'github',
+  connectorId: 'github-actions',
+  config: {
     owner: 'my-org',
     repo: 'my-repo',
-  },
-  {
     token: secret('GITHUB_TOKEN'),
   },
-);
+};
 
 export default defineConfig({
-  connectors: [{ connector: github }],
+  connectors: [github],
   dashboards: {
     engineering: defineDashboard({
       widgets: {
@@ -58,6 +57,10 @@ export default defineConfig({
     }),
   },
 });
+
+// When mounting the engine, register the connector class:
+//   import { GitHubConnector } from '@rawdash/connector-github';
+//   mountEngine(config, { connectorRegistry: { 'github-actions': GitHubConnector } });
 ```
 
 ## API

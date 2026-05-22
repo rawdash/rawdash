@@ -1,4 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp';
+import type { ConfiguredConnector } from '@rawdash/core';
 import { z } from 'zod';
 
 import type { McpRuntime } from '../runtime-config';
@@ -19,13 +20,18 @@ export function registerAddConnector(
         .describe(
           'The connector type ID (e.g. "github-actions"). Use list_connectors to see available types.',
         ),
+      name: z
+        .string()
+        .describe(
+          'Instance name for this connector (must be unique within the deployment).',
+        ),
       settings: z
         .record(z.string(), z.unknown())
         .describe(
           'Connector settings as a JSON object. Schema depends on the connector type.',
         ),
     },
-    async ({ connector_type, settings }) => {
+    async ({ connector_type, name, settings }) => {
       const factories = options.connectorFactories ?? [];
       const factory = factories.find((f) => f.id === connector_type);
       if (!factory) {
@@ -46,15 +52,11 @@ export function registerAddConnector(
         return err('INVALID_SETTINGS', `Invalid settings: ${issues}`);
       }
 
-      let entry;
-      try {
-        entry = { connector: factory.create(parsed.data) };
-      } catch (e) {
-        return err(
-          'CREATE_FAILED',
-          `Failed to create connector: ${e instanceof Error ? e.message : String(e)}`,
-        );
-      }
+      const entry: ConfiguredConnector = {
+        name,
+        connectorId: connector_type,
+        config: parsed.data as Record<string, unknown>,
+      };
 
       try {
         runtime.addConnector(entry);
@@ -74,7 +76,7 @@ export function registerAddConnector(
         );
       }
 
-      return text({ added: entry.connector.id, idempotent: false });
+      return text({ added: entry.name, idempotent: false });
     },
   );
 }

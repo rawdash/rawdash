@@ -22,17 +22,15 @@ export class McpRuntime {
   }
 
   addConnector(entry: ConfiguredConnector): void {
-    if (this.connectors.some((e) => e.connector.id === entry.connector.id)) {
-      throw new Error(`Connector "${entry.connector.id}" already exists`);
+    if (this.connectors.some((e) => e.name === entry.name)) {
+      throw new Error(`Connector "${entry.name}" already exists`);
     }
     this.connectors = [...this.connectors, entry];
   }
 
-  removeConnector(connectorId: string): boolean {
+  removeConnector(name: string): boolean {
     const before = this.connectors.length;
-    this.connectors = this.connectors.filter(
-      (e) => e.connector.id !== connectorId,
-    );
+    this.connectors = this.connectors.filter((e) => e.name !== name);
     return this.connectors.length < before;
   }
 }

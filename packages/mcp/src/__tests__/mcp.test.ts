@@ -1,5 +1,6 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory';
+import type { ConnectorRegistry } from '@rawdash/core';
 import { InMemoryStorage } from '@rawdash/core';
 import { describe, expect, it } from 'vitest';
 
@@ -7,16 +8,8 @@ import { createMcpServer } from '../server';
 
 const CONNECTOR_ID = 'test';
 
-const mockConnector = {
-  id: CONNECTOR_ID,
-  serializeConfig: () => ({}),
-  async sync() {
-    return { done: true };
-  },
-};
-
 const config = {
-  connectors: [{ connector: mockConnector }],
+  connectors: [{ name: CONNECTOR_ID, connectorId: 'test', config: {} }],
   dashboards: {
     main: {
       widgets: {
@@ -341,9 +334,30 @@ describe('remove_connector', () => {
   });
 });
 
+class StubConnector {
+  static readonly credentials = undefined;
+  readonly id = 'test';
+  constructor(
+    _settings: Record<string, unknown>,
+    _creds?: Record<string, unknown>,
+  ) {}
+  serializeConfig(): Record<string, unknown> {
+    return {};
+  }
+  async sync(): Promise<{ done: boolean }> {
+    return { done: true };
+  }
+}
+
+const stubRegistry: ConnectorRegistry = {
+  test: StubConnector as unknown as ConnectorRegistry[string],
+};
+
 describe('trigger_sync', () => {
   it('triggers sync for all connectors', async () => {
-    const client = await makeClient(new InMemoryStorage());
+    const client = await makeClient(new InMemoryStorage(), {
+      connectorRegistry: stubRegistry,
+    });
     const result = await client.callTool({
       name: 'trigger_sync',
       arguments: {},
@@ -357,7 +371,9 @@ describe('trigger_sync', () => {
   });
 
   it('returns error for unknown connector', async () => {
-    const client = await makeClient(new InMemoryStorage());
+    const client = await makeClient(new InMemoryStorage(), {
+      connectorRegistry: stubRegistry,
+    });
     const result = await client.callTool({
       name: 'trigger_sync',
       arguments: { connector_id: 'ghost' },

@@ -1,4 +1,4 @@
-import type { DashboardConfig } from '@rawdash/core';
+import type { ConnectorRegistry, DashboardConfig } from '@rawdash/core';
 import { describe, expect, it } from 'vitest';
 
 import type { EngineContext } from './context';
@@ -13,18 +13,29 @@ import {
 } from './handlers';
 import { InMemoryStorage } from './storage';
 
-const CONNECTOR_ID = 'test';
+const CONNECTOR_NAME = 'test';
 
-const mockConnector = {
-  id: CONNECTOR_ID,
-  serializeConfig: () => ({}),
-  async sync() {
+class MockConnector {
+  static readonly credentials = undefined;
+  readonly id = 'test';
+  constructor(
+    _settings: Record<string, unknown>,
+    _creds?: Record<string, unknown>,
+  ) {}
+  serializeConfig(): Record<string, unknown> {
+    return {};
+  }
+  async sync(): Promise<{ done: boolean }> {
     return { done: true };
-  },
+  }
+}
+
+const connectorRegistry: ConnectorRegistry = {
+  test: MockConnector as unknown as ConnectorRegistry[string],
 };
 
 const config: DashboardConfig = {
-  connectors: [{ connector: mockConnector }],
+  connectors: [{ name: CONNECTOR_NAME, connectorId: 'test', config: {} }],
   dashboards: {
     main: {
       widgets: {
@@ -32,7 +43,7 @@ const config: DashboardConfig = {
           kind: 'stat',
           title: 'My Widget',
           metric: {
-            connectorId: CONNECTOR_ID,
+            connectorId: CONNECTOR_NAME,
             shape: 'event',
             name: 'run',
             field: 'start_ts',
@@ -46,9 +57,10 @@ const config: DashboardConfig = {
 
 function makeCtx() {
   const storage = new InMemoryStorage();
-  const ctx: EngineContext = {
+  const ctx: InProcessTriggerSyncContext = {
     getConfig: () => config,
     getStorage: () => storage,
+    connectorRegistry,
   };
   return { ctx, storage };
 }
@@ -133,7 +145,7 @@ describe('triggerSync', () => {
         },
         getStorage: () => storage,
       };
-      await triggerSync(ctx, { mode: 'deferred' });
+      await triggerSync({ ...ctx }, { mode: 'deferred' });
       expect(getConfigCalls).toBe(0);
     });
 

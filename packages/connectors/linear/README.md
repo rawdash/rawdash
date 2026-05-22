@@ -17,29 +17,27 @@ OAuth-based auth is planned post-MVP — see the connector roadmap for details.
 ## Configuration
 
 ```ts
-import { LinearConnector } from '@rawdash/connector-linear';
 import { secret } from '@rawdash/core';
 
-const linear = new LinearConnector(
-  {
+const linear = {
+  name: 'linear',
+  connectorId: 'linear',
+  config: {
+    apiKey: secret('LINEAR_API_KEY'),
     // teamIds: ['team-uuid'],     // optional — restrict to one or more teams
     // resources: ['issues'],       // optional — defaults to all four phases
     // historyPerIssue: 25,         // optional — how many history entries to fetch per issue
   },
-  {
-    apiKey: secret('LINEAR_API_KEY'),
-  },
-);
+};
 ```
 
-Or via `LinearConnector.create` (validates the input with the `configFields` Zod schema):
+Register the connector class when mounting the engine:
 
 ```ts
-const linear = LinearConnector.create({
-  apiKey: { $secret: 'LINEAR_API_KEY' },
-  // teamIds: ['team-uuid'],
-  // resources: ['issues'],
-});
+import { LinearConnector } from '@rawdash/connector-linear';
+import { mountEngine } from '@rawdash/hono';
+
+mountEngine(config, { connectorRegistry: { linear: LinearConnector } });
 ```
 
 ### Choosing resources
@@ -56,7 +54,7 @@ Pass any non-empty subset as `resources` to sync only those phases. The `issues`
 import { defineConfig, defineDashboard, defineMetric } from '@rawdash/core';
 
 export default defineConfig({
-  connectors: [{ connector: linear }],
+  connectors: [linear],
   dashboards: {
     engineering: defineDashboard({
       widgets: {

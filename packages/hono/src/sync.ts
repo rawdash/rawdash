@@ -1,3 +1,4 @@
+import type { ConnectorRegistry, SecretsResolver } from '@rawdash/core';
 import { getSyncStateHandler, triggerSync } from '@rawdash/server';
 import type { MiddlewareHandler } from 'hono';
 import { Hono } from 'hono';
@@ -9,19 +10,23 @@ import { applyBefore, mapError } from './shared';
  * Options for `createSyncRouter`.
  *
  * `mode` defaults to `'in-process'`: the trigger handler kicks off
- * `runSync` in the background, iterating `config.connectors`. In this
- * mode `getConfig` is required.
+ * `runSync` in the background, iterating `config.connectors` and
+ * instantiating each via `connectorRegistry`. In this mode both
+ * `getConfig` and `connectorRegistry` are required.
  *
  * In `mode: 'deferred'`, the trigger handler only records the `queued`
  * transition; an external runner is responsible for `running →
- * succeeded/failed`. `getConfig` can be omitted in this mode — useful
- * when the deployment cannot materialize OSS-format `Connector`
- * instances at request time (e.g. cloud, where connector configs live
- * in a database and the actual `connector.sync(...)` call happens in a
- * queue consumer worker).
+ * succeeded/failed`. `getConfig` and `connectorRegistry` can be omitted
+ * in this mode — useful when the deployment cannot materialize connector
+ * implementations at request time (e.g. cloud, where the actual
+ * `connector.sync(...)` call happens in a queue consumer worker).
  */
 export type SyncRouterOptions =
-  | (HonoRouterOptions & { mode?: 'in-process' })
+  | (HonoRouterOptions & {
+      mode?: 'in-process';
+      connectorRegistry: ConnectorRegistry;
+      secretsResolver?: SecretsResolver;
+    })
   | {
       mode: 'deferred';
       getStorage: HonoRouterOptions['getStorage'];
@@ -59,6 +64,8 @@ export function createSyncRouter(opts: SyncRouterOptions): Hono {
         await triggerSync({
           getStorage: () => opts.getStorage(c),
           getConfig: () => opts.getConfig(c),
+          connectorRegistry: opts.connectorRegistry,
+          secretsResolver: opts.secretsResolver,
         }),
       );
     } catch (err) {
@@ -76,8 +83,6 @@ export function createSyncStateRouter(opts: HonoStorageRouterOptions): Hono {
   applyBefore(app, opts.before);
   app.get('/', async (c) => {
     try {
-      // sync-state only needs storage, but reuse the EngineContext shape
-      // for handler uniformity. getConfig is a no-op here.
       return c.json(
         await getSyncStateHandler({
           getConfig: () => {

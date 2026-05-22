@@ -1,6 +1,8 @@
 import type {
   CachedWidget,
+  ConnectorRegistry,
   HealthResponse,
+  SecretsResolver,
   SyncState,
   TriggerSyncResponse,
   WidgetsListResponse,
@@ -13,13 +15,6 @@ import { RawdashError } from './errors';
 import { runRetention } from './retention';
 import { runSync } from './sync';
 
-/**
- * Per-request lookup shape accepted by `triggerSync`. In `deferred` mode,
- * the trigger handler never calls `runSync`, so `getConfig` is optional —
- * deployments that delegate the actual sync work to an external runner
- * (queue/worker) may not be able to materialize a `DashboardConfig` at
- * request time.
- */
 /**
  * Per-request lookup shape accepted by `triggerSync` in deferred mode.
  * `getConfig` is optional because the trigger handler never calls
@@ -35,11 +30,15 @@ export interface DeferredTriggerSyncContext {
 /**
  * Per-request lookup shape accepted by `triggerSync` in in-process
  * mode. `getConfig` is required because the trigger handler kicks off
- * `runSync(config, storage)` in the background.
+ * `runSync(config, storage)` in the background. `connectorRegistry` is
+ * required so the background runner can instantiate connector
+ * implementations on demand from the declarative `DashboardConfig`.
  */
 export interface InProcessTriggerSyncContext {
   getConfig: () => DashboardConfig | Promise<DashboardConfig>;
   getStorage: () => ServerStorage | Promise<ServerStorage>;
+  connectorRegistry: ConnectorRegistry;
+  secretsResolver?: SecretsResolver;
 }
 
 /**
@@ -95,7 +94,7 @@ export function triggerSync(
   opts: { mode: 'deferred' },
 ): Promise<TriggerSyncResponse>;
 export async function triggerSync(
-  ctx: DeferredTriggerSyncContext,
+  ctx: InProcessTriggerSyncContext | DeferredTriggerSyncContext,
   opts: TriggerSyncOptions = {},
 ): Promise<TriggerSyncResponse> {
   const mode: TriggerSyncMode = opts.mode ?? 'in-process';
@@ -104,12 +103,6 @@ export async function triggerSync(
   if (isSyncActive(state.status)) {
     return { queued: false };
   }
-  // In-process mode loads the config *before* marking queued — if config
-  // loading rejects after we've persisted the queued transition, the sync
-  // state would be stuck in `queued` with no background run to drain it.
-  // In deferred mode, `runSync` never fires here; an external runner is
-  // responsible for the running/succeeded/failed transitions, so we skip
-  // loading config entirely.
   let config: DashboardConfig | undefined;
   if (mode === 'in-process') {
     if (!ctx.getConfig) {
@@ -119,9 +112,6 @@ export async function triggerSync(
     }
     config = await ctx.getConfig();
   }
-  // Persist the queued transition synchronously so clients polling
-  // /sync/state right after the trigger see `queued` (with queuedAt),
-  // not a stale terminal state.
   const queued = await storage.markSyncQueued();
   if (!queued) {
     return { queued: false };
@@ -129,7 +119,11 @@ export async function triggerSync(
   if (mode === 'deferred') {
     return { queued: true };
   }
-  void runSync(config!, storage).catch((err) => {
+  const inProcessCtx = ctx as InProcessTriggerSyncContext;
+  void runSync(config!, storage, {
+    connectorRegistry: inProcessCtx.connectorRegistry,
+    secretsResolver: inProcessCtx.secretsResolver,
+  }).catch((err) => {
     console.error('Rawdash sync failed', err);
   });
   return { queued: true };
@@ -145,10 +139,11 @@ export async function listWidgets(
     throw new RawdashError(404, 'DASHBOARD_NOT_FOUND', 'Dashboard not found');
   }
   const storage = await ctx.getStorage();
+  const connectorNames = config.connectors.map((c) => c.name);
   const entries = Object.entries(dashboard.widgets);
   const resolved = await Promise.all(
     entries.map(([key, widget]) =>
-      resolveWidget(key, widget, config.connectors, storage),
+      resolveWidget(key, widget, connectorNames, storage),
     ),
   );
   const widgets = resolved.filter((w): w is CachedWidget => w !== undefined);
@@ -170,12 +165,8 @@ export async function getWidget(
     throw new RawdashError(404, 'WIDGET_NOT_FOUND', 'Widget not found');
   }
   const storage = await ctx.getStorage();
-  const result = await resolveWidget(
-    widgetId,
-    widget,
-    config.connectors,
-    storage,
-  );
+  const connectorNames = config.connectors.map((c) => c.name);
+  const result = await resolveWidget(widgetId, widget, connectorNames, storage);
   if (!result) {
     throw new RawdashError(404, 'WIDGET_NOT_FOUND', 'Widget not found');
   }

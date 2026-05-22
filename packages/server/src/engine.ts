@@ -1,7 +1,9 @@
 import type {
   CachedWidget,
+  ConnectorRegistry,
   DashboardConfig,
   HealthResponse,
+  SecretsResolver,
   ServerStorage,
   SyncState,
   TriggerSyncResponse,
@@ -12,6 +14,8 @@ import { runSync } from './sync';
 
 export interface EngineOptions {
   storage?: ServerStorage;
+  connectorRegistry?: ConnectorRegistry;
+  secretsResolver?: SecretsResolver;
 }
 
 export interface Engine {
@@ -30,6 +34,7 @@ export function createEngine(
   options: EngineOptions = {},
 ): Engine {
   const storage: ServerStorage = options.storage ?? new InMemoryStorage();
+  const connectorNames = config.connectors.map((c) => c.name);
 
   return {
     async getWidget(dashboardId, widgetId) {
@@ -41,7 +46,7 @@ export function createEngine(
       if (!widget) {
         return undefined;
       }
-      return resolveWidget(widgetId, widget, config.connectors, storage);
+      return resolveWidget(widgetId, widget, connectorNames, storage);
     },
 
     async getWidgets(dashboardId) {
@@ -52,7 +57,7 @@ export function createEngine(
       const entries = Object.entries(dashboard.widgets);
       const resolved = await Promise.all(
         entries.map(([key, widget]) =>
-          resolveWidget(key, widget, config.connectors, storage),
+          resolveWidget(key, widget, connectorNames, storage),
         ),
       );
       return resolved.filter((w): w is CachedWidget => w !== undefined);
@@ -67,6 +72,11 @@ export function createEngine(
     },
 
     async triggerSync() {
+      if (!options.connectorRegistry) {
+        throw new Error(
+          'createEngine: connectorRegistry is required to triggerSync',
+        );
+      }
       const state = await storage.getSyncState();
       if (isSyncActive(state.status)) {
         return { queued: false };
@@ -75,7 +85,10 @@ export function createEngine(
       if (!queued) {
         return { queued: false };
       }
-      void runSync(config, storage).catch((error) => {
+      void runSync(config, storage, {
+        connectorRegistry: options.connectorRegistry,
+        secretsResolver: options.secretsResolver,
+      }).catch((error) => {
         console.error('Rawdash sync failed', error);
       });
       return { queued: true };

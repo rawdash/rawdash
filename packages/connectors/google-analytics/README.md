@@ -25,34 +25,46 @@ The connector supports two authentication methods. **Service account JSON** is r
 
 ## Configuration
 
+Service account auth:
+
 ```ts
-import { GA4Connector } from '@rawdash/connector-google-analytics';
 import { secret } from '@rawdash/core';
 
-// Service account auth
-const ga4 = new GA4Connector(
-  { propertyId: '123456789' },
-  { serviceAccountJson: secret('GA_SERVICE_ACCOUNT_JSON') },
-);
+const ga4 = {
+  name: 'ga4',
+  connectorId: 'google-analytics',
+  config: {
+    propertyId: '123456789',
+    serviceAccountJson: secret('GA_SERVICE_ACCOUNT_JSON'),
+  },
+};
+```
 
-// OAuth auth
-const ga4 = new GA4Connector(
-  { propertyId: '123456789' },
-  {
+OAuth auth:
+
+```ts
+import { secret } from '@rawdash/core';
+
+const ga4 = {
+  name: 'ga4',
+  connectorId: 'google-analytics',
+  config: {
+    propertyId: '123456789',
     refreshToken: secret('GA_REFRESH_TOKEN'),
     clientId: process.env['GA_CLIENT_ID']!,
     clientSecret: secret('GA_CLIENT_SECRET'),
   },
-);
+};
 ```
 
-Or using `GA4Connector.create` (validates via `configFields` Zod schema):
+Register the connector class when mounting the engine:
 
 ```ts
-const ga4 = GA4Connector.create({
-  propertyId: '123456789',
-  serviceAccountJson: { $secret: 'GA_SERVICE_ACCOUNT_JSON' },
-  // lookbackDays: 90,  // optional, default 90 for full sync
+import { GA4Connector } from '@rawdash/connector-google-analytics';
+import { mountEngine } from '@rawdash/hono';
+
+mountEngine(config, {
+  connectorRegistry: { 'google-analytics': GA4Connector },
 });
 ```
 
@@ -62,7 +74,7 @@ Then wire it into `defineConfig`:
 import { defineConfig, defineDashboard, defineMetric } from '@rawdash/core';
 
 export default defineConfig({
-  connectors: [{ connector: ga4 }],
+  connectors: [ga4],
   dashboards: {
     marketing: defineDashboard({
       widgets: {

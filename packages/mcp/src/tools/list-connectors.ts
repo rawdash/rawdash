@@ -17,13 +17,12 @@ export function registerListConnectors(
       try {
         const syncState = await storage.getSyncState();
         const connectors = runtime.getConnectors().map((entry) => ({
-          id: entry.connector.id,
+          id: entry.name,
+          connectorId: entry.connectorId,
           syncStatus: syncState.status,
           lastSyncAt: syncState.lastSyncAt,
           lastError: syncState.lastError,
-          hasCredentials:
-            Object.keys(entry.connector.credentials ?? {}).length > 0,
-          credentialKeys: Object.keys(entry.connector.credentials ?? {}),
+          configKeys: Object.keys(entry.config),
         }));
         return text({ connectors, overallSyncStatus: syncState.status });
       } catch (e) {

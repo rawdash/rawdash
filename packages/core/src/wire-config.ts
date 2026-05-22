@@ -29,13 +29,13 @@ export type WireConfig = z.infer<typeof wireConfigSchema>;
 
 export function toWireConfig(config: DashboardConfig): WireConfig {
   return {
-    connectors: config.connectors.map(({ connector }) => ({
-      name: connector.id,
-      connectorId: connector.id,
-      displayName: connector.id,
-      config: connector.serializeConfig(),
-      syncIntervalSeconds: 300,
-      enabled: true,
+    connectors: config.connectors.map((entry) => ({
+      name: entry.name,
+      connectorId: entry.connectorId,
+      displayName: entry.displayName ?? entry.name,
+      config: entry.config,
+      syncIntervalSeconds: entry.syncIntervalSeconds ?? 300,
+      enabled: entry.enabled ?? true,
     })),
     dashboards: Object.entries(config.dashboards).map(([id, dash]) => ({
       id,

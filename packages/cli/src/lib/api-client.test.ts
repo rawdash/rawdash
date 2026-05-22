@@ -1,24 +1,6 @@
-import {
-  BaseConnector,
-  type StorageHandle,
-  type SyncOptions,
-  type SyncResult,
-} from '@rawdash/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { postConfig } from './api-client';
-
-class StubConnector extends BaseConnector<
-  { host: string },
-  Record<string, never>
-> {
-  static readonly id = 'stub';
-  readonly id = 'stub';
-
-  async sync(_req: SyncOptions, _storage: StorageHandle): Promise<SyncResult> {
-    return { done: true };
-  }
-}
 
 const ORIG_FETCH = globalThis.fetch;
 
@@ -70,7 +52,9 @@ describe('postConfig()', () => {
 
     const result = await postConfig(
       {
-        connectors: [{ connector: new StubConnector({ host: 'a.com' }) }],
+        connectors: [
+          { name: 'stub', connectorId: 'stub', config: { host: 'a.com' } },
+        ],
         dashboards: {},
       },
       true,

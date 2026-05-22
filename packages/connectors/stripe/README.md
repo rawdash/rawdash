@@ -30,28 +30,26 @@ If you are a platform and want to sync data for a connected account, supply the 
 ## Configuration
 
 ```ts
-import { StripeConnector, configFields } from '@rawdash/connector-stripe';
 import { secret } from '@rawdash/core';
 
-const stripe = new StripeConnector(
-  {
+const stripe = {
+  name: 'stripe',
+  connectorId: 'stripe',
+  config: {
+    apiKey: secret('STRIPE_API_KEY'),
     // accountId: 'acct_…', // optional, Stripe Connect only
     // resources: ['customers', 'subscriptions', 'invoices'], // optional, defaults to all
   },
-  {
-    apiKey: secret('STRIPE_API_KEY'),
-  },
-);
+};
 ```
 
-Or using `StripeConnector.create` (validates via `configFields` Zod schema):
+Register the connector class when mounting the engine:
 
 ```ts
-const stripe = StripeConnector.create({
-  apiKey: { $secret: 'STRIPE_API_KEY' },
-  // accountId: 'acct_…',
-  // resources: ['customers', 'subscriptions', 'invoices'],
-});
+import { StripeConnector } from '@rawdash/connector-stripe';
+import { mountEngine } from '@rawdash/hono';
+
+mountEngine(config, { connectorRegistry: { stripe: StripeConnector } });
 ```
 
 ### Choosing resources
@@ -68,7 +66,7 @@ Then pass it to `defineConfig`:
 import { defineConfig, defineDashboard, defineMetric } from '@rawdash/core';
 
 export default defineConfig({
-  connectors: [{ connector: stripe }],
+  connectors: [stripe],
   dashboards: {
     billing: defineDashboard({
       widgets: {

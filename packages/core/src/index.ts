@@ -106,6 +106,10 @@ export { computeMetric } from './compute';
 
 export { resolveWidget } from './resolve-widget';
 
+export type { ConnectorClass, ConnectorRegistry } from './registry';
+
+export { instantiateConnector } from './registry';
+
 export type { GetStorageHandleOptions, ServerStorage } from './server-storage';
 
 export { withAbortSignal } from './storage-handle-guard';

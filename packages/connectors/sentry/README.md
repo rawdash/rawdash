@@ -14,32 +14,29 @@ You also need your organization **slug** (the segment in your Sentry URL, e.g. `
 ## Configuration
 
 ```ts
-import { SentryConnector } from '@rawdash/connector-sentry';
 import { secret } from '@rawdash/core';
 
-const sentry = new SentryConnector(
-  {
+const sentry = {
+  name: 'sentry',
+  connectorId: 'sentry',
+  config: {
     organization: 'acme',
+    authToken: secret('SENTRY_AUTH_TOKEN'),
     // projects: ['web', 'api'],            // optional — restrict to specific project slugs or IDs
     // resources: ['issues', 'issue_events'], // optional — defaults to all four
     // eventsPerIssueCap: 100,              // optional — max events sampled per issue (default 100)
     // statsLookbackHours: 24,              // optional — hours of hourly stats refreshed per sync (default 24)
   },
-  {
-    authToken: secret('SENTRY_AUTH_TOKEN'),
-  },
-);
+};
 ```
 
-Or via `SentryConnector.create` (validates the input with the `configFields` Zod schema):
+Register the connector class when mounting the engine:
 
 ```ts
-const sentry = SentryConnector.create({
-  authToken: { $secret: 'SENTRY_AUTH_TOKEN' },
-  organization: 'acme',
-  // projects: ['web'],
-  // resources: ['issues', 'errors_per_hour'],
-});
+import { SentryConnector } from '@rawdash/connector-sentry';
+import { mountEngine } from '@rawdash/hono';
+
+mountEngine(config, { connectorRegistry: { sentry: SentryConnector } });
 ```
 
 ### Choosing resources
@@ -61,7 +58,7 @@ The connector exposes four resources, written across three internal sync phases:
 import { defineConfig, defineDashboard, defineMetric } from '@rawdash/core';
 
 export default defineConfig({
-  connectors: [{ connector: sentry }],
+  connectors: [sentry],
   dashboards: {
     errors: defineDashboard({
       widgets: {

@@ -1,10 +1,15 @@
 import { serve as honoServe } from '@hono/node-server';
 import { mountEngine } from '@rawdash/hono';
-import type { DashboardConfig, ServerStorage } from '@rawdash/server';
+import type {
+  ConnectorRegistry,
+  DashboardConfig,
+  ServerStorage,
+} from '@rawdash/server';
 
 export interface ServeOptions {
   port?: number;
   storage?: ServerStorage;
+  connectorRegistry: ConnectorRegistry;
 }
 
 /**
@@ -13,11 +18,8 @@ export interface ServeOptions {
  * `@hono/node-server`. Use this only in long-lived Node deployments —
  * serverless/edge runtimes should mount the Hono app directly.
  */
-export function serve(
-  config: DashboardConfig,
-  options: ServeOptions = {},
-): void {
-  const { port = 8080, storage } = options;
-  const { app } = mountEngine(config, { storage });
+export function serve(config: DashboardConfig, options: ServeOptions): void {
+  const { port = 8080, storage, connectorRegistry } = options;
+  const { app } = mountEngine(config, { storage, connectorRegistry });
   honoServe({ fetch: app.fetch, port });
 }
