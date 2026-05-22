@@ -638,7 +638,7 @@ export class LibsqlStorage implements ServerStorage {
       .updateTable('sync_state')
       .set({ status: 'running', started_at: new Date().toISOString() })
       .where('id', '=', SYNC_STATE_ID)
-      .where('status', '!=', 'running')
+      .where('status', '=', 'queued')
       .executeTakeFirst();
     return Number(r.numUpdatedRows) > 0;
   }

@@ -35,8 +35,14 @@ export function registerTriggerSync(
         return err('NOT_FOUND', `Connector "${connector_id}" not found`);
       }
 
+      const queued = await storage.markSyncQueued();
+      if (!queued) {
+        return err('ALREADY_SYNCING', 'A sync is already in progress');
+      }
       const acquired = await storage.markSyncRunning();
       if (!acquired) {
+        // Lost the race to another caller between markSyncQueued and
+        // markSyncRunning. Treat the same as "already syncing".
         return err('ALREADY_SYNCING', 'A sync is already in progress');
       }
 

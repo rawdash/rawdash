@@ -41,6 +41,13 @@ export async function triggerSync(
   if (isSyncActive(state.status)) {
     return { queued: false };
   }
+  // Persist the queued transition synchronously so clients polling
+  // /sync/state right after the trigger see `queued` (with queuedAt),
+  // not a stale terminal state.
+  const queued = await storage.markSyncQueued();
+  if (!queued) {
+    return { queued: false };
+  }
   const config = await ctx.getConfig();
   void runSync(config, storage).catch((err) => {
     console.error('Rawdash sync failed', err);

@@ -115,11 +115,13 @@ and mounting the request handler in a Node.js server.
    ```
 
    Rawdash will start on port 8080, run the initial sync, then enter the
-   background polling loop. Check the health endpoint:
+   background polling loop. Check liveness, then sync state:
 
    ```sh
    curl http://localhost:8080/health
-   # {"status":"idle","lastSyncAt":"2025-04-25T10:00:00.000Z","lastError":null}
+   # {"status":"ok"}
+   curl http://localhost:8080/sync/state
+   # {"status":"succeeded","queuedAt":null,"startedAt":null,"lastSyncAt":"2026-04-25T10:00:00.000Z","lastError":null}
    ```
 
 6. **Query from your frontend**

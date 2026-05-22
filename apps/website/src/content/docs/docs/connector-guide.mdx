@@ -208,7 +208,8 @@ during a degraded sync.
 
 <Aside type="caution">
   Never swallow errors silently. Let them propagate — Rawdash will handle
-  retries and surface them in the health endpoint.
+  retries and surface them at `/sync/state` (the `/health` endpoint is
+  liveness-only and does not reflect sync errors).
 </Aside>
 
 ## Publishing your connector

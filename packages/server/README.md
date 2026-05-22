@@ -20,11 +20,11 @@ This package does **not** know about Hono, Express, Node's `http`, or any HTTP f
 
 ## When to use what
 
-| You want to…                                                 | Use                                                       |
-| ------------------------------------------------------------ | --------------------------------------------------------- |
-| Serve rawdash over HTTP in a Hono / Workers / Bun / Deno app | [`@rawdash/hono`](../hono) (depends on `@rawdash/server`) |
-| Build a different framework adapter (Express, NestJS, etc.)  | This package directly — wrap the pure handlers            |
-| Use the engine without HTTP (background job, CLI, MCP)       | This package — `createEngine` / `runSync`                 |
+| You want to…                                                 | Use                                                                                           |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| Serve rawdash over HTTP in a Hono / Workers / Bun / Deno app | [`@rawdash/hono`](https://www.npmjs.com/package/@rawdash/hono) (depends on `@rawdash/server`) |
+| Build a different framework adapter (Express, NestJS, etc.)  | This package directly — wrap the pure handlers                                                |
+| Use the engine without HTTP (background job, CLI, MCP)       | This package — `createEngine` / `runSync`                                                     |
 
 ## Install
 
@@ -116,7 +116,7 @@ const state = await engine.getSyncState();
 Provide any `ServerStorage` implementation:
 
 - `InMemoryStorage` (re-exported here) — dev/test.
-- [`@rawdash/adapter-libsql`](../adapters/libsql) — durable libSQL/Turso/SQLite backend.
+- [`@rawdash/adapter-libsql`](https://www.npmjs.com/package/@rawdash/adapter-libsql) — durable libSQL/Turso/SQLite backend.
 - Roll your own by implementing the [`ServerStorage`](https://github.com/rawdash/rawdash/blob/main/packages/core/src/server-storage.ts) interface.
 
 ## Links

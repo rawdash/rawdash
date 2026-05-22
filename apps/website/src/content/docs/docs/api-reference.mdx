@@ -66,7 +66,7 @@ Returns the current sync lifecycle state.
 | Field        | Type                                                                | Description                                          |
 | ------------ | ------------------------------------------------------------------- | ---------------------------------------------------- |
 | `status`     | `"idle" \| "queued" \| "running" \| "succeeded" \| "failed"`        | Current sync lifecycle state                         |
-| `queuedAt`   | ISO 8601 string \| `null`                                           | When the current run was enqueued (cloud only)       |
+| `queuedAt`   | ISO 8601 string \| `null`                                           | When the current run was enqueued                    |
 | `startedAt`  | ISO 8601 string \| `null`                                           | When the current run started executing               |
 | `lastSyncAt` | ISO 8601 string \| `null`                                           | Timestamp of the last successful sync                |
 | `lastError`  | string \| `null`                                                    | Last sync error message, if `status` is `"failed"`   |

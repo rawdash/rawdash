@@ -71,6 +71,10 @@ export function createEngine(
       if (isSyncActive(state.status)) {
         return { queued: false };
       }
+      const queued = await storage.markSyncQueued();
+      if (!queued) {
+        return { queued: false };
+      }
       void runSync(config, storage).catch((error) => {
         console.error('Rawdash sync failed', error);
       });

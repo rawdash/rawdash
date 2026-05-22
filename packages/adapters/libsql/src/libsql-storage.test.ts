@@ -348,6 +348,7 @@ describe('LibsqlStorage — isolation + sync state', () => {
   it('sync state is durable across storage instances sharing a file', async () => {
     const tmp = `/tmp/rawdash-sync-${Date.now()}-${Math.random()}.db`;
     const { storage: s1 } = makeStorage(`file:${tmp}`);
+    expect(await s1.markSyncQueued()).toBe(true);
     expect(await s1.markSyncRunning()).toBe(true);
     await s1.close();
     const { storage: s2 } = makeStorage(`file:${tmp}`);
@@ -356,32 +357,49 @@ describe('LibsqlStorage — isolation + sync state', () => {
     await s2.close();
   });
 
-  it('tracks sync lifecycle with durable CAS lock', async () => {
+  it('tracks full sync lifecycle through queued → running → succeeded', async () => {
     const { storage: s } = makeStorage();
     expect((await s.getSyncState()).status).toBe('idle');
+    expect(await s.markSyncQueued()).toBe(true);
+    expect((await s.getSyncState()).status).toBe('queued');
     expect(await s.markSyncRunning()).toBe(true);
     expect((await s.getSyncState()).status).toBe('running');
     expect(await s.markSyncRunning()).toBe(false);
     await s.markSyncSucceeded();
     expect((await s.getSyncState()).status).toBe('succeeded');
     expect((await s.getSyncState()).lastSyncAt).not.toBeNull();
+    await s.close();
+  });
+
+  it('failed transition records lastError', async () => {
+    const { storage: s } = makeStorage();
+    await s.markSyncQueued();
+    await s.markSyncRunning();
     await s.markSyncFailed('boom');
     expect((await s.getSyncState()).status).toBe('failed');
     expect((await s.getSyncState()).lastError).toBe('boom');
     await s.close();
   });
 
-  it('tracks queued → running transition', async () => {
+  it('markSyncRunning rejects non-queued states', async () => {
+    const { storage: s } = makeStorage();
+    // idle → running is rejected
+    expect(await s.markSyncRunning()).toBe(false);
+    // succeeded → running is rejected
+    await s.markSyncQueued();
+    await s.markSyncRunning();
+    await s.markSyncSucceeded();
+    expect(await s.markSyncRunning()).toBe(false);
+    await s.close();
+  });
+
+  it('markSyncQueued reflects timestamps', async () => {
     const { storage: s } = makeStorage();
     expect(await s.markSyncQueued()).toBe(true);
-    let state = await s.getSyncState();
+    const state = await s.getSyncState();
     expect(state.status).toBe('queued');
     expect(state.queuedAt).not.toBeNull();
     expect(await s.markSyncQueued()).toBe(false);
-    expect(await s.markSyncRunning()).toBe(true);
-    state = await s.getSyncState();
-    expect(state.status).toBe('running');
-    expect(state.startedAt).not.toBeNull();
     await s.close();
   });
 });

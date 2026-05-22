@@ -60,6 +60,7 @@ describe('createSyncRouter', () => {
 
   it('POST /sync returns {queued: false} when active', async () => {
     const { app, storage } = makeApp();
+    await storage.markSyncQueued();
     await storage.markSyncRunning();
     const res = await app.request('/sync', { method: 'POST' });
     expect(await res.json()).toEqual({ queued: false });

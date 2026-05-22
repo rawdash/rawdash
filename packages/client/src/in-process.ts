@@ -23,6 +23,17 @@ export function inProcess(
   const syncTimeoutMs = options.syncTimeoutMs ?? 30_000;
   const syncPollIntervalMs = options.syncPollIntervalMs ?? 500;
 
+  if (!Number.isFinite(syncTimeoutMs) || syncTimeoutMs <= 0) {
+    throw new Error(
+      `inProcess: syncTimeoutMs must be a finite positive number (received ${syncTimeoutMs})`,
+    );
+  }
+  if (!Number.isFinite(syncPollIntervalMs) || syncPollIntervalMs <= 0) {
+    throw new Error(
+      `inProcess: syncPollIntervalMs must be a finite positive number (received ${syncPollIntervalMs})`,
+    );
+  }
+
   async function getSyncStateGuarded(): Promise<SyncState> {
     const state = await engine.getSyncState();
     if (!KNOWN_SYNC_STATUSES.has(state.status)) {
@@ -59,7 +70,7 @@ export function inProcess(
 
     getHealth: () => engine.getHealth(),
 
-    getSyncState: () => engine.getSyncState(),
+    getSyncState: () => getSyncStateGuarded(),
 
     triggerSync: () => engine.triggerSync(),
 

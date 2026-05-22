@@ -261,7 +261,7 @@ export class InMemoryStorage implements ServerStorage {
   }
 
   async markSyncRunning(): Promise<boolean> {
-    if (this.syncState.status === 'running') {
+    if (this.syncState.status !== 'queued') {
       return false;
     }
     this.syncState = {

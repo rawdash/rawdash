@@ -65,15 +65,15 @@ export function startRetentionLoop(opts: RetentionLoopOptions): () => void {
     if (inFlight || stopped) {
       return;
     }
-    const config = await opts.getConfig();
-    if (!config.retention || !hasPruningPolicy(config.retention)) {
-      return;
-    }
-    const storage = await opts.getStorage();
-    inFlight = runRetention(config, storage).finally(() => {
-      inFlight = null;
-    });
     try {
+      const config = await opts.getConfig();
+      if (!config.retention || !hasPruningPolicy(config.retention)) {
+        return;
+      }
+      const storage = await opts.getStorage();
+      inFlight = runRetention(config, storage).finally(() => {
+        inFlight = null;
+      });
       await inFlight;
     } catch (err) {
       console.error('retention run failed', err);
@@ -81,17 +81,34 @@ export function startRetentionLoop(opts: RetentionLoopOptions): () => void {
   };
 
   void (async () => {
-    const config = await opts.getConfig();
-    if (!config.retention || !hasPruningPolicy(config.retention)) {
-      return;
+    try {
+      const config = await opts.getConfig();
+      if (!config.retention || !hasPruningPolicy(config.retention)) {
+        return;
+      }
+      // Re-check `stopped` after the async getConfig in case stop()
+      // was called while we were awaiting it.
+      if (stopped) {
+        return;
+      }
+      const intervalMs =
+        opts.intervalMs ??
+        config.retention.intervalMs ??
+        DEFAULT_RETENTION_INTERVAL_MS;
+      const created = setInterval(() => {
+        void tick();
+      }, intervalMs);
+      // Race with stop(): if stop() ran between the check above and
+      // setInterval, clear it immediately rather than leaving a
+      // lingering timer behind.
+      if (stopped) {
+        clearInterval(created);
+      } else {
+        timer = created;
+      }
+    } catch (err) {
+      console.error('retention loop startup failed', err);
     }
-    const intervalMs =
-      opts.intervalMs ??
-      config.retention.intervalMs ??
-      DEFAULT_RETENTION_INTERVAL_MS;
-    timer = setInterval(() => {
-      void tick();
-    }, intervalMs);
   })();
 
   return () => {

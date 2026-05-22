@@ -137,8 +137,8 @@ Handler errors translate to JSON:
 ## Links
 
 - [rawdash docs](https://rawdash.dev)
-- [`@rawdash/server`](../server) — pure handlers + engine (the package this wraps)
-- [`@rawdash/client`](../client) — typed HTTP client (speaks the same wire contract)
+- [`@rawdash/server`](https://www.npmjs.com/package/@rawdash/server) — pure handlers + engine (the package this wraps)
+- [`@rawdash/client`](https://www.npmjs.com/package/@rawdash/client) — typed HTTP client (speaks the same wire contract)
 - [GitHub](https://github.com/rawdash/rawdash)
 - [Issues](https://github.com/rawdash/rawdash/issues)
 

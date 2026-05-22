@@ -96,7 +96,7 @@ interface DataSource {
 
 ## How `ensureFresh` works
 
-The client polls `/sync/state` (not `/health` — see [wire contract](../server#the-wire-contract)) and walks the state machine:
+The client polls `/sync/state` (not `/health` — see the [wire contract reference](https://www.npmjs.com/package/@rawdash/server#the-wire-contract)) and walks the state machine:
 
 1. Get the current `SyncState`.
 2. If `status` is `queued` or `running`, wait for it to settle. Return `true` on `succeeded`, throw on `failed`.
@@ -109,8 +109,8 @@ Tune `syncTimeoutMs` for long-running connectors.
 ## Links
 
 - [rawdash docs](https://rawdash.dev)
-- [`@rawdash/server`](../server) — wire contract reference
-- [`@rawdash/hono`](../hono) — Hono adapter for the server side
+- [`@rawdash/server`](https://www.npmjs.com/package/@rawdash/server) — wire contract reference
+- [`@rawdash/hono`](https://www.npmjs.com/package/@rawdash/hono) — Hono adapter for the server side
 - [GitHub](https://github.com/rawdash/rawdash)
 - [Issues](https://github.com/rawdash/rawdash/issues)
 

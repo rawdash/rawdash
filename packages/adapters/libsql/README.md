@@ -14,7 +14,7 @@ Internals: [Kysely](https://kysely.dev) for type-safe queries on top of `@libsql
 ## Install
 
 ```sh
-npm install @rawdash/adapter-libsql @libsql/client
+npm install @rawdash/adapter-libsql @libsql/client @rawdash/hono @hono/node-server
 ```
 
 ## Quick example

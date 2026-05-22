@@ -42,6 +42,16 @@ export function http(opts: HttpOptions): DataSource {
       `http: timeoutMs must be a finite positive number (received ${timeoutMs})`,
     );
   }
+  if (!Number.isFinite(syncTimeoutMs) || syncTimeoutMs <= 0) {
+    throw new Error(
+      `http: syncTimeoutMs must be a finite positive number (received ${syncTimeoutMs})`,
+    );
+  }
+  if (!Number.isFinite(syncPollIntervalMs) || syncPollIntervalMs <= 0) {
+    throw new Error(
+      `http: syncPollIntervalMs must be a finite positive number (received ${syncPollIntervalMs})`,
+    );
+  }
 
   const baseHeaders: Record<string, string> = apiKey
     ? { Authorization: `Bearer ${apiKey}` }

@@ -84,9 +84,30 @@ describe('triggerSync', () => {
 
   it('returns {queued: false} when a sync is already active', async () => {
     const { ctx, storage } = makeCtx();
+    await storage.markSyncQueued();
     await storage.markSyncRunning();
     const res = await triggerSync(ctx);
     expect(res).toEqual({ queued: false });
+  });
+
+  it('returns {queued: false} when a sync is already queued', async () => {
+    const { ctx, storage } = makeCtx();
+    await storage.markSyncQueued();
+    const res = await triggerSync(ctx);
+    expect(res).toEqual({ queued: false });
+  });
+
+  it('persists queued state before returning', async () => {
+    const { ctx, storage } = makeCtx();
+    await triggerSync(ctx);
+    const state = await storage.getSyncState();
+    // After triggerSync returns, the state is either still 'queued' (the
+    // background runSync hasn't started yet) or already 'running'. Both
+    // are valid; what matters is that we passed through 'queued'.
+    expect(['queued', 'running', 'succeeded']).toContain(state.status);
+    expect(
+      state.queuedAt ?? state.startedAt ?? state.lastSyncAt,
+    ).not.toBeNull();
   });
 });
 
