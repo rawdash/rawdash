@@ -361,6 +361,90 @@ describe('SentryConnector.sync', () => {
     expect(eventWrites[0]!.attributes.eventId).toBe('ev-2');
   });
 
+  it('skips issues with unparseable firstSeen/lastSeen instead of persisting NaN', async () => {
+    const connector = makeConnector({ resources: ['issues'] });
+    installRouter((u) => {
+      if (u.includes('/issues/')) {
+        return {
+          body: [
+            {
+              id: 'i-bad',
+              shortId: 'ACME-BAD',
+              title: 't',
+              level: 'error',
+              status: 'unresolved',
+              firstSeen: 'not-a-date',
+              lastSeen: '2024-05-02T00:00:00.000Z',
+              count: 1,
+              userCount: 1,
+              project: { slug: 'web' },
+            },
+            {
+              id: 'i-ok',
+              shortId: 'ACME-OK',
+              title: 't',
+              level: 'error',
+              status: 'unresolved',
+              firstSeen: '2024-05-01T00:00:00.000Z',
+              lastSeen: '2024-05-02T00:00:00.000Z',
+              count: 1,
+              userCount: 1,
+              project: { slug: 'web' },
+            },
+          ],
+        };
+      }
+      return { body: [] };
+    });
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const storage = makeStorage();
+    await connector.sync({ mode: 'full' }, storage);
+
+    const written = storage.entity.mock.calls
+      .map((c) => c[0] as { type: string; id: string })
+      .filter((e) => e.type === 'sentry_issue')
+      .map((e) => e.id);
+    expect(written).toEqual(['i-ok']);
+    warnSpy.mockRestore();
+  });
+
+  it('skips releases without a parseable dateCreated', async () => {
+    const connector = makeConnector({ resources: ['releases'] });
+    installRouter((u) => {
+      if (u.includes('/releases/')) {
+        return {
+          body: [
+            {
+              version: 'bad',
+              dateCreated: 'not-a-date',
+              dateReleased: null,
+              lastEvent: null,
+              projects: [{ slug: 'web' }],
+            },
+            {
+              version: 'good',
+              dateCreated: '2024-05-01T00:00:00.000Z',
+              dateReleased: null,
+              lastEvent: null,
+              projects: [{ slug: 'web' }],
+            },
+          ],
+        };
+      }
+      return { body: [] };
+    });
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const storage = makeStorage();
+    await connector.sync({ mode: 'full' }, storage);
+
+    const written = storage.entity.mock.calls
+      .map((c) => c[0] as { type: string; id: string })
+      .filter((e) => e.type === 'sentry_release')
+      .map((e) => e.id);
+    expect(written).toEqual(['good']);
+    warnSpy.mockRestore();
+  });
+
   it('writes release entities', async () => {
     const connector = makeConnector({ resources: ['releases'] });
     installRouter((u) => {

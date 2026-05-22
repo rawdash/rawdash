@@ -476,22 +476,28 @@ export class SentryConnector extends BaseConnector<
           typeof issue.count === 'string' ? Number(issue.count) : issue.count;
         const firstSeenMs = safeTimestamp(issue.firstSeen);
         const lastSeenMs = safeTimestamp(issue.lastSeen);
-        await storage.entity({
-          type: 'sentry_issue',
-          id: issue.id,
-          attributes: {
-            shortId: issue.shortId,
-            title: issue.title,
-            level: issue.level,
-            status: issue.status,
-            firstSeen: firstSeenMs,
-            lastSeen: lastSeenMs,
-            count: Number.isFinite(count) ? count : 0,
-            userCount: issue.userCount,
-            projectSlug: issue.project.slug,
-          },
-          updated_at: lastSeenMs ?? 0,
-        });
+        if (firstSeenMs === null || lastSeenMs === null) {
+          console.warn(
+            `[connector-sentry] skipping issue ${issue.id} with unparseable firstSeen/lastSeen`,
+          );
+        } else {
+          await storage.entity({
+            type: 'sentry_issue',
+            id: issue.id,
+            attributes: {
+              shortId: issue.shortId,
+              title: issue.title,
+              level: issue.level,
+              status: issue.status,
+              firstSeen: firstSeenMs,
+              lastSeen: lastSeenMs,
+              count: Number.isFinite(count) ? count : 0,
+              userCount: issue.userCount,
+              projectSlug: issue.project.slug,
+            },
+            updated_at: lastSeenMs,
+          });
+        }
       }
 
       if (writeEvents) {
@@ -533,6 +539,12 @@ export class SentryConnector extends BaseConnector<
       const createdMs = safeTimestamp(r.dateCreated);
       const releasedMs = safeTimestamp(r.dateReleased);
       const lastEventMs = safeTimestamp(r.lastEvent);
+      if (createdMs === null) {
+        console.warn(
+          `[connector-sentry] skipping release ${r.version} with unparseable dateCreated`,
+        );
+        continue;
+      }
       await storage.entity({
         type: 'sentry_release',
         id: r.version,
@@ -543,7 +555,7 @@ export class SentryConnector extends BaseConnector<
           dateReleased: releasedMs,
           lastEvent: lastEventMs,
         },
-        updated_at: Math.max(createdMs ?? 0, releasedMs ?? 0, lastEventMs ?? 0),
+        updated_at: Math.max(createdMs, releasedMs ?? 0, lastEventMs ?? 0),
       });
     }
   }
