@@ -1,5 +1,14 @@
 # @rawdash/adapter-libsql
 
+## 0.15.0
+
+### Patch Changes
+
+- Updated dependencies [1ad2bc0]
+- Updated dependencies [05ecf90]
+- Updated dependencies [686da2b]
+  - @rawdash/core@0.15.0
+
 ## 0.14.0
 
 ### Minor Changes
