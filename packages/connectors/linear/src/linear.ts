@@ -249,11 +249,97 @@ const PAGE_SIZE = 50;
 const DEFAULT_HISTORY_PER_ISSUE = 25;
 const ENDPOINT = 'https://api.linear.app/graphql';
 
+// ---------------------------------------------------------------------------
+// Schemas — describe the per-resource GraphQL node shape consumed by request()
+// ---------------------------------------------------------------------------
+
+const idString = z.string().min(1);
+
+const teamSchema = z.object({
+  id: idString,
+  name: z.string(),
+  key: z.string(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
+});
+
+const userSchema = z.object({
+  id: idString,
+  name: z.string(),
+  email: z.string().nullable(),
+  displayName: z.string(),
+  active: z.boolean(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
+});
+
+const cycleSchema = z.object({
+  id: idString,
+  number: z.number().int(),
+  name: z.string().nullable(),
+  startsAt: z.iso.datetime(),
+  endsAt: z.iso.datetime(),
+  completedAt: z.iso.datetime().nullable(),
+  progress: z.number().nullable(),
+  scopeHistory: z.array(z.number()).nullable(),
+  completedScopeHistory: z.array(z.number()).nullable(),
+  team: z.object({ id: idString }).nullable(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
+});
+
+const issueSchema = z.object({
+  id: idString,
+  identifier: z.string(),
+  title: z.string(),
+  priority: z.number().int(),
+  estimate: z.number().nullable(),
+  state: z
+    .object({ id: idString, name: z.string(), type: z.string() })
+    .nullable(),
+  assignee: z.object({ id: idString }).nullable(),
+  team: z.object({ id: idString }).nullable(),
+  project: z.object({ id: idString }).nullable(),
+  cycle: z.object({ id: idString }).nullable(),
+  labels: z.object({
+    nodes: z.array(z.object({ id: idString, name: z.string() })),
+  }),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
+  completedAt: z.iso.datetime().nullable(),
+  canceledAt: z.iso.datetime().nullable(),
+  startedAt: z.iso.datetime().nullable(),
+  history: z.object({
+    nodes: z.array(
+      z.object({
+        id: idString,
+        createdAt: z.iso.datetime(),
+        actor: z.object({ id: idString }).nullable(),
+        fromState: z.object({ id: idString, name: z.string() }).nullable(),
+        toState: z.object({ id: idString, name: z.string() }).nullable(),
+        fromAssignee: z.object({ id: idString }).nullable(),
+        toAssignee: z.object({ id: idString }).nullable(),
+      }),
+    ),
+    pageInfo: z.object({
+      hasNextPage: z.boolean(),
+      endCursor: z.string().nullable(),
+    }),
+  }),
+});
+
 export class LinearConnector extends BaseConnector<
   LinearSettings,
   LinearCredentials
 > {
   static readonly id = 'linear';
+
+  static readonly schemas = {
+    teams: z.array(teamSchema),
+    users: z.array(userSchema),
+    cycles: z.array(cycleSchema),
+    issues: z.array(issueSchema),
+  } as const;
 
   static create(input: unknown, ctx?: ConnectorContext): LinearConnector {
     const parsed = configFields.parse(input);

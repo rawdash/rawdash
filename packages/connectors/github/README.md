@@ -83,6 +83,22 @@ export default defineConfig({
 - **Releases** — published GitHub releases (shape: `event`)
 - **Contributors** — commit activity per author (shape: `metric`)
 
+## Schemas
+
+`GitHubConnector.schemas` declares the Zod schema for each resource's raw API response. The cloud shape-drift pipeline reads these at deploy time to populate `connector_baselines`, and the package's property tests fuzz against them.
+
+| Resource               | Represents                                            |
+| ---------------------- | ----------------------------------------------------- |
+| `repo`                 | `GET /repos/{owner}/{repo}` — top-level repo stats    |
+| `workflow_runs`        | `GET /repos/{owner}/{repo}/actions/runs` page         |
+| `pull_requests`        | `GET /repos/{owner}/{repo}/pulls` page                |
+| `pull_request_reviews` | `GET /repos/{owner}/{repo}/pulls/{n}/reviews`         |
+| `issues`               | `GET /repos/{owner}/{repo}/issues` page               |
+| `deployments`          | `GET /repos/{owner}/{repo}/deployments` page          |
+| `deployment_statuses`  | `GET /repos/{owner}/{repo}/deployments/{id}/statuses` |
+| `releases`             | `GET /repos/{owner}/{repo}/releases` page             |
+| `contributors`         | `GET /repos/{owner}/{repo}/stats/contributors`        |
+
 ## Duplicate handling
 
 The GitHub REST API can return the same item more than once within a single sync — for example when cursor pagination overlaps as the underlying collection mutates mid-fetch, when a retried request re-introduces items already seen, or when the same entity appears via more than one endpoint.

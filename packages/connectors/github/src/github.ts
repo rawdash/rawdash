@@ -206,11 +206,125 @@ function isGitHubSyncCursor(value: unknown): value is GitHubSyncCursor {
   return true;
 }
 
+const workflowRunsResponseSchema = z.object({
+  workflow_runs: z.array(
+    z.object({
+      id: z.number().int(),
+      name: z.string(),
+      conclusion: z.string().nullable(),
+      status: z.string(),
+      head_branch: z.string().nullable(),
+      actor: z.object({ login: z.string().min(1) }).nullable(),
+      created_at: z.iso.datetime(),
+      updated_at: z.iso.datetime(),
+      run_attempt: z.number().int(),
+    }),
+  ),
+});
+
+const pullRequestsSchema = z.array(
+  z.object({
+    number: z.number().int(),
+    title: z.string(),
+    state: z.string(),
+    draft: z.boolean(),
+    user: z.object({ login: z.string().min(1) }),
+    created_at: z.iso.datetime(),
+    updated_at: z.iso.datetime(),
+  }),
+);
+
+const reviewsSchema = z.array(
+  z.object({
+    user: z.object({ login: z.string().min(1) }).nullable(),
+    state: z.string(),
+    submitted_at: z.iso.datetime(),
+  }),
+);
+
+const issuesSchema = z.array(
+  z.object({
+    number: z.number().int(),
+    title: z.string(),
+    state: z.string(),
+    labels: z.array(z.object({ name: z.string() })),
+    assignees: z.array(z.object({ login: z.string().min(1) })),
+    user: z.object({ login: z.string().min(1) }),
+    created_at: z.iso.datetime(),
+    updated_at: z.iso.datetime(),
+    closed_at: z.iso.datetime().nullable(),
+  }),
+);
+
+const deploymentsSchema = z.array(
+  z.object({
+    id: z.number().int(),
+    environment: z.string(),
+    ref: z.string(),
+    sha: z.string(),
+    creator: z.object({ login: z.string().min(1) }).nullable(),
+    created_at: z.iso.datetime(),
+  }),
+);
+
+const deploymentStatusesSchema = z.array(
+  z.object({
+    state: z.string(),
+    updated_at: z.iso.datetime(),
+  }),
+);
+
+const releasesSchema = z.array(
+  z.object({
+    id: z.number().int(),
+    tag_name: z.string(),
+    name: z.string().nullable(),
+    draft: z.boolean(),
+    prerelease: z.boolean(),
+    created_at: z.iso.datetime(),
+    published_at: z.iso.datetime().nullable(),
+    author: z.object({ login: z.string().min(1) }),
+  }),
+);
+
+const contributorsSchema = z.array(
+  z.object({
+    total: z.number().int(),
+    weeks: z.array(
+      z.object({
+        w: z.number().int(),
+        a: z.number().int(),
+        d: z.number().int(),
+        c: z.number().int(),
+      }),
+    ),
+    author: z.object({ login: z.string().min(1) }),
+  }),
+);
+
+const repoStatsSchema = z.object({
+  stargazers_count: z.number().int(),
+  forks_count: z.number().int(),
+  subscribers_count: z.number().int(),
+});
+
 export class GitHubConnector extends BaseConnector<
   GitHubSettings,
   GitHubCredentials
 > {
   static readonly id = 'github-actions';
+
+  static readonly schemas = {
+    repo: repoStatsSchema,
+    workflow_runs: workflowRunsResponseSchema,
+    pull_requests: pullRequestsSchema,
+    pull_request_reviews: reviewsSchema,
+    issues: issuesSchema,
+    deployments: deploymentsSchema,
+    deployment_statuses: deploymentStatusesSchema,
+    releases: releasesSchema,
+    contributors: contributorsSchema,
+  } as const;
 
   static create(input: unknown, ctx?: ConnectorContext): GitHubConnector {
     const parsed = configFields.parse(input);

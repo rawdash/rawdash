@@ -70,22 +70,7 @@ function makeConnector(): GA4Connector {
   );
 }
 
-const trafficByDaySchema = z.object({
-  rows: z.array(
-    z.object({
-      dimensionValues: z.tuple([
-        z.object({
-          value: z
-            .string()
-            .regex(/^(19|20)\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])$/),
-        }),
-      ]),
-      metricValues: z
-        .array(z.object({ value: z.string().regex(/^\d+$/) }))
-        .nonempty(),
-    }),
-  ),
-});
+type TrafficByDaySample = z.infer<typeof GA4Connector.schemas.traffic_by_day>;
 
 describe('GA4Connector property tests', () => {
   afterEach(() => {
@@ -96,31 +81,34 @@ describe('GA4Connector property tests', () => {
     const extra = (
       storage: InMemoryStorage,
       _connectorId: string,
-      sample: z.infer<typeof trafficByDaySchema>,
+      sample: TrafficByDaySample,
     ): InvariantViolation[] => {
       const violations: InvariantViolation[] = [];
+      const rows = sample.rows ?? [];
       const samples = metricStoreFor(storage).filter(
         (m) => m.name === 'ga4_traffic_by_day',
       );
-      if (samples.length !== sample.rows.length) {
+      if (samples.length !== rows.length) {
         violations.push({
           invariant: 'one ga4_traffic_by_day metric per row',
           location: 'traffic_by_day phase',
-          detail: `expected ${sample.rows.length} metrics, got ${samples.length}`,
+          detail: `expected ${rows.length} metrics, got ${samples.length}`,
         });
       }
       return violations;
     };
 
     await runPropertySyncTest({
-      schema: trafficByDaySchema,
+      connectorClass: GA4Connector,
+      resource: 'traffic_by_day',
       connectorId: CONNECTOR_ID,
       runs: 50,
       extraInvariants: [extra],
       run: async (sample, storage) => {
+        const rows = sample.rows ?? [];
         installFetchMock((firstDim) => {
           if (firstDim === 'date') {
-            return { rows: sample.rows, rowCount: sample.rows.length };
+            return { rows, rowCount: rows.length };
           }
           return { rows: [], rowCount: 0 };
         });

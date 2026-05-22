@@ -146,6 +146,22 @@ All monetary amounts are in the **smallest currency unit** (e.g. cents for USD).
 
 Pre-computed monthly-equivalent revenue for each subscription in the smallest currency unit. Formula: `unit_amount × quantity`, normalised to a monthly cadence (yearly ÷ 12, weekly × 52 ÷ 12, etc.).
 
+## Schemas
+
+`StripeConnector.schemas` declares the Zod schema for each resource's raw API response (one key per `GET /v1/{resource}` list endpoint). Used by the cloud shape-drift pipeline to populate `connector_baselines`, and by the package's property tests.
+
+| Resource          | Represents                     |
+| ----------------- | ------------------------------ |
+| `customers`       | `GET /v1/customers` page       |
+| `products`        | `GET /v1/products` page        |
+| `prices`          | `GET /v1/prices` page          |
+| `subscriptions`   | `GET /v1/subscriptions` page   |
+| `invoices`        | `GET /v1/invoices` page        |
+| `charges`         | `GET /v1/charges` page         |
+| `payment_intents` | `GET /v1/payment_intents` page |
+| `disputes`        | `GET /v1/disputes` page        |
+| `refunds`         | `GET /v1/refunds` page         |
+
 ## Sync behaviour
 
 - **Backfill** (`mode: 'full'`): fetches all records via `starting_after` cursor pagination (`limit=100`).
