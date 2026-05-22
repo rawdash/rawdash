@@ -109,6 +109,60 @@ describe('triggerSync', () => {
       state.queuedAt ?? state.startedAt ?? state.lastSyncAt,
     ).not.toBeNull();
   });
+
+  describe('mode: "deferred"', () => {
+    it('returns {queued: true} and leaves state in `queued`', async () => {
+      const { ctx, storage } = makeCtx();
+      const res = await triggerSync(ctx, { mode: 'deferred' });
+      expect(res).toEqual({ queued: true });
+      const state = await storage.getSyncState();
+      expect(state.status).toBe('queued');
+      expect(state.queuedAt).not.toBeNull();
+      expect(state.startedAt).toBeNull();
+      expect(state.lastSyncAt).toBeNull();
+    });
+
+    it('does not call getConfig', async () => {
+      const storage = new InMemoryStorage();
+      let getConfigCalls = 0;
+      const ctx: EngineContext = {
+        getConfig: () => {
+          getConfigCalls += 1;
+          return config;
+        },
+        getStorage: () => storage,
+      };
+      await triggerSync(ctx, { mode: 'deferred' });
+      expect(getConfigCalls).toBe(0);
+    });
+
+    it('works without a getConfig at all', async () => {
+      const storage = new InMemoryStorage();
+      const res = await triggerSync(
+        { getStorage: () => storage },
+        { mode: 'deferred' },
+      );
+      expect(res).toEqual({ queued: true });
+      expect((await storage.getSyncState()).status).toBe('queued');
+    });
+
+    it('returns {queued: false} when a sync is already active', async () => {
+      const { ctx, storage } = makeCtx();
+      await storage.markSyncQueued();
+      await storage.markSyncRunning();
+      const res = await triggerSync(ctx, { mode: 'deferred' });
+      expect(res).toEqual({ queued: false });
+    });
+  });
+
+  describe('mode: "in-process" (default)', () => {
+    it('throws if getConfig is missing', async () => {
+      const storage = new InMemoryStorage();
+      await expect(triggerSync({ getStorage: () => storage })).rejects.toThrow(
+        /getConfig is required/,
+      );
+    });
+  });
 });
 
 describe('listWidgets', () => {

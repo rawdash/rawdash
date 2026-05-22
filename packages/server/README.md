@@ -99,6 +99,23 @@ Transitions:
 
 Clients (`@rawdash/client`) poll `/sync/state` and wait for `!isSyncActive(status)` to settle.
 
+### `triggerSync` modes
+
+`triggerSync(ctx, opts?)` accepts an optional `opts.mode`:
+
+- **`'in-process'`** (default): the handler records the `queued` transition and then fires `runSync(config, storage)` as a background promise that iterates `config.connectors`. Right for self-hosted, single-process OSS deployments.
+- **`'deferred'`**: the handler only records the `queued` transition. `runSync` is not invoked, and `getConfig` is not called (and may be omitted from `ctx`). The `running → succeeded/failed` transitions are the responsibility of an external runner — typically a queue consumer worker that decrypts credentials, applies retries, and drives storage directly.
+
+```ts
+// Self-hosted, in-process (default):
+await triggerSync({ getConfig, getStorage });
+
+// Queue-backed runner:
+await triggerSync({ getStorage }, { mode: 'deferred' });
+```
+
+In deferred mode, the wire response is unchanged: `{queued: true}` if `markSyncQueued()` accepted the transition, `{queued: false}` if a sync was already active.
+
 ## Engine without HTTP
 
 ```ts

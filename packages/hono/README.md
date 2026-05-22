@@ -111,6 +111,32 @@ export default app;
 
 The pure handlers in `@rawdash/server` do all the work; this package only translates HTTP. Adapters in other frameworks (Express, NestJS, etc.) would be a parallel thin layer over the same handlers.
 
+## Deferred sync mode (queue-backed runners)
+
+By default `createSyncRouter` runs the sync **in-process**: the handler records the `queued` transition and then kicks off `runSync(config, storage)` as a background promise that iterates `config.connectors`.
+
+For deployments where the actual sync work runs **out-of-process** — typically a queue/worker setup where credentials, retries, and rate-limit budgets live in a separate runtime — pass `mode: 'deferred'`. The trigger handler then only persists the `queued` transition; the `running → succeeded/failed` transitions become the storage's responsibility, driven by the external runner:
+
+```ts
+authedApp.route(
+  '/sync',
+  createSyncRouter({
+    mode: 'deferred',
+    before: [assertScope('widgets:write')],
+    getStorage: (c) => loadStorage(c),
+    // getConfig can be omitted in deferred mode — useful when you can't
+    // materialize OSS-format Connector instances at request time.
+  }),
+);
+```
+
+In deferred mode:
+
+- `runSync` is **never** invoked by the trigger handler.
+- `getConfig` is optional and never called.
+- `markSyncQueued` is called exactly as in in-process mode; its return value drives the `{queued: true|false}` response.
+- Your external worker is responsible for calling `markSyncRunning`, `markSyncSucceeded`, and `markSyncFailed` on the same storage.
+
 ## Running on Node
 
 `@rawdash/hono` does **not** depend on `@hono/node-server` — the package stays runtime-agnostic so a Workers bundle doesn't pull Node-specific code. To run on Node, add `@hono/node-server` yourself:

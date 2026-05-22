@@ -65,4 +65,49 @@ describe('createSyncRouter', () => {
     const res = await app.request('/sync', { method: 'POST' });
     expect(await res.json()).toEqual({ queued: false });
   });
+
+  describe('mode: "deferred"', () => {
+    it('returns {queued: true} and leaves state in `queued`', async () => {
+      const storage = new InMemoryStorage();
+      const app = new Hono();
+      app.route(
+        '/sync',
+        createSyncRouter({
+          mode: 'deferred',
+          getStorage: () => storage,
+        }),
+      );
+      app.route(
+        '/sync/state',
+        createSyncStateRouter({ getStorage: () => storage }),
+      );
+
+      const res = await app.request('/sync', { method: 'POST' });
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ queued: true });
+
+      const stateRes = await app.request('/sync/state');
+      const state = (await stateRes.json()) as SyncState;
+      expect(state.status).toBe('queued');
+    });
+
+    it('does not call getConfig', async () => {
+      const storage = new InMemoryStorage();
+      let getConfigCalls = 0;
+      const app = new Hono();
+      app.route(
+        '/sync',
+        createSyncRouter({
+          mode: 'deferred',
+          getStorage: () => storage,
+          getConfig: () => {
+            getConfigCalls += 1;
+            return emptyConfig;
+          },
+        }),
+      );
+      await app.request('/sync', { method: 'POST' });
+      expect(getConfigCalls).toBe(0);
+    });
+  });
 });
