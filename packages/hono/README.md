@@ -111,6 +111,25 @@ export default app;
 
 The pure handlers in `@rawdash/server` do all the work; this package only translates HTTP. Adapters in other frameworks (Express, NestJS, etc.) would be a parallel thin layer over the same handlers.
 
+## Widget cache (optional)
+
+`createWidgetsRouter` accepts an optional `cache: (c: Context) => WidgetCache` factory. It is invoked once per request, so the returned cache can be scoped to the request's tenant / auth context:
+
+```ts
+import { createWidgetsRouter } from '@rawdash/hono';
+
+app.route(
+  '/dashboards',
+  createWidgetsRouter({
+    getConfig: (c) => loadConfig(c),
+    getStorage: (c) => loadStorage(c),
+    cache: (c) => new MyKvWidgetCache(c.env, c.get('orgId')),
+  }),
+);
+```
+
+See the `WidgetCache` section in [`@rawdash/server`](https://www.npmjs.com/package/@rawdash/server) for the interface and error-isolation semantics. Omit `cache` and behavior is identical to the no-cache path.
+
 ## Deferred sync mode (queue-backed runners)
 
 By default `createSyncRouter` runs the sync **in-process**: the handler records the `queued` transition and then kicks off `runSync(config, storage)` as a background promise that iterates `config.connectors`.

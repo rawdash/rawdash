@@ -5,6 +5,7 @@ import type {
   SecretsResolver,
   SyncState,
   TriggerSyncResponse,
+  Widget,
   WidgetsListResponse,
 } from '@rawdash/core';
 import { isSyncActive, resolveWidget } from '@rawdash/core';
@@ -14,6 +15,56 @@ import type { EngineContext } from './context';
 import { RawdashError } from './errors';
 import { runRetention } from './retention';
 import { runSync } from './sync';
+import type { WidgetCache } from './widget-cache';
+
+async function cacheGetSafe(
+  cache: WidgetCache,
+  dashboardId: string,
+  widgetId: string,
+  widget: Widget,
+): Promise<CachedWidget | undefined> {
+  try {
+    return await cache.get({ dashboardId, widgetId, widget });
+  } catch (err) {
+    console.warn('Rawdash widget cache get failed', err);
+    return undefined;
+  }
+}
+
+async function cacheSetSafe(
+  cache: WidgetCache,
+  dashboardId: string,
+  widgetId: string,
+  widget: Widget,
+  value: CachedWidget,
+): Promise<void> {
+  try {
+    await cache.set({ dashboardId, widgetId, widget }, value);
+  } catch (err) {
+    console.warn('Rawdash widget cache set failed', err);
+  }
+}
+
+async function resolveWithCache(
+  dashboardId: string,
+  widgetId: string,
+  widget: Widget,
+  connectorNames: readonly string[],
+  storage: ServerStorage,
+  cache: WidgetCache | undefined,
+): Promise<CachedWidget | undefined> {
+  if (cache) {
+    const hit = await cacheGetSafe(cache, dashboardId, widgetId, widget);
+    if (hit) {
+      return hit;
+    }
+  }
+  const fresh = await resolveWidget(widgetId, widget, connectorNames, storage);
+  if (fresh && cache) {
+    await cacheSetSafe(cache, dashboardId, widgetId, widget, fresh);
+  }
+  return fresh;
+}
 
 /**
  * Per-request lookup shape accepted by `triggerSync` in deferred mode.
@@ -132,6 +183,7 @@ export async function triggerSync(
 export async function listWidgets(
   ctx: EngineContext,
   dashboardId: string,
+  cache?: WidgetCache,
 ): Promise<WidgetsListResponse> {
   const config = await ctx.getConfig();
   const dashboard = config.dashboards[dashboardId];
@@ -143,7 +195,14 @@ export async function listWidgets(
   const entries = Object.entries(dashboard.widgets);
   const resolved = await Promise.all(
     entries.map(([key, widget]) =>
-      resolveWidget(key, widget, connectorNames, storage),
+      resolveWithCache(
+        dashboardId,
+        key,
+        widget,
+        connectorNames,
+        storage,
+        cache,
+      ),
     ),
   );
   const widgets = resolved.filter((w): w is CachedWidget => w !== undefined);
@@ -154,6 +213,7 @@ export async function getWidget(
   ctx: EngineContext,
   dashboardId: string,
   widgetId: string,
+  cache?: WidgetCache,
 ): Promise<CachedWidget> {
   const config = await ctx.getConfig();
   const dashboard = config.dashboards[dashboardId];
@@ -166,7 +226,14 @@ export async function getWidget(
   }
   const storage = await ctx.getStorage();
   const connectorNames = config.connectors.map((c) => c.name);
-  const result = await resolveWidget(widgetId, widget, connectorNames, storage);
+  const result = await resolveWithCache(
+    dashboardId,
+    widgetId,
+    widget,
+    connectorNames,
+    storage,
+    cache,
+  );
   if (!result) {
     throw new RawdashError(404, 'WIDGET_NOT_FOUND', 'Widget not found');
   }
