@@ -20,8 +20,10 @@ export class SyncRouter implements RouterMount {
     const errors: string[] = [];
     await Promise.allSettled(
       this.config.connectors.map(async ({ connector }) => {
-        const handle = this.storage.getStorageHandle(connector.id);
         const controller = new AbortController();
+        const handle = this.storage.getStorageHandle(connector.id, {
+          signal: controller.signal,
+        });
         const timer = setTimeout(
           () => controller.abort(),
           FULL_SYNC_TIMEOUT_MS,

@@ -1,5 +1,5 @@
 import { type Client, createClient } from '@libsql/client';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { LibsqlStorage } from './libsql-storage';
 
@@ -369,5 +369,93 @@ describe('LibsqlStorage — isolation + sync state', () => {
     expect((await s.getSyncState()).status).toBe('error');
     expect((await s.getSyncState()).lastError).toBe('boom');
     await s.close();
+  });
+});
+
+describe('LibsqlStorage — abort isolation', () => {
+  it('drops writes after the signal aborts', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { storage: s } = makeStorage();
+    const controller = new AbortController();
+    const h = s.getStorageHandle('c', { signal: controller.signal });
+
+    await h.event({
+      name: 'before',
+      start_ts: 1,
+      end_ts: null,
+      attributes: {},
+    });
+
+    controller.abort();
+
+    await h.event({
+      name: 'after',
+      start_ts: 2,
+      end_ts: null,
+      attributes: {},
+    });
+    await h.events([
+      { name: 'after-batch', start_ts: 3, end_ts: null, attributes: {} },
+    ]);
+    await h.entity({
+      type: 't',
+      id: '1',
+      attributes: {},
+      updated_at: 1,
+    });
+    await h.metric({ name: 'm', ts: 1, value: 1, attributes: {} });
+
+    expect(await h.queryEvents({})).toHaveLength(1);
+    expect(await h.queryEntities({ type: 't' })).toEqual([]);
+    expect(await h.queryMetrics({})).toEqual([]);
+    expect(warn).toHaveBeenCalled();
+    await s.close();
+    warn.mockRestore();
+  });
+
+  it('isolates a timed-out run from a fresh handle on the same storage', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { storage: s } = makeStorage();
+
+    const first = new AbortController();
+    const h1 = s.getStorageHandle('c', { signal: first.signal });
+    first.abort();
+    await h1.event({
+      name: 'stale',
+      start_ts: 1,
+      end_ts: null,
+      attributes: {},
+    });
+
+    const second = new AbortController();
+    const h2 = s.getStorageHandle('c', { signal: second.signal });
+    await h2.event({
+      name: 'fresh',
+      start_ts: 2,
+      end_ts: null,
+      attributes: {},
+    });
+
+    const events = await h2.queryEvents({});
+    expect(events.map((e) => e.name)).toEqual(['fresh']);
+    await s.close();
+    warn.mockRestore();
+  });
+
+  it('reads remain functional after abort', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { storage: s } = makeStorage();
+    const controller = new AbortController();
+    const h = s.getStorageHandle('c', { signal: controller.signal });
+    await h.event({
+      name: 'e',
+      start_ts: 1,
+      end_ts: null,
+      attributes: {},
+    });
+    controller.abort();
+    expect(await h.queryEvents({})).toHaveLength(1);
+    await s.close();
+    warn.mockRestore();
   });
 });

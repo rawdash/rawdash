@@ -8,6 +8,7 @@ import type {
   EntityQuery,
   Event,
   EventQuery,
+  GetStorageHandleOptions,
   JSONValue,
   MetricQuery,
   MetricSample,
@@ -15,6 +16,7 @@ import type {
   StorageHandle,
   SyncState,
 } from '@rawdash/core';
+import { withAbortSignal } from '@rawdash/core';
 import { type CompiledQuery, type Insertable, Kysely } from 'kysely';
 import { LibsqlDialect } from 'kysely-libsql';
 
@@ -91,7 +93,15 @@ export class LibsqlStorage implements ServerStorage {
     return this.ready;
   }
 
-  getStorageHandle(connectorId: string): StorageHandle {
+  getStorageHandle(
+    connectorId: string,
+    options?: GetStorageHandleOptions,
+  ): StorageHandle {
+    const handle = this.buildHandle(connectorId);
+    return options?.signal ? withAbortSignal(handle, options.signal) : handle;
+  }
+
+  private buildHandle(connectorId: string): StorageHandle {
     const ready = this.ready;
     const db = this.db;
     const client = this.client;
