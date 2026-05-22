@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-test-utils",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "private": true,
   "description": "Internal test utilities for Rawdash connectors — property-based testing of sync invariants",
   "license": "Apache-2.0",
