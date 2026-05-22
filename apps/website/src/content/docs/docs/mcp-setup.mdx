@@ -101,10 +101,16 @@ Once connected, Claude has access to these tools:
 
 | Tool | Description |
 |------|-------------|
-| `rawdash_list_dashboards` | List all configured dashboards |
-| `rawdash_get_widgets` | Fetch widget data for a dashboard |
-| `rawdash_query` | Run a structured query against a dashboard's data |
-| `rawdash_health` | Check sync status and last-synced timestamps |
+| `list_dashboards` | List all dashboards available on this Rawdash instance |
+| `list_widgets` | List all widgets on a dashboard |
+| `read_widget` | Fetch resolved widget data (same shape as the HTTP read API) |
+| `render_widget` | Render a widget as a human-readable markdown summary |
+| `list_connectors` | List all configured connectors and their sync status |
+| `add_connector` | Add a connector instance (OSS: runtime-only, not persisted) |
+| `remove_connector` | Remove a connector instance (OSS: runtime-only) |
+| `trigger_sync` | Kick off a sync for one or all connectors |
+| `list_secrets` | List secret names known to this instance (values never returned) |
+| `set_secret` | Set a secret for the running instance (OSS: stored in `process.env`) |
 
 ## Scoping access
 
