@@ -159,6 +159,27 @@ const PHASE_ORDER: readonly GitHubSyncPhase[] = [
   'contributors',
 ];
 
+const PHASE_RESOURCES: Record<GitHubSyncPhase, readonly string[]> = {
+  repo_stats: ['repo'],
+  workflow_runs: ['workflow_run'],
+  pull_requests: ['pull_request'],
+  issues: ['issue'],
+  deployments: ['deployment'],
+  releases: ['release'],
+  contributors: ['contributor'],
+};
+
+function selectPhases(
+  allowlist: ReadonlySet<string> | undefined,
+): readonly GitHubSyncPhase[] {
+  if (allowlist === undefined) {
+    return PHASE_ORDER;
+  }
+  return PHASE_ORDER.filter((phase) =>
+    PHASE_RESOURCES[phase].some((r) => allowlist.has(r)),
+  );
+}
+
 type GitHubSyncCursor = ChunkedSyncCursor<GitHubSyncPhase, string>;
 
 interface PRPageItems {
@@ -931,8 +952,9 @@ export class GitHubConnector extends BaseConnector<
     signal?: AbortSignal,
   ): Promise<SyncResult> {
     const cursor = this.resolveCursor(options.cursor);
+    const phases = selectPhases(options.resources);
     return paginateChunked<GitHubSyncPhase, string>({
-      phases: PHASE_ORDER,
+      phases,
       cursor,
       signal,
       fetchPage: async (phase, page, sig) => {

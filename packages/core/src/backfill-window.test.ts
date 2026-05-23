@@ -16,7 +16,7 @@ describe('computeConnectorBackfill', () => {
     expect(result.size).toBe(0);
   });
 
-  it('takes max window across widgets per connector', () => {
+  it('takes max window across widgets per resource', () => {
     const result = computeConnectorBackfill(
       configWith({
         a: {
@@ -26,7 +26,7 @@ describe('computeConnectorBackfill', () => {
           metric: {
             connectorId: 'gh',
             shape: 'event',
-            name: 'x',
+            name: 'workflow_run',
             fn: 'count',
             window: '7d',
           },
@@ -38,14 +38,16 @@ describe('computeConnectorBackfill', () => {
           metric: {
             connectorId: 'gh',
             shape: 'event',
-            name: 'x',
+            name: 'workflow_run',
             fn: 'count',
             window: '90d',
           },
         },
       }),
     );
-    expect(result.get('gh')?.requiredWindowMs).toBe(90 * 86_400_000);
+    expect(result.get('gh')?.get('workflow_run')?.requiredWindowMs).toBe(
+      90 * 86_400_000,
+    );
   });
 
   it('records current-state-only widgets with undefined window', () => {
@@ -63,37 +65,38 @@ describe('computeConnectorBackfill', () => {
         },
       }),
     );
-    expect(result.has('gh')).toBe(true);
-    expect(result.get('gh')?.requiredWindowMs).toBeUndefined();
+    expect(result.get('gh')?.has('repo')).toBe(true);
+    expect(result.get('gh')?.get('repo')?.requiredWindowMs).toBeUndefined();
   });
 
-  it('treats status widgets as references to the named connector', () => {
+  it('treats status widgets as references to the named connector with no resources', () => {
     const result = computeConnectorBackfill(
       configWith({
         s: { kind: 'status', title: 's', source: 'sentry' },
       }),
     );
     expect(result.has('sentry')).toBe(true);
+    expect(result.get('sentry')?.size).toBe(0);
   });
 
-  it('keeps a window across a current-state widget on the same connector', () => {
+  it('keeps per-resource scope across multiple resources on the same connector', () => {
     const result = computeConnectorBackfill(
       configWith({
-        windowed: {
+        prs: {
           kind: 'timeseries',
-          title: 'w',
+          title: 'prs',
           window: '30d',
           metric: {
             connectorId: 'gh',
-            shape: 'event',
-            name: 'x',
+            shape: 'entity',
+            name: 'pull_request',
             fn: 'count',
             window: '30d',
           },
         },
-        current: {
+        stars: {
           kind: 'stat',
-          title: 'c',
+          title: 'stars',
           metric: {
             connectorId: 'gh',
             shape: 'entity',
@@ -103,6 +106,49 @@ describe('computeConnectorBackfill', () => {
         },
       }),
     );
-    expect(result.get('gh')?.requiredWindowMs).toBe(30 * 86_400_000);
+    const gh = result.get('gh');
+    expect(gh?.size).toBe(2);
+    expect(gh?.get('pull_request')?.requiredWindowMs).toBe(30 * 86_400_000);
+    expect(gh?.has('repo')).toBe(true);
+    expect(gh?.get('repo')?.requiredWindowMs).toBeUndefined();
+  });
+
+  it('does not include resources that are not referenced by any widget', () => {
+    const result = computeConnectorBackfill(
+      configWith({
+        stars: {
+          kind: 'stat',
+          title: 'stars',
+          metric: {
+            connectorId: 'gh',
+            shape: 'entity',
+            name: 'repo',
+            fn: 'latest',
+          },
+        },
+      }),
+    );
+    const gh = result.get('gh');
+    expect(gh?.has('repo')).toBe(true);
+    expect(gh?.has('deployment')).toBe(false);
+    expect(gh?.has('release')).toBe(false);
+  });
+
+  it('falls back to entityType when metric.name is omitted', () => {
+    const result = computeConnectorBackfill(
+      configWith({
+        x: {
+          kind: 'stat',
+          title: 'x',
+          metric: {
+            connectorId: 'gh',
+            shape: 'entity',
+            entityType: 'contributor',
+            fn: 'count',
+          },
+        },
+      }),
+    );
+    expect(result.get('gh')?.has('contributor')).toBe(true);
   });
 });
