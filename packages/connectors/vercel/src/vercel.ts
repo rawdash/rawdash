@@ -249,13 +249,8 @@ const deploymentSchema = z.object({
   buildingAt: nonNegInt.nullable(),
   ready: nonNegInt.nullable(),
   source: z.string().nullable(),
-  meta: z
-    .object({
-      githubCommitRef: z.string().nullable(),
-      githubCommitSha: z.string().nullable(),
-    })
-    .nullable(),
-  projectId: z.string(),
+  meta: z.record(z.string(), z.string().nullable()).nullable().optional(),
+  projectId: z.string().nullable().optional(),
 });
 
 const deploymentsResponseSchema = z.object({
