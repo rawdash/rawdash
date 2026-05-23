@@ -49,9 +49,11 @@ export function registerTriggerSync(
       if (!queued) {
         return err('ALREADY_SYNCING', 'A sync is already in progress');
       }
-      const acquired = await storage.markSyncRunning();
-      if (!acquired) {
-        return err('ALREADY_SYNCING', 'A sync is already in progress');
+      if (typeof storage.markSyncRunning === 'function') {
+        const acquired = await storage.markSyncRunning();
+        if (!acquired) {
+          return err('ALREADY_SYNCING', 'A sync is already in progress');
+        }
       }
 
       const controller = new AbortController();

@@ -12,7 +12,7 @@ export interface ServerStorage {
   ): StorageHandle;
   getSyncState(): Promise<SyncState>;
   markSyncQueued(): Promise<boolean>;
-  markSyncRunning(): Promise<boolean>;
+  markSyncRunning?(): Promise<boolean>;
   markSyncSucceeded(): Promise<void>;
   markSyncFailed(error: string): Promise<void>;
 }

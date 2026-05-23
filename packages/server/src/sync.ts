@@ -40,9 +40,11 @@ export async function runSync(
   options: RunSyncOptions,
 ): Promise<void> {
   await storage.markSyncQueued();
-  const acquired = await storage.markSyncRunning();
-  if (!acquired) {
-    return;
+  if (typeof storage.markSyncRunning === 'function') {
+    const acquired = await storage.markSyncRunning();
+    if (!acquired) {
+      return;
+    }
   }
   const errors: string[] = [];
   await Promise.allSettled(
