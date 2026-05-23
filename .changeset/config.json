@@ -13,6 +13,7 @@
       "@rawdash/connector-stripe",
       "@rawdash/connector-linear",
       "@rawdash/connector-sentry",
+      "@rawdash/connector-vercel",
       "@rawdash/adapter-libsql",
       "@rawdash/cli",
       "@rawdash/client",

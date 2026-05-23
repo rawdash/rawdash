@@ -7,6 +7,7 @@ import type {
 import { instantiateConnector } from '@rawdash/core';
 
 export const FULL_SYNC_TIMEOUT_MS = 300_000;
+export const FULL_SYNC_MAX_CHUNKS = 1_000;
 
 export interface RunSyncOptions {
   connectorRegistry: ConnectorRegistry;
@@ -20,6 +21,12 @@ export interface RunSyncOptions {
  * raced against the connector's own `Promise`, so a connector that
  * ignores `AbortSignal` (or a storage call that hangs) can still not
  * pin sync state in `running` indefinitely.
+ *
+ * Connectors that return `{ done: false, cursor }` are looped in-process,
+ * threading the cursor back into the next `sync` call until `done: true`
+ * or the shared timeout / `FULL_SYNC_MAX_CHUNKS` cap fires. Cloud
+ * deployments layer cross-restart cursor persistence on top of the same
+ * contract; the OSS runner is the trivial in-process case.
  *
  * The per-run storage handle is bound to the same `AbortController`, so
  * once the timeout fires every subsequent write call on that handle
@@ -63,11 +70,6 @@ export async function runSync(
           options.connectorRegistry,
           options.secretsResolver,
         );
-        const syncPromise = connector.sync(
-          { mode: 'full' },
-          handle,
-          controller.signal,
-        );
         const timeoutPromise = new Promise<never>((_resolve, reject) => {
           timer = setTimeout(() => {
             controller.abort();
@@ -78,11 +80,26 @@ export async function runSync(
             reject(err);
           }, FULL_SYNC_TIMEOUT_MS);
         });
-        const result = await Promise.race([syncPromise, timeoutPromise]);
-        if (!result.done) {
-          errors.push(
-            `${entry.name} did not complete in one chunk (chunked syncs are only supported in cloud)`,
+        let cursor: unknown = undefined;
+        let chunks = 0;
+        while (true) {
+          chunks += 1;
+          if (chunks > FULL_SYNC_MAX_CHUNKS) {
+            controller.abort();
+            throw new Error(
+              `${entry.name} exceeded ${FULL_SYNC_MAX_CHUNKS} sync chunks without completing`,
+            );
+          }
+          const syncPromise = connector.sync(
+            { mode: 'full', cursor },
+            handle,
+            controller.signal,
           );
+          const result = await Promise.race([syncPromise, timeoutPromise]);
+          if (result.done) {
+            break;
+          }
+          cursor = result.cursor;
         }
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') {
