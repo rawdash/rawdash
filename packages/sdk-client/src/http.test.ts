@@ -84,6 +84,12 @@ describe('http getWidget ETag caching', () => {
     const b = widget({ which: 'b' });
     fetchMock.mockResolvedValueOnce(jsonResponse(a, '"a-1"'));
     fetchMock.mockResolvedValueOnce(jsonResponse(b, '"b-1"'));
+    fetchMock.mockResolvedValueOnce(
+      new Response(null, { status: 304, headers: { ETag: '"a-1"' } }),
+    );
+    fetchMock.mockResolvedValueOnce(
+      new Response(null, { status: 304, headers: { ETag: '"b-1"' } }),
+    );
 
     const src = http({
       baseUrl: 'https://api',
@@ -91,11 +97,22 @@ describe('http getWidget ETag caching', () => {
     });
     await src.getWidget('main', 'wA');
     await src.getWidget('main', 'wB');
-    const headersA = (fetchMock.mock.calls[0]![1] as RequestInit)
+    const headersA1 = (fetchMock.mock.calls[0]![1] as RequestInit)
       .headers as Record<string, string>;
-    const headersB = (fetchMock.mock.calls[1]![1] as RequestInit)
+    const headersB1 = (fetchMock.mock.calls[1]![1] as RequestInit)
       .headers as Record<string, string>;
-    expect(headersA['If-None-Match']).toBeUndefined();
-    expect(headersB['If-None-Match']).toBeUndefined();
+    expect(headersA1['If-None-Match']).toBeUndefined();
+    expect(headersB1['If-None-Match']).toBeUndefined();
+
+    const second = await src.getWidget('main', 'wA');
+    const third = await src.getWidget('main', 'wB');
+    expect(second).toEqual(a);
+    expect(third).toEqual(b);
+    const headersA2 = (fetchMock.mock.calls[2]![1] as RequestInit)
+      .headers as Record<string, string>;
+    const headersB2 = (fetchMock.mock.calls[3]![1] as RequestInit)
+      .headers as Record<string, string>;
+    expect(headersA2['If-None-Match']).toBe('"a-1"');
+    expect(headersB2['If-None-Match']).toBe('"b-1"');
   });
 });

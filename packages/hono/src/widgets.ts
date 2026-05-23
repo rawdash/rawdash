@@ -54,7 +54,9 @@ export function createWidgetsRouter(opts: HonoWidgetsRouterOptions): Hono {
         c.header('ETag', result.etag);
         return c.body(null, 304);
       }
-      c.header('ETag', result.etag);
+      if (result.etag) {
+        c.header('ETag', result.etag);
+      }
       return c.json(result.widget);
     } catch (err) {
       return mapError(c, err);

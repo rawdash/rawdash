@@ -206,7 +206,14 @@ describe('listWidgets', () => {
 
 describe('getWidget', () => {
   it('returns the widget for valid ids', async () => {
-    const { ctx } = makeCtx();
+    const { ctx, storage } = makeCtx();
+    const handle = storage.getStorageHandle(CONNECTOR_NAME);
+    await handle.event({
+      name: 'run',
+      start_ts: Date.now(),
+      end_ts: null,
+      attributes: {},
+    });
     const res = await getWidget(ctx, 'main', 'my_widget');
     expect(res.status).toBe('ok');
     if (res.status !== 'ok') {
@@ -214,6 +221,24 @@ describe('getWidget', () => {
     }
     expect(res.widget.widgetId).toBe('my_widget');
     expect(res.etag).toMatch(/^".+-[0-9a-f]{8}"$/);
+  });
+
+  it('omits ETag on "ok" when the widget has no lastSyncAt', async () => {
+    const { ctx } = makeCtx();
+    const res = await getWidget(ctx, 'main', 'my_widget');
+    expect(res.status).toBe('ok');
+    if (res.status !== 'ok') {
+      return;
+    }
+    expect(res.etag).toBeUndefined();
+  });
+
+  it('does not honor If-None-Match when the widget has no lastSyncAt', async () => {
+    const { ctx } = makeCtx();
+    const res = await getWidget(ctx, 'main', 'my_widget', {
+      ifNoneMatch: '"null-deadbeef"',
+    });
+    expect(res.status).toBe('ok');
   });
 
   it('throws RawdashError(404) for unknown dashboard', async () => {
@@ -232,12 +257,20 @@ describe('getWidget', () => {
   });
 
   it('returns "not-modified" when If-None-Match matches and skips resolveWithCache', async () => {
-    const { ctx } = makeCtx();
+    const { ctx, storage } = makeCtx();
+    const handle = storage.getStorageHandle(CONNECTOR_NAME);
+    await handle.event({
+      name: 'run',
+      start_ts: Date.now(),
+      end_ts: null,
+      attributes: {},
+    });
     const first = await getWidget(ctx, 'main', 'my_widget');
     expect(first.status).toBe('ok');
     if (first.status !== 'ok') {
       return;
     }
+    expect(first.etag).toBeDefined();
 
     let getCalls = 0;
     const cache: WidgetCache = {

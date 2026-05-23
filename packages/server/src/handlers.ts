@@ -215,7 +215,7 @@ export interface GetWidgetOptions {
 }
 
 export type GetWidgetResult =
-  | { status: 'ok'; etag: string; widget: CachedWidget }
+  | { status: 'ok'; etag: string | undefined; widget: CachedWidget }
   | { status: 'not-modified'; etag: string };
 
 export async function getWidget(
@@ -245,9 +245,11 @@ export async function getWidget(
   if (ifNoneMatch) {
     const handle = storage.getStorageHandle(connectorId);
     const health = (await handle.getHealth?.()) ?? null;
-    const probeEtag = computeWidgetEtag(health?.lastSyncAt ?? null, widget);
-    if (probeEtag === ifNoneMatch) {
-      return { status: 'not-modified', etag: probeEtag };
+    if (health?.lastSyncAt) {
+      const probeEtag = computeWidgetEtag(health.lastSyncAt, widget);
+      if (probeEtag === ifNoneMatch) {
+        return { status: 'not-modified', etag: probeEtag };
+      }
     }
   }
 
@@ -262,7 +264,9 @@ export async function getWidget(
   if (!result) {
     throw new RawdashError(404, 'WIDGET_NOT_FOUND', 'Widget not found');
   }
-  const etag = computeWidgetEtag(result.cachedAt, widget);
+  const etag = result.cachedAt
+    ? computeWidgetEtag(result.cachedAt, widget)
+    : undefined;
   return { status: 'ok', etag, widget: result };
 }
 
