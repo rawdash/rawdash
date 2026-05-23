@@ -470,19 +470,30 @@ export class GitHubConnector extends BaseConnector<
   }
 
   private async fetchPullRequests(
+    options: SyncOptions,
     page: string | null,
     signal: AbortSignal | undefined,
   ): Promise<FetchPageResult<string>> {
     const { owner, repo } = this.settings;
     const url =
       page ??
-      `https://api.github.com/repos/${owner}/${repo}/pulls?state=all&per_page=100`;
+      `https://api.github.com/repos/${owner}/${repo}/pulls?state=all&sort=updated&direction=desc&per_page=100`;
     const res = await this.fetch<GitHubPR[]>(url, 'pull_requests', signal);
     const nextLink = parseLinkHeader(res.headers.get('link'))['next'] ?? null;
     const prs = res.body;
+    const cutoff = options.since ? new Date(options.since).getTime() : null;
+    const filteredPrs =
+      cutoff !== null
+        ? prs.filter((pr) => new Date(pr.updated_at).getTime() >= cutoff)
+        : prs;
+    const lastPr = prs.at(-1);
+    const cutoffReached =
+      cutoff !== null &&
+      lastPr !== undefined &&
+      new Date(lastPr.updated_at).getTime() < cutoff;
 
     const reviewsByPR = new Map<number, GitHubReview[]>();
-    for (const pr of prs) {
+    for (const pr of filteredPrs) {
       signal?.throwIfAborted();
       const reviews = await this.fetch<GitHubReview[]>(
         `https://api.github.com/repos/${owner}/${repo}/pulls/${pr.number}/reviews`,
@@ -492,8 +503,8 @@ export class GitHubConnector extends BaseConnector<
       reviewsByPR.set(pr.number, reviews.body);
     }
 
-    const items: PRPageItems[] = [{ prs, reviewsByPR }];
-    return { items, next: nextLink };
+    const items: PRPageItems[] = [{ prs: filteredPrs, reviewsByPR }];
+    return { items, next: cutoffReached ? null : nextLink };
   }
 
   private async fetchIssues(
@@ -520,6 +531,7 @@ export class GitHubConnector extends BaseConnector<
   }
 
   private async fetchDeployments(
+    options: SyncOptions,
     page: string | null,
     signal: AbortSignal | undefined,
   ): Promise<FetchPageResult<string>> {
@@ -534,9 +546,19 @@ export class GitHubConnector extends BaseConnector<
     );
     const nextLink = parseLinkHeader(res.headers.get('link'))['next'] ?? null;
     const deployments = res.body;
+    const cutoff = options.since ? new Date(options.since).getTime() : null;
+    const filteredDeployments =
+      cutoff !== null
+        ? deployments.filter((d) => new Date(d.created_at).getTime() >= cutoff)
+        : deployments;
+    const lastDeployment = deployments.at(-1);
+    const cutoffReached =
+      cutoff !== null &&
+      lastDeployment !== undefined &&
+      new Date(lastDeployment.created_at).getTime() < cutoff;
 
     const latestStatusById = new Map<number, GitHubDeploymentStatus | null>();
-    for (const deployment of deployments) {
+    for (const deployment of filteredDeployments) {
       signal?.throwIfAborted();
       const statusRes = await this.fetch<GitHubDeploymentStatus[]>(
         `https://api.github.com/repos/${owner}/${repo}/deployments/${deployment.id}/statuses?per_page=1`,
@@ -546,11 +568,14 @@ export class GitHubConnector extends BaseConnector<
       latestStatusById.set(deployment.id, statusRes.body[0] ?? null);
     }
 
-    const items: DeploymentPageItems[] = [{ deployments, latestStatusById }];
-    return { items, next: nextLink };
+    const items: DeploymentPageItems[] = [
+      { deployments: filteredDeployments, latestStatusById },
+    ];
+    return { items, next: cutoffReached ? null : nextLink };
   }
 
   private async fetchReleases(
+    options: SyncOptions,
     page: string | null,
     signal: AbortSignal | undefined,
   ): Promise<FetchPageResult<string>> {
@@ -560,7 +585,22 @@ export class GitHubConnector extends BaseConnector<
       `https://api.github.com/repos/${owner}/${repo}/releases?per_page=100`;
     const res = await this.fetch<GitHubRelease[]>(url, 'releases', signal);
     const nextLink = parseLinkHeader(res.headers.get('link'))['next'] ?? null;
-    return { items: res.body, next: nextLink };
+    const releases = res.body;
+    const cutoff = options.since ? new Date(options.since).getTime() : null;
+    const filtered =
+      cutoff !== null
+        ? releases.filter((r) => {
+            const ts = new Date(r.published_at ?? r.created_at).getTime();
+            return ts >= cutoff;
+          })
+        : releases;
+    const lastRelease = releases.at(-1);
+    const cutoffReached =
+      cutoff !== null &&
+      lastRelease !== undefined &&
+      new Date(lastRelease.published_at ?? lastRelease.created_at).getTime() <
+        cutoff;
+    return { items: filtered, next: cutoffReached ? null : nextLink };
   }
 
   private async fetchContributors(
@@ -904,13 +944,13 @@ export class GitHubConnector extends BaseConnector<
               ? this.fetchWorkflowRunsLatest(sig)
               : this.fetchWorkflowRunsFull(options, page, sig);
           case 'pull_requests':
-            return this.fetchPullRequests(page, sig);
+            return this.fetchPullRequests(options, page, sig);
           case 'issues':
             return this.fetchIssues(options, page, sig);
           case 'deployments':
-            return this.fetchDeployments(page, sig);
+            return this.fetchDeployments(options, page, sig);
           case 'releases':
-            return this.fetchReleases(page, sig);
+            return this.fetchReleases(options, page, sig);
           case 'contributors':
             return this.fetchContributors(sig);
         }

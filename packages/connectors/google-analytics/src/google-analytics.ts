@@ -355,11 +355,20 @@ function getDateRange(
 ): GA4DateRange {
   const now = Date.now();
   const endDate = toGA4Date(new Date(now));
-  const days =
-    options.mode === 'latest' && options.since
-      ? INCREMENTAL_LOOKBACK_DAYS
-      : lookbackDays;
-  const startMs = now - (days - 1) * MS_PER_DAY;
+  if (options.mode === 'latest' && options.since) {
+    const startMs = now - (INCREMENTAL_LOOKBACK_DAYS - 1) * MS_PER_DAY;
+    return { startDate: toGA4Date(new Date(startMs)), endDate };
+  }
+  if (options.since) {
+    const sinceMs = new Date(options.since).getTime();
+    if (Number.isFinite(sinceMs)) {
+      const days = Math.max(1, Math.ceil((now - sinceMs) / MS_PER_DAY));
+      const cappedDays = Math.min(days, lookbackDays);
+      const startMs = now - (cappedDays - 1) * MS_PER_DAY;
+      return { startDate: toGA4Date(new Date(startMs)), endDate };
+    }
+  }
+  const startMs = now - (lookbackDays - 1) * MS_PER_DAY;
   return { startDate: toGA4Date(new Date(startMs)), endDate };
 }
 

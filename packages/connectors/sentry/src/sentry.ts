@@ -392,7 +392,7 @@ export class SentryConnector extends BaseConnector<
     for (const project of this.settings.projects ?? []) {
       u.searchParams.append('project', project);
     }
-    if (options.mode === 'latest' && options.since) {
+    if (options.since) {
       u.searchParams.set('query', `lastSeen:>${options.since}`);
     }
     return u.toString();
@@ -472,16 +472,35 @@ export class SentryConnector extends BaseConnector<
 
   private async fetchReleasesPage(
     page: string | null,
+    options: SyncOptions,
     signal: AbortSignal | undefined,
   ): Promise<{ items: SentryRelease[]; next: string | null }> {
     const url = page ?? this.buildInitialReleasesUrl();
     const res = await this.fetch<SentryRelease[]>(url, 'releases', signal);
     const nextLink = parseSentryLink(res.headers.get('link'), 'next');
+    const releases = res.body;
+    const cutoff = options.since ? new Date(options.since).getTime() : null;
+    const filtered =
+      cutoff !== null
+        ? releases.filter((r) => {
+            const ts = new Date(r.dateReleased ?? r.dateCreated).getTime();
+            return Number.isFinite(ts) ? ts >= cutoff : true;
+          })
+        : releases;
+    const lastRelease = releases.at(-1);
+    const lastTs = lastRelease
+      ? new Date(lastRelease.dateReleased ?? lastRelease.dateCreated).getTime()
+      : null;
+    const cutoffReached =
+      cutoff !== null &&
+      lastTs !== null &&
+      Number.isFinite(lastTs) &&
+      lastTs < cutoff;
     const next =
-      nextLink && nextLink.hasResults
+      !cutoffReached && nextLink && nextLink.hasResults
         ? this.sanitizePageUrl('releases', nextLink.url)
         : null;
-    return { items: res.body, next };
+    return { items: filtered, next };
   }
 
   private async fetchErrorStats(
@@ -654,7 +673,7 @@ export class SentryConnector extends BaseConnector<
           case 'issues':
             return this.fetchIssuesPage(page, options, sig);
           case 'releases':
-            return this.fetchReleasesPage(page, sig);
+            return this.fetchReleasesPage(page, options, sig);
           case 'error_stats':
             return this.fetchErrorStats(sig);
         }

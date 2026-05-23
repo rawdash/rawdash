@@ -109,6 +109,10 @@ export { defineConfigFields } from './config-fields';
 
 export { computeMetric } from './compute';
 
+export type { ConnectorBackfill } from './backfill-window';
+
+export { computeConnectorBackfill } from './backfill-window';
+
 export { resolveWidget } from './resolve-widget';
 
 export type {

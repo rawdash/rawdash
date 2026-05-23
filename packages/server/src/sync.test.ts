@@ -88,7 +88,22 @@ function makeRegistry(instance: Connector): {
 function makeConfig(entry: ConfiguredConnector): DashboardConfig {
   return {
     connectors: [entry],
-    widgets: [],
+    dashboards: {
+      main: {
+        widgets: {
+          probe: {
+            kind: 'stat',
+            title: 'probe',
+            metric: {
+              connectorId: entry.name,
+              shape: 'entity',
+              name: 'probe',
+              fn: 'count',
+            },
+          },
+        },
+      },
+    },
   } as unknown as DashboardConfig;
 }
 
@@ -168,5 +183,86 @@ describe('runSync — optional markSyncRunning', () => {
     expect(runningSpy).toHaveBeenCalled();
     const state = await storage.getSyncState();
     expect(state.status).toBe('succeeded');
+  });
+});
+
+describe('runSync — widget-driven backfill scoping', () => {
+  it('skips connectors with no widgets referencing them', async () => {
+    const connector = new ChunkedConnector([{ done: true }]);
+    const { registry, entry } = makeRegistry(connector);
+    const storage = new InMemoryStorage();
+    const config = {
+      connectors: [entry],
+      dashboards: { main: { widgets: {} } },
+    } as unknown as DashboardConfig;
+
+    await runSync(config, storage, { connectorRegistry: registry });
+
+    expect(connector.observed).toEqual([]);
+    const state = await storage.getSyncState();
+    expect(state.status).toBe('succeeded');
+  });
+
+  it('passes since = now - max(window) - 1d when widgets declare windows', async () => {
+    const connector = new ChunkedConnector([{ done: true }]);
+    const { registry, entry } = makeRegistry(connector);
+    const storage = new InMemoryStorage();
+    const config = {
+      connectors: [entry],
+      dashboards: {
+        main: {
+          widgets: {
+            short: {
+              kind: 'timeseries',
+              title: 'short',
+              window: '7d',
+              metric: {
+                connectorId: entry.name,
+                shape: 'event',
+                name: 'e',
+                fn: 'count',
+                window: '7d',
+              },
+            },
+            long: {
+              kind: 'timeseries',
+              title: 'long',
+              window: '90d',
+              metric: {
+                connectorId: entry.name,
+                shape: 'event',
+                name: 'e',
+                fn: 'count',
+                window: '90d',
+              },
+            },
+          },
+        },
+      },
+    } as unknown as DashboardConfig;
+
+    const before = Date.now();
+    await runSync(config, storage, { connectorRegistry: registry });
+    const after = Date.now();
+
+    expect(connector.observed).toHaveLength(1);
+    const observed = connector.observed[0]!;
+    expect(typeof observed.since).toBe('string');
+    const sinceMs = new Date(observed.since!).getTime();
+    const expectedMin = before - 90 * 86_400_000 - 86_400_000;
+    const expectedMax = after - 90 * 86_400_000 - 86_400_000;
+    expect(sinceMs).toBeGreaterThanOrEqual(expectedMin - 5);
+    expect(sinceMs).toBeLessThanOrEqual(expectedMax + 5);
+  });
+
+  it('omits since when all referencing widgets are current-state (no window)', async () => {
+    const connector = new ChunkedConnector([{ done: true }]);
+    const { registry, entry } = makeRegistry(connector);
+    const storage = new InMemoryStorage();
+
+    await runSync(makeConfig(entry), storage, { connectorRegistry: registry });
+
+    expect(connector.observed).toHaveLength(1);
+    expect(connector.observed[0]!.since).toBeUndefined();
   });
 });
