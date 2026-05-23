@@ -470,13 +470,22 @@ export class StripeConnector extends BaseConnector<
 
   // created[gte] cutoff for entity phases — in incremental (latest) mode adds
   // a 7-day grace so recent edits to slightly older entities still surface.
-  private entityCreatedGte(options: SyncOptions): string | undefined {
+  // Subscriptions are intentionally exempt in full mode: a subscription's
+  // updated_at is derived from current_period_end, so a still-active sub
+  // created well before the cutoff would otherwise be dropped on backfill.
+  private entityCreatedGte(
+    phase: StripePhase,
+    options: SyncOptions,
+  ): string | undefined {
     if (!options.since) {
       return undefined;
     }
     const sinceMs = new Date(options.since).getTime();
     if (options.mode === 'latest') {
       return String(Math.floor((sinceMs - 7 * 24 * 60 * 60 * 1000) / 1000));
+    }
+    if (phase === 'subscriptions') {
+      return undefined;
     }
     return String(Math.floor(sinceMs / 1000));
   }
@@ -502,7 +511,7 @@ export class StripeConnector extends BaseConnector<
       return this.buildListUrl(phase, {
         ...extra,
         starting_after: startingAfter,
-        'created[gte]': this.entityCreatedGte(options),
+        'created[gte]': this.entityCreatedGte(phase, options),
       });
     }
     return this.buildListUrl(phase, {

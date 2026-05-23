@@ -249,10 +249,10 @@ describe('runSync — widget-driven backfill scoping', () => {
     const observed = connector.observed[0]!;
     expect(typeof observed.since).toBe('string');
     const sinceMs = new Date(observed.since!).getTime();
-    const expectedMax = before - 90 * 86_400_000 - 86_400_000;
-    const expectedMin = after - 90 * 86_400_000 - 86_400_000;
-    expect(sinceMs).toBeLessThanOrEqual(expectedMax);
+    const expectedMin = before - 90 * 86_400_000 - 86_400_000;
+    const expectedMax = after - 90 * 86_400_000 - 86_400_000;
     expect(sinceMs).toBeGreaterThanOrEqual(expectedMin - 5);
+    expect(sinceMs).toBeLessThanOrEqual(expectedMax + 5);
   });
 
   it('omits since when all referencing widgets are current-state (no window)', async () => {
