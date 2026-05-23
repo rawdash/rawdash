@@ -1,6 +1,8 @@
 import {
   type InvariantViolation,
+  mockJsonResponse,
   runPropertySyncTest,
+  metricStoreFor as sharedMetricStoreFor,
 } from '@rawdash/connector-test-utils';
 import type { InMemoryStorage } from '@rawdash/core';
 import { afterEach, describe, it, vi } from 'vitest';
@@ -9,16 +11,6 @@ import { z } from 'zod';
 import { GA4Connector } from './google-analytics';
 
 const CONNECTOR_ID = 'google-analytics';
-
-function mockResponse(body: unknown): Response {
-  return {
-    ok: true,
-    status: 200,
-    statusText: 'OK',
-    headers: new Headers({ 'content-type': 'application/json' }),
-    text: () => Promise.resolve(JSON.stringify(body)),
-  } as Response;
-}
 
 function installFetchMock(
   reportBody: (
@@ -30,7 +22,7 @@ function installFetchMock(
     const u = String(url);
     if (u.includes('oauth2.googleapis.com/token')) {
       return Promise.resolve(
-        mockResponse({ access_token: 'tok', expires_in: 3600 }),
+        mockJsonResponse({ access_token: 'tok', expires_in: 3600 }),
       );
     }
     if (u.includes('analyticsdata.googleapis.com')) {
@@ -38,9 +30,9 @@ function installFetchMock(
         dimensions: Array<{ name: string }>;
       };
       const firstDim = parsed.dimensions?.[0]?.name ?? '';
-      return Promise.resolve(mockResponse(reportBody(firstDim, parsed)));
+      return Promise.resolve(mockJsonResponse(reportBody(firstDim, parsed)));
     }
-    return Promise.resolve(mockResponse({}));
+    return Promise.resolve(mockJsonResponse({}));
   });
   vi.stubGlobal('fetch', spy);
   return spy;
@@ -49,13 +41,7 @@ function installFetchMock(
 function metricStoreFor(
   storage: InMemoryStorage,
 ): Array<{ name: string; ts: number; value: number }> {
-  return (
-    ((
-      storage as unknown as { metricStore: Map<string, unknown[]> }
-    ).metricStore.get(CONNECTOR_ID) as
-      | Array<{ name: string; ts: number; value: number }>
-      | undefined) ?? []
-  );
+  return sharedMetricStoreFor(storage, CONNECTOR_ID);
 }
 
 function makeConnector(): GA4Connector {

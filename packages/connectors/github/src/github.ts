@@ -1,7 +1,9 @@
 import {
   type HttpResponse,
-  githubRateLimit,
+  connectorUserAgent,
   parseLinkHeader,
+  sanitizeAllowedUrl,
+  standardRateLimitPolicy,
 } from '@rawdash/connector-shared';
 import {
   BaseConnector,
@@ -13,6 +15,7 @@ import {
   type SyncOptions,
   type SyncResult,
   defineConfigFields,
+  makeChunkedCursorGuard,
   paginateChunked,
 } from '@rawdash/core';
 import { z } from 'zod';
@@ -140,6 +143,12 @@ type GitHubSyncPhase =
   | 'releases'
   | 'contributors';
 
+const githubRateLimit = standardRateLimitPolicy({
+  remainingHeader: 'x-ratelimit-remaining',
+  resetHeader: 'x-ratelimit-reset',
+  resetUnit: 's',
+});
+
 const PHASE_ORDER: readonly GitHubSyncPhase[] = [
   'repo_stats',
   'workflow_runs',
@@ -189,22 +198,7 @@ function dedupeByKey<T>(
   return Array.from(seen.values());
 }
 
-function isGitHubSyncCursor(value: unknown): value is GitHubSyncCursor {
-  if (typeof value !== 'object' || value === null) {
-    return false;
-  }
-  const v = value as { phase?: unknown; page?: unknown };
-  if (typeof v.phase !== 'string') {
-    return false;
-  }
-  if (!(PHASE_ORDER as readonly string[]).includes(v.phase)) {
-    return false;
-  }
-  if (v.page !== null && typeof v.page !== 'string') {
-    return false;
-  }
-  return true;
-}
+const isGitHubSyncCursor = makeChunkedCursorGuard(PHASE_ORDER);
 
 const workflowRunsResponseSchema = z.object({
   workflow_runs: z.array(
@@ -345,7 +339,7 @@ export class GitHubConnector extends BaseConnector<
     const headers: Record<string, string> = {
       Accept: 'application/vnd.github+json',
       'X-GitHub-Api-Version': '2022-11-28',
-      'User-Agent': 'rawdash/connector-github (+https://rawdash.dev)',
+      'User-Agent': connectorUserAgent('github'),
     };
     if (this.creds.token) {
       headers['Authorization'] = `Bearer ${this.creds.token}`;
@@ -389,26 +383,15 @@ export class GitHubConnector extends BaseConnector<
     phase: GitHubSyncPhase,
     pageUrl: string | null,
   ): string | null {
-    if (pageUrl === null) {
-      return null;
-    }
     const allowedPath = this.allowedPageBasePath(phase);
     if (allowedPath === null) {
       return null;
     }
-    try {
-      const u = new URL(pageUrl);
-      if (
-        u.protocol !== 'https:' ||
-        u.host !== 'api.github.com' ||
-        u.pathname !== allowedPath
-      ) {
-        return null;
-      }
-      return u.toString();
-    } catch {
-      return null;
-    }
+    return sanitizeAllowedUrl({
+      url: pageUrl,
+      host: 'api.github.com',
+      pathname: allowedPath,
+    });
   }
 
   private resolveCursor(cursor: unknown): GitHubSyncCursor | undefined {

@@ -1,4 +1,10 @@
-import { type HttpResponse, sentryRateLimit } from '@rawdash/connector-shared';
+import {
+  type HttpResponse,
+  connectorUserAgent,
+  parseEpoch,
+  sanitizeAllowedUrl,
+  standardRateLimitPolicy,
+} from '@rawdash/connector-shared';
 import {
   BaseConnector,
   type ChunkedSyncCursor,
@@ -8,7 +14,9 @@ import {
   type SyncOptions,
   type SyncResult,
   defineConfigFields,
+  makeChunkedCursorGuard,
   paginateChunked,
+  selectActivePhases,
 } from '@rawdash/core';
 import { z } from 'zod';
 
@@ -86,28 +94,19 @@ type SentryCredentials = typeof sentryCredentials;
 // Sync phases + cursor
 // ---------------------------------------------------------------------------
 
+const sentryRateLimit = standardRateLimitPolicy({
+  remainingHeader: 'x-sentry-rate-limit-remaining',
+  resetHeader: 'x-sentry-rate-limit-reset',
+  resetUnit: 's',
+});
+
 const PHASE_ORDER = ['issues', 'releases', 'error_stats'] as const;
 
 type SentryPhase = (typeof PHASE_ORDER)[number];
 
 type SentrySyncCursor = ChunkedSyncCursor<SentryPhase, string>;
 
-function isSentrySyncCursor(value: unknown): value is SentrySyncCursor {
-  if (typeof value !== 'object' || value === null) {
-    return false;
-  }
-  const v = value as { phase?: unknown; page?: unknown };
-  if (typeof v.phase !== 'string') {
-    return false;
-  }
-  if (!(PHASE_ORDER as readonly string[]).includes(v.phase)) {
-    return false;
-  }
-  if (v.page !== null && typeof v.page !== 'string') {
-    return false;
-  }
-  return true;
-}
+const isSentrySyncCursor = makeChunkedCursorGuard(PHASE_ORDER);
 
 // ---------------------------------------------------------------------------
 // Sentry API types
@@ -176,14 +175,6 @@ interface IssuesPageItem {
 interface SentryLink {
   url: string;
   hasResults: boolean;
-}
-
-function safeTimestamp(iso: string | null | undefined): number | null {
-  if (iso === null || iso === undefined) {
-    return null;
-  }
-  const ms = new Date(iso).getTime();
-  return Number.isFinite(ms) ? ms : null;
 }
 
 function parseSentryLink(
@@ -312,7 +303,7 @@ export class SentryConnector extends BaseConnector<
   private buildHeaders(): Record<string, string> {
     return {
       Authorization: `Bearer ${this.creds.authToken}`,
-      'User-Agent': 'rawdash/connector-sentry (+https://rawdash.dev)',
+      'User-Agent': connectorUserAgent('sentry'),
     };
   }
 
@@ -333,29 +324,22 @@ export class SentryConnector extends BaseConnector<
   // Resource enablement
   // -------------------------------------------------------------------------
 
-  private isResourceEnabled(resource: SentryResource): boolean {
-    const enabled = this.settings.resources;
-    if (!enabled || enabled.length === 0) {
-      return true;
-    }
-    return enabled.includes(resource);
-  }
-
   private activePhases(): SentryPhase[] {
-    const phases: SentryPhase[] = [];
-    if (
-      this.isResourceEnabled('issues') ||
-      this.isResourceEnabled('issue_events')
-    ) {
-      phases.push('issues');
-    }
-    if (this.isResourceEnabled('releases')) {
-      phases.push('releases');
-    }
-    if (this.isResourceEnabled('errors_per_hour')) {
-      phases.push('error_stats');
-    }
-    return phases;
+    return selectActivePhases<SentryResource, SentryPhase>(
+      (r) => {
+        switch (r) {
+          case 'issues':
+          case 'issue_events':
+            return 'issues';
+          case 'releases':
+            return 'releases';
+          case 'errors_per_hour':
+            return 'error_stats';
+        }
+      },
+      PHASE_ORDER,
+      this.settings.resources,
+    );
   }
 
   // -------------------------------------------------------------------------
@@ -378,26 +362,15 @@ export class SentryConnector extends BaseConnector<
     phase: SentryPhase,
     pageUrl: string | null,
   ): string | null {
-    if (pageUrl === null) {
-      return null;
-    }
     const allowedPath = this.allowedPagePath(phase);
     if (allowedPath === null) {
       return null;
     }
-    try {
-      const u = new URL(pageUrl);
-      if (
-        u.protocol !== 'https:' ||
-        u.host !== SENTRY_API_HOST ||
-        u.pathname !== allowedPath
-      ) {
-        return null;
-      }
-      return u.toString();
-    } catch {
-      return null;
-    }
+    return sanitizeAllowedUrl({
+      url: pageUrl,
+      host: SENTRY_API_HOST,
+      pathname: allowedPath,
+    });
   }
 
   private resolveCursor(cursor: unknown): SentrySyncCursor | undefined {
@@ -537,8 +510,8 @@ export class SentryConnector extends BaseConnector<
       if (writeEntities) {
         const count =
           typeof issue.count === 'string' ? Number(issue.count) : issue.count;
-        const firstSeenMs = safeTimestamp(issue.firstSeen);
-        const lastSeenMs = safeTimestamp(issue.lastSeen);
+        const firstSeenMs = parseEpoch(issue.firstSeen, 'iso');
+        const lastSeenMs = parseEpoch(issue.lastSeen, 'iso');
         if (firstSeenMs === null || lastSeenMs === null) {
           console.warn(
             `[connector-sentry] skipping issue ${issue.id} with unparseable firstSeen/lastSeen`,
@@ -570,7 +543,7 @@ export class SentryConnector extends BaseConnector<
           if (eventId === null) {
             continue;
           }
-          const startTs = safeTimestamp(ev.dateCreated);
+          const startTs = parseEpoch(ev.dateCreated, 'iso');
           if (startTs === null) {
             continue;
           }
@@ -599,9 +572,9 @@ export class SentryConnector extends BaseConnector<
     releases: SentryRelease[],
   ): Promise<void> {
     for (const r of releases) {
-      const createdMs = safeTimestamp(r.dateCreated);
-      const releasedMs = safeTimestamp(r.dateReleased);
-      const lastEventMs = safeTimestamp(r.lastEvent);
+      const createdMs = parseEpoch(r.dateCreated, 'iso');
+      const releasedMs = parseEpoch(r.dateReleased, 'iso');
+      const lastEventMs = parseEpoch(r.lastEvent, 'iso');
       if (createdMs === null) {
         console.warn(
           `[connector-sentry] skipping release ${r.version} with unparseable dateCreated`,
@@ -643,9 +616,9 @@ export class SentryConnector extends BaseConnector<
         if (intervalIso === undefined || rawValue === undefined) {
           continue;
         }
-        const ts = new Date(intervalIso).getTime();
+        const ts = parseEpoch(intervalIso, 'iso');
         const value = Number(rawValue);
-        if (!Number.isFinite(ts) || !Number.isFinite(value)) {
+        if (ts === null || !Number.isFinite(value)) {
           continue;
         }
         samples.push({

@@ -1,5 +1,7 @@
 import {
   type InvariantViolation,
+  entityStoreFor,
+  mockJsonResponse,
   runPropertySyncTest,
 } from '@rawdash/connector-test-utils';
 import type { InMemoryStorage } from '@rawdash/core';
@@ -29,31 +31,10 @@ function installGraphqlMock(
   const spy = vi.fn().mockImplementation((_url: string, init: RequestInit) => {
     const parsed = JSON.parse(init.body as string) as GraphQLCall;
     const data = responseFor(operationName(parsed.query));
-    return Promise.resolve({
-      ok: true,
-      status: 200,
-      statusText: 'OK',
-      headers: new Headers({ 'content-type': 'application/json' }),
-      text: () => Promise.resolve(JSON.stringify({ data })),
-    } as Response);
+    return Promise.resolve(mockJsonResponse({ data }));
   });
   vi.stubGlobal('fetch', spy);
   return spy;
-}
-
-function entityStoreFor(
-  storage: InMemoryStorage,
-): Map<string, Map<string, { type: string; id: string }>> {
-  return (
-    (
-      storage as unknown as {
-        entityStore: Map<
-          string,
-          Map<string, Map<string, { type: string; id: string }>>
-        >;
-      }
-    ).entityStore.get(CONNECTOR_ID) ?? new Map()
-  );
 }
 
 function makeConnector(): LinearConnector {
@@ -81,7 +62,8 @@ describe('LinearConnector property tests', () => {
     ): InvariantViolation[] => {
       const violations: InvariantViolation[] = [];
       const unique = new Set(sample.map((t) => t.id)).size;
-      const written = entityStoreFor(storage).get('linear_team')?.size ?? 0;
+      const written =
+        entityStoreFor(storage, CONNECTOR_ID).get('linear_team')?.size ?? 0;
       if (written !== unique) {
         violations.push({
           invariant: 'one linear_team entity per unique team id',
@@ -131,7 +113,8 @@ describe('LinearConnector property tests', () => {
     ): InvariantViolation[] => {
       const violations: InvariantViolation[] = [];
       const unique = new Set(sample.map((u) => u.id)).size;
-      const written = entityStoreFor(storage).get('linear_user')?.size ?? 0;
+      const written =
+        entityStoreFor(storage, CONNECTOR_ID).get('linear_user')?.size ?? 0;
       if (written !== unique) {
         violations.push({
           invariant: 'one linear_user entity per unique user id',
@@ -181,7 +164,8 @@ describe('LinearConnector property tests', () => {
     ): InvariantViolation[] => {
       const violations: InvariantViolation[] = [];
       const unique = new Set(sample.map((c) => c.id)).size;
-      const written = entityStoreFor(storage).get('linear_cycle')?.size ?? 0;
+      const written =
+        entityStoreFor(storage, CONNECTOR_ID).get('linear_cycle')?.size ?? 0;
       if (written !== unique) {
         violations.push({
           invariant: 'one linear_cycle entity per unique cycle id',
@@ -231,7 +215,8 @@ describe('LinearConnector property tests', () => {
     ): InvariantViolation[] => {
       const violations: InvariantViolation[] = [];
       const unique = new Set(sample.map((i) => i.id)).size;
-      const written = entityStoreFor(storage).get('linear_issue')?.size ?? 0;
+      const written =
+        entityStoreFor(storage, CONNECTOR_ID).get('linear_issue')?.size ?? 0;
       if (written !== unique) {
         violations.push({
           invariant: 'one linear_issue entity per unique issue id',

@@ -1,6 +1,9 @@
 import {
   type HttpResponse,
-  type RateLimitPolicy,
+  connectorUserAgent,
+  parseEpoch,
+  sanitizeAllowedUrl,
+  standardRateLimitPolicy,
 } from '@rawdash/connector-shared';
 import {
   BaseConnector,
@@ -12,7 +15,9 @@ import {
   type SyncOptions,
   type SyncResult,
   defineConfigFields,
+  makeChunkedCursorGuard,
   paginateChunked,
+  selectActivePhases,
 } from '@rawdash/core';
 import { z } from 'zod';
 
@@ -87,21 +92,11 @@ type VercelCredentials = typeof vercelCredentials;
 // a Unix timestamp in seconds.
 // ---------------------------------------------------------------------------
 
-const vercelRateLimit: RateLimitPolicy = {
-  parse(h) {
-    const remainingRaw = h.get('x-ratelimit-remaining');
-    const resetRaw = h.get('x-ratelimit-reset');
-    if (remainingRaw === null || resetRaw === null) {
-      return null;
-    }
-    const remaining = Number(remainingRaw);
-    const reset = Number(resetRaw);
-    if (!Number.isFinite(remaining) || !Number.isFinite(reset) || reset < 0) {
-      return null;
-    }
-    return { remaining, resetAt: new Date(reset * 1000) };
-  },
-};
+const vercelRateLimit = standardRateLimitPolicy({
+  remainingHeader: 'x-ratelimit-remaining',
+  resetHeader: 'x-ratelimit-reset',
+  resetUnit: 's',
+});
 
 // ---------------------------------------------------------------------------
 // Sync phases + cursor
@@ -113,22 +108,7 @@ type VercelPhase = (typeof PHASE_ORDER)[number];
 
 type VercelSyncCursor = ChunkedSyncCursor<VercelPhase, string>;
 
-function isVercelSyncCursor(value: unknown): value is VercelSyncCursor {
-  if (typeof value !== 'object' || value === null) {
-    return false;
-  }
-  const v = value as { phase?: unknown; page?: unknown };
-  if (typeof v.phase !== 'string') {
-    return false;
-  }
-  if (!(PHASE_ORDER as readonly string[]).includes(v.phase)) {
-    return false;
-  }
-  if (v.page !== null && typeof v.page !== 'string') {
-    return false;
-  }
-  return true;
-}
+const isVercelSyncCursor = makeChunkedCursorGuard(PHASE_ORDER);
 
 // ---------------------------------------------------------------------------
 // Vercel API types
@@ -300,7 +280,7 @@ export class VercelConnector extends BaseConnector<
   private buildHeaders(): Record<string, string> {
     return {
       Authorization: `Bearer ${this.creds.apiToken}`,
-      'User-Agent': 'rawdash/connector-vercel (+https://rawdash.dev)',
+      'User-Agent': connectorUserAgent('vercel'),
     };
   }
 
@@ -321,26 +301,12 @@ export class VercelConnector extends BaseConnector<
   // Resource enablement
   // -------------------------------------------------------------------------
 
-  private isResourceEnabled(resource: VercelResource): boolean {
-    const enabled = this.settings.resources;
-    if (!enabled || enabled.length === 0) {
-      return true;
-    }
-    return enabled.includes(resource);
-  }
-
   private activePhases(): VercelPhase[] {
-    const phases: VercelPhase[] = [];
-    if (this.isResourceEnabled('projects')) {
-      phases.push('projects');
-    }
-    if (
-      this.isResourceEnabled('deployments') ||
-      this.isResourceEnabled('deployment_events')
-    ) {
-      phases.push('deployments');
-    }
-    return phases;
+    return selectActivePhases<VercelResource, VercelPhase>(
+      (r) => (r === 'projects' ? 'projects' : 'deployments'),
+      PHASE_ORDER,
+      this.settings.resources,
+    );
   }
 
   // -------------------------------------------------------------------------
@@ -360,23 +326,11 @@ export class VercelConnector extends BaseConnector<
     phase: VercelPhase,
     pageUrl: string | null,
   ): string | null {
-    if (pageUrl === null) {
-      return null;
-    }
-    const allowedPath = this.allowedPagePath(phase);
-    try {
-      const u = new URL(pageUrl);
-      if (
-        u.protocol !== 'https:' ||
-        u.host !== VERCEL_API_HOST ||
-        u.pathname !== allowedPath
-      ) {
-        return null;
-      }
-      return u.toString();
-    } catch {
-      return null;
-    }
+    return sanitizeAllowedUrl({
+      url: pageUrl,
+      host: VERCEL_API_HOST,
+      pathname: this.allowedPagePath(phase),
+    });
   }
 
   private resolveCursor(cursor: unknown): VercelSyncCursor | undefined {
@@ -419,8 +373,8 @@ export class VercelConnector extends BaseConnector<
 
   private computeDeploymentsSinceMs(options: SyncOptions): number | null {
     if (options.mode === 'latest' && options.since) {
-      const ms = new Date(options.since).getTime();
-      if (Number.isFinite(ms)) {
+      const ms = parseEpoch(options.since, 'iso');
+      if (ms !== null) {
         return ms;
       }
     }
@@ -494,8 +448,8 @@ export class VercelConnector extends BaseConnector<
     projects: VercelProject[],
   ): Promise<void> {
     for (const p of projects) {
-      const createdMs = Number.isFinite(p.createdAt) ? p.createdAt : null;
-      const updatedMs = Number.isFinite(p.updatedAt) ? p.updatedAt : null;
+      const createdMs = parseEpoch(p.createdAt, 'ms');
+      const updatedMs = parseEpoch(p.updatedAt, 'ms');
       if (createdMs === null || updatedMs === null) {
         console.warn(
           `[connector-vercel] skipping project ${p.id} with unparseable timestamps`,
@@ -525,23 +479,15 @@ export class VercelConnector extends BaseConnector<
     const writeEvents = this.isResourceEnabled('deployment_events');
 
     for (const d of deployments) {
-      const createdMs = Number.isFinite(d.created) ? d.created : null;
+      const createdMs = parseEpoch(d.created, 'ms');
       if (createdMs === null) {
         console.warn(
           `[connector-vercel] skipping deployment ${d.uid} with unparseable created timestamp`,
         );
         continue;
       }
-      const buildingMs =
-        d.buildingAt !== null &&
-        d.buildingAt !== undefined &&
-        Number.isFinite(d.buildingAt)
-          ? d.buildingAt
-          : null;
-      const readyMs =
-        d.ready !== null && d.ready !== undefined && Number.isFinite(d.ready)
-          ? d.ready
-          : null;
+      const buildingMs = parseEpoch(d.buildingAt, 'ms');
+      const readyMs = parseEpoch(d.ready, 'ms');
       const buildDurationMs =
         readyMs !== null && buildingMs !== null && readyMs >= buildingMs
           ? readyMs - buildingMs

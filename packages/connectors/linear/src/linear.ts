@@ -1,14 +1,19 @@
-import { type HttpResponse, linearRateLimit } from '@rawdash/connector-shared';
+import {
+  type HttpResponse,
+  connectorUserAgent,
+  standardRateLimitPolicy,
+} from '@rawdash/connector-shared';
 import {
   BaseConnector,
-  type ChunkedSyncCursor,
   type ConnectorContext,
   type CredentialsSchema,
   type StorageHandle,
   type SyncOptions,
   type SyncResult,
   defineConfigFields,
+  makeChunkedCursorGuard,
   paginateChunked,
+  selectActivePhases,
 } from '@rawdash/core';
 import { z } from 'zod';
 
@@ -59,30 +64,20 @@ const linearCredentials = {
 
 type LinearCredentials = typeof linearCredentials;
 
+const linearRateLimit = standardRateLimitPolicy({
+  remainingHeader: 'x-ratelimit-requests-remaining',
+  resetHeader: 'x-ratelimit-requests-reset',
+  resetUnit: 'ms',
+  resetFallbackMs: 60_000,
+});
+
 const PHASE_ORDER = ['teams', 'users', 'cycles', 'issues'] as const;
 
 type LinearPhase = (typeof PHASE_ORDER)[number];
 
 export type LinearResource = LinearPhase;
 
-type LinearSyncCursor = ChunkedSyncCursor<LinearPhase, string>;
-
-function isLinearSyncCursor(value: unknown): value is LinearSyncCursor {
-  if (typeof value !== 'object' || value === null) {
-    return false;
-  }
-  const v = value as { phase?: unknown; page?: unknown };
-  if (typeof v.phase !== 'string') {
-    return false;
-  }
-  if (!(PHASE_ORDER as readonly string[]).includes(v.phase)) {
-    return false;
-  }
-  if (v.page !== null && typeof v.page !== 'string') {
-    return false;
-  }
-  return true;
-}
+const isLinearSyncCursor = makeChunkedCursorGuard(PHASE_ORDER);
 
 // ---------------------------------------------------------------------------
 // Linear GraphQL types
@@ -361,7 +356,7 @@ export class LinearConnector extends BaseConnector<
     return {
       Authorization: this.creds.apiKey,
       'Content-Type': 'application/json',
-      'User-Agent': 'rawdash/connector-linear (+https://rawdash.dev)',
+      'User-Agent': connectorUserAgent('linear'),
     };
   }
 
@@ -680,11 +675,11 @@ export class LinearConnector extends BaseConnector<
         ? new Date(options.since).getTime()
         : null;
 
-    const enabled = this.settings.resources;
-    const phases =
-      enabled && enabled.length > 0
-        ? PHASE_ORDER.filter((p) => enabled.includes(p))
-        : PHASE_ORDER;
+    const phases = selectActivePhases<LinearResource, LinearPhase>(
+      (r) => r,
+      PHASE_ORDER,
+      this.settings.resources,
+    );
 
     return paginateChunked<LinearPhase, string>({
       phases,
