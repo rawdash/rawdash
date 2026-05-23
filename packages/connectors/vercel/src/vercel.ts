@@ -160,14 +160,14 @@ interface VercelDeploymentCreator {
   email?: string | null;
 }
 
-interface VercelDeploymentMeta {
-  githubCommitRef?: string;
-  githubCommitSha?: string;
-  githubCommitMessage?: string;
-  gitlabCommitRef?: string;
-  bitbucketCommitRef?: string;
-  branch?: string;
-}
+type VercelDeploymentMeta = {
+  githubCommitRef?: string | null;
+  githubCommitSha?: string | null;
+  githubCommitMessage?: string | null;
+  gitlabCommitRef?: string | null;
+  bitbucketCommitRef?: string | null;
+  branch?: string | null;
+} & Record<string, string | null | undefined>;
 
 interface VercelDeployment {
   uid: string;
@@ -189,7 +189,7 @@ interface VercelDeployment {
   ready?: number | null;
   source?: 'cli' | 'git' | 'import' | 'api-trigger-git-deploy' | string | null;
   meta?: VercelDeploymentMeta | null;
-  projectId?: string;
+  projectId?: string | null;
 }
 
 interface VercelDeploymentsResponse {
