@@ -115,6 +115,8 @@ export { computeConnectorBackfill } from './backfill-window';
 
 export { resolveWidget } from './resolve-widget';
 
+export { computeWidgetEtag, hashWidgetConfig } from './widget-etag';
+
 export type {
   ConnectorClass,
   ConnectorRegistry,

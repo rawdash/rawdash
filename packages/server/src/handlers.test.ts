@@ -206,9 +206,39 @@ describe('listWidgets', () => {
 
 describe('getWidget', () => {
   it('returns the widget for valid ids', async () => {
+    const { ctx, storage } = makeCtx();
+    const handle = storage.getStorageHandle(CONNECTOR_NAME);
+    await handle.event({
+      name: 'run',
+      start_ts: Date.now(),
+      end_ts: null,
+      attributes: {},
+    });
+    const res = await getWidget(ctx, 'main', 'my_widget');
+    expect(res.status).toBe('ok');
+    if (res.status !== 'ok') {
+      return;
+    }
+    expect(res.widget.widgetId).toBe('my_widget');
+    expect(res.etag).toMatch(/^".+-[0-9a-f]{8}"$/);
+  });
+
+  it('omits ETag on "ok" when the widget has no lastSyncAt', async () => {
     const { ctx } = makeCtx();
-    const w = await getWidget(ctx, 'main', 'my_widget');
-    expect(w.widgetId).toBe('my_widget');
+    const res = await getWidget(ctx, 'main', 'my_widget');
+    expect(res.status).toBe('ok');
+    if (res.status !== 'ok') {
+      return;
+    }
+    expect(res.etag).toBeUndefined();
+  });
+
+  it('does not honor If-None-Match when the widget has no lastSyncAt', async () => {
+    const { ctx } = makeCtx();
+    const res = await getWidget(ctx, 'main', 'my_widget', {
+      ifNoneMatch: '"null-deadbeef"',
+    });
+    expect(res.status).toBe('ok');
   });
 
   it('throws RawdashError(404) for unknown dashboard', async () => {
@@ -224,6 +254,86 @@ describe('getWidget', () => {
       status: 404,
       code: 'WIDGET_NOT_FOUND',
     });
+  });
+
+  it('returns "not-modified" when If-None-Match matches and skips resolveWithCache', async () => {
+    const { ctx, storage } = makeCtx();
+    const handle = storage.getStorageHandle(CONNECTOR_NAME);
+    await handle.event({
+      name: 'run',
+      start_ts: Date.now(),
+      end_ts: null,
+      attributes: {},
+    });
+    const first = await getWidget(ctx, 'main', 'my_widget');
+    expect(first.status).toBe('ok');
+    if (first.status !== 'ok') {
+      return;
+    }
+    expect(first.etag).toBeDefined();
+
+    let getCalls = 0;
+    const cache: WidgetCache = {
+      get: async () => {
+        getCalls += 1;
+        return undefined;
+      },
+      set: async () => {},
+    };
+    const second = await getWidget(ctx, 'main', 'my_widget', {
+      ifNoneMatch: first.etag,
+      cache,
+    });
+    expect(second.status).toBe('not-modified');
+    if (second.status !== 'not-modified') {
+      return;
+    }
+    expect(second.etag).toBe(first.etag);
+    expect(getCalls).toBe(0);
+  });
+
+  it('config change invalidates the ETag even when lastSyncAt is unchanged', async () => {
+    const { ctx, storage } = makeCtx();
+    const handle = storage.getStorageHandle(CONNECTOR_NAME);
+    await handle.event({
+      name: 'run',
+      start_ts: Date.now(),
+      end_ts: null,
+      attributes: {},
+    });
+    const first = await getWidget(ctx, 'main', 'my_widget');
+    expect(first.status).toBe('ok');
+    if (first.status !== 'ok') {
+      return;
+    }
+    const firstEtag = first.etag;
+
+    const editedConfig: DashboardConfig = {
+      ...config,
+      dashboards: {
+        main: {
+          widgets: {
+            my_widget: {
+              ...config.dashboards['main']!.widgets['my_widget']!,
+              title: 'Renamed Widget',
+            },
+          },
+        },
+      },
+    };
+    const editedCtx: InProcessTriggerSyncContext = {
+      getConfig: () => editedConfig,
+      getStorage: () => storage,
+      connectorRegistry,
+    };
+    const second = await getWidget(editedCtx, 'main', 'my_widget', {
+      ifNoneMatch: firstEtag,
+    });
+    expect(second.status).toBe('ok');
+    if (second.status !== 'ok') {
+      return;
+    }
+    expect(second.etag).not.toBe(firstEtag);
   });
 });
 
@@ -274,7 +384,7 @@ describe('widget cache', () => {
     const { ctx } = makeCtx();
     const cache = new MapWidgetCache();
     const getSpy = vi.spyOn(cache, 'get');
-    await getWidget(ctx, 'main', 'my_widget', cache);
+    await getWidget(ctx, 'main', 'my_widget', { cache });
     expect(getSpy).toHaveBeenCalledTimes(1);
     const key = getSpy.mock.calls[0]![0];
     expect(key.dashboardId).toBe('main');
@@ -306,8 +416,11 @@ describe('widget cache', () => {
       },
     };
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const w = await getWidget(ctx, 'main', 'my_widget', cache);
-    expect(w.widgetId).toBe('my_widget');
+    const res = await getWidget(ctx, 'main', 'my_widget', { cache });
+    expect(res.status).toBe('ok');
+    if (res.status === 'ok') {
+      expect(res.widget.widgetId).toBe('my_widget');
+    }
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
   });

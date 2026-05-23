@@ -123,6 +123,30 @@ describe('createWidgetsRouter', () => {
     expect(body.data.hit).toBe(true);
   });
 
+  it('GET widget returns an ETag and honors If-None-Match with 304', async () => {
+    const storage = new InMemoryStorage();
+    const app = makeApp(storage);
+    const handle = storage.getStorageHandle(CONNECTOR_ID);
+    await handle.event({
+      name: 'run',
+      start_ts: Date.now(),
+      end_ts: null,
+      attributes: {},
+    });
+
+    const first = await app.request('/dashboards/main/widgets/my_widget');
+    expect(first.status).toBe(200);
+    const etag = first.headers.get('ETag');
+    expect(etag).toBeTruthy();
+
+    const second = await app.request('/dashboards/main/widgets/my_widget', {
+      headers: { 'If-None-Match': etag! },
+    });
+    expect(second.status).toBe(304);
+    expect(second.headers.get('ETag')).toBe(etag);
+    expect(await second.text()).toBe('');
+  });
+
   it('cachedAt is populated after a connector writes data', async () => {
     const storage = new InMemoryStorage();
     const app = makeApp(storage);
