@@ -65,6 +65,7 @@ export async function resolveWidget(
     data,
     cachedAt: health?.lastSyncAt ?? null,
     syncState,
+    syncIntervalSeconds: health?.syncIntervalSeconds,
     meta,
   };
 }
