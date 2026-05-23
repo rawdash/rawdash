@@ -23,16 +23,24 @@ export {
   parseRetryAfter,
   sleep,
 } from './retry';
-export type { RateLimitPolicy, RateLimitState } from './rate-limit';
-export {
-  githubRateLimit,
-  linearRateLimit,
-  sentryRateLimit,
+export type {
+  RateLimitPolicy,
+  RateLimitState,
+  StandardRateLimitPolicyConfig,
 } from './rate-limit';
+export { standardRateLimitPolicy } from './rate-limit';
+export { sanitizeAllowedUrl } from './sanitize';
+export type { SanitizeAllowedUrlOptions } from './sanitize';
+export { parseEpoch } from './epoch';
+export type { EpochUnit } from './epoch';
 export {
   paginateCursor,
   paginateLink,
   paginatePage,
   parseLinkHeader,
 } from './pagination';
-export { DEFAULT_USER_AGENT, HTTP_CLIENT_VERSION } from './version';
+export {
+  DEFAULT_USER_AGENT,
+  HTTP_CLIENT_VERSION,
+  connectorUserAgent,
+} from './version';

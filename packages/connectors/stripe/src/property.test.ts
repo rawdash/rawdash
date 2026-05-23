@@ -1,5 +1,7 @@
 import {
   type InvariantViolation,
+  entityStoreFor,
+  installFetchMock,
   runPropertySyncTest,
 } from '@rawdash/connector-test-utils';
 import type { InMemoryStorage } from '@rawdash/core';
@@ -9,42 +11,6 @@ import { z } from 'zod';
 import { StripeConnector } from './stripe';
 
 const CONNECTOR_ID = 'stripe';
-
-function mockResponse(body: unknown): Response {
-  return {
-    ok: true,
-    status: 200,
-    statusText: 'OK',
-    headers: new Headers({ 'content-type': 'application/json' }),
-    text: () => Promise.resolve(JSON.stringify(body)),
-  } as Response;
-}
-
-function installFetchMock(
-  routeBody: (url: string) => unknown,
-): ReturnType<typeof vi.fn> {
-  const spy = vi.fn().mockImplementation((url: string | URL) => {
-    const u = typeof url === 'string' ? url : url.toString();
-    return Promise.resolve(mockResponse(routeBody(u)));
-  });
-  vi.stubGlobal('fetch', spy);
-  return spy;
-}
-
-function entityStoreFor(
-  storage: InMemoryStorage,
-): Map<string, Map<string, { type: string; id: string }>> {
-  return (
-    (
-      storage as unknown as {
-        entityStore: Map<
-          string,
-          Map<string, Map<string, { type: string; id: string }>>
-        >;
-      }
-    ).entityStore.get(CONNECTOR_ID) ?? new Map()
-  );
-}
 
 type CustomersSample = z.infer<typeof StripeConnector.schemas.customers>;
 type ProductsSample = z.infer<typeof StripeConnector.schemas.products>;
@@ -62,7 +28,8 @@ describe('StripeConnector property tests', () => {
     ): InvariantViolation[] => {
       const violations: InvariantViolation[] = [];
       const unique = new Set(sample.map((c) => c.id)).size;
-      const written = entityStoreFor(storage).get('stripe_customer')?.size ?? 0;
+      const written =
+        entityStoreFor(storage, CONNECTOR_ID).get('stripe_customer')?.size ?? 0;
       if (written !== unique) {
         violations.push({
           invariant: 'one stripe_customer entity per unique customer id',
@@ -101,7 +68,8 @@ describe('StripeConnector property tests', () => {
     ): InvariantViolation[] => {
       const violations: InvariantViolation[] = [];
       const unique = new Set(sample.map((p) => p.id)).size;
-      const written = entityStoreFor(storage).get('stripe_product')?.size ?? 0;
+      const written =
+        entityStoreFor(storage, CONNECTOR_ID).get('stripe_product')?.size ?? 0;
       if (written !== unique) {
         violations.push({
           invariant: 'one stripe_product entity per unique product id',

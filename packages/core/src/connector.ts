@@ -308,6 +308,15 @@ export abstract class BaseConnector<
     );
   }
 
+  protected isResourceEnabled<R extends string>(resource: R): boolean {
+    const enabled = (this.settings as { resources?: readonly R[] } | null)
+      ?.resources;
+    if (!enabled || enabled.length === 0) {
+      return true;
+    }
+    return enabled.includes(resource);
+  }
+
   serializeConfig(): Record<string, unknown> {
     const config: Record<string, unknown> = {
       ...(this.settings as Record<string, unknown>),

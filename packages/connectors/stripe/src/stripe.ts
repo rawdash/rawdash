@@ -1,14 +1,18 @@
-import type { HttpResponse } from '@rawdash/connector-shared';
+import {
+  type HttpResponse,
+  connectorUserAgent,
+} from '@rawdash/connector-shared';
 import {
   BaseConnector,
-  type ChunkedSyncCursor,
   type ConnectorContext,
   type CredentialsSchema,
   type StorageHandle,
   type SyncOptions,
   type SyncResult,
   defineConfigFields,
+  makeChunkedCursorGuard,
   paginateChunked,
+  selectActivePhases,
 } from '@rawdash/core';
 import { z } from 'zod';
 
@@ -204,24 +208,7 @@ type StripePhase = (typeof PHASE_ORDER)[number];
 
 export type StripeResource = StripePhase;
 
-type StripeSyncCursor = ChunkedSyncCursor<StripePhase, string>;
-
-function isStripeSyncCursor(value: unknown): value is StripeSyncCursor {
-  if (typeof value !== 'object' || value === null) {
-    return false;
-  }
-  const v = value as { phase?: unknown; page?: unknown };
-  if (typeof v.phase !== 'string') {
-    return false;
-  }
-  if (!(PHASE_ORDER as readonly string[]).includes(v.phase)) {
-    return false;
-  }
-  if (v.page !== null && typeof v.page !== 'string') {
-    return false;
-  }
-  return true;
-}
+const isStripeSyncCursor = makeChunkedCursorGuard(PHASE_ORDER);
 
 const ENTITY_TYPE_BY_PHASE: Partial<Record<StripePhase, string>> = {
   customers: 'stripe_customer',
@@ -434,7 +421,7 @@ export class StripeConnector extends BaseConnector<
     const headers: Record<string, string> = {
       Authorization: `Bearer ${this.creds.apiKey}`,
       'Stripe-Version': '2024-06-20',
-      'User-Agent': 'rawdash/connector-stripe (+https://rawdash.dev)',
+      'User-Agent': connectorUserAgent('stripe'),
     };
     if (this.settings.accountId) {
       headers['Stripe-Account'] = this.settings.accountId;
@@ -709,11 +696,11 @@ export class StripeConnector extends BaseConnector<
       : undefined;
     const isFull = options.mode === 'full';
 
-    const enabled = this.settings.resources;
-    const phases =
-      enabled && enabled.length > 0
-        ? PHASE_ORDER.filter((p) => enabled.includes(p))
-        : PHASE_ORDER;
+    const phases = selectActivePhases<StripeResource, StripePhase>(
+      (r) => r,
+      PHASE_ORDER,
+      this.settings.resources,
+    );
 
     return paginateChunked<StripePhase, string>({
       phases,

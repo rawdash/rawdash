@@ -31,7 +31,11 @@ export type {
   FetchPageResult,
 } from './paginate-chunked';
 
-export { paginateChunked } from './paginate-chunked';
+export {
+  makeChunkedCursorGuard,
+  paginateChunked,
+  selectActivePhases,
+} from './paginate-chunked';
 
 export type {
   AggFn,
