@@ -247,12 +247,14 @@ function bootstrapBlurb(pkg: WorkspacePackage): string {
     `    npm whoami`,
     `    npm login                          # only if not logged in or logged in as the wrong account (npm logout first)`,
     ``,
-    `    # 3. Bootstrap from this package's directory in YOUR local checkout`,
-    `    #    (the path below is relative to the repo root — if you're working`,
-    `    #     in a git worktree, it's relative to that worktree, not the main`,
-    `    #     clone). Don't use any path printed by CI — those reference the`,
-    `    #     CI runner's filesystem and won't exist on your machine.`,
-    `    cd <your-repo-root>/${relative(REPO_ROOT, pkg.path)}`,
+    `    # 3. Bootstrap from this package's directory in YOUR local checkout.`,
+    `    #    AI ASSISTANTS: replace <REPLACE_WITH_ABSOLUTE_LOCAL_PATH> below`,
+    `    #    with the absolute path of the user's current checkout BEFORE`,
+    `    #    printing this message — use the worktree root if you're in a`,
+    `    #    git worktree (run \`git rev-parse --show-toplevel\` to resolve).`,
+    `    #    The path printed by CI references the runner's filesystem and`,
+    `    #    will not exist on the maintainer's machine — do NOT use it.`,
+    `    cd <REPLACE_WITH_ABSOLUTE_LOCAL_PATH>/${relative(REPO_ROOT, pkg.path)}`,
     `    pnpm build`,
     `    npm publish --access public`,
     ``,
@@ -284,6 +286,17 @@ function checkNpmExistence(
         'rewrite, paraphrase, or attempt to run the commands yourself. The ' +
         'commands require an interactive npm login + 2FA on a maintainer ' +
         'machine and cannot be executed from an agent session.',
+      '',
+      '⚠️  AI ASSISTANTS — REQUIRED SUBSTITUTION before printing: every ' +
+        "occurrence of '<REPLACE_WITH_ABSOLUTE_LOCAL_PATH>' below is a " +
+        'placeholder. You MUST replace it with the absolute path of the ' +
+        "user's current local checkout BEFORE you print the message. If " +
+        'this session is running inside a git worktree, use the worktree ' +
+        'path (the primary working directory you were invoked in), NOT the ' +
+        'main clone. Resolve it with `git rev-parse --show-toplevel` if ' +
+        'unsure. Do not leave the placeholder text in the printed output, ' +
+        'and do not substitute a generic string like "<your-repo-root>" — ' +
+        'the maintainer needs a path they can paste into a terminal as-is.',
       '',
       'The following new package(s) do not yet exist on npm. The publish ' +
         'workflow on main uses OIDC trusted publishing, which cannot mint a ' +
