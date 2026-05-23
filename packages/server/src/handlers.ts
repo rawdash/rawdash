@@ -8,7 +8,7 @@ import type {
   Widget,
   WidgetsListResponse,
 } from '@rawdash/core';
-import { isSyncActive, resolveWidget } from '@rawdash/core';
+import { computeWidgetEtag, isSyncActive, resolveWidget } from '@rawdash/core';
 import type { DashboardConfig, ServerStorage } from '@rawdash/core';
 
 import type { EngineContext } from './context';
@@ -209,12 +209,22 @@ export async function listWidgets(
   return { widgets };
 }
 
+export interface GetWidgetOptions {
+  cache?: WidgetCache;
+  ifNoneMatch?: string;
+}
+
+export type GetWidgetResult =
+  | { status: 'ok'; etag: string; widget: CachedWidget }
+  | { status: 'not-modified'; etag: string };
+
 export async function getWidget(
   ctx: EngineContext,
   dashboardId: string,
   widgetId: string,
-  cache?: WidgetCache,
-): Promise<CachedWidget> {
+  opts: GetWidgetOptions = {},
+): Promise<GetWidgetResult> {
+  const { cache, ifNoneMatch } = opts;
   const config = await ctx.getConfig();
   const dashboard = config.dashboards[dashboardId];
   if (!dashboard) {
@@ -226,6 +236,21 @@ export async function getWidget(
   }
   const storage = await ctx.getStorage();
   const connectorNames = config.connectors.map((c) => c.name);
+  const connectorId =
+    widget.kind === 'status' ? widget.source : widget.metric.connectorId;
+  if (!connectorNames.includes(connectorId)) {
+    throw new RawdashError(404, 'WIDGET_NOT_FOUND', 'Widget not found');
+  }
+
+  if (ifNoneMatch) {
+    const handle = storage.getStorageHandle(connectorId);
+    const health = (await handle.getHealth?.()) ?? null;
+    const probeEtag = computeWidgetEtag(health?.lastSyncAt ?? null, widget);
+    if (probeEtag === ifNoneMatch) {
+      return { status: 'not-modified', etag: probeEtag };
+    }
+  }
+
   const result = await resolveWithCache(
     dashboardId,
     widgetId,
@@ -237,7 +262,8 @@ export async function getWidget(
   if (!result) {
     throw new RawdashError(404, 'WIDGET_NOT_FOUND', 'Widget not found');
   }
-  return result;
+  const etag = computeWidgetEtag(result.cachedAt, widget);
+  return { status: 'ok', etag, widget: result };
 }
 
 export async function runRetentionOnce(ctx: EngineContext): Promise<void> {

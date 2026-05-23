@@ -11,6 +11,8 @@ export {
 } from './handlers';
 export type {
   DeferredTriggerSyncContext,
+  GetWidgetOptions,
+  GetWidgetResult,
   InProcessTriggerSyncContext,
   TriggerSyncContext,
   TriggerSyncMode,

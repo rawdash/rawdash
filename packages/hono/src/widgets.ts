@@ -41,14 +41,21 @@ export function createWidgetsRouter(opts: HonoWidgetsRouterOptions): Hono {
 
   app.get('/:dashboardId/widgets/:widgetId', async (c) => {
     try {
-      return c.json(
-        await getWidget(
-          makeEngineContext(c, opts),
-          c.req.param('dashboardId'),
-          c.req.param('widgetId'),
-          opts.cache?.(c),
-        ),
+      const result = await getWidget(
+        makeEngineContext(c, opts),
+        c.req.param('dashboardId'),
+        c.req.param('widgetId'),
+        {
+          cache: opts.cache?.(c),
+          ifNoneMatch: c.req.header('if-none-match'),
+        },
       );
+      if (result.status === 'not-modified') {
+        c.header('ETag', result.etag);
+        return c.body(null, 304);
+      }
+      c.header('ETag', result.etag);
+      return c.json(result.widget);
     } catch (err) {
       return mapError(c, err);
     }
