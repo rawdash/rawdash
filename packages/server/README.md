@@ -97,7 +97,7 @@ Transitions:
 - `running → failed` (sets `lastError`)
 - Any terminal state can transition back to `queued` / `running` on the next trigger.
 
-Clients (`@rawdash/client`) poll `/sync/state` and wait for `!isSyncActive(status)` to settle.
+Clients (`@rawdash/sdk-client`) poll `/sync/state` and wait for `!isSyncActive(status)` to settle.
 
 ### `CachedWidget.syncState`
 
@@ -187,7 +187,7 @@ Provide any `ServerStorage` implementation:
 
 - [rawdash docs](https://rawdash.dev)
 - [`@rawdash/hono`](https://www.npmjs.com/package/@rawdash/hono) — Hono adapter
-- [`@rawdash/client`](https://www.npmjs.com/package/@rawdash/client) — typed HTTP client
+- [`@rawdash/sdk-client`](https://www.npmjs.com/package/@rawdash/sdk-client) — typed HTTP client
 - [GitHub](https://github.com/rawdash/rawdash)
 - [Issues](https://github.com/rawdash/rawdash/issues)
 

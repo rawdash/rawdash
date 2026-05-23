@@ -2,7 +2,7 @@
  * Canonical URL path conventions for the rawdash HTTP wire contract.
  *
  * Framework adapters (`@rawdash/hono`, etc.) and clients
- * (`@rawdash/client`) should use these constants instead of hard-coding
+ * (`@rawdash/sdk-client`) should use these constants instead of hard-coding
  * paths, so the contract stays in one place.
  */
 export const ROUTES = {

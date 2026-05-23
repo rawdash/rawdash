@@ -30,22 +30,34 @@ and mounting the request handler in a Node.js server.
      </TabItem>
    </Tabs>
 
-   If you are mounting Rawdash inside a Next.js app, also install `@rawdash/nextjs`:
+   Then add a frontend SDK. Use `@rawdash/sdk-client` in any JavaScript
+   environment (React, Vue, vanilla JS, etc.), or `@rawdash/sdk-nextjs` when
+   you are mounting Rawdash inside a Next.js App Router app — it depends on
+   `@rawdash/sdk-client` transitively, so install only one of the two:
 
    <Tabs>
      <TabItem label="npm">
        ```sh
-       npm install @rawdash/nextjs
+       # generic frontend
+       npm install @rawdash/sdk-client
+       # — or, for Next.js apps:
+       npm install @rawdash/sdk-nextjs
        ```
      </TabItem>
      <TabItem label="pnpm">
        ```sh
-       pnpm add @rawdash/nextjs
+       # generic frontend
+       pnpm add @rawdash/sdk-client
+       # — or, for Next.js apps:
+       pnpm add @rawdash/sdk-nextjs
        ```
      </TabItem>
      <TabItem label="yarn">
        ```sh
-       yarn add @rawdash/nextjs
+       # generic frontend
+       yarn add @rawdash/sdk-client
+       # — or, for Next.js apps:
+       yarn add @rawdash/sdk-nextjs
        ```
      </TabItem>
    </Tabs>
@@ -90,14 +102,16 @@ and mounting the request handler in a Node.js server.
 3. **Connect your frontend**
 
    The config file from Step 2 starts a standalone HTTP server when run with
-   `tsx`. From your frontend (React, Next.js, etc.) use `@rawdash/nextjs` to
-   query it:
+   `tsx`. From your frontend (React, Vue, vanilla JS, etc.) use the
+   framework-agnostic `@rawdash/sdk-client` to query it — or
+   `@rawdash/sdk-nextjs` if you're inside a Next.js App Router app (see Step 1
+   above for the install commands):
 
    ```ts title="lib/rawdash.ts"
-   import { createRawdashClient } from '@rawdash/nextjs';
+   import { http } from '@rawdash/sdk-client';
 
-   export const rawdash = createRawdashClient({
-     url: process.env.RAWDASH_URL ?? 'http://localhost:8080',
+   export const rawdash = http({
+     baseUrl: process.env.RAWDASH_URL ?? 'http://localhost:8080',
    });
    ```
 

@@ -1,13 +1,13 @@
 {
-  "name": "@rawdash/nextjs",
+  "name": "@rawdash/sdk-client",
   "version": "0.15.0",
-  "description": "Rawdash client SDK for Next.js App Router (Server Components and Server Actions)",
+  "description": "Rawdash framework-agnostic data sources",
   "license": "Apache-2.0",
   "type": "module",
   "repository": {
     "type": "git",
     "url": "https://github.com/rawdash/rawdash.git",
-    "directory": "packages/nextjs"
+    "directory": "packages/sdk-client"
   },
   "files": [
     "dist",
@@ -27,14 +27,9 @@
     "lint": "eslint src"
   },
   "dependencies": {
-    "@rawdash/client": "workspace:*",
     "@rawdash/core": "workspace:*"
   },
-  "peerDependencies": {
-    "next": ">=14.0.0"
-  },
   "devDependencies": {
-    "next": "^15.0.0",
     "tsup": "^8.0.0",
     "typescript": "^5.7.2"
   }

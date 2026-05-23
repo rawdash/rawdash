@@ -1,20 +1,20 @@
-# @rawdash/nextjs
+# @rawdash/sdk-nextjs
 
-[![npm version](https://img.shields.io/npm/v/@rawdash/nextjs)](https://www.npmjs.com/package/@rawdash/nextjs)
-[![license](https://img.shields.io/npm/l/@rawdash/nextjs)](https://github.com/rawdash/rawdash/blob/main/LICENSE)
+[![npm version](https://img.shields.io/npm/v/@rawdash/sdk-nextjs)](https://www.npmjs.com/package/@rawdash/sdk-nextjs)
+[![license](https://img.shields.io/npm/l/@rawdash/sdk-nextjs)](https://github.com/rawdash/rawdash/blob/main/LICENSE)
 
 Rawdash SDK for the Next.js App Router.
 
 ## What it is
 
-`@rawdash/nextjs` extends `@rawdash/client` with Next.js-specific behavior: the `http` function tags widget requests with Next.js cache tags so they can be invalidated via `revalidateTag`, and `createRawdashClient` wraps a data source so `triggerSync` automatically revalidates widget data in Server Components after the sync completes.
+`@rawdash/sdk-nextjs` extends `@rawdash/sdk-client` with Next.js-specific behavior: the `http` function tags widget requests with Next.js cache tags so they can be invalidated via `revalidateTag`, and `createRawdashClient` wraps a data source so `triggerSync` automatically revalidates widget data in Server Components after the sync completes.
 
-Use this package when your rawdash server runs separately from your Next.js app. For an in-process setup (engine in the same Next.js process), use `@rawdash/client`'s `inProcess` directly.
+Use this package when your rawdash server runs separately from your Next.js app. For an in-process setup (engine in the same Next.js process), use `@rawdash/sdk-client`'s `inProcess` directly.
 
 ## Install
 
 ```sh
-npm install @rawdash/nextjs
+npm install @rawdash/sdk-nextjs
 ```
 
 Requires Next.js 14+.
@@ -23,7 +23,7 @@ Requires Next.js 14+.
 
 ```ts
 // lib/rawdash.ts
-import { createRawdashClient, http } from '@rawdash/nextjs';
+import { createRawdashClient, http } from '@rawdash/sdk-nextjs';
 
 export const rawdash = createRawdashClient(
   http({
@@ -71,9 +71,9 @@ export async function syncDashboard() {
 
 ```ts
 // lib/rawdash.ts
-import { inProcess } from '@rawdash/client';
-import { createRawdashClient } from '@rawdash/nextjs';
-import { http } from '@rawdash/nextjs';
+import { inProcess } from '@rawdash/sdk-client';
+import { createRawdashClient } from '@rawdash/sdk-nextjs';
+import { http } from '@rawdash/sdk-nextjs';
 
 const source =
   process.env.NODE_ENV === 'production'
@@ -87,7 +87,7 @@ export const rawdash = createRawdashClient(source);
 
 ### `http(options): DataSource`
 
-Next.js-aware variant of `http` from `@rawdash/client`. Adds the `'rawdash'` cache tag to all widget fetch requests so they can be invalidated with `revalidateTag('rawdash')`. Accepts the same options as `@rawdash/client`'s `http`.
+Next.js-aware variant of `http` from `@rawdash/sdk-client`. Adds the `'rawdash'` cache tag to all widget fetch requests so they can be invalidated with `revalidateTag('rawdash')`. Accepts the same options as `@rawdash/sdk-client`'s `http`.
 
 ### `createRawdashClient(dataSource): DataSource`
 

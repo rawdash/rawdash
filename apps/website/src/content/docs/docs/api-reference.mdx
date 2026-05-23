@@ -82,7 +82,7 @@ Triggers a sync and returns immediately. The sync runs in the background.
 <Aside type="caution">
   This endpoint never blocks waiting for the sync to finish. To know when the
   sync completes, poll `GET /sync/state` until `status` is one of `succeeded`,
-  `failed`, or `idle`. The `@rawdash/client.ensureFresh()` helper does this
+  `failed`, or `idle`. The `@rawdash/sdk-client.ensureFresh()` helper does this
   for you.
 </Aside>
 

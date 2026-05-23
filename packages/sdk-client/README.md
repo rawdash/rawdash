@@ -1,26 +1,26 @@
-# @rawdash/client
+# @rawdash/sdk-client
 
-[![npm version](https://img.shields.io/npm/v/@rawdash/client)](https://www.npmjs.com/package/@rawdash/client)
-[![license](https://img.shields.io/npm/l/@rawdash/client)](https://github.com/rawdash/rawdash/blob/main/LICENSE)
+[![npm version](https://img.shields.io/npm/v/@rawdash/sdk-client)](https://www.npmjs.com/package/@rawdash/sdk-client)
+[![license](https://img.shields.io/npm/l/@rawdash/sdk-client)](https://github.com/rawdash/rawdash/blob/main/LICENSE)
 
 Framework-agnostic data sources for rawdash dashboards.
 
 ## What it is
 
-`@rawdash/client` provides two data source factories — `inProcess` and `http` — that let you wire up rawdash widget data in any JavaScript environment. Use `inProcess` when the rawdash engine runs in the same process as your app (e.g. a Next.js route handler), and `http` when it runs as a separate service.
+`@rawdash/sdk-client` provides two data source factories — `inProcess` and `http` — that let you wire up rawdash widget data in any JavaScript environment. Use `inProcess` when the rawdash engine runs in the same process as your app (e.g. a Next.js route handler), and `http` when it runs as a separate service.
 
 Both return the same `DataSource` interface, so you can swap between them without changing the rest of your code.
 
 ## Install
 
 ```sh
-npm install @rawdash/client
+npm install @rawdash/sdk-client
 ```
 
 ## Quick example
 
 ```ts
-import { inProcess, http } from '@rawdash/client';
+import { inProcess, http } from '@rawdash/sdk-client';
 
 // Option A — engine runs in the same process
 import { engine } from './rawdash-engine';

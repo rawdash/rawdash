@@ -1,5 +1,3 @@
-import { http as clientHttp } from '@rawdash/client';
-import type { HttpOptions } from '@rawdash/client';
 import type { DataSource } from '@rawdash/core';
 
 /**
@@ -12,7 +10,7 @@ import type { DataSource } from '@rawdash/core';
  *
  * ```ts
  * // lib/rawdash.ts
- * import { createRawdashClient, http } from '@rawdash/nextjs';
+ * import { createRawdashClient, http } from '@rawdash/sdk-nextjs';
  *
  * export const rawdash = createRawdashClient(
  *   http({ baseUrl: process.env.RAWDASH_URL! }),
@@ -20,9 +18,24 @@ import type { DataSource } from '@rawdash/core';
  * ```
  */
 import { isSyncActive } from '@rawdash/core';
+import { http as clientHttp } from '@rawdash/sdk-client';
+import type { HttpOptions } from '@rawdash/sdk-client';
 import { revalidateTag } from 'next/cache';
 
-export type { HttpOptions } from '@rawdash/client';
+export type { HttpOptions } from '@rawdash/sdk-client';
+
+export type {
+  CachedWidget,
+  DataSource,
+  HealthResponse,
+  SyncState,
+  SyncStatus,
+  TriggerSyncResponse,
+  WidgetSyncState,
+  WidgetsListResponse,
+} from '@rawdash/core';
+
+export { ACTIVE_SYNC_STATUSES, isSyncActive } from '@rawdash/core';
 
 const RAWDASH_CACHE_TAG = 'rawdash';
 
@@ -34,7 +47,7 @@ type NextFetchInit = RequestInit & {
 };
 
 /**
- * Next.js-aware variant of `http` from `@rawdash/client`.
+ * Next.js-aware variant of `http` from `@rawdash/sdk-client`.
  *
  * Identical to `http` but wraps the underlying fetch so that widget requests
  * are tagged with the `'rawdash'` cache tag, enabling `revalidateTag`-based

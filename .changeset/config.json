@@ -7,7 +7,7 @@
       "@rawdash/core",
       "@rawdash/server",
       "@rawdash/hono",
-      "@rawdash/nextjs",
+      "@rawdash/sdk-nextjs",
       "@rawdash/connector-github",
       "@rawdash/connector-google-analytics",
       "@rawdash/connector-stripe",
@@ -16,7 +16,7 @@
       "@rawdash/connector-vercel",
       "@rawdash/adapter-libsql",
       "@rawdash/cli",
-      "@rawdash/client",
+      "@rawdash/sdk-client",
       "@rawdash/mcp"
     ]
   ],
