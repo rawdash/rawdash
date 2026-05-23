@@ -154,7 +154,7 @@ In deferred mode:
 - `runSync` is **never** invoked by the trigger handler.
 - `getConfig` is optional and never called.
 - `markSyncQueued` is called exactly as in in-process mode; its return value drives the `{queued: true|false}` response.
-- Your external worker is responsible for calling `markSyncRunning`, `markSyncSucceeded`, and `markSyncFailed` on the same storage.
+- Your external worker is responsible for calling `markSyncSucceeded` and `markSyncFailed` on the same storage. `markSyncRunning` is optional on `ServerStorage` and may be omitted by deferred-mode storages — the running transition is driven by the external runner's own aggregation, not the trigger handler.
 
 ## Running on Node
 

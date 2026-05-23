@@ -4,12 +4,14 @@ import type {
   ConnectorClass,
   ConnectorRegistry,
   DashboardConfig,
+  ServerStorage,
   StorageHandle,
   SyncOptions,
   SyncResult,
+  SyncState,
 } from '@rawdash/core';
 import { InMemoryStorage } from '@rawdash/core';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { FULL_SYNC_MAX_CHUNKS, runSync } from './sync';
 
@@ -50,6 +52,17 @@ class NeverDoneConnector implements Connector {
       throw err;
     }
     return { done: false, cursor: { page: this.calls } };
+  }
+}
+
+class DoneConnector implements Connector {
+  static readonly schemas = {};
+  readonly id = 'done';
+  serializeConfig() {
+    return {};
+  }
+  async sync(): Promise<SyncResult> {
+    return { done: true };
   }
 }
 
@@ -111,5 +124,49 @@ describe('runSync — chunked connector loop', () => {
     const state = await storage.getSyncState();
     expect(state.status).toBe('failed');
     expect(state.lastError).toContain(`${FULL_SYNC_MAX_CHUNKS}`);
+  });
+});
+
+describe('runSync — optional markSyncRunning', () => {
+  it('works when storage omits markSyncRunning (deferred-mode storage)', async () => {
+    const inner = new InMemoryStorage();
+    const storage: ServerStorage = {
+      getStorageHandle: (id, opts): StorageHandle =>
+        inner.getStorageHandle(id, opts),
+      getSyncState: (): Promise<SyncState> => inner.getSyncState(),
+      markSyncQueued: () => inner.markSyncQueued(),
+      markSyncSucceeded: () => inner.markSyncSucceeded(),
+      markSyncFailed: (e) => inner.markSyncFailed(e),
+    };
+    const { registry, entry } = makeRegistry(new DoneConnector());
+
+    await runSync(makeConfig(entry), storage, { connectorRegistry: registry });
+
+    const state = await inner.getSyncState();
+    expect(state.status).toBe('succeeded');
+  });
+
+  it('skips remaining work when markSyncRunning returns false', async () => {
+    const storage = new InMemoryStorage();
+    await storage.markSyncQueued();
+    await storage.markSyncRunning();
+    const handleSpy = vi.spyOn(storage, 'getStorageHandle');
+    const { registry, entry } = makeRegistry(new DoneConnector());
+
+    await runSync(makeConfig(entry), storage, { connectorRegistry: registry });
+
+    expect(handleSpy).not.toHaveBeenCalled();
+  });
+
+  it('transitions queued → succeeded via markSyncRunning when present', async () => {
+    const storage = new InMemoryStorage();
+    const runningSpy = vi.spyOn(storage, 'markSyncRunning');
+    const { registry, entry } = makeRegistry(new DoneConnector());
+
+    await runSync(makeConfig(entry), storage, { connectorRegistry: registry });
+
+    expect(runningSpy).toHaveBeenCalled();
+    const state = await storage.getSyncState();
+    expect(state.status).toBe('succeeded');
   });
 });

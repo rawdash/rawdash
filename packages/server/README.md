@@ -181,6 +181,8 @@ Provide any `ServerStorage` implementation:
 - [`@rawdash/adapter-libsql`](https://www.npmjs.com/package/@rawdash/adapter-libsql) — durable libSQL/Turso/SQLite backend.
 - Roll your own by implementing the [`ServerStorage`](https://github.com/rawdash/rawdash/blob/main/packages/core/src/server-storage.ts) interface.
 
+`markSyncRunning` is optional on `ServerStorage`. It's an in-process-only concern: `runSync` calls it to acquire the `queued → running` lock so two concurrent in-process syncs can't trample each other. Deferred-mode storages (where an external runner drives the `running → succeeded/failed` transitions via its own aggregation) may omit `markSyncRunning` entirely — `runSync` skips the call when it's absent.
+
 ## Links
 
 - [rawdash docs](https://rawdash.dev)
