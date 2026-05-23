@@ -274,6 +274,9 @@ importers:
       fast-check:
         specifier: ^4.8.0
         version: 4.8.0
+      vitest:
+        specifier: ^4.1.4
+        version: 4.1.4(@types/node@24.12.2)(vite@8.0.8(@types/node@24.12.2)(esbuild@0.27.7)(jiti@1.21.7)(tsx@4.21.0)(yaml@2.8.3))
       zod:
         specifier: ^4.4.3
         version: 4.4.3
