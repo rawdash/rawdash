@@ -393,7 +393,19 @@ export class LinearConnector extends BaseConnector<
   private sinceFilter(
     options: SyncOptions,
   ): Record<string, unknown> | undefined {
-    if (options.mode !== 'latest' || !options.since) {
+    if (!options.since) {
+      return undefined;
+    }
+    if (options.mode === 'latest') {
+      return { updatedAt: { gt: options.since } };
+    }
+    return undefined;
+  }
+
+  private issueSinceFilter(
+    options: SyncOptions,
+  ): Record<string, unknown> | undefined {
+    if (!options.since) {
       return undefined;
     }
     return { updatedAt: { gt: options.since } };
@@ -508,7 +520,7 @@ export class LinearConnector extends BaseConnector<
   ): Promise<{ items: LinearIssue[]; next: string | null }> {
     const filter = this.mergeFilters(
       this.issueTeamFilter(),
-      this.sinceFilter(options),
+      this.issueSinceFilter(options),
     );
     const historyFirst =
       this.settings.historyPerIssue ?? DEFAULT_HISTORY_PER_ISSUE;
@@ -675,10 +687,9 @@ export class LinearConnector extends BaseConnector<
       ? options.cursor
       : undefined;
     const isFull = options.mode === 'full';
-    const historySinceMs =
-      options.mode === 'latest' && options.since
-        ? new Date(options.since).getTime()
-        : null;
+    const historySinceMs = options.since
+      ? new Date(options.since).getTime()
+      : null;
 
     const enabled = this.settings.resources;
     const phases =

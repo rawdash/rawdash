@@ -468,18 +468,23 @@ export class StripeConnector extends BaseConnector<
     return url.toString();
   }
 
-  // created[gte] cutoff for entity phases in incremental mode (7-day lookback)
+  // created[gte] cutoff for entity phases — in incremental (latest) mode adds
+  // a 7-day grace so recent edits to slightly older entities still surface.
   private entityCreatedGte(options: SyncOptions): string | undefined {
-    if (options.mode !== 'latest' || !options.since) {
+    if (!options.since) {
       return undefined;
     }
     const sinceMs = new Date(options.since).getTime();
-    return String(Math.floor((sinceMs - 7 * 24 * 60 * 60 * 1000) / 1000));
+    if (options.mode === 'latest') {
+      return String(Math.floor((sinceMs - 7 * 24 * 60 * 60 * 1000) / 1000));
+    }
+    return String(Math.floor(sinceMs / 1000));
   }
 
-  // created[gt] cutoff for event phases in incremental mode
+  // created[gt] cutoff for event phases — applied in both full and incremental
+  // modes so backfill respects the widget-driven window.
   private eventCreatedGt(options: SyncOptions): string | undefined {
-    if (options.mode !== 'latest' || !options.since) {
+    if (!options.since) {
       return undefined;
     }
     return String(Math.floor(new Date(options.since).getTime() / 1000));

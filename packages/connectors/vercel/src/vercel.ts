@@ -418,7 +418,7 @@ export class VercelConnector extends BaseConnector<
   }
 
   private computeDeploymentsSinceMs(options: SyncOptions): number | null {
-    if (options.mode === 'latest' && options.since) {
+    if (options.since) {
       const ms = new Date(options.since).getTime();
       if (Number.isFinite(ms)) {
         return ms;
