@@ -261,7 +261,8 @@ function bootstrapBlurb(pkg: WorkspacePackage): string {
     `    # 4. Register this repo as a Trusted Publisher so OIDC publish can mint a token`,
     `    npm trust github ${pkg.name} \\`,
     `      --repository rawdash/rawdash \\`,
-    `      --file publish.yml`,
+    `      --file publish.yml \\`,
+    `      --allow-publish`,
   ].join('\n');
 }
 
