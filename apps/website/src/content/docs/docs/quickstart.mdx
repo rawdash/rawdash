@@ -30,21 +30,33 @@ and mounting the request handler in a Node.js server.
      </TabItem>
    </Tabs>
 
-   If you are mounting Rawdash inside a Next.js app, also install `@rawdash/sdk-nextjs`:
+   Then add a frontend SDK. Use `@rawdash/sdk-client` in any JavaScript
+   environment (React, Vue, vanilla JS, etc.), or `@rawdash/sdk-nextjs` when
+   you are mounting Rawdash inside a Next.js App Router app — it depends on
+   `@rawdash/sdk-client` transitively, so install only one of the two:
 
    <Tabs>
      <TabItem label="npm">
        ```sh
+       # generic frontend
+       npm install @rawdash/sdk-client
+       # — or, for Next.js apps:
        npm install @rawdash/sdk-nextjs
        ```
      </TabItem>
      <TabItem label="pnpm">
        ```sh
+       # generic frontend
+       pnpm add @rawdash/sdk-client
+       # — or, for Next.js apps:
        pnpm add @rawdash/sdk-nextjs
        ```
      </TabItem>
      <TabItem label="yarn">
        ```sh
+       # generic frontend
+       yarn add @rawdash/sdk-client
+       # — or, for Next.js apps:
        yarn add @rawdash/sdk-nextjs
        ```
      </TabItem>
