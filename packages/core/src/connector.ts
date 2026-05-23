@@ -191,6 +191,7 @@ export interface SyncOptions {
   mode: 'full' | 'latest';
   since?: string;
   cursor?: unknown;
+  resources?: ReadonlyArray<string>;
 }
 
 export interface SyncResult {
