@@ -17,7 +17,7 @@ export type {
   TriggerSyncOptions,
 } from './handlers';
 export type { WidgetCache, WidgetCacheKey } from './widget-cache';
-export { runSync, FULL_SYNC_TIMEOUT_MS } from './sync';
+export { runSync, FULL_SYNC_TIMEOUT_MS, FULL_SYNC_MAX_CHUNKS } from './sync';
 export type { RunSyncOptions } from './sync';
 export {
   runRetention,
