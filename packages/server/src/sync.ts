@@ -4,10 +4,11 @@ import type {
   SecretsResolver,
   ServerStorage,
 } from '@rawdash/core';
-import { instantiateConnector } from '@rawdash/core';
+import { computeConnectorBackfill, instantiateConnector } from '@rawdash/core';
 
 export const FULL_SYNC_TIMEOUT_MS = 300_000;
 export const FULL_SYNC_MAX_CHUNKS = 1_000;
+export const BACKFILL_BUFFER_MS = 86_400_000;
 
 export interface RunSyncOptions {
   connectorRegistry: ConnectorRegistry;
@@ -54,11 +55,23 @@ export async function runSync(
     }
   }
   const errors: string[] = [];
+  const backfill = computeConnectorBackfill(config);
+  const now = Date.now();
   await Promise.allSettled(
     config.connectors.map(async (entry) => {
       if (entry.enabled === false) {
         return;
       }
+      const scope = backfill.get(entry.name);
+      if (!scope) {
+        return;
+      }
+      const since =
+        scope.requiredWindowMs !== undefined
+          ? new Date(
+              now - scope.requiredWindowMs - BACKFILL_BUFFER_MS,
+            ).toISOString()
+          : undefined;
       const controller = new AbortController();
       const handle = storage.getStorageHandle(entry.name, {
         signal: controller.signal,
@@ -91,7 +104,7 @@ export async function runSync(
             );
           }
           const syncPromise = connector.sync(
-            { mode: 'full', cursor },
+            { mode: 'full', since, cursor },
             handle,
             controller.signal,
           );
