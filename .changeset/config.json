@@ -17,6 +17,7 @@
       "@rawdash/adapter-libsql",
       "@rawdash/cli",
       "@rawdash/sdk-client",
+      "@rawdash/sdk-runtime",
       "@rawdash/mcp"
     ]
   ],

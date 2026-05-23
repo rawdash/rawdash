@@ -67,6 +67,54 @@ export async function syncDashboard() {
 
 > **Don't block SSR on a sync.** `triggerSync` (and `ensureFresh`) wait for the sync to settle, which can take up to ~30s. Calling either from a Server Component would block every page render. Use them in Server Actions, cron-triggered routes, or webhooks — and let pages render against whatever's cached.
 
+## Live dashboards (client-side hooks)
+
+For dashboards that stay open all day, `@rawdash/sdk-nextjs/client` exposes `'use client'` hooks backed by the `@rawdash/sdk-runtime` subscription engine. The engine polls on the cadence the server publishes (`cachedAt + syncIntervalSeconds`), polls fast while a sync is in flight, backs off when syncs fail, pauses when the tab is hidden, and refetches on focus.
+
+```tsx
+// app/dashboard/live.tsx
+'use client';
+
+import { http } from '@rawdash/sdk-nextjs';
+import { useDashboard, useWidget } from '@rawdash/sdk-nextjs/client';
+
+// app/dashboard/live.tsx
+
+// app/dashboard/live.tsx
+
+const source = http({ baseUrl: '/rawdash' });
+
+export function LiveDashboard() {
+  const { widgets, error } = useDashboard(source, 'engineering');
+  if (error) return <div>Connection error</div>;
+  return (
+    <div>
+      {Object.values(widgets).map((w) => (
+        <div key={w.widgetId}>{JSON.stringify(w.data)}</div>
+      ))}
+    </div>
+  );
+}
+
+export function Revenue() {
+  const { widget, syncState } = useWidget<number>(
+    source,
+    'engineering',
+    'revenue',
+  );
+  return (
+    <div>
+      {widget?.data ?? '—'} {syncState === 'syncing' && '(refreshing…)'}
+    </div>
+  );
+}
+```
+
+Two consumption modes, one package:
+
+- **Server Components** (`@rawdash/sdk-nextjs`): static-feeling SSR via `createRawdashClient` + `revalidateTag`.
+- **Client hooks** (`@rawdash/sdk-nextjs/client`): always-open dashboards with per-widget auto-polling.
+
 ## Switching between in-process and HTTP
 
 ```ts

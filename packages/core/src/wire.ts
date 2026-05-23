@@ -13,6 +13,7 @@ export interface CachedWidget<TData = unknown> {
   data: TData | null;
   cachedAt: string | null;
   syncState?: WidgetSyncState;
+  syncIntervalSeconds?: number;
   meta?: Record<string, unknown>;
 }
 

@@ -528,10 +528,35 @@ importers:
       '@rawdash/sdk-client':
         specifier: workspace:*
         version: link:../sdk-client
+      '@rawdash/sdk-runtime':
+        specifier: workspace:*
+        version: link:../sdk-runtime
     devDependencies:
+      '@types/react':
+        specifier: ^19.0.0
+        version: 19.2.14
       next:
         specifier: ^15.0.0
         version: 15.5.18(@playwright/test@1.59.1)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      react:
+        specifier: ^19.0.0
+        version: 19.2.5
+      tsup:
+        specifier: ^8.0.0
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.9)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.3)
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+
+  packages/sdk-runtime:
+    dependencies:
+      '@rawdash/core':
+        specifier: workspace:*
+        version: link:../core
+      '@rawdash/sdk-client':
+        specifier: workspace:*
+        version: link:../sdk-client
+    devDependencies:
       tsup:
         specifier: ^8.0.0
         version: 8.5.1(jiti@1.21.7)(postcss@8.5.9)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.3)
