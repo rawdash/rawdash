@@ -356,6 +356,8 @@ export class GitHubConnector extends BaseConnector<
 
   private seenWorkflowRunIds = new Set<string>();
 
+  private preservedDeploymentStatus = new Map<string, string>();
+
   private buildHeaders(): Record<string, string> {
     const headers: Record<string, string> = {
       Accept: 'application/vnd.github+json',
@@ -413,6 +415,13 @@ export class GitHubConnector extends BaseConnector<
       host: 'api.github.com',
       pathname: allowedPath,
     });
+  }
+
+  private isResourceAllowed(options: SyncOptions, resource: string): boolean {
+    if (!options.resources) {
+      return true;
+    }
+    return options.resources.has(resource);
   }
 
   private resolveCursor(cursor: unknown): GitHubSyncCursor | undefined {
@@ -514,14 +523,16 @@ export class GitHubConnector extends BaseConnector<
       new Date(lastPr.updated_at).getTime() < cutoff;
 
     const reviewsByPR = new Map<number, GitHubReview[]>();
-    for (const pr of filteredPrs) {
-      signal?.throwIfAborted();
-      const reviews = await this.fetch<GitHubReview[]>(
-        `https://api.github.com/repos/${owner}/${repo}/pulls/${pr.number}/reviews`,
-        'pull_request_reviews',
-        signal,
-      );
-      reviewsByPR.set(pr.number, reviews.body);
+    if (this.isResourceAllowed(options, 'pull_request_reviews')) {
+      for (const pr of filteredPrs) {
+        signal?.throwIfAborted();
+        const reviews = await this.fetch<GitHubReview[]>(
+          `https://api.github.com/repos/${owner}/${repo}/pulls/${pr.number}/reviews`,
+          'pull_request_reviews',
+          signal,
+        );
+        reviewsByPR.set(pr.number, reviews.body);
+      }
     }
 
     const items: PRPageItems[] = [{ prs: filteredPrs, reviewsByPR }];
@@ -579,14 +590,16 @@ export class GitHubConnector extends BaseConnector<
       new Date(lastDeployment.created_at).getTime() < cutoff;
 
     const latestStatusById = new Map<number, GitHubDeploymentStatus | null>();
-    for (const deployment of filteredDeployments) {
-      signal?.throwIfAborted();
-      const statusRes = await this.fetch<GitHubDeploymentStatus[]>(
-        `https://api.github.com/repos/${owner}/${repo}/deployments/${deployment.id}/statuses?per_page=1`,
-        'deployment_statuses',
-        signal,
-      );
-      latestStatusById.set(deployment.id, statusRes.body[0] ?? null);
+    if (this.isResourceAllowed(options, 'deployment_statuses')) {
+      for (const deployment of filteredDeployments) {
+        signal?.throwIfAborted();
+        const statusRes = await this.fetch<GitHubDeploymentStatus[]>(
+          `https://api.github.com/repos/${owner}/${repo}/deployments/${deployment.id}/statuses?per_page=1`,
+          'deployment_statuses',
+          signal,
+        );
+        latestStatusById.set(deployment.id, statusRes.body[0] ?? null);
+      }
     }
 
     const items: DeploymentPageItems[] = [
@@ -759,10 +772,17 @@ export class GitHubConnector extends BaseConnector<
     storage: StorageHandle,
     items: unknown[],
     page: string | null,
+    options: SyncOptions,
   ): Promise<void> {
+    const reviewsAllowed = this.isResourceAllowed(
+      options,
+      'pull_request_reviews',
+    );
     if (page === null) {
       await storage.entities([], { types: ['pull_request'] });
-      await storage.edges([], { kinds: ['reviewed_by'] });
+      if (reviewsAllowed) {
+        await storage.edges([], { kinds: ['reviewed_by'] });
+      }
     }
     const pageItems = items as PRPageItems[];
     for (const { prs: rawPrs, reviewsByPR } of pageItems) {
@@ -784,6 +804,9 @@ export class GitHubConnector extends BaseConnector<
           },
           updated_at: new Date(pr.updated_at).getTime(),
         });
+      }
+      if (!reviewsAllowed) {
+        continue;
       }
       for (const pr of prs) {
         const reviews = reviewsByPR.get(pr.number) ?? [];
@@ -844,8 +867,22 @@ export class GitHubConnector extends BaseConnector<
     storage: StorageHandle,
     items: unknown[],
     page: string | null,
+    options: SyncOptions,
   ): Promise<void> {
+    const statusesAllowed = this.isResourceAllowed(
+      options,
+      'deployment_statuses',
+    );
     if (page === null) {
+      if (!statusesAllowed) {
+        const existing = await storage.queryEntities({ type: 'deployment' });
+        for (const entity of existing) {
+          const prev = entity.attributes['latest_status'];
+          if (typeof prev === 'string') {
+            this.preservedDeploymentStatus.set(entity.id, prev);
+          }
+        }
+      }
       await storage.entities([], { types: ['deployment'] });
     }
     const pageItems = items as DeploymentPageItems[];
@@ -856,11 +893,20 @@ export class GitHubConnector extends BaseConnector<
         'deployments',
       );
       for (const deployment of deployments) {
-        const status = latestStatusById.get(deployment.id) ?? null;
         const createdMs = new Date(deployment.created_at).getTime();
-        const statusUpdatedMs = status?.updated_at
-          ? new Date(status.updated_at).getTime()
-          : null;
+        let latestStatus: string;
+        let statusUpdatedMs: number | null = null;
+        if (statusesAllowed) {
+          const status = latestStatusById.get(deployment.id) ?? null;
+          latestStatus = status?.state ?? 'unknown';
+          statusUpdatedMs = status?.updated_at
+            ? new Date(status.updated_at).getTime()
+            : null;
+        } else {
+          latestStatus =
+            this.preservedDeploymentStatus.get(String(deployment.id)) ??
+            'unknown';
+        }
         await storage.entity({
           type: 'deployment',
           id: String(deployment.id),
@@ -870,7 +916,7 @@ export class GitHubConnector extends BaseConnector<
             sha: deployment.sha,
             creator: deployment.creator?.login ?? '',
             created_at: createdMs,
-            latest_status: status?.state ?? 'unknown',
+            latest_status: latestStatus,
           },
           updated_at: Math.max(createdMs, statusUpdatedMs ?? 0),
         });
@@ -986,11 +1032,11 @@ export class GitHubConnector extends BaseConnector<
               ? this.writeWorkflowRunsLatest(storage, items)
               : this.writeWorkflowRunsFull(storage, items, page);
           case 'pull_requests':
-            return this.writePullRequests(storage, items, page);
+            return this.writePullRequests(storage, items, page, options);
           case 'issues':
             return this.writeIssues(storage, items, page);
           case 'deployments':
-            return this.writeDeployments(storage, items, page);
+            return this.writeDeployments(storage, items, page, options);
           case 'releases':
             return this.writeReleases(storage, items, page);
           case 'contributors':
