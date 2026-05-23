@@ -5,6 +5,40 @@ export interface ChunkedSyncCursor<TPhase extends string, TPage> {
   page: TPage | null;
 }
 
+export function selectActivePhases<R extends string, P extends string>(
+  resourceToPhase: (resource: R) => P,
+  order: readonly P[],
+  enabled: readonly R[] | undefined,
+): P[] {
+  if (!enabled || enabled.length === 0) {
+    return [...order];
+  }
+  const want = new Set<P>();
+  for (const r of enabled) {
+    want.add(resourceToPhase(r));
+  }
+  return order.filter((p) => want.has(p));
+}
+
+export function makeChunkedCursorGuard<TPhase extends string>(
+  phases: readonly TPhase[],
+): (value: unknown) => value is ChunkedSyncCursor<TPhase, string> {
+  const phaseSet = new Set<string>(phases);
+  return (value: unknown): value is ChunkedSyncCursor<TPhase, string> => {
+    if (typeof value !== 'object' || value === null) {
+      return false;
+    }
+    const v = value as { phase?: unknown; page?: unknown };
+    if (typeof v.phase !== 'string' || !phaseSet.has(v.phase)) {
+      return false;
+    }
+    if (v.page !== null && typeof v.page !== 'string') {
+      return false;
+    }
+    return true;
+  };
+}
+
 export interface FetchPageResult<TPage> {
   items: unknown[];
   next: TPage | null;

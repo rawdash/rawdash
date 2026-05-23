@@ -1,7 +1,9 @@
 import {
   type HttpResponse,
-  githubRateLimit,
+  connectorUserAgent,
   parseLinkHeader,
+  sanitizeAllowedUrl,
+  standardRateLimitPolicy,
 } from '@rawdash/connector-shared';
 import {
   BaseConnector,
@@ -13,6 +15,7 @@ import {
   type SyncOptions,
   type SyncResult,
   defineConfigFields,
+  makeChunkedCursorGuard,
   paginateChunked,
 } from '@rawdash/core';
 import { z } from 'zod';
@@ -140,6 +143,12 @@ type GitHubSyncPhase =
   | 'releases'
   | 'contributors';
 
+const githubRateLimit = standardRateLimitPolicy({
+  remainingHeader: 'x-ratelimit-remaining',
+  resetHeader: 'x-ratelimit-reset',
+  resetUnit: 's',
+});
+
 const PHASE_ORDER: readonly GitHubSyncPhase[] = [
   'repo_stats',
   'workflow_runs',
@@ -149,6 +158,27 @@ const PHASE_ORDER: readonly GitHubSyncPhase[] = [
   'releases',
   'contributors',
 ];
+
+const PHASE_RESOURCES: Record<GitHubSyncPhase, readonly string[]> = {
+  repo_stats: ['repo'],
+  workflow_runs: ['workflow_run'],
+  pull_requests: ['pull_request'],
+  issues: ['issue'],
+  deployments: ['deployment'],
+  releases: ['release'],
+  contributors: ['contributor'],
+};
+
+function selectPhases(
+  allowlist: ReadonlySet<string> | undefined,
+): readonly GitHubSyncPhase[] {
+  if (allowlist === undefined) {
+    return PHASE_ORDER;
+  }
+  return PHASE_ORDER.filter((phase) =>
+    PHASE_RESOURCES[phase].some((r) => allowlist.has(r)),
+  );
+}
 
 type GitHubSyncCursor = ChunkedSyncCursor<GitHubSyncPhase, string>;
 
@@ -189,22 +219,7 @@ function dedupeByKey<T>(
   return Array.from(seen.values());
 }
 
-function isGitHubSyncCursor(value: unknown): value is GitHubSyncCursor {
-  if (typeof value !== 'object' || value === null) {
-    return false;
-  }
-  const v = value as { phase?: unknown; page?: unknown };
-  if (typeof v.phase !== 'string') {
-    return false;
-  }
-  if (!(PHASE_ORDER as readonly string[]).includes(v.phase)) {
-    return false;
-  }
-  if (v.page !== null && typeof v.page !== 'string') {
-    return false;
-  }
-  return true;
-}
+const isGitHubSyncCursor = makeChunkedCursorGuard(PHASE_ORDER);
 
 const workflowRunsResponseSchema = z.object({
   workflow_runs: z.array(
@@ -341,11 +356,13 @@ export class GitHubConnector extends BaseConnector<
 
   private seenWorkflowRunIds = new Set<string>();
 
+  private preservedDeploymentStatus = new Map<string, string>();
+
   private buildHeaders(): Record<string, string> {
     const headers: Record<string, string> = {
       Accept: 'application/vnd.github+json',
       'X-GitHub-Api-Version': '2022-11-28',
-      'User-Agent': 'rawdash/connector-github (+https://rawdash.dev)',
+      'User-Agent': connectorUserAgent('github'),
     };
     if (this.creds.token) {
       headers['Authorization'] = `Bearer ${this.creds.token}`;
@@ -389,33 +406,22 @@ export class GitHubConnector extends BaseConnector<
     phase: GitHubSyncPhase,
     pageUrl: string | null,
   ): string | null {
-    if (pageUrl === null) {
-      return null;
-    }
     const allowedPath = this.allowedPageBasePath(phase);
     if (allowedPath === null) {
       return null;
     }
-    try {
-      const u = new URL(pageUrl);
-      if (
-        u.protocol !== 'https:' ||
-        u.host !== 'api.github.com' ||
-        u.pathname !== allowedPath
-      ) {
-        return null;
-      }
-      return u.toString();
-    } catch {
-      return null;
-    }
+    return sanitizeAllowedUrl({
+      url: pageUrl,
+      host: 'api.github.com',
+      pathname: allowedPath,
+    });
   }
 
   private isResourceAllowed(options: SyncOptions, resource: string): boolean {
     if (!options.resources) {
       return true;
     }
-    return options.resources.includes(resource);
+    return options.resources.has(resource);
   }
 
   private resolveCursor(cursor: unknown): GitHubSyncCursor | undefined {
@@ -766,10 +772,17 @@ export class GitHubConnector extends BaseConnector<
     storage: StorageHandle,
     items: unknown[],
     page: string | null,
+    options: SyncOptions,
   ): Promise<void> {
+    const reviewsAllowed = this.isResourceAllowed(
+      options,
+      'pull_request_reviews',
+    );
     if (page === null) {
       await storage.entities([], { types: ['pull_request'] });
-      await storage.edges([], { kinds: ['reviewed_by'] });
+      if (reviewsAllowed) {
+        await storage.edges([], { kinds: ['reviewed_by'] });
+      }
     }
     const pageItems = items as PRPageItems[];
     for (const { prs: rawPrs, reviewsByPR } of pageItems) {
@@ -791,6 +804,9 @@ export class GitHubConnector extends BaseConnector<
           },
           updated_at: new Date(pr.updated_at).getTime(),
         });
+      }
+      if (!reviewsAllowed) {
+        continue;
       }
       for (const pr of prs) {
         const reviews = reviewsByPR.get(pr.number) ?? [];
@@ -851,8 +867,22 @@ export class GitHubConnector extends BaseConnector<
     storage: StorageHandle,
     items: unknown[],
     page: string | null,
+    options: SyncOptions,
   ): Promise<void> {
+    const statusesAllowed = this.isResourceAllowed(
+      options,
+      'deployment_statuses',
+    );
     if (page === null) {
+      if (!statusesAllowed) {
+        const existing = await storage.queryEntities({ type: 'deployment' });
+        for (const entity of existing) {
+          const prev = entity.attributes['latest_status'];
+          if (typeof prev === 'string') {
+            this.preservedDeploymentStatus.set(entity.id, prev);
+          }
+        }
+      }
       await storage.entities([], { types: ['deployment'] });
     }
     const pageItems = items as DeploymentPageItems[];
@@ -863,11 +893,20 @@ export class GitHubConnector extends BaseConnector<
         'deployments',
       );
       for (const deployment of deployments) {
-        const status = latestStatusById.get(deployment.id) ?? null;
         const createdMs = new Date(deployment.created_at).getTime();
-        const statusUpdatedMs = status?.updated_at
-          ? new Date(status.updated_at).getTime()
-          : null;
+        let latestStatus: string;
+        let statusUpdatedMs: number | null = null;
+        if (statusesAllowed) {
+          const status = latestStatusById.get(deployment.id) ?? null;
+          latestStatus = status?.state ?? 'unknown';
+          statusUpdatedMs = status?.updated_at
+            ? new Date(status.updated_at).getTime()
+            : null;
+        } else {
+          latestStatus =
+            this.preservedDeploymentStatus.get(String(deployment.id)) ??
+            'unknown';
+        }
         await storage.entity({
           type: 'deployment',
           id: String(deployment.id),
@@ -877,7 +916,7 @@ export class GitHubConnector extends BaseConnector<
             sha: deployment.sha,
             creator: deployment.creator?.login ?? '',
             created_at: createdMs,
-            latest_status: status?.state ?? 'unknown',
+            latest_status: latestStatus,
           },
           updated_at: Math.max(createdMs, statusUpdatedMs ?? 0),
         });
@@ -959,8 +998,9 @@ export class GitHubConnector extends BaseConnector<
     signal?: AbortSignal,
   ): Promise<SyncResult> {
     const cursor = this.resolveCursor(options.cursor);
+    const phases = selectPhases(options.resources);
     return paginateChunked<GitHubSyncPhase, string>({
-      phases: PHASE_ORDER,
+      phases,
       cursor,
       signal,
       fetchPage: async (phase, page, sig) => {
@@ -992,11 +1032,11 @@ export class GitHubConnector extends BaseConnector<
               ? this.writeWorkflowRunsLatest(storage, items)
               : this.writeWorkflowRunsFull(storage, items, page);
           case 'pull_requests':
-            return this.writePullRequests(storage, items, page);
+            return this.writePullRequests(storage, items, page, options);
           case 'issues':
             return this.writeIssues(storage, items, page);
           case 'deployments':
-            return this.writeDeployments(storage, items, page);
+            return this.writeDeployments(storage, items, page, options);
           case 'releases':
             return this.writeReleases(storage, items, page);
           case 'contributors':

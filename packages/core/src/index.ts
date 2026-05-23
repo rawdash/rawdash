@@ -31,7 +31,11 @@ export type {
   FetchPageResult,
 } from './paginate-chunked';
 
-export { paginateChunked } from './paginate-chunked';
+export {
+  makeChunkedCursorGuard,
+  paginateChunked,
+  selectActivePhases,
+} from './paginate-chunked';
 
 export type {
   AggFn,
@@ -105,7 +109,7 @@ export { defineConfigFields } from './config-fields';
 
 export { computeMetric } from './compute';
 
-export type { ConnectorBackfill } from './backfill-window';
+export type { ConnectorBackfill, ResourceBackfill } from './backfill-window';
 
 export { computeConnectorBackfill } from './backfill-window';
 

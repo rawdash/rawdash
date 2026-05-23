@@ -191,7 +191,7 @@ export interface SyncOptions {
   mode: 'full' | 'latest';
   since?: string;
   cursor?: unknown;
-  resources?: ReadonlyArray<string>;
+  resources?: ReadonlySet<string>;
 }
 
 export interface SyncResult {
@@ -307,6 +307,15 @@ export abstract class BaseConnector<
       },
       { resource: opts.resource, requestId: opts.requestId },
     );
+  }
+
+  protected isResourceEnabled<R extends string>(resource: R): boolean {
+    const enabled = (this.settings as { resources?: readonly R[] } | null)
+      ?.resources;
+    if (!enabled || enabled.length === 0) {
+      return true;
+    }
+    return enabled.includes(resource);
   }
 
   serializeConfig(): Record<string, unknown> {

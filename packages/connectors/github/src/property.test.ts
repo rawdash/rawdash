@@ -1,6 +1,10 @@
 import {
   type InvariantViolation,
+  type MockResponseInit,
+  installFetchMockAdvanced,
   runPropertySyncTest,
+  entityStoreFor as sharedEntityStoreFor,
+  eventStoreFor as sharedEventStoreFor,
 } from '@rawdash/connector-test-utils';
 import { InMemoryStorage } from '@rawdash/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -10,64 +14,22 @@ import { GitHubConnector } from './github';
 
 const CONNECTOR_ID = 'github-actions';
 
-type MockResponseInit = {
-  body: unknown;
-  status?: number;
-  headers?: Record<string, string>;
-};
-
-function mockResponse({
-  body,
-  status = 200,
-  headers = {},
-}: MockResponseInit): Response {
-  return {
-    ok: status >= 200 && status < 300,
-    status,
-    statusText: 'OK',
-    headers: new Headers({
-      'content-type': 'application/json',
-      ...headers,
-    }),
-    text: () => Promise.resolve(JSON.stringify(body)),
-  } as Response;
-}
-
-function installFetchMock(
-  routeBody: (url: string) => MockResponseInit,
-): ReturnType<typeof vi.fn> {
-  const spy = vi.fn().mockImplementation((url: string | URL) => {
-    const u = typeof url === 'string' ? url : url.toString();
-    return Promise.resolve(mockResponse(routeBody(u)));
-  });
-  vi.stubGlobal('fetch', spy);
-  return spy;
-}
-
-function eventStoreFor(storage: InMemoryStorage): Array<{ name: string }> {
-  return (
-    ((
-      storage as unknown as { eventStore: Map<string, unknown[]> }
-    ).eventStore.get(CONNECTOR_ID) as Array<{ name: string }> | undefined) ?? []
-  );
-}
-
 type StoredEntity = {
   type: string;
   id: string;
   attributes: Record<string, unknown>;
 };
 
+const installFetchMock = installFetchMockAdvanced;
+
+function eventStoreFor(storage: InMemoryStorage): Array<{ name: string }> {
+  return sharedEventStoreFor<{ name: string }>(storage, CONNECTOR_ID);
+}
+
 function entityStoreFor(
   storage: InMemoryStorage,
 ): Map<string, Map<string, StoredEntity>> {
-  return (
-    (
-      storage as unknown as {
-        entityStore: Map<string, Map<string, Map<string, StoredEntity>>>;
-      }
-    ).entityStore.get(CONNECTOR_ID) ?? new Map()
-  );
+  return sharedEntityStoreFor<StoredEntity>(storage, CONNECTOR_ID);
 }
 
 function lastByKey<T>(items: T[], keyFn: (item: T) => string): Map<string, T> {
@@ -530,7 +492,7 @@ describe('GitHubConnector property tests', () => {
 
       const storage = new InMemoryStorage();
       await buildConnector().sync(
-        { mode: 'full', resources: ['pull_requests'] },
+        { mode: 'full', resources: new Set(['pull_request']) },
         storage.getStorageHandle(CONNECTOR_ID),
       );
 
@@ -554,7 +516,10 @@ describe('GitHubConnector property tests', () => {
 
       const storage = new InMemoryStorage();
       await buildConnector().sync(
-        { mode: 'full', resources: ['pull_requests', 'pull_request_reviews'] },
+        {
+          mode: 'full',
+          resources: new Set(['pull_request', 'pull_request_reviews']),
+        },
         storage.getStorageHandle(CONNECTOR_ID),
       );
 
@@ -588,6 +553,37 @@ describe('GitHubConnector property tests', () => {
       expect(reviewCalls).toHaveLength(1);
     });
 
+    it('preserves existing reviewed_by edges when pull_request_reviews is not in the allowlist', async () => {
+      const storage = new InMemoryStorage();
+      const handle = storage.getStorageHandle(CONNECTOR_ID);
+      await handle.edge({
+        from_type: 'pull_request',
+        from_id: '1',
+        kind: 'reviewed_by',
+        to_type: 'user',
+        to_id: 'bob',
+        attributes: { state: 'APPROVED' },
+        updated_at: Date.now(),
+      });
+
+      const prs = [makePR(1, '2026-05-20T00:00:00Z')];
+      installFetchMock((url) => {
+        if (url.match(/\/pulls(\?|$)/)) {
+          return { body: prs };
+        }
+        return safeDefaultResponse(url);
+      });
+
+      await buildConnector().sync(
+        { mode: 'full', resources: new Set(['pull_request']) },
+        handle,
+      );
+
+      const edges = await handle.traverse({ kind: 'reviewed_by' });
+      expect(edges).toHaveLength(1);
+      expect(edges[0]?.to_id).toBe('bob');
+    });
+
     it('skips /deployments/{id}/statuses calls when deployment_statuses is not in the allowlist', async () => {
       const deployments = [
         makeDeployment(1, '2026-05-20T00:00:00Z'),
@@ -602,7 +598,7 @@ describe('GitHubConnector property tests', () => {
 
       const storage = new InMemoryStorage();
       await buildConnector().sync(
-        { mode: 'full', resources: ['deployments'] },
+        { mode: 'full', resources: new Set(['deployment']) },
         storage.getStorageHandle(CONNECTOR_ID),
       );
 
@@ -610,6 +606,40 @@ describe('GitHubConnector property tests', () => {
         String(url).includes('/statuses'),
       );
       expect(statusCalls).toHaveLength(0);
+    });
+
+    it('preserves prior latest_status when deployment_statuses is not in the allowlist', async () => {
+      const storage = new InMemoryStorage();
+      const handle = storage.getStorageHandle(CONNECTOR_ID);
+      await handle.entity({
+        type: 'deployment',
+        id: '1',
+        attributes: {
+          environment: 'production',
+          ref: 'main',
+          sha: 'oldsha',
+          creator: 'alice',
+          created_at: Date.parse('2026-05-19T00:00:00Z'),
+          latest_status: 'success',
+        },
+        updated_at: Date.parse('2026-05-19T00:00:00Z'),
+      });
+
+      const deployments = [makeDeployment(1, '2026-05-20T00:00:00Z')];
+      installFetchMock((url) => {
+        if (url.match(/\/deployments(\?|$)/)) {
+          return { body: deployments };
+        }
+        return safeDefaultResponse(url);
+      });
+
+      await buildConnector().sync(
+        { mode: 'full', resources: new Set(['deployment']) },
+        handle,
+      );
+
+      const stored = await handle.getEntity('deployment', '1');
+      expect(stored?.attributes['latest_status']).toBe('success');
     });
 
     it('does not fetch /reviews for PRs whose updated_at is past the `since` cutoff', async () => {

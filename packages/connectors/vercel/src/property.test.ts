@@ -1,5 +1,7 @@
 import {
   type InvariantViolation,
+  entityStoreFor,
+  installFetchMock,
   runPropertySyncTest,
 } from '@rawdash/connector-test-utils';
 import type { InMemoryStorage } from '@rawdash/core';
@@ -9,42 +11,6 @@ import { z } from 'zod';
 import { VercelConnector } from './vercel';
 
 const CONNECTOR_ID = 'vercel';
-
-function mockResponse(body: unknown): Response {
-  return {
-    ok: true,
-    status: 200,
-    statusText: 'OK',
-    headers: new Headers({ 'content-type': 'application/json' }),
-    text: () => Promise.resolve(JSON.stringify(body)),
-  } as Response;
-}
-
-function installFetchMock(
-  routeBody: (url: string) => unknown,
-): ReturnType<typeof vi.fn> {
-  const spy = vi.fn().mockImplementation((url: string | URL) => {
-    const u = typeof url === 'string' ? url : url.toString();
-    return Promise.resolve(mockResponse(routeBody(u)));
-  });
-  vi.stubGlobal('fetch', spy);
-  return spy;
-}
-
-function entityStoreFor(
-  storage: InMemoryStorage,
-): Map<string, Map<string, { type: string; id: string }>> {
-  return (
-    (
-      storage as unknown as {
-        entityStore: Map<
-          string,
-          Map<string, Map<string, { type: string; id: string }>>
-        >;
-      }
-    ).entityStore.get(CONNECTOR_ID) ?? new Map()
-  );
-}
 
 type ProjectsSample = z.infer<typeof VercelConnector.schemas.projects>;
 type DeploymentsSample = z.infer<typeof VercelConnector.schemas.deployments>;
@@ -62,7 +28,8 @@ describe('VercelConnector property tests', () => {
     ): InvariantViolation[] => {
       const violations: InvariantViolation[] = [];
       const unique = new Set(sample.projects.map((p) => p.id)).size;
-      const written = entityStoreFor(storage).get('vercel_project')?.size ?? 0;
+      const written =
+        entityStoreFor(storage, CONNECTOR_ID).get('vercel_project')?.size ?? 0;
       if (written !== unique) {
         violations.push({
           invariant: 'one vercel_project entity per unique project id',
@@ -108,7 +75,8 @@ describe('VercelConnector property tests', () => {
       const violations: InvariantViolation[] = [];
       const unique = new Set(sample.deployments.map((d) => d.uid)).size;
       const written =
-        entityStoreFor(storage).get('vercel_deployment')?.size ?? 0;
+        entityStoreFor(storage, CONNECTOR_ID).get('vercel_deployment')?.size ??
+        0;
       if (written !== unique) {
         violations.push({
           invariant: 'one vercel_deployment entity per unique deployment uid',

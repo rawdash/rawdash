@@ -1,3 +1,4 @@
+import { connectorUserAgent } from '@rawdash/connector-shared';
 import {
   BaseConnector,
   type ConnectorContext,
@@ -563,8 +564,7 @@ export class GA4Connector extends BaseConnector<GA4Settings, GA4Credentials> {
       headers: {
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
-        'User-Agent':
-          'rawdash/connector-google-analytics (+https://rawdash.dev)',
+        'User-Agent': connectorUserAgent('google-analytics'),
       },
       body: JSON.stringify(body),
       signal,

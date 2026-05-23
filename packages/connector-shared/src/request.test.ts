@@ -341,9 +341,14 @@ describe('request — rate-limit policy', () => {
         },
       ),
     );
-    const { githubRateLimit } = await import('./rate-limit');
+    const { standardRateLimitPolicy } = await import('./rate-limit');
+    const rateLimit = standardRateLimitPolicy({
+      remainingHeader: 'x-ratelimit-remaining',
+      resetHeader: 'x-ratelimit-reset',
+      resetUnit: 's',
+    });
     const res = await request(
-      { url: 'https://x.test', rateLimit: githubRateLimit },
+      { url: 'https://x.test', rateLimit },
       { fetch: fetchSpy, resource: 'test' },
     );
     expect(res.rateLimitState?.remaining).toBe(42);
