@@ -72,15 +72,10 @@ export async function syncDashboard() {
 For dashboards that stay open all day, `@rawdash/sdk-nextjs/client` exposes `'use client'` hooks backed by the `@rawdash/sdk-runtime` subscription engine. The engine polls on the cadence the server publishes (`cachedAt + syncIntervalSeconds`), polls fast while a sync is in flight, backs off when syncs fail, pauses when the tab is hidden, and refetches on focus.
 
 ```tsx
-// app/dashboard/live.tsx
 'use client';
 
 import { http } from '@rawdash/sdk-nextjs';
 import { useDashboard, useWidget } from '@rawdash/sdk-nextjs/client';
-
-// app/dashboard/live.tsx
-
-// app/dashboard/live.tsx
 
 const source = http({ baseUrl: '/rawdash' });
 
