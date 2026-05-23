@@ -90,14 +90,16 @@ and mounting the request handler in a Node.js server.
 3. **Connect your frontend**
 
    The config file from Step 2 starts a standalone HTTP server when run with
-   `tsx`. From your frontend (React, Next.js, etc.) use `@rawdash/sdk-nextjs` to
-   query it:
+   `tsx`. From your frontend (React, Vue, vanilla JS, etc.) use the
+   framework-agnostic `@rawdash/sdk-client` to query it — or
+   `@rawdash/sdk-nextjs` if you're inside a Next.js App Router app (see Step 1
+   above for the install commands):
 
    ```ts title="lib/rawdash.ts"
-   import { createRawdashClient } from '@rawdash/sdk-nextjs';
+   import { http } from '@rawdash/sdk-client';
 
-   export const rawdash = createRawdashClient({
-     url: process.env.RAWDASH_URL ?? 'http://localhost:8080',
+   export const rawdash = http({
+     baseUrl: process.env.RAWDASH_URL ?? 'http://localhost:8080',
    });
    ```
 
