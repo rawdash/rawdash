@@ -84,6 +84,38 @@ describe('standardRateLimitPolicy', () => {
     expect(state?.resetAt.getTime()).toBeGreaterThanOrEqual(before + 59_000);
   });
 
+  it('rejects empty and whitespace-only header values', () => {
+    const policy = standardRateLimitPolicy({
+      remainingHeader: 'x-ratelimit-remaining',
+      resetHeader: 'x-ratelimit-reset',
+      resetUnit: 's',
+    });
+    expect(
+      policy.parse(
+        headers({
+          'x-ratelimit-remaining': '',
+          'x-ratelimit-reset': '1700000000',
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      policy.parse(
+        headers({
+          'x-ratelimit-remaining': '   ',
+          'x-ratelimit-reset': '1700000000',
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      policy.parse(
+        headers({
+          'x-ratelimit-remaining': '10',
+          'x-ratelimit-reset': '',
+        }),
+      ),
+    ).toBeNull();
+  });
+
   it('rejects negative reset values', () => {
     const policy = standardRateLimitPolicy({
       remainingHeader: 'x-ratelimit-remaining',

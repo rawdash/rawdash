@@ -9,16 +9,14 @@ export interface MockResponseInit {
 
 export function mockResponse(init: MockResponseInit): Response {
   const { body, status = 200, headers = {} } = init;
-  return {
-    ok: status >= 200 && status < 300,
+  const mergedHeaders = new Headers({
+    'content-type': 'application/json',
+    ...headers,
+  });
+  return new Response(JSON.stringify(body ?? null), {
     status,
-    statusText: 'OK',
-    headers: new Headers({
-      'content-type': 'application/json',
-      ...headers,
-    }),
-    text: () => Promise.resolve(JSON.stringify(body)),
-  } as Response;
+    headers: mergedHeaders,
+  });
 }
 
 export function mockJsonResponse(body: unknown): Response {

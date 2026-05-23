@@ -14,12 +14,13 @@ export function parseEpoch(
     const ms = new Date(value).getTime();
     return Number.isFinite(ms) ? ms : null;
   }
+  if (typeof value === 'string' && value.trim() === '') {
+    return null;
+  }
   const n = typeof value === 'number' ? value : Number(value);
   if (!Number.isFinite(n)) {
     return null;
   }
-  if (unit === 's') {
-    return n * 1000;
-  }
-  return n;
+  const result = unit === 's' ? n * 1000 : n;
+  return Number.isFinite(result) ? result : null;
 }

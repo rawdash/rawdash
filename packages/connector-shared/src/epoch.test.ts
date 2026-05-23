@@ -36,4 +36,11 @@ describe('parseEpoch', () => {
   it('rejects invalid ISO strings', () => {
     expect(parseEpoch('not-a-date', 'iso')).toBeNull();
   });
+
+  it('rejects empty and whitespace-only numeric strings', () => {
+    expect(parseEpoch('', 'ms')).toBeNull();
+    expect(parseEpoch('   ', 'ms')).toBeNull();
+    expect(parseEpoch('', 's')).toBeNull();
+    expect(parseEpoch('\t\n', 's')).toBeNull();
+  });
 });

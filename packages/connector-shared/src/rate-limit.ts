@@ -22,7 +22,7 @@ export function standardRateLimitPolicy(
   return {
     parse(h) {
       const remainingRaw = h.get(remainingHeader);
-      if (remainingRaw === null) {
+      if (remainingRaw === null || remainingRaw.trim() === '') {
         return null;
       }
       const remaining = Number(remainingRaw);
@@ -39,11 +39,18 @@ export function standardRateLimitPolicy(
           resetAt: new Date(Date.now() + resetFallbackMs),
         };
       }
+      if (resetRaw.trim() === '') {
+        return null;
+      }
       const reset = Number(resetRaw);
       if (!Number.isFinite(reset) || reset < 0) {
         return null;
       }
-      return { remaining, resetAt: new Date(reset * multiplier) };
+      const resetMs = reset * multiplier;
+      if (!Number.isFinite(resetMs)) {
+        return null;
+      }
+      return { remaining, resetAt: new Date(resetMs) };
     },
   };
 }

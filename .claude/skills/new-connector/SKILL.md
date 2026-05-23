@@ -57,7 +57,7 @@ Must be known (provided by user or sensibly defaulted) before scaffolding:
 
 ## What the skill generates
 
-```
+```text
 packages/connectors/<id>/
 ├── package.json
 ├── tsconfig.json
