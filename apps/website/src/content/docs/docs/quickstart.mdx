@@ -30,22 +30,22 @@ and mounting the request handler in a Node.js server.
      </TabItem>
    </Tabs>
 
-   If you are mounting Rawdash inside a Next.js app, also install `@rawdash/nextjs`:
+   If you are mounting Rawdash inside a Next.js app, also install `@rawdash/sdk-nextjs`:
 
    <Tabs>
      <TabItem label="npm">
        ```sh
-       npm install @rawdash/nextjs
+       npm install @rawdash/sdk-nextjs
        ```
      </TabItem>
      <TabItem label="pnpm">
        ```sh
-       pnpm add @rawdash/nextjs
+       pnpm add @rawdash/sdk-nextjs
        ```
      </TabItem>
      <TabItem label="yarn">
        ```sh
-       yarn add @rawdash/nextjs
+       yarn add @rawdash/sdk-nextjs
        ```
      </TabItem>
    </Tabs>
@@ -90,11 +90,11 @@ and mounting the request handler in a Node.js server.
 3. **Connect your frontend**
 
    The config file from Step 2 starts a standalone HTTP server when run with
-   `tsx`. From your frontend (React, Next.js, etc.) use `@rawdash/nextjs` to
+   `tsx`. From your frontend (React, Next.js, etc.) use `@rawdash/sdk-nextjs` to
    query it:
 
    ```ts title="lib/rawdash.ts"
-   import { createRawdashClient } from '@rawdash/nextjs';
+   import { createRawdashClient } from '@rawdash/sdk-nextjs';
 
    export const rawdash = createRawdashClient({
      url: process.env.RAWDASH_URL ?? 'http://localhost:8080',

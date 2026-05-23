@@ -1,4 +1,4 @@
-import { createRawdashClient, http } from '@rawdash/nextjs';
+import { createRawdashClient, http } from '@rawdash/sdk-nextjs';
 
 const isBuild = process.env['NEXT_PHASE'] === 'phase-production-build';
 const isDev = process.env.NODE_ENV === 'development';

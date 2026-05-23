@@ -17,7 +17,7 @@
     "@rawdash/connector-github": "workspace:*",
     "@rawdash/core": "workspace:*",
     "@rawdash/hono": "workspace:*",
-    "@rawdash/nextjs": "workspace:*",
+    "@rawdash/sdk-nextjs": "workspace:*",
     "@rawdash/server": "workspace:*",
     "@tremor/react": "^3.18.7",
     "class-variance-authority": "^0.7.1",
