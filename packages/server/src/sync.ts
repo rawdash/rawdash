@@ -66,12 +66,20 @@ export async function runSync(
       if (!scope) {
         return;
       }
+      let maxWindowMs: number | undefined;
+      for (const { requiredWindowMs } of scope.values()) {
+        if (requiredWindowMs === undefined) {
+          continue;
+        }
+        if (maxWindowMs === undefined || requiredWindowMs > maxWindowMs) {
+          maxWindowMs = requiredWindowMs;
+        }
+      }
       const since =
-        scope.requiredWindowMs !== undefined
-          ? new Date(
-              now - scope.requiredWindowMs - BACKFILL_BUFFER_MS,
-            ).toISOString()
+        maxWindowMs !== undefined
+          ? new Date(now - maxWindowMs - BACKFILL_BUFFER_MS).toISOString()
           : undefined;
+      const resources: ReadonlySet<string> = new Set(scope.keys());
       const controller = new AbortController();
       const handle = storage.getStorageHandle(entry.name, {
         signal: controller.signal,
@@ -104,7 +112,7 @@ export async function runSync(
             );
           }
           const syncPromise = connector.sync(
-            { mode: 'full', since, cursor },
+            { mode: 'full', since, cursor, resources },
             handle,
             controller.signal,
           );

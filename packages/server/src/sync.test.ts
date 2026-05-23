@@ -119,11 +119,12 @@ describe('runSync — chunked connector loop', () => {
 
     await runSync(makeConfig(entry), storage, { connectorRegistry: registry });
 
-    expect(connector.observed).toEqual([
-      { mode: 'full', cursor: undefined },
-      { mode: 'full', cursor: { page: 1 } },
-      { mode: 'full', cursor: { page: 2 } },
+    expect(connector.observed.map((o) => o.cursor)).toEqual([
+      undefined,
+      { page: 1 },
+      { page: 2 },
     ]);
+    expect(connector.observed.every((o) => o.mode === 'full')).toBe(true);
     const state = await storage.getSyncState();
     expect(state.status).toBe('succeeded');
   });
@@ -264,5 +265,70 @@ describe('runSync — widget-driven backfill scoping', () => {
 
     expect(connector.observed).toHaveLength(1);
     expect(connector.observed[0]!.since).toBeUndefined();
+  });
+
+  it('passes a resources allowlist limited to widget-referenced names', async () => {
+    const connector = new ChunkedConnector([{ done: true }]);
+    const { registry, entry } = makeRegistry(connector);
+    const storage = new InMemoryStorage();
+    const config = {
+      connectors: [entry],
+      dashboards: {
+        main: {
+          widgets: {
+            prs: {
+              kind: 'stat',
+              title: 'prs',
+              metric: {
+                connectorId: entry.name,
+                shape: 'entity',
+                name: 'pull_request',
+                fn: 'count',
+              },
+            },
+            repo: {
+              kind: 'stat',
+              title: 'repo',
+              metric: {
+                connectorId: entry.name,
+                shape: 'entity',
+                name: 'repo',
+                fn: 'latest',
+              },
+            },
+          },
+        },
+      },
+    } as unknown as DashboardConfig;
+
+    await runSync(config, storage, { connectorRegistry: registry });
+
+    expect(connector.observed).toHaveLength(1);
+    const resources = connector.observed[0]!.resources;
+    expect(resources).toBeDefined();
+    expect(Array.from(resources!).sort()).toEqual(['pull_request', 'repo']);
+  });
+
+  it('passes an empty resources set when only status widgets reference the connector', async () => {
+    const connector = new ChunkedConnector([{ done: true }]);
+    const { registry, entry } = makeRegistry(connector);
+    const storage = new InMemoryStorage();
+    const config = {
+      connectors: [entry],
+      dashboards: {
+        main: {
+          widgets: {
+            s: { kind: 'status', title: 's', source: entry.name },
+          },
+        },
+      },
+    } as unknown as DashboardConfig;
+
+    await runSync(config, storage, { connectorRegistry: registry });
+
+    expect(connector.observed).toHaveLength(1);
+    const resources = connector.observed[0]!.resources;
+    expect(resources).toBeDefined();
+    expect(resources!.size).toBe(0);
   });
 });

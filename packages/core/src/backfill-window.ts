@@ -1,8 +1,10 @@
 import type { DashboardConfig, Widget } from './config';
 
-export interface ConnectorBackfill {
+export interface ResourceBackfill {
   requiredWindowMs: number | undefined;
 }
+
+export type ConnectorBackfill = Map<string, ResourceBackfill>;
 
 const WINDOW_UNIT_MS: Record<string, number> = {
   h: 3_600_000,
@@ -35,11 +37,32 @@ function widgetWindow(widget: Widget): string | undefined {
   }
 }
 
-function widgetConnectorName(widget: Widget): string {
+interface WidgetReference {
+  connectorName: string;
+  resourceName: string | undefined;
+}
+
+function widgetReference(widget: Widget): WidgetReference {
   if (widget.kind === 'status') {
-    return widget.source;
+    return { connectorName: widget.source, resourceName: undefined };
   }
-  return widget.metric.connectorId;
+  return {
+    connectorName: widget.metric.connectorId,
+    resourceName: widget.metric.name ?? widget.metric.entityType,
+  };
+}
+
+function mergeWindow(
+  existing: number | undefined,
+  next: number | undefined,
+): number | undefined {
+  if (next === undefined) {
+    return existing;
+  }
+  if (existing === undefined) {
+    return next;
+  }
+  return Math.max(existing, next);
 }
 
 export function computeConnectorBackfill(
@@ -48,23 +71,21 @@ export function computeConnectorBackfill(
   const result = new Map<string, ConnectorBackfill>();
   for (const dashboard of Object.values(config.dashboards)) {
     for (const widget of Object.values(dashboard.widgets)) {
-      const name = widgetConnectorName(widget);
+      const { connectorName, resourceName } = widgetReference(widget);
       const windowStr = widgetWindow(widget);
       const windowMs = windowStr ? parseWindowMs(windowStr) : undefined;
-      const existing = result.get(name);
-      if (!existing) {
-        result.set(name, { requiredWindowMs: windowMs });
+      let resources = result.get(connectorName);
+      if (!resources) {
+        resources = new Map<string, ResourceBackfill>();
+        result.set(connectorName, resources);
+      }
+      if (resourceName === undefined) {
         continue;
       }
-      if (windowMs === undefined) {
-        continue;
-      }
-      if (
-        existing.requiredWindowMs === undefined ||
-        windowMs > existing.requiredWindowMs
-      ) {
-        result.set(name, { requiredWindowMs: windowMs });
-      }
+      const existing = resources.get(resourceName);
+      resources.set(resourceName, {
+        requiredWindowMs: mergeWindow(existing?.requiredWindowMs, windowMs),
+      });
     }
   }
   return result;
