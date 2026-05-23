@@ -37,7 +37,12 @@ export function useDashboard(
   const optsRef = useRef(subscribeOptions);
   optsRef.current = subscribeOptions;
 
+  const initialWidgetsRef = useRef(initialWidgets);
+  initialWidgetsRef.current = initialWidgets;
+
   useEffect(() => {
+    setWidgets(indexWidgets(initialWidgetsRef.current ?? []));
+    setError(null);
     const unsub = subscribe(
       source,
       dashboardId,
@@ -50,9 +55,11 @@ export function useDashboard(
           setWidgets((prev) =>
             prev[w.widgetId] === w ? prev : { ...prev, [w.widgetId]: w },
           );
+          setError(null);
         },
         onWidgetFailing: (w) => {
           setWidgets((prev) => ({ ...prev, [w.widgetId]: w }));
+          setError(null);
         },
         onError: (e) => setError(e),
       },

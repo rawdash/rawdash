@@ -83,6 +83,7 @@ export function subscribe(
   const trackers = new Map<string, WidgetTracker>();
   let stopped = false;
   let visibilityCleanup: (() => void) | null = null;
+  let bootstrapRetryHandle: Timer | null = null;
 
   function schedule(t: WidgetTracker, delayMs: number): void {
     if (stopped) {
@@ -162,16 +163,17 @@ export function subscribe(
         return;
       }
       callbacks.onError?.(err);
-      const handle = setTimer(() => {
+      if (bootstrapRetryHandle !== null) {
+        clearTimer(bootstrapRetryHandle);
+      }
+      bootstrapRetryHandle = setTimer(() => {
+        bootstrapRetryHandle = null;
         if (!stopped) {
           void bootstrap();
         }
       }, opts.failingBackoffMs);
-      onStopHandlers.push(() => clearTimer(handle));
     }
   }
-
-  const onStopHandlers: Array<() => void> = [];
 
   if (visibility) {
     visibilityCleanup = visibility.onChange(() => {
@@ -203,8 +205,9 @@ export function subscribe(
         t.timer = null;
       }
     }
-    for (const cleanup of onStopHandlers) {
-      cleanup();
+    if (bootstrapRetryHandle !== null) {
+      clearTimer(bootstrapRetryHandle);
+      bootstrapRetryHandle = null;
     }
     if (visibilityCleanup) {
       visibilityCleanup();
@@ -222,8 +225,13 @@ export function handleWidget(
   const incomingSyncAtMs = widget.cachedAt
     ? new Date(widget.cachedAt).getTime()
     : null;
-  const intervalMs =
-    (widget.syncIntervalSeconds ?? opts.defaultIntervalSeconds) * 1000;
+  const rawIntervalSeconds =
+    widget.syncIntervalSeconds ?? opts.defaultIntervalSeconds;
+  const safeIntervalSeconds =
+    Number.isFinite(rawIntervalSeconds) && rawIntervalSeconds > 0
+      ? rawIntervalSeconds
+      : opts.defaultIntervalSeconds;
+  const intervalMs = safeIntervalSeconds * 1000;
   const state = widget.syncState;
 
   const previousSyncAtMs = t.lastSyncAtMs;
