@@ -468,18 +468,32 @@ export class StripeConnector extends BaseConnector<
     return url.toString();
   }
 
-  // created[gte] cutoff for entity phases in incremental mode (7-day lookback)
-  private entityCreatedGte(options: SyncOptions): string | undefined {
-    if (options.mode !== 'latest' || !options.since) {
+  // created[gte] cutoff for entity phases — in incremental (latest) mode adds
+  // a 7-day grace so recent edits to slightly older entities still surface.
+  // Subscriptions are intentionally exempt in full mode: a subscription's
+  // updated_at is derived from current_period_end, so a still-active sub
+  // created well before the cutoff would otherwise be dropped on backfill.
+  private entityCreatedGte(
+    phase: StripePhase,
+    options: SyncOptions,
+  ): string | undefined {
+    if (!options.since) {
       return undefined;
     }
     const sinceMs = new Date(options.since).getTime();
-    return String(Math.floor((sinceMs - 7 * 24 * 60 * 60 * 1000) / 1000));
+    if (options.mode === 'latest') {
+      return String(Math.floor((sinceMs - 7 * 24 * 60 * 60 * 1000) / 1000));
+    }
+    if (phase === 'subscriptions') {
+      return undefined;
+    }
+    return String(Math.floor(sinceMs / 1000));
   }
 
-  // created[gt] cutoff for event phases in incremental mode
+  // created[gt] cutoff for event phases — applied in both full and incremental
+  // modes so backfill respects the widget-driven window.
   private eventCreatedGt(options: SyncOptions): string | undefined {
-    if (options.mode !== 'latest' || !options.since) {
+    if (!options.since) {
       return undefined;
     }
     return String(Math.floor(new Date(options.since).getTime() / 1000));
@@ -497,7 +511,7 @@ export class StripeConnector extends BaseConnector<
       return this.buildListUrl(phase, {
         ...extra,
         starting_after: startingAfter,
-        'created[gte]': this.entityCreatedGte(options),
+        'created[gte]': this.entityCreatedGte(phase, options),
       });
     }
     return this.buildListUrl(phase, {
