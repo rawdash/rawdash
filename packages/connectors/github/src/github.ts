@@ -341,6 +341,10 @@ export class GitHubConnector extends BaseConnector<
 
   private seenWorkflowRunIds = new Set<string>();
 
+  private resourceEnabled(options: SyncOptions, resource: string): boolean {
+    return options.resources === undefined || options.resources.has(resource);
+  }
+
   private buildHeaders(): Record<string, string> {
     const headers: Record<string, string> = {
       Accept: 'application/vnd.github+json',
@@ -510,14 +514,16 @@ export class GitHubConnector extends BaseConnector<
       new Date(lastPr.updated_at).getTime() < cutoff;
 
     const reviewsByPR = new Map<number, GitHubReview[]>();
-    for (const pr of filteredPrs) {
-      signal?.throwIfAborted();
-      const reviews = await this.fetch<GitHubReview[]>(
-        `https://api.github.com/repos/${owner}/${repo}/pulls/${pr.number}/reviews`,
-        'pull_request_reviews',
-        signal,
-      );
-      reviewsByPR.set(pr.number, reviews.body);
+    if (this.resourceEnabled(options, 'pull_request_reviews')) {
+      for (const pr of filteredPrs) {
+        signal?.throwIfAborted();
+        const reviews = await this.fetch<GitHubReview[]>(
+          `https://api.github.com/repos/${owner}/${repo}/pulls/${pr.number}/reviews`,
+          'pull_request_reviews',
+          signal,
+        );
+        reviewsByPR.set(pr.number, reviews.body);
+      }
     }
 
     const items: PRPageItems[] = [{ prs: filteredPrs, reviewsByPR }];
@@ -575,14 +581,16 @@ export class GitHubConnector extends BaseConnector<
       new Date(lastDeployment.created_at).getTime() < cutoff;
 
     const latestStatusById = new Map<number, GitHubDeploymentStatus | null>();
-    for (const deployment of filteredDeployments) {
-      signal?.throwIfAborted();
-      const statusRes = await this.fetch<GitHubDeploymentStatus[]>(
-        `https://api.github.com/repos/${owner}/${repo}/deployments/${deployment.id}/statuses?per_page=1`,
-        'deployment_statuses',
-        signal,
-      );
-      latestStatusById.set(deployment.id, statusRes.body[0] ?? null);
+    if (this.resourceEnabled(options, 'deployment_statuses')) {
+      for (const deployment of filteredDeployments) {
+        signal?.throwIfAborted();
+        const statusRes = await this.fetch<GitHubDeploymentStatus[]>(
+          `https://api.github.com/repos/${owner}/${repo}/deployments/${deployment.id}/statuses?per_page=1`,
+          'deployment_statuses',
+          signal,
+        );
+        latestStatusById.set(deployment.id, statusRes.body[0] ?? null);
+      }
     }
 
     const items: DeploymentPageItems[] = [
