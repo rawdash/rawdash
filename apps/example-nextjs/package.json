@@ -3,8 +3,8 @@
   "version": "0.0.18",
   "private": true,
   "scripts": {
-    "dev": "concurrently -n server,web -c blue,green 'tsx --env-file=.env.local dev-server.ts' 'tsx --env-file=.env.local dev-web.ts'",
-    "dev:server": "tsx --env-file=.env.local dev-server.ts",
+    "dev": "concurrently -n server,web -c blue,green 'tsx --env-file=.env.local dev-server.mts' 'tsx --env-file=.env.local dev-web.mts'",
+    "dev:server": "tsx --env-file=.env.local dev-server.mts",
     "dev:web": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
