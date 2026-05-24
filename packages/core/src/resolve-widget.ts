@@ -1,3 +1,4 @@
+import { classifyWidget, readAggregate } from './aggregate';
 import { computeMetric } from './compute';
 import type { Widget } from './config';
 import type { ConnectorHealth } from './connector';
@@ -31,6 +32,7 @@ function buildMetaFromHealth(health: ConnectorHealth): Record<string, unknown> {
 }
 
 export async function resolveWidget(
+  dashboardId: string,
   widgetId: string,
   widget: Widget,
   connectors: readonly string[] | undefined,
@@ -43,10 +45,16 @@ export async function resolveWidget(
   }
   const handle = storage.getStorageHandle(connectorId);
   const health = (await handle.getHealth?.()) ?? null;
-  const data =
-    widget.kind === 'status'
-      ? null
-      : await computeMetric(handle, widget.metric);
+  let data: unknown = null;
+  if (widget.kind !== 'status') {
+    const classification = classifyWidget(widget);
+    if (classification.via === 'aggregate') {
+      const cached = await readAggregate(handle, dashboardId, widgetId);
+      data = cached ? cached.value : await computeMetric(handle, widget.metric);
+    } else {
+      data = await computeMetric(handle, widget.metric);
+    }
+  }
 
   let syncState: WidgetSyncState | undefined;
   let meta: Record<string, unknown> | undefined;

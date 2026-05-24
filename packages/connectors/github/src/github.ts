@@ -6,11 +6,15 @@ import {
   standardRateLimitPolicy,
 } from '@rawdash/connector-shared';
 import {
+  type AggregateRequest,
+  type AggregateValue,
   BaseConnector,
   type ChunkedSyncCursor,
   type ConnectorContext,
   type CredentialsSchema,
   type FetchPageResult,
+  type FilterClause,
+  type FilterCondition,
   type StorageHandle,
   type SyncOptions,
   type SyncResult,
@@ -1046,4 +1050,150 @@ export class GitHubConnector extends BaseConnector<
       },
     });
   }
+
+  override async aggregate(
+    req: AggregateRequest,
+    signal?: AbortSignal,
+  ): Promise<AggregateValue> {
+    const { owner, repo } = this.settings;
+    if (req.fn === 'count') {
+      if (req.resource === 'pull_request') {
+        return this.searchCount('pr', filterConditions(req.filter), signal);
+      }
+      if (req.resource === 'issue') {
+        return this.searchCount('issue', filterConditions(req.filter), signal);
+      }
+      if (req.resource === 'contributor') {
+        return this.countContributors(signal);
+      }
+      throw unsupportedAggregate(req);
+    }
+    if (req.resource === 'repo') {
+      if (!req.field) {
+        throw unsupportedAggregate(req);
+      }
+      const res = await this.fetch<GitHubRepo>(
+        `https://api.github.com/repos/${owner}/${repo}`,
+        'repo',
+        signal,
+      );
+      if (req.field === 'stars') {
+        return res.body.stargazers_count;
+      }
+      if (req.field === 'forks') {
+        return res.body.forks_count;
+      }
+      if (req.field === 'watchers') {
+        return res.body.subscribers_count;
+      }
+      throw unsupportedAggregate(req);
+    }
+    if (req.resource === 'workflow_run') {
+      if (!req.field) {
+        throw unsupportedAggregate(req);
+      }
+      if (
+        req.field !== 'conclusion' &&
+        req.field !== 'status' &&
+        req.field !== 'branch' &&
+        req.field !== 'actor'
+      ) {
+        throw unsupportedAggregate(req);
+      }
+      const res = await this.fetch<GitHubRunsResponse>(
+        `https://api.github.com/repos/${owner}/${repo}/actions/runs?per_page=1`,
+        'workflow_runs',
+        signal,
+      );
+      const run = res.body.workflow_runs[0];
+      if (!run) {
+        return null;
+      }
+      if (req.field === 'conclusion') {
+        return run.conclusion ?? 'unknown';
+      }
+      if (req.field === 'status') {
+        return run.status;
+      }
+      if (req.field === 'branch') {
+        return run.head_branch ?? '';
+      }
+      return run.actor?.login ?? '';
+    }
+    throw unsupportedAggregate(req);
+  }
+
+  private async searchCount(
+    kind: 'pr' | 'issue',
+    conditions: FilterCondition[],
+    signal: AbortSignal | undefined,
+  ): Promise<number> {
+    const { owner, repo } = this.settings;
+    const parts = [`repo:${owner}/${repo}`, `is:${kind}`];
+    for (const c of conditions) {
+      if (
+        c.field === 'state' &&
+        c.op === 'eq' &&
+        (c.value === 'open' || c.value === 'closed')
+      ) {
+        parts.push(`is:${c.value}`);
+        continue;
+      }
+      throw new Error(
+        `GitHub aggregate count for ${kind}: unsupported filter ${c.field} ${c.op} ${String(c.value)}`,
+      );
+    }
+    const q = parts.join(' ');
+    const url = `https://api.github.com/search/issues?per_page=1&q=${encodeURIComponent(q)}`;
+    const res = await this.fetch<{ total_count: number }>(
+      url,
+      kind === 'pr' ? 'pull_requests' : 'issues',
+      signal,
+    );
+    return res.body.total_count;
+  }
+
+  private async countContributors(
+    signal: AbortSignal | undefined,
+  ): Promise<number> {
+    const { owner, repo } = this.settings;
+    const res = await this.fetch<unknown[]>(
+      `https://api.github.com/repos/${owner}/${repo}/contributors?per_page=1&anon=true`,
+      'contributors',
+      signal,
+    );
+    const link = res.headers.get('link');
+    if (link) {
+      const match = /[?&]page=(\d+)>;\s*rel="last"/.exec(link);
+      if (match) {
+        return parseInt(match[1]!, 10);
+      }
+    }
+    return Array.isArray(res.body) ? res.body.length : 0;
+  }
+}
+
+function unsupportedAggregate(req: AggregateRequest): Error {
+  const field = req.field ? ` field=${req.field}` : '';
+  return new Error(
+    `GitHub aggregate: unsupported ${req.fn} for resource=${req.resource}${field}`,
+  );
+}
+
+function filterConditions(
+  filter: FilterClause[] | undefined,
+): FilterCondition[] {
+  if (!filter) {
+    return [];
+  }
+  const out: FilterCondition[] = [];
+  for (const clause of filter) {
+    if ('or' in clause) {
+      throw new Error(
+        'GitHub aggregate count: OR filters are not supported (GitHub search would silently turn them into AND)',
+      );
+    }
+    out.push(clause);
+  }
+  return out;
 }

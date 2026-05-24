@@ -7,6 +7,7 @@ import {
   request as sharedRequest,
 } from '@rawdash/connector-shared';
 
+import type { FilterClause } from './filters';
 import {
   EnvSecretsResolver,
   type Secret,
@@ -202,6 +203,21 @@ export interface SyncResult {
   transientError?: unknown;
 }
 
+export interface AggregateRequest {
+  fn: 'count' | 'latest';
+  resource: string;
+  field?: string;
+  filter?: FilterClause[];
+}
+
+// A resolved value is treated by the runner as a successful aggregate write
+// (including `null` and `0`, which are legitimate "no data" answers). If the
+// connector cannot serve this combination of resource/field/filter at all,
+// it MUST throw — that signals "unsupported", causes the runner to skip the
+// scalar write, and keeps the resource in the entity-sync allowlist so
+// computeMetric can take over.
+export type AggregateValue = JSONValue;
+
 export interface Connector {
   readonly id: string;
   readonly credentials?: CredentialsSchema;
@@ -211,6 +227,10 @@ export interface Connector {
     storage: StorageHandle,
     signal?: AbortSignal,
   ): Promise<SyncResult>;
+  aggregate?(
+    req: AggregateRequest,
+    signal?: AbortSignal,
+  ): Promise<AggregateValue>;
 }
 
 export interface ConnectorContext {
@@ -396,6 +416,11 @@ export abstract class BaseConnector<
     storage: StorageHandle,
     signal?: AbortSignal,
   ): Promise<SyncResult>;
+
+  aggregate?(
+    req: AggregateRequest,
+    signal?: AbortSignal,
+  ): Promise<AggregateValue>;
 }
 
 export function defineConnector<TSettings>() {
@@ -410,6 +435,11 @@ export function defineConnector<TSettings>() {
       storage: StorageHandle,
       signal?: AbortSignal,
     ) => Promise<SyncResult>;
+    aggregate?: (
+      this: { settings: TSettings; creds: InferCredentials<TCreds> },
+      req: AggregateRequest,
+      signal?: AbortSignal,
+    ) => Promise<AggregateValue>;
   }): {
     new (
       settings: TSettings,
@@ -438,6 +468,19 @@ export function defineConnector<TSettings>() {
           signal,
         );
       }
+
+      override aggregate = def.aggregate
+        ? async (
+            req: AggregateRequest,
+            signal?: AbortSignal,
+          ): Promise<AggregateValue> => {
+            return def.aggregate!.call(
+              { settings: this.settings, creds: this.creds },
+              req,
+              signal,
+            );
+          }
+        : undefined;
     }
 
     return DynamicConnector as unknown as {

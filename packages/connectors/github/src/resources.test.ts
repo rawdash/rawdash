@@ -93,6 +93,19 @@ describe('GitHubConnector — resource allowlist', () => {
     expect(urls.some((u) => u.includes('/releases'))).toBe(true);
   });
 
+  it('aggregate throws on unsupported resource/field so runner falls back', async () => {
+    const connector = new GitHubConnector({ owner: 'o', repo: 'r' });
+    await expect(
+      connector.aggregate({ fn: 'count', resource: 'release' }),
+    ).rejects.toThrow(/unsupported count for resource=release/);
+    await expect(
+      connector.aggregate({ fn: 'latest', resource: 'repo', field: 'bogus' }),
+    ).rejects.toThrow(/unsupported latest for resource=repo field=bogus/);
+    await expect(
+      connector.aggregate({ fn: 'latest', resource: 'repo' }),
+    ).rejects.toThrow(/unsupported latest for resource=repo/);
+  });
+
   it('returns done immediately when allowlist is empty', async () => {
     const connector = new GitHubConnector({ owner: 'o', repo: 'r' });
     const storage = new InMemoryStorage();

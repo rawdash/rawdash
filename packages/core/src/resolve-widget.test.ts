@@ -52,7 +52,13 @@ function makeStorage(getHealth?: () => Promise<ConnectorHealth | null>): {
 describe('resolveWidget', () => {
   it('skips widgets whose connector is not in the allowlist', async () => {
     const { storage } = makeStorage();
-    const result = await resolveWidget('w', STAT_WIDGET, ['other'], storage);
+    const result = await resolveWidget(
+      'd',
+      'w',
+      STAT_WIDGET,
+      ['other'],
+      storage,
+    );
     expect(result).toBeUndefined();
   });
 
@@ -89,7 +95,7 @@ describe('resolveWidget', () => {
       markSyncSucceeded: async () => {},
       markSyncFailed: async () => {},
     };
-    const w = await resolveWidget('w', STATUS_WIDGET, undefined, storage);
+    const w = await resolveWidget('d', 'w', STATUS_WIDGET, undefined, storage);
     expect(w?.syncState).toBe('unsynced');
     expect(w?.meta).toBeUndefined();
     expect(w?.cachedAt).toBeNull();
@@ -103,7 +109,7 @@ describe('resolveWidget', () => {
       lastError: null,
       syncIntervalSeconds: 600,
     }));
-    const w = await resolveWidget('w', STAT_WIDGET, undefined, storage);
+    const w = await resolveWidget('d', 'w', STAT_WIDGET, undefined, storage);
     expect(w?.syncState).toBe('fresh');
     expect(w?.meta).toEqual({ connectorStatus: 'idle' });
     expect(w?.cachedAt).toBe(lastSyncAt);
@@ -117,7 +123,7 @@ describe('resolveWidget', () => {
       lastError: null,
       syncIntervalSeconds: 600,
     }));
-    const w = await resolveWidget('w', STAT_WIDGET, undefined, storage);
+    const w = await resolveWidget('d', 'w', STAT_WIDGET, undefined, storage);
     expect(w?.syncState).toBe('stale');
   });
 
@@ -128,7 +134,7 @@ describe('resolveWidget', () => {
       lastError: null,
       syncIntervalSeconds: 600,
     }));
-    const w = await resolveWidget('w', STAT_WIDGET, undefined, storage);
+    const w = await resolveWidget('d', 'w', STAT_WIDGET, undefined, storage);
     expect(w?.syncState).toBe('unsynced');
   });
 
@@ -139,7 +145,7 @@ describe('resolveWidget', () => {
       lastError: null,
       syncIntervalSeconds: 600,
     }));
-    const w = await resolveWidget('w', STAT_WIDGET, undefined, storage);
+    const w = await resolveWidget('d', 'w', STAT_WIDGET, undefined, storage);
     expect(w?.syncState).toBe('syncing');
     expect(w?.meta?.['connectorStatus']).toBe('syncing');
   });
@@ -152,7 +158,7 @@ describe('resolveWidget', () => {
         lastError: 'boom',
         syncIntervalSeconds: 600,
       }));
-      const w = await resolveWidget('w', STAT_WIDGET, undefined, storage);
+      const w = await resolveWidget('d', 'w', STAT_WIDGET, undefined, storage);
       expect(w?.syncState).toBe('failing');
       expect(w?.meta).toEqual({
         connectorStatus: status,
@@ -168,7 +174,7 @@ describe('resolveWidget', () => {
       lastError: 'token expired',
       syncIntervalSeconds: 600,
     }));
-    const w = await resolveWidget('w', STATUS_WIDGET, undefined, storage);
+    const w = await resolveWidget('d', 'w', STATUS_WIDGET, undefined, storage);
     expect(w?.data).toBeNull();
     expect(w?.syncState).toBe('failing');
     expect(w?.meta).toEqual({
@@ -179,7 +185,13 @@ describe('resolveWidget', () => {
 
   it('with InMemoryStorage: "unsynced" before any write, "stale" after a write (window=0)', async () => {
     const storage = new InMemoryStorage();
-    const before = await resolveWidget('w', STAT_WIDGET, undefined, storage);
+    const before = await resolveWidget(
+      'd',
+      'w',
+      STAT_WIDGET,
+      undefined,
+      storage,
+    );
     expect(before?.syncState).toBe('unsynced');
 
     const handle = storage.getStorageHandle(CONNECTOR);
@@ -191,7 +203,13 @@ describe('resolveWidget', () => {
     });
 
     await new Promise((r) => setTimeout(r, 5));
-    const after = await resolveWidget('w', STAT_WIDGET, undefined, storage);
+    const after = await resolveWidget(
+      'd',
+      'w',
+      STAT_WIDGET,
+      undefined,
+      storage,
+    );
     expect(after?.syncState).toBe('stale');
     expect(after?.cachedAt).not.toBeNull();
     expect(after?.meta).toEqual({ connectorStatus: 'idle' });

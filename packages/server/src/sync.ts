@@ -1,14 +1,18 @@
 import type {
+  AggregateRequest,
   ConnectorLogger,
   ConnectorRegistry,
   DashboardConfig,
   SecretsResolver,
   ServerStorage,
+  Widget,
 } from '@rawdash/core';
 import {
+  classifyWidget,
   computeConnectorBackfill,
   createDefaultConnectorLogger,
   instantiateConnector,
+  writeAggregate,
 } from '@rawdash/core';
 
 export const FULL_SYNC_TIMEOUT_MS = 300_000;
@@ -57,6 +61,43 @@ export interface RunSyncOptions {
  *
  * Returns silently if another sync acquired the `running` lock first.
  */
+interface WidgetForConnector {
+  dashboardId: string;
+  widgetId: string;
+  widget: Widget;
+  resource: string | undefined;
+  aggregateRequest: AggregateRequest | undefined;
+}
+
+function widgetsForConnector(
+  config: DashboardConfig,
+  connectorName: string,
+): WidgetForConnector[] {
+  const out: WidgetForConnector[] = [];
+  for (const [dashboardId, dashboard] of Object.entries(config.dashboards)) {
+    for (const [widgetId, widget] of Object.entries(dashboard.widgets)) {
+      if (widget.kind === 'status') {
+        continue;
+      }
+      if (widget.metric.connectorId !== connectorName) {
+        continue;
+      }
+      const classification = classifyWidget(widget);
+      out.push({
+        dashboardId,
+        widgetId,
+        widget,
+        resource: widget.metric.name ?? widget.metric.entityType,
+        aggregateRequest:
+          classification.via === 'aggregate'
+            ? classification.request
+            : undefined,
+      });
+    }
+  }
+  return out;
+}
+
 export async function runSync(
   config: DashboardConfig,
   storage: ServerStorage,
@@ -119,32 +160,12 @@ export async function runSync(
       if (!scope) {
         return;
       }
-      let maxWindowMs: number | undefined;
-      for (const { requiredWindowMs } of scope.values()) {
-        if (requiredWindowMs === undefined) {
-          continue;
-        }
-        if (maxWindowMs === undefined || requiredWindowMs > maxWindowMs) {
-          maxWindowMs = requiredWindowMs;
-        }
-      }
-      const since =
-        maxWindowMs !== undefined
-          ? new Date(now - maxWindowMs - BACKFILL_BUFFER_MS).toISOString()
-          : undefined;
-      const resources: ReadonlySet<string> = new Set(scope.keys());
       const controller = new AbortController();
       const handle = storage.getStorageHandle(entry.name, {
         signal: controller.signal,
       });
       const connectorLogger = safeLogger(entry.name);
       const syncStart = Date.now();
-      runnerLogger.info('sync started', {
-        connector: entry.name,
-        resources: Array.from(resources),
-        mode: 'full',
-        since,
-      });
       let timer: ReturnType<typeof setTimeout> | undefined;
       let status: 'succeeded' | 'failed' = 'succeeded';
       let failureReason: string | undefined;
@@ -165,6 +186,107 @@ export async function runSync(
             reject(err);
           }, FULL_SYNC_TIMEOUT_MS);
         });
+
+        const widgets = widgetsForConnector(config, entry.name);
+        // Track per-resource aggregate eligibility and success so we only
+        // drop a resource from entity sync once every aggregate-eligible
+        // widget targeting it has actually completed successfully. A failed
+        // (or unsupported) aggregate call must NOT silently skip the entity
+        // sync that would otherwise have populated the widget's data.
+        const aggregateCounts = new Map<
+          string,
+          { eligible: number; succeeded: number }
+        >();
+        const entitySyncResources = new Set<string>();
+        const eligible: Array<
+          WidgetForConnector & { aggregateRequest: AggregateRequest }
+        > = [];
+        for (const w of widgets) {
+          if (w.resource === undefined) {
+            continue;
+          }
+          if (w.aggregateRequest && connector.aggregate) {
+            eligible.push(
+              w as WidgetForConnector & {
+                aggregateRequest: AggregateRequest;
+              },
+            );
+            const c = aggregateCounts.get(w.resource) ?? {
+              eligible: 0,
+              succeeded: 0,
+            };
+            c.eligible += 1;
+            aggregateCounts.set(w.resource, c);
+          } else {
+            entitySyncResources.add(w.resource);
+          }
+        }
+
+        if (eligible.length > 0) {
+          const aggregateCalls = eligible.map(async (w) => {
+            try {
+              const value = await Promise.race([
+                connector.aggregate!(w.aggregateRequest, controller.signal),
+                timeoutPromise,
+              ]);
+              await writeAggregate(handle, w.dashboardId, w.widgetId, value);
+              if (w.resource !== undefined) {
+                aggregateCounts.get(w.resource)!.succeeded += 1;
+              }
+            } catch (err) {
+              const message = err instanceof Error ? err.message : String(err);
+              errors.push(
+                `${entry.name} aggregate (${w.dashboardId}:${w.widgetId}): ${message}`,
+              );
+            }
+          });
+          await Promise.all(aggregateCalls);
+        }
+
+        const aggregateServedResources = new Set<string>();
+        for (const [resource, { eligible: e, succeeded }] of aggregateCounts) {
+          if (entitySyncResources.has(resource)) {
+            continue;
+          }
+          if (e === succeeded) {
+            aggregateServedResources.add(resource);
+          }
+        }
+
+        const resources: ReadonlySet<string> = new Set(
+          [...scope.keys()].filter((r) => !aggregateServedResources.has(r)),
+        );
+        // Skip entity sync entirely when every resource the connector would
+        // have synced is now aggregate-served. Connectors with no resources
+        // to begin with (status-widget-only) still run sync to refresh health.
+        if (scope.size > 0 && resources.size === 0) {
+          return;
+        }
+
+        let maxWindowMs: number | undefined;
+        for (const [resourceName, { requiredWindowMs }] of scope.entries()) {
+          if (!resources.has(resourceName)) {
+            continue;
+          }
+          if (requiredWindowMs === undefined) {
+            continue;
+          }
+          if (maxWindowMs === undefined || requiredWindowMs > maxWindowMs) {
+            maxWindowMs = requiredWindowMs;
+          }
+        }
+        const since =
+          maxWindowMs !== undefined
+            ? new Date(now - maxWindowMs - BACKFILL_BUFFER_MS).toISOString()
+            : undefined;
+
+        runnerLogger.info('sync started', {
+          connector: entry.name,
+          resources: Array.from(resources),
+          mode: 'full',
+          since,
+        });
+
         let cursor: unknown = undefined;
         let chunks = 0;
         while (true) {
