@@ -68,7 +68,7 @@ export function WidgetCard({ widget }: WidgetCardProps) {
     );
   }
 
-  if (data === null) {
+  if (data === null || syncState === 'syncing' || syncState === 'unsynced') {
     return (
       <SkeletonCard
         label={label}
