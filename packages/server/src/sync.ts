@@ -133,48 +133,68 @@ export async function runSync(
         });
 
         const widgets = widgetsForConnector(config, entry.name);
-        const aggregateServedResources = new Set<string>();
+        // Track per-resource aggregate eligibility and success so we only
+        // drop a resource from entity sync once every aggregate-eligible
+        // widget targeting it has actually completed successfully. A failed
+        // (or unsupported) aggregate call must NOT silently skip the entity
+        // sync that would otherwise have populated the widget's data.
+        const aggregateCounts = new Map<
+          string,
+          { eligible: number; succeeded: number }
+        >();
         const entitySyncResources = new Set<string>();
+        const eligible: Array<
+          WidgetForConnector & { aggregateRequest: AggregateRequest }
+        > = [];
         for (const w of widgets) {
           if (w.resource === undefined) {
             continue;
           }
           if (w.aggregateRequest && connector.aggregate) {
-            aggregateServedResources.add(w.resource);
+            eligible.push(
+              w as WidgetForConnector & {
+                aggregateRequest: AggregateRequest;
+              },
+            );
+            const c = aggregateCounts.get(w.resource) ?? {
+              eligible: 0,
+              succeeded: 0,
+            };
+            c.eligible += 1;
+            aggregateCounts.set(w.resource, c);
           } else {
             entitySyncResources.add(w.resource);
           }
         }
-        // A resource only gets dropped from entity sync if every widget
-        // using it is aggregate-served.
-        for (const r of entitySyncResources) {
-          aggregateServedResources.delete(r);
-        }
 
-        if (connector.aggregate) {
-          const aggregateCalls = widgets
-            .filter(
-              (
-                w,
-              ): w is WidgetForConnector & {
-                aggregateRequest: AggregateRequest;
-              } => w.aggregateRequest !== undefined,
-            )
-            .map(async (w) => {
+        if (eligible.length > 0) {
+          const aggregateCalls = eligible.map(async (w) => {
+            try {
               const value = await Promise.race([
                 connector.aggregate!(w.aggregateRequest, controller.signal),
                 timeoutPromise,
               ]);
               await writeAggregate(handle, w.dashboardId, w.widgetId, value);
-            });
-          const aggResults = await Promise.allSettled(aggregateCalls);
-          for (const r of aggResults) {
-            if (r.status === 'rejected') {
-              const reason = r.reason;
-              const message =
-                reason instanceof Error ? reason.message : String(reason);
-              errors.push(`${entry.name} aggregate: ${message}`);
+              if (w.resource !== undefined) {
+                aggregateCounts.get(w.resource)!.succeeded += 1;
+              }
+            } catch (err) {
+              const message = err instanceof Error ? err.message : String(err);
+              errors.push(
+                `${entry.name} aggregate (${w.dashboardId}:${w.widgetId}): ${message}`,
+              );
             }
+          });
+          await Promise.all(aggregateCalls);
+        }
+
+        const aggregateServedResources = new Set<string>();
+        for (const [resource, { eligible: e, succeeded }] of aggregateCounts) {
+          if (entitySyncResources.has(resource)) {
+            continue;
+          }
+          if (e === succeeded) {
+            aggregateServedResources.add(resource);
           }
         }
 

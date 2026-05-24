@@ -442,6 +442,57 @@ describe('runSync — widget-driven backfill scoping', () => {
     ]);
   });
 
+  it('falls back to entity sync for a resource whose aggregate call failed', async () => {
+    class FlakyAggregateConnector implements Connector {
+      static readonly schemas = {};
+      readonly id = 'flaky';
+      readonly syncCalls: SyncOptions[] = [];
+      serializeConfig() {
+        return {};
+      }
+      async sync(options: SyncOptions): Promise<SyncResult> {
+        this.syncCalls.push(options);
+        return { done: true };
+      }
+      async aggregate(): Promise<AggregateValue> {
+        throw new Error('upstream 500');
+      }
+    }
+    const connector = new FlakyAggregateConnector();
+    const { registry, entry } = makeRegistry(connector);
+    const storage = new InMemoryStorage();
+    const config = {
+      connectors: [entry],
+      dashboards: {
+        main: {
+          widgets: {
+            open_prs: {
+              kind: 'stat',
+              title: 'Open PRs',
+              metric: {
+                connectorId: entry.name,
+                shape: 'entity',
+                name: 'pull_request',
+                fn: 'count',
+              },
+            },
+          },
+        },
+      },
+    } as unknown as DashboardConfig;
+
+    await runSync(config, storage, { connectorRegistry: registry });
+
+    // Aggregate failed → resource must NOT be pruned → entity sync runs.
+    expect(connector.syncCalls).toHaveLength(1);
+    expect(Array.from(connector.syncCalls[0]!.resources!)).toEqual([
+      'pull_request',
+    ]);
+    const state = await storage.getSyncState();
+    expect(state.status).toBe('failed');
+    expect(state.lastError).toContain('upstream 500');
+  });
+
   it('passes an empty resources set when only status widgets reference the connector', async () => {
     const connector = new ChunkedConnector([{ done: true }]);
     const { registry, entry } = makeRegistry(connector);
