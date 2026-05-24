@@ -1,4 +1,6 @@
 import type {
+  AggregateRequest,
+  AggregateValue,
   ConfiguredConnector,
   Connector,
   ConnectorClass,
@@ -10,7 +12,7 @@ import type {
   SyncResult,
   SyncState,
 } from '@rawdash/core';
-import { InMemoryStorage } from '@rawdash/core';
+import { AGGREGATE_ENTITY_TYPE, InMemoryStorage } from '@rawdash/core';
 import { describe, expect, it, vi } from 'vitest';
 
 import { FULL_SYNC_MAX_CHUNKS, runSync } from './sync';
@@ -307,6 +309,137 @@ describe('runSync — widget-driven backfill scoping', () => {
     const resources = connector.observed[0]!.resources;
     expect(resources).toBeDefined();
     expect(Array.from(resources!).sort()).toEqual(['pull_request', 'repo']);
+  });
+
+  it('dispatches aggregate calls and skips entity sync when every resource is aggregate-served', async () => {
+    class AggregateConnector implements Connector {
+      static readonly schemas = {};
+      readonly id = 'agg';
+      readonly syncCalls: SyncOptions[] = [];
+      readonly aggregateCalls: AggregateRequest[] = [];
+      serializeConfig() {
+        return {};
+      }
+      async sync(options: SyncOptions): Promise<SyncResult> {
+        this.syncCalls.push(options);
+        return { done: true };
+      }
+      async aggregate(req: AggregateRequest): Promise<AggregateValue> {
+        this.aggregateCalls.push(req);
+        if (req.fn === 'count') {
+          return 42;
+        }
+        return 'ok';
+      }
+    }
+    const connector = new AggregateConnector();
+    const { registry, entry } = makeRegistry(connector);
+    const storage = new InMemoryStorage();
+    const config = {
+      connectors: [entry],
+      dashboards: {
+        main: {
+          widgets: {
+            open_prs: {
+              kind: 'stat',
+              title: 'Open PRs',
+              metric: {
+                connectorId: entry.name,
+                shape: 'entity',
+                name: 'pull_request',
+                field: 'state',
+                fn: 'count',
+                filter: [{ field: 'state', op: 'eq', value: 'open' }],
+              },
+            },
+            ci: {
+              kind: 'stat',
+              title: 'CI',
+              metric: {
+                connectorId: entry.name,
+                shape: 'event',
+                name: 'workflow_run',
+                field: 'conclusion',
+                fn: 'latest',
+              },
+            },
+          },
+        },
+      },
+    } as unknown as DashboardConfig;
+
+    await runSync(config, storage, { connectorRegistry: registry });
+
+    expect(connector.aggregateCalls).toHaveLength(2);
+    expect(connector.syncCalls).toEqual([]);
+    const handle = storage.getStorageHandle(entry.name);
+    const open = await handle.getEntity(AGGREGATE_ENTITY_TYPE, 'open_prs');
+    expect(open?.attributes['value']).toBe(42);
+    const ci = await handle.getEntity(AGGREGATE_ENTITY_TYPE, 'ci');
+    expect(ci?.attributes['value']).toBe('ok');
+  });
+
+  it('keeps entity sync for a resource shared by aggregate and non-aggregate widgets', async () => {
+    class MixedConnector implements Connector {
+      static readonly schemas = {};
+      readonly id = 'mixed';
+      readonly syncCalls: SyncOptions[] = [];
+      readonly aggregateCalls: AggregateRequest[] = [];
+      serializeConfig() {
+        return {};
+      }
+      async sync(options: SyncOptions): Promise<SyncResult> {
+        this.syncCalls.push(options);
+        return { done: true };
+      }
+      async aggregate(req: AggregateRequest): Promise<AggregateValue> {
+        this.aggregateCalls.push(req);
+        return 0;
+      }
+    }
+    const connector = new MixedConnector();
+    const { registry, entry } = makeRegistry(connector);
+    const storage = new InMemoryStorage();
+    const config = {
+      connectors: [entry],
+      dashboards: {
+        main: {
+          widgets: {
+            open_prs: {
+              kind: 'stat',
+              title: 'Open PRs',
+              metric: {
+                connectorId: entry.name,
+                shape: 'entity',
+                name: 'pull_request',
+                fn: 'count',
+              },
+            },
+            prs_per_week: {
+              kind: 'timeseries',
+              title: 'PRs/week',
+              window: '90d',
+              metric: {
+                connectorId: entry.name,
+                shape: 'entity',
+                name: 'pull_request',
+                fn: 'count',
+                window: '90d',
+                groupBy: { field: 'updated_at', granularity: 'week' },
+              },
+            },
+          },
+        },
+      },
+    } as unknown as DashboardConfig;
+
+    await runSync(config, storage, { connectorRegistry: registry });
+
+    expect(connector.aggregateCalls).toHaveLength(1);
+    expect(connector.syncCalls).toHaveLength(1);
+    expect(Array.from(connector.syncCalls[0]!.resources!).sort()).toEqual([
+      'pull_request',
+    ]);
   });
 
   it('passes an empty resources set when only status widgets reference the connector', async () => {

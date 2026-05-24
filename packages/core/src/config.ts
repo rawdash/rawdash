@@ -1,6 +1,9 @@
+import type { FilterClause, FilterCondition, FilterOperator } from './filters';
 import type { RetentionConfig } from './retention';
 import { getWidgetSchema, widgetSchemas } from './widget-schemas';
 import type { WidgetKind } from './widget-schemas';
+
+export type { FilterClause, FilterCondition, FilterOperator };
 
 // ---------------------------------------------------------------------------
 // Aggregation functions
@@ -20,27 +23,6 @@ export type AggFn =
 // ---------------------------------------------------------------------------
 
 export type Shape = 'event' | 'entity' | 'metric' | 'edge' | 'distribution';
-
-// ---------------------------------------------------------------------------
-// Filters
-// ---------------------------------------------------------------------------
-
-export type FilterOperator =
-  | 'eq'
-  | 'neq'
-  | 'gt'
-  | 'gte'
-  | 'lt'
-  | 'lte'
-  | 'contains';
-
-export interface FilterCondition {
-  field: string;
-  op: FilterOperator;
-  value: string | number | boolean;
-}
-
-export type FilterClause = FilterCondition | { or: FilterCondition[] };
 
 // ---------------------------------------------------------------------------
 // GroupBy
