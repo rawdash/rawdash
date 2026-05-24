@@ -1,3 +1,5 @@
+import { StaleBadge } from './stale-badge';
+
 const STATUS_STYLES: Record<string, { dot: string; text: string }> = {
   success: { dot: 'bg-emerald-500', text: 'text-emerald-700' },
   failure: { dot: 'bg-red-500', text: 'text-red-700' },
@@ -8,9 +10,10 @@ const STATUS_STYLES: Record<string, { dot: string; text: string }> = {
 interface StatusWidgetProps {
   label: string;
   value: string;
+  stale?: boolean;
 }
 
-export function StatusWidget({ label, value }: StatusWidgetProps) {
+export function StatusWidget({ label, value, stale }: StatusWidgetProps) {
   const styles = STATUS_STYLES[value] ?? {
     dot: 'bg-gray-400',
     text: 'text-gray-700',
@@ -18,8 +21,9 @@ export function StatusWidget({ label, value }: StatusWidgetProps) {
 
   return (
     <div className="flex flex-col justify-between gap-3 rounded-xl border border-gray-100 bg-white px-5 py-4 shadow-sm sm:px-6 sm:py-5">
-      <span className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">
+      <span className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-widest text-gray-400">
         {label}
+        {stale && <StaleBadge />}
       </span>
       <div className="flex items-center gap-2.5">
         <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${styles.dot}`} />

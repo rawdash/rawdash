@@ -1,8 +1,11 @@
 import type { CachedWidget } from '@rawdash/core';
+import { Skeleton } from '@rawdash/sdk-nextjs/skeleton';
 
+import { FailingWidget } from './failing-widget';
 import { StatWidget } from './stat-widget';
 import { StatusWidget } from './status-widget';
 import { TimeseriesWidget } from './timeseries-widget';
+import { WaitingForFirstSync } from './waiting-for-first-sync';
 
 function widgetLabel(widgetId: string): string {
   return widgetId.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -50,54 +53,80 @@ interface WidgetCardProps {
 }
 
 export function WidgetCard({ widget }: WidgetCardProps) {
-  const { widgetId, data, syncState } = widget;
+  const { widgetId, data, syncState, meta, cachedAt } = widget;
   const label = widgetLabel(widgetId);
 
-  if (data === null) {
+  if (syncState === 'failing') {
+    const status =
+      typeof meta?.['connectorStatus'] === 'string'
+        ? meta['connectorStatus']
+        : 'error';
+    const lastError =
+      typeof meta?.['lastError'] === 'string' ? meta['lastError'] : null;
     return (
-      <UnsyncedPlaceholder label={label} syncState={syncState ?? 'unsynced'} />
+      <FailingWidget label={label} status={status} lastError={lastError} />
     );
   }
 
+  if (data === null || syncState === 'syncing' || syncState === 'unsynced') {
+    return (
+      <SkeletonCard
+        label={label}
+        syncState={syncState ?? 'unsynced'}
+        cachedAt={cachedAt}
+      />
+    );
+  }
+
+  const stale = syncState === 'stale';
+
   if (typeof data === 'string') {
-    return <StatusWidget label={label} value={data} />;
+    return <StatusWidget label={label} value={data} stale={stale} />;
   }
 
   if (typeof data === 'number') {
-    return <StatWidget label={label} value={data} />;
+    return <StatWidget label={label} value={data} stale={stale} />;
   }
 
   if (isStatWithDelta(data)) {
-    return <StatWidget label={label} value={data.value} trend={data.delta} />;
+    return (
+      <StatWidget
+        label={label}
+        value={data.value}
+        trend={data.delta}
+        stale={stale}
+      />
+    );
   }
 
   const timeseries = toTimeseriesEntries(data);
   if (timeseries) {
-    return <TimeseriesWidget label={label} entries={timeseries} />;
+    return (
+      <TimeseriesWidget label={label} entries={timeseries} stale={stale} />
+    );
   }
 
   return null;
 }
 
-function UnsyncedPlaceholder({
+function SkeletonCard({
   label,
   syncState,
+  cachedAt,
 }: {
   label: string;
   syncState: NonNullable<CachedWidget['syncState']>;
+  cachedAt: string | null;
 }) {
-  const message =
-    syncState === 'syncing'
-      ? 'Syncing…'
-      : syncState === 'failing'
-        ? 'Sync failed'
-        : 'Not yet synced';
   return (
-    <div className="flex flex-col justify-between gap-3 rounded-xl border border-dashed border-gray-200 bg-white px-5 py-4 shadow-sm sm:px-6 sm:py-5">
+    <div className="flex flex-col justify-between gap-3 rounded-xl border border-gray-100 bg-white px-5 py-4 shadow-sm sm:px-6 sm:py-5">
       <span className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">
         {label}
       </span>
-      <span className="text-sm text-gray-400">{message}</span>
+      <Skeleton height="2.5rem" width="60%" />
+      {syncState === 'unsynced' && (
+        <WaitingForFirstSync cachedAt={cachedAt} delayMs={30_000} />
+      )}
     </div>
   );
 }
