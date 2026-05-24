@@ -7,6 +7,8 @@ description: Scaffold a new rawdash connector package under packages/connectors/
 
 Process skill for scaffolding a new connector. The existing connectors under `packages/connectors/` are the source of truth; this skill never duplicates their structure.
 
+The long-form connector contract lives in [`docs/authoring-a-connector.md`](../../../docs/authoring-a-connector.md). Read it before reviewing the scaffold — every requirement below is documented there in more depth.
+
 ## When to invoke
 
 Trigger on requests like:
@@ -57,6 +59,16 @@ If the user provided the connector id, vendor name, or any other detail in their
 
 When asking, ask via `AskUserQuestion` and bundle multiple questions in one call.
 
+## Contract reminders for the dev
+
+The scaffolded `sync()` will compile against an old version of the contract, but it won't be _correct_ until the dev satisfies all of the following. Surface this list (verbatim) when you hand off:
+
+- **Honor `options.since`.** Pass it through to the upstream API as a filter, and short-circuit pagination once a page is entirely older than `since`. Don't fetch the full backfill and drop rows client-side. See [`docs/authoring-a-connector.md` §4](../../../docs/authoring-a-connector.md#optionssince).
+- **Honor `options.resources`.** Skip phases whose resource isn't in the allowlist. Also skip N+1 subresource calls (per-row reviews, per-issue events) gated on the same allowlist. Use `selectActivePhases` from `@rawdash/core`.
+- **Implement `count()` / `latest()` aggregates** for any resource whose dashboard widgets are `stat` / `status` / `fn: 'count'` widgets, if the upstream API exposes a cheap server-side count or "latest" endpoint. Without this, the runner has to backfill the full resource just to compute one number. Reference: `aggregate()` / `validateCountFilter()` in `packages/connectors/github/src/github.ts`.
+- **Emit the structured INFO log shape** on every page (`fetched page`), once per resource (`resource done`), and `warn` on page-fetch / batch-write failures. `paginateChunked` does this for you if you pass `logger: this.logger`. Hand-rolled loops must emit the same shape.
+- **Storage is persistent** (SQLite in OSS dev, real DBs in cloud). Don't depend on storage being empty on the first run. Make every write idempotent so a chunked sync that resumes mid-resource doesn't double-write.
+
 ## Decisions the dev (or you, with their permission) must make
 
 These shape which existing connector you should copy from. Surface them explicitly in your scaffolding plan if you make a non-obvious call:
@@ -78,7 +90,12 @@ These shape which existing connector you should copy from. Surface them explicit
 
 - Fill in API types and Zod schemas in `src/<id>.ts`.
 - Implement `fetchPage` and the writers per phase.
+- Plumb `options.since` into the upstream filter and short-circuit pagination once a page is entirely older than it.
+- Gate every phase (and any N+1 subresource calls) on `options.resources`.
+- Add an `aggregate()` override (and `validateCountFilter()`) for any resource that has a cheap server-side count / latest endpoint upstream — see [GitHub connector](../../../packages/connectors/github/src/github.ts) for the reference pattern.
+- Pass `logger: this.logger` to `paginateChunked` so the per-page / per-resource INFO logs land in the right shape; hand-rolled loops must mirror the shape from `docs/authoring-a-connector.md` §7.
 - Add a property-test `it` per resource in `src/property.test.ts`.
 - Write the README's `Auth setup` and `Configuration` sections following the vendor's official docs.
+- Add an `Aggregates` section to the README listing supported `count` / `latest` operations and the upstream endpoint each uses. If you didn't implement `aggregate()`, the section says "No aggregates yet" with a one-line note on what the upstream API would make possible later.
 - `pnpm --filter @rawdash/connector-<id> test` should pass.
 - `grep -rn "TODO(connector)" packages/connectors/<id>` should return nothing.

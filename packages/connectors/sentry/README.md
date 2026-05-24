@@ -132,6 +132,10 @@ Timestamps are stored as Unix epoch milliseconds. `sentry_issue_event` rows are 
 - **Rate limits**: Sentry sends `X-Sentry-Rate-Limit-Remaining` and `X-Sentry-Rate-Limit-Reset` on every response — the connector reports the parsed state back to the host via the shared `sentryRateLimit` policy so the engine can budget future requests. 429 responses are surfaced as `RateLimitError` by the shared HTTP client.
 - **Resumable**: every paginated phase yields a `(phase, pageUrl)` cursor. Pagination URLs are sanitized on the way in — only `https://sentry.io/api/0/...` is accepted — to prevent a malicious or corrupted cursor from steering a follow-up request elsewhere.
 
+## Aggregates
+
+No aggregates yet — `count` / `latest` widgets fall back to evaluating against synced storage rows. Tracking as a follow-up: Sentry's `/issues/?query=...&limit=1` could serve `count(sentry_issue, filter)` directly, and `releases/?per_page=1` could serve `latest(sentry_release, ...)` without paginating release history.
+
 ## Errors
 
 `@rawdash/connector-shared` maps Sentry's HTTP responses to typed errors automatically:

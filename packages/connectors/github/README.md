@@ -99,6 +99,21 @@ export default defineConfig({
 | `releases`             | `GET /repos/{owner}/{repo}/releases` page             |
 | `contributors`         | `GET /repos/{owner}/{repo}/stats/contributors`        |
 
+## Aggregates
+
+The connector implements `aggregate()` so the runner can serve `stat` and `status` widgets without first syncing the underlying rows into storage. Each call is one upstream request, regardless of how many objects the answer covers.
+
+| `fn`     | Resource       | Upstream endpoint                                                            | Supported filters / fields                                                                                                                     |
+| -------- | -------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `count`  | `pull_request` | `GET /search/issues?q=repo:{owner}/{repo} is:pr ...`                         | `state=eq:open\|closed`, `draft=eq:bool`, `label=eq:str`, `author=eq:str`, `assignee=eq:str`, `milestone=eq:str`, `head=eq:str`, `base=eq:str` |
+| `count`  | `issue`        | `GET /search/issues?q=repo:{owner}/{repo} is:issue ...`                      | same filter set as `pull_request` (except `head`/`base`)                                                                                       |
+| `count`  | `contributor`  | `GET /repos/{owner}/{repo}/contributors?per_page=1` (parses `Link rel=last`) | no filters                                                                                                                                     |
+| `latest` | `repo`         | `GET /repos/{owner}/{repo}`                                                  | `field=stars\|forks\|watchers`                                                                                                                 |
+| `latest` | `workflow_run` | `GET /repos/{owner}/{repo}/actions/runs?per_page=1`                          | `field=conclusion\|status\|branch\|actor`                                                                                                      |
+| `latest` | `release`      | `GET /repos/{owner}/{repo}/releases/latest`                                  | `field=tag_name\|name\|author\|published_at`                                                                                                   |
+
+`count` filter conditions are translated to GitHub Search API qualifiers (`is:open`, `label:"needs review"`, `author:octocat`, etc.). Only `op: 'eq'` is supported for now; the connector throws a descriptive error on unsupported ops, fields, or combinations, which causes the runner to fall back to evaluating the metric against synced storage rows.
+
 ## Duplicate handling
 
 The GitHub REST API can return the same item more than once within a single sync — for example when cursor pagination overlaps as the underlying collection mutates mid-fetch, when a retried request re-introduces items already seen, or when the same entity appears via more than one endpoint.
