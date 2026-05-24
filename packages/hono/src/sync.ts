@@ -1,4 +1,5 @@
 import type { ConnectorRegistry, SecretsResolver } from '@rawdash/core';
+import type { ConnectorLoggerFactory } from '@rawdash/server';
 import { getSyncStateHandler, triggerSync } from '@rawdash/server';
 import type { MiddlewareHandler } from 'hono';
 import { Hono } from 'hono';
@@ -26,6 +27,7 @@ export type SyncRouterOptions =
       mode?: 'in-process';
       connectorRegistry: ConnectorRegistry;
       secretsResolver?: SecretsResolver;
+      loggerFactory?: ConnectorLoggerFactory;
     })
   | {
       mode: 'deferred';
@@ -66,6 +68,7 @@ export function createSyncRouter(opts: SyncRouterOptions): Hono {
           getConfig: () => opts.getConfig(c),
           connectorRegistry: opts.connectorRegistry,
           secretsResolver: opts.secretsResolver,
+          loggerFactory: opts.loggerFactory,
         }),
       );
     } catch (err) {

@@ -44,3 +44,14 @@ export {
   HTTP_CLIENT_VERSION,
   connectorUserAgent,
 } from './version';
+export {
+  createDefaultConnectorLogger,
+  formatLogFields,
+  formatLogLine,
+  noopConnectorLogger,
+} from './logger';
+export type {
+  ConnectorLogger,
+  ConnectorLoggerOptions,
+  LogFields,
+} from './logger';

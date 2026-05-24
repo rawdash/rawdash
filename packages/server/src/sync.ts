@@ -1,18 +1,33 @@
 import type {
+  ConnectorLogger,
   ConnectorRegistry,
   DashboardConfig,
   SecretsResolver,
   ServerStorage,
 } from '@rawdash/core';
-import { computeConnectorBackfill, instantiateConnector } from '@rawdash/core';
+import {
+  computeConnectorBackfill,
+  createDefaultConnectorLogger,
+  instantiateConnector,
+} from '@rawdash/core';
 
 export const FULL_SYNC_TIMEOUT_MS = 300_000;
 export const FULL_SYNC_MAX_CHUNKS = 1_000;
 export const BACKFILL_BUFFER_MS = 86_400_000;
 
+export type ConnectorLoggerFactory = (scope: string) => ConnectorLogger;
+
 export interface RunSyncOptions {
   connectorRegistry: ConnectorRegistry;
   secretsResolver?: SecretsResolver;
+  /**
+   * Build a logger for the runner and for each connector instance. Called
+   * with `'runner'` for the start/settled envelopes and with each
+   * `connector.name` for the per-connector progress logs. Defaults to
+   * {@link createDefaultConnectorLogger}, which writes a single-line
+   * `[scope] event key=value …` record to stdout/stderr.
+   */
+  loggerFactory?: ConnectorLoggerFactory;
 }
 
 /**
@@ -57,6 +72,44 @@ export async function runSync(
   const errors: string[] = [];
   const backfill = computeConnectorBackfill(config);
   const now = Date.now();
+  const rawLoggerFactory: ConnectorLoggerFactory =
+    options.loggerFactory ??
+    ((scope) => createDefaultConnectorLogger({ scope }));
+  const safeLogger = (scope: string): ConnectorLogger => {
+    let inner: ConnectorLogger;
+    try {
+      inner = rawLoggerFactory(scope);
+    } catch (err) {
+      console.warn(
+        `[runner] loggerFactory threw for scope=${scope}; falling back to default`,
+        err,
+      );
+      inner = createDefaultConnectorLogger({ scope });
+    }
+    return {
+      info(event, fields) {
+        try {
+          inner.info(event, fields);
+        } catch (err) {
+          console.warn(
+            `[runner] logger.info threw for scope=${scope} event=${event}`,
+            err,
+          );
+        }
+      },
+      warn(event, fields) {
+        try {
+          inner.warn(event, fields);
+        } catch (err) {
+          console.warn(
+            `[runner] logger.warn threw for scope=${scope} event=${event}`,
+            err,
+          );
+        }
+      },
+    };
+  };
+  const runnerLogger = safeLogger('runner');
   await Promise.allSettled(
     config.connectors.map(async (entry) => {
       if (entry.enabled === false) {
@@ -84,12 +137,23 @@ export async function runSync(
       const handle = storage.getStorageHandle(entry.name, {
         signal: controller.signal,
       });
+      const connectorLogger = safeLogger(entry.name);
+      const syncStart = Date.now();
+      runnerLogger.info('sync started', {
+        connector: entry.name,
+        resources: Array.from(resources),
+        mode: 'full',
+        since,
+      });
       let timer: ReturnType<typeof setTimeout> | undefined;
+      let status: 'succeeded' | 'failed' = 'succeeded';
+      let failureReason: string | undefined;
       try {
         const connector = instantiateConnector(
           entry,
           options.connectorRegistry,
           options.secretsResolver,
+          connectorLogger,
         );
         const timeoutPromise = new Promise<never>((_resolve, reject) => {
           timer = setTimeout(() => {
@@ -123,17 +187,23 @@ export async function runSync(
           cursor = result.cursor;
         }
       } catch (err) {
+        status = 'failed';
         if (err instanceof Error && err.name === 'AbortError') {
-          errors.push(
-            `${entry.name} timed out after ${FULL_SYNC_TIMEOUT_MS}ms`,
-          );
+          failureReason = `${entry.name} timed out after ${FULL_SYNC_TIMEOUT_MS}ms`;
         } else {
-          errors.push(err instanceof Error ? err.message : String(err));
+          failureReason = err instanceof Error ? err.message : String(err);
         }
+        errors.push(failureReason);
       } finally {
         if (timer !== undefined) {
           clearTimeout(timer);
         }
+        runnerLogger.info('sync settled', {
+          connector: entry.name,
+          status,
+          duration_ms: Date.now() - syncStart,
+          error: failureReason,
+        });
       }
     }),
   );

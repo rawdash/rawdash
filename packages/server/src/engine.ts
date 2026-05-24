@@ -10,12 +10,13 @@ import type {
 } from '@rawdash/core';
 import { InMemoryStorage, isSyncActive, resolveWidget } from '@rawdash/core';
 
-import { runSync } from './sync';
+import { type ConnectorLoggerFactory, runSync } from './sync';
 
 export interface EngineOptions {
   storage?: ServerStorage;
   connectorRegistry?: ConnectorRegistry;
   secretsResolver?: SecretsResolver;
+  loggerFactory?: ConnectorLoggerFactory;
 }
 
 export interface Engine {
@@ -88,6 +89,7 @@ export function createEngine(
       void runSync(config, storage, {
         connectorRegistry: options.connectorRegistry,
         secretsResolver: options.secretsResolver,
+        loggerFactory: options.loggerFactory,
       }).catch((error) => {
         console.error('Rawdash sync failed', error);
       });
