@@ -38,13 +38,13 @@ function formatValue(value: unknown): string {
   if (typeof value === 'bigint') {
     return value.toString();
   }
-  let json: string;
+  let json: string | undefined;
   try {
     json = JSON.stringify(value);
   } catch {
-    json = String(value);
+    json = undefined;
   }
-  return truncate(json);
+  return truncate(json ?? String(value));
 }
 
 export function formatLogFields(fields?: LogFields): string {

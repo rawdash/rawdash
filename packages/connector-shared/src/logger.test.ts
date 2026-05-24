@@ -33,6 +33,13 @@ describe('formatLogFields', () => {
       ' a=null b=true c=3',
     );
   });
+
+  it('falls back to String() when JSON.stringify returns undefined', () => {
+    const out = formatLogFields({ s: Symbol('x'), f: () => 0 });
+    expect(out).toContain('s=');
+    expect(out).toContain('f=');
+    expect(out).not.toMatch(/=undefined($|\s)/);
+  });
 });
 
 describe('formatLogLine', () => {

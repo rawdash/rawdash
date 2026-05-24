@@ -339,6 +339,49 @@ describe('runSync — widget-driven backfill scoping', () => {
     expect(runnerEvents).toContain('sync settled');
   });
 
+  it('survives a throwing loggerFactory and reports sync succeeded', async () => {
+    const connector = new ChunkedConnector([{ done: true }]);
+    const { registry, entry } = makeRegistry(connector);
+    const storage = new InMemoryStorage();
+    const config = makeConfig(entry);
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await runSync(config, storage, {
+      connectorRegistry: registry,
+      loggerFactory: () => {
+        throw new Error('factory boom');
+      },
+    });
+
+    const state = await storage.getSyncState();
+    expect(state.status).toBe('succeeded');
+    expect(warnSpy).toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it('survives a logger whose info() throws', async () => {
+    const connector = new ChunkedConnector([{ done: true }]);
+    const { registry, entry } = makeRegistry(connector);
+    const storage = new InMemoryStorage();
+    const config = makeConfig(entry);
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await runSync(config, storage, {
+      connectorRegistry: registry,
+      loggerFactory: () => ({
+        info: () => {
+          throw new Error('info boom');
+        },
+        warn: () => {},
+      }),
+    });
+
+    const state = await storage.getSyncState();
+    expect(state.status).toBe('succeeded');
+    expect(warnSpy).toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
   it('passes an empty resources set when only status widgets reference the connector', async () => {
     const connector = new ChunkedConnector([{ done: true }]);
     const { registry, entry } = makeRegistry(connector);

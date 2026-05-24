@@ -72,10 +72,44 @@ export async function runSync(
   const errors: string[] = [];
   const backfill = computeConnectorBackfill(config);
   const now = Date.now();
-  const loggerFactory: ConnectorLoggerFactory =
+  const rawLoggerFactory: ConnectorLoggerFactory =
     options.loggerFactory ??
     ((scope) => createDefaultConnectorLogger({ scope }));
-  const runnerLogger = loggerFactory('runner');
+  const safeLogger = (scope: string): ConnectorLogger => {
+    let inner: ConnectorLogger;
+    try {
+      inner = rawLoggerFactory(scope);
+    } catch (err) {
+      console.warn(
+        `[runner] loggerFactory threw for scope=${scope}; falling back to default`,
+        err,
+      );
+      inner = createDefaultConnectorLogger({ scope });
+    }
+    return {
+      info(event, fields) {
+        try {
+          inner.info(event, fields);
+        } catch (err) {
+          console.warn(
+            `[runner] logger.info threw for scope=${scope} event=${event}`,
+            err,
+          );
+        }
+      },
+      warn(event, fields) {
+        try {
+          inner.warn(event, fields);
+        } catch (err) {
+          console.warn(
+            `[runner] logger.warn threw for scope=${scope} event=${event}`,
+            err,
+          );
+        }
+      },
+    };
+  };
+  const runnerLogger = safeLogger('runner');
   await Promise.allSettled(
     config.connectors.map(async (entry) => {
       if (entry.enabled === false) {
@@ -103,7 +137,7 @@ export async function runSync(
       const handle = storage.getStorageHandle(entry.name, {
         signal: controller.signal,
       });
-      const connectorLogger = loggerFactory(entry.name);
+      const connectorLogger = safeLogger(entry.name);
       const syncStart = Date.now();
       runnerLogger.info('sync started', {
         connector: entry.name,
