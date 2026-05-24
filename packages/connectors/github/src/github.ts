@@ -1065,28 +1065,40 @@ export class GitHubConnector extends BaseConnector<
       if (req.resource === 'contributor') {
         return this.countContributors(signal);
       }
-      return null;
+      throw unsupportedAggregate(req);
     }
-    // latest
-    if (req.resource === 'repo' && req.field) {
+    if (req.resource === 'repo') {
+      if (!req.field) {
+        throw unsupportedAggregate(req);
+      }
       const res = await this.fetch<GitHubRepo>(
         `https://api.github.com/repos/${owner}/${repo}`,
         'repo',
         signal,
       );
-      const field = req.field;
-      if (field === 'stars') {
+      if (req.field === 'stars') {
         return res.body.stargazers_count;
       }
-      if (field === 'forks') {
+      if (req.field === 'forks') {
         return res.body.forks_count;
       }
-      if (field === 'watchers') {
+      if (req.field === 'watchers') {
         return res.body.subscribers_count;
       }
-      return null;
+      throw unsupportedAggregate(req);
     }
-    if (req.resource === 'workflow_run' && req.field) {
+    if (req.resource === 'workflow_run') {
+      if (!req.field) {
+        throw unsupportedAggregate(req);
+      }
+      if (
+        req.field !== 'conclusion' &&
+        req.field !== 'status' &&
+        req.field !== 'branch' &&
+        req.field !== 'actor'
+      ) {
+        throw unsupportedAggregate(req);
+      }
       const res = await this.fetch<GitHubRunsResponse>(
         `https://api.github.com/repos/${owner}/${repo}/actions/runs?per_page=1`,
         'workflow_runs',
@@ -1096,22 +1108,18 @@ export class GitHubConnector extends BaseConnector<
       if (!run) {
         return null;
       }
-      const field = req.field;
-      if (field === 'conclusion') {
+      if (req.field === 'conclusion') {
         return run.conclusion ?? 'unknown';
       }
-      if (field === 'status') {
+      if (req.field === 'status') {
         return run.status;
       }
-      if (field === 'branch') {
+      if (req.field === 'branch') {
         return run.head_branch ?? '';
       }
-      if (field === 'actor') {
-        return run.actor?.login ?? '';
-      }
-      return null;
+      return run.actor?.login ?? '';
     }
-    return null;
+    throw unsupportedAggregate(req);
   }
 
   private async searchCount(
@@ -1162,6 +1170,13 @@ export class GitHubConnector extends BaseConnector<
     }
     return Array.isArray(res.body) ? res.body.length : 0;
   }
+}
+
+function unsupportedAggregate(req: AggregateRequest): Error {
+  const field = req.field ? ` field=${req.field}` : '';
+  return new Error(
+    `GitHub aggregate: unsupported ${req.fn} for resource=${req.resource}${field}`,
+  );
 }
 
 function filterConditions(

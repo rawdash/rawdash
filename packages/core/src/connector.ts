@@ -208,6 +208,12 @@ export interface AggregateRequest {
   filter?: FilterClause[];
 }
 
+// A resolved value is treated by the runner as a successful aggregate write
+// (including `null` and `0`, which are legitimate "no data" answers). If the
+// connector cannot serve this combination of resource/field/filter at all,
+// it MUST throw — that signals "unsupported", causes the runner to skip the
+// scalar write, and keeps the resource in the entity-sync allowlist so
+// computeMetric can take over.
 export type AggregateValue = JSONValue;
 
 export interface Connector {
