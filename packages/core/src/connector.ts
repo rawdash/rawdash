@@ -1,7 +1,9 @@
 import {
+  type ConnectorLogger,
   type HttpRequest,
   type HttpResponse,
   type RequestObserver,
+  createDefaultConnectorLogger,
   request as sharedRequest,
 } from '@rawdash/connector-shared';
 
@@ -214,6 +216,7 @@ export interface Connector {
 export interface ConnectorContext {
   observer?: RequestObserver;
   secretsResolver?: SecretsResolver;
+  logger?: ConnectorLogger;
 }
 
 export interface ConnectorRequestOptions {
@@ -239,6 +242,7 @@ export abstract class BaseConnector<
   protected creds: InferCredentials<TCreds>;
   private rawCredInput: InferCredentialInput<TCreds> | undefined;
   private ctx: ConnectorContext;
+  private cachedLogger: ConnectorLogger | undefined;
 
   constructor(
     settings: TSettings,
@@ -254,6 +258,14 @@ export abstract class BaseConnector<
           this.ctx.secretsResolver ?? new EnvSecretsResolver(),
         ) as InferCredentials<TCreds>)
       : ({} as InferCredentials<TCreds>);
+  }
+
+  protected get logger(): ConnectorLogger {
+    if (!this.cachedLogger) {
+      this.cachedLogger =
+        this.ctx.logger ?? createDefaultConnectorLogger({ scope: this.id });
+    }
+    return this.cachedLogger;
   }
 
   protected request<T = unknown>(

@@ -4,7 +4,11 @@ import type {
   SecretsResolver,
   ServerStorage,
 } from '@rawdash/core';
-import { computeConnectorBackfill, instantiateConnector } from '@rawdash/core';
+import {
+  computeConnectorBackfill,
+  createDefaultConnectorLogger,
+  instantiateConnector,
+} from '@rawdash/core';
 
 export const FULL_SYNC_TIMEOUT_MS = 300_000;
 export const FULL_SYNC_MAX_CHUNKS = 1_000;
@@ -57,6 +61,7 @@ export async function runSync(
   const errors: string[] = [];
   const backfill = computeConnectorBackfill(config);
   const now = Date.now();
+  const runnerLogger = createDefaultConnectorLogger({ scope: 'runner' });
   await Promise.allSettled(
     config.connectors.map(async (entry) => {
       if (entry.enabled === false) {
@@ -84,12 +89,25 @@ export async function runSync(
       const handle = storage.getStorageHandle(entry.name, {
         signal: controller.signal,
       });
+      const connectorLogger = createDefaultConnectorLogger({
+        scope: entry.name,
+      });
+      const syncStart = Date.now();
+      runnerLogger.info('sync started', {
+        connector: entry.name,
+        resources: Array.from(resources),
+        mode: 'full',
+        since,
+      });
       let timer: ReturnType<typeof setTimeout> | undefined;
+      let status: 'succeeded' | 'failed' = 'succeeded';
+      let failureReason: string | undefined;
       try {
         const connector = instantiateConnector(
           entry,
           options.connectorRegistry,
           options.secretsResolver,
+          connectorLogger,
         );
         const timeoutPromise = new Promise<never>((_resolve, reject) => {
           timer = setTimeout(() => {
@@ -123,17 +141,23 @@ export async function runSync(
           cursor = result.cursor;
         }
       } catch (err) {
+        status = 'failed';
         if (err instanceof Error && err.name === 'AbortError') {
-          errors.push(
-            `${entry.name} timed out after ${FULL_SYNC_TIMEOUT_MS}ms`,
-          );
+          failureReason = `${entry.name} timed out after ${FULL_SYNC_TIMEOUT_MS}ms`;
         } else {
-          errors.push(err instanceof Error ? err.message : String(err));
+          failureReason = err instanceof Error ? err.message : String(err);
         }
+        errors.push(failureReason);
       } finally {
         if (timer !== undefined) {
           clearTimeout(timer);
         }
+        runnerLogger.info('sync settled', {
+          connector: entry.name,
+          status,
+          duration_ms: Date.now() - syncStart,
+          error: failureReason,
+        });
       }
     }),
   );

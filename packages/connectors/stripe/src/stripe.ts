@@ -706,6 +706,7 @@ export class StripeConnector extends BaseConnector<
       phases,
       cursor,
       signal,
+      logger: this.logger,
       fetchPage: async (phase, page, sig) => {
         const url = this.buildPhaseUrl(phase, page, options);
         const res = await this.fetch<StripeListResponse<{ id: string }>>(
