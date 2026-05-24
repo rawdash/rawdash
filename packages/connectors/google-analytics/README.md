@@ -159,6 +159,10 @@ The `value` field of each metric sample contains the first metric in the table a
 - **Pagination**: uses the GA4 Data API `offset`/`limit` model with 10 000 rows per page. Interrupted syncs return a cursor and resume from the same phase and offset.
 - **Rate limits**: the GA4 Data API quota is 200 000 tokens/day per property (default). 429 responses are handled automatically by the built-in HTTP client with exponential back-off.
 
+## Aggregates
+
+No aggregates yet — `count` / `latest` widgets fall back to evaluating against synced storage rows. GA4 is unusual in that the data is already aggregated upstream (the connector writes `metric` samples, not raw events), so most `count` / `latest` widgets resolve cheaply against the local metric table without needing a separate `aggregate()` hook. If a per-tick `runReport` shortcut becomes worth it later, this section is where it lands.
+
 ## Registering in the MCP server
 
 ```ts

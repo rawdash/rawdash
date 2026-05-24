@@ -132,6 +132,10 @@ Timestamps are stored as Unix epoch milliseconds. `linear_issue_state_change` ev
 - **Rate limits**: Linear sends `X-RateLimit-Requests-Remaining` / `X-RateLimit-Requests-Reset` on every response — the connector reports the parsed state back to the host via the shared rate-limit policy so the engine can budget future requests.
 - **Resumable**: every phase yields a `(phase, endCursor)` cursor — if the host aborts the sync, the next invocation picks up at the same page.
 
+## Aggregates
+
+No aggregates yet — `count` / `latest` widgets fall back to evaluating against synced storage rows. Tracking as a follow-up: Linear's GraphQL `issues(filter: ...) { totalCount }` could serve `count(linear_issue, filter)` directly without paginating the issue connection.
+
 ## Out of scope (post-MVP)
 
 - Linear OAuth (currently API key only).

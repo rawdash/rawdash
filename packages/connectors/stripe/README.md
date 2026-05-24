@@ -169,6 +169,10 @@ Pre-computed monthly-equivalent revenue for each subscription in the smallest cu
 - **Rate limits**: Stripe's 429 responses carry a `Retry-After` header. The built-in HTTP client retries automatically with exponential back-off.
 - **Resumable**: if a sync is interrupted (signal abort), the connector returns a cursor so the engine can resume from the same page.
 
+## Aggregates
+
+No aggregates yet — `count` / `latest` widgets fall back to evaluating against synced storage rows. Tracking as a follow-up: Stripe's list endpoints (`/v1/subscriptions?status=active&limit=1`, `/v1/charges?limit=1`, etc.) plus the `?ending_before=` cursor can serve `count` and `latest` for most resources without touching the full backfill.
+
 ## Registering in the MCP server
 
 To make the connector available via the `add_connector` MCP tool, include it in `connectorFactories`:

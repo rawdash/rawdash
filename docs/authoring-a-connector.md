@@ -11,10 +11,13 @@ If you're patching an existing connector, the relevant package READMEs are still
 3. [Settings and credentials](#3-settings-and-credentials)
 4. [Implementing `sync()`](#4-implementing-sync)
 5. [Chunked syncs](#5-chunked-syncs)
-6. [Rate-limit awareness](#6-rate-limit-awareness)
-7. [Using `@rawdash/connector-shared`](#7-using-rawdashconnector-shared)
-8. [Testing locally](#8-testing-locally)
-9. [Publishing](#9-publishing)
+6. [Aggregates: `count()` and `latest()`](#6-aggregates-count-and-latest)
+7. [Logging](#7-logging)
+8. [Storage durability](#8-storage-durability)
+9. [Rate-limit awareness](#9-rate-limit-awareness)
+10. [Using `@rawdash/connector-shared`](#10-using-rawdashconnector-shared)
+11. [Testing locally](#11-testing-locally)
+12. [Publishing](#12-publishing)
 
 ---
 
@@ -103,7 +106,7 @@ Two consumers rely on this map:
 - **Cloud baseline generator**: at deploy time, rawdash cloud walks `ConnectorClass.schemas` for each `@rawdash/connector-*` dependency and writes one `connector_baselines` row per resource. Those baselines feed the shape-drift detection pipeline that flags upstream API changes at sync time.
 - **Property tests** in `@rawdash/connector-test-utils`: `runPropertySyncTest({ connectorClass, resource, ... })` reads the schema from `connectorClass.schemas[resource]` and fuzzes against it. If you drop or misname a key, your own property tests break — that's a deliberate second layer of enforcement on top of the TypeScript contract.
 
-**Resource keys must match the `resource` tag** passed to `request()` (see [§7](#7-using-rawdashconnector-shared)). The keys are the join column between schemas and runtime observations; a mismatch silently disables drift detection for that resource.
+**Resource keys must match the `resource` tag** passed to `request()` (see [§10](#10-using-rawdashconnector-shared)). The keys are the join column between schemas and runtime observations; a mismatch silently disables drift detection for that resource.
 
 ## 2. Picking shapes
 
@@ -204,6 +207,7 @@ interface SyncOptions {
   mode: 'full' | 'latest';
   since?: string; // ISO timestamp; lower bound for incremental syncs
   cursor?: unknown; // resume token returned from a previous SyncResult
+  resources?: ReadonlySet<string>; // allowlist of resource names the runner wants
 }
 ```
 
@@ -213,8 +217,11 @@ It returns:
 interface SyncResult {
   done: boolean;
   cursor?: unknown; // present iff !done
+  transientError?: unknown; // soft failure — runner reschedules
 }
 ```
+
+The `{ done, cursor }` shape is the chunked-sync contract documented in [§5](#5-chunked-syncs). Single-call connectors return `{ done: true }` immediately and never emit a cursor.
 
 A minimal implementation:
 
@@ -245,6 +252,26 @@ async sync(options, storage, signal) {
 
 - `latest` — cheap "give me the most recent value" sync. Fetch one row, write one row. Used for snapshot widgets that don't need history.
 - `full` — sync the full window. Honor `options.since` if your API supports `?since=` or equivalent; otherwise fall back to fetching everything and filtering.
+
+### `options.since`
+
+The runner sets `since` from the widest backfill window any widget on this connector actually needs (plus a small buffer). It is the lower bound on `updated_at` / `created_at` / whatever timestamp your source exposes. Two requirements:
+
+1. **Filter on it.** Pass it through to the upstream API (`?since=`, `?updated_at[gte]=`, `?created[gte]=`, GraphQL `updatedAt: { gt: $since }`, etc.). Don't fetch the full backfill and then drop rows client-side — that defeats the point.
+2. **Short-circuit pagination.** Even when the upstream endpoint accepts `since`, results are usually ordered newest-first; once a page is entirely older than `since`, stop paginating. Otherwise an "incremental" sync silently turns into a full scan when the upstream filter is missing or weaker than promised.
+
+If the source has no timestamp filter at all, document it in the README and treat every sync as a full one — the runner still won't ask for more data than it needs (see [Storage durability](#8-storage-durability)).
+
+### Resource allowlist (`options.resources`)
+
+`options.resources` is the set of resources the runner actually wants this tick. It's derived from the widgets on dashboards in the current config, intersected with the dashboard's "scope" (which widgets the host evaluated). Two requirements:
+
+1. **Skip phases nobody asked for.** If `options.resources` is set and a phase's resource isn't in it, don't fetch it. `selectActivePhases` in `@rawdash/core` does the intersection for `paginateChunked` callers.
+2. **Don't sync subresources of skipped phases either.** If a phase fans out to N+1 calls per row (per-PR reviews, per-issue events), gate those calls on the same allowlist — they're expensive even when the parent phase has to run.
+
+When `options.resources` is `undefined` or empty, sync everything (initial registration, debug runs).
+
+The runner additionally drops a resource from the allowlist entirely when an aggregate-only widget can be served via [`aggregate()`](#6-aggregates-count-and-latest) — so a connector that implements `count()` for a resource will see that resource omitted from `options.resources` on ticks where every widget for it is a `fn: 'count'` widget.
 
 ### Idempotency
 
@@ -375,7 +402,152 @@ If the cursor includes a URL the host will pass back to `fetch()`, **sanitize it
 - The host calls `sync()` with `signal` and may abort at any time — including mid-page. Respect it.
 - As a safety net, the `StorageHandle` itself is wired to the same `signal`: once the host aborts the run, any subsequent write call on the handle becomes a no-op (with a `console.warn`) instead of leaking into the next sync. This means a misbehaving connector that ignores `signal` can no longer overlap with the next run — but you should still honor `signal` so that wasted work stops promptly and your error messages remain accurate. Reads on the handle are unaffected.
 
-## 6. Rate-limit awareness
+## 6. Aggregates: `count()` and `latest()`
+
+Some widgets — `stat` widgets driven by `defineMetric({ fn: 'count', ... })`, `status` widgets, and any other widget that asks for a single scalar — don't actually need the rows in storage. They need _the answer_. Most sources can compute that answer server-side cheaper than the connector can sync the underlying rows: GitHub's Search API counts open PRs in one request; Stripe's `subscriptions/list` with `status=active&limit=1` gives a total via the response header; Vercel's deployments list returns `pagination.count`.
+
+The `aggregate()` hook lets a connector serve those scalars directly, so the runner can drop the resource from the entity-sync allowlist for that tick:
+
+```ts
+interface AggregateRequest {
+  fn: 'count' | 'latest';
+  resource: string;
+  field?: string; // required for `latest`; identifies which field on the row
+  filter?: FilterClause[]; // for `count`; same shape as defineMetric filters
+}
+
+type AggregateValue = JSONValue; // including `null` and `0`
+
+interface Connector {
+  aggregate?(
+    req: AggregateRequest,
+    signal?: AbortSignal,
+  ): Promise<AggregateValue>;
+  validateCountFilter?(resource: string, filter: FilterClause[]): void;
+}
+```
+
+### When to implement
+
+Implement `aggregate()` if **any** of the following is true for your source:
+
+- It has a search/list endpoint that returns a total count for a query (`?per_page=1` + total header, GraphQL `count` field, dedicated `/search` endpoint).
+- It has a "latest" endpoint that returns a single most-recent row for a resource without paginating history (GitHub's `/releases/latest`, Stripe's `?limit=1`, anything keyed on `mode=latest` in your own `sync()`).
+- The widget would otherwise force a full backfill of an event/entity stream just to compute one number.
+
+If none of those is true, skip the hook entirely. The runner falls back to evaluating the metric against synced storage rows.
+
+### The contract
+
+- **Throw to mean "unsupported."** Returning `null` is a legitimate "no data" answer — the runner records it. If you can't serve the combination of `(resource, field, filter)` at all, throw a descriptive `Error`. The runner catches that, skips the scalar write, and leaves the resource in the entity-sync allowlist so the widget can be served from storage instead.
+- **`validateCountFilter()` is the fast-fail path.** If your config-time validator can reject unsupported filter ops or fields without hitting the network, implement it. Core calls it when validating user-authored configs so authors learn at config-load time, not at sync time.
+- **Translate filters to your source's query language.** A widget filter like `[{ field: 'state', op: 'eq', value: 'open' }, { field: 'label', op: 'eq', value: 'bug' }]` is per-source: GitHub turns it into `is:open label:bug`; a Stripe-style API turns it into `status=open&label=bug`. The `translateSearchQualifier` function in `packages/connectors/github/src/github.ts` is the reference implementation — read it before designing your own translator.
+- **Log every call.** Emit an `info` log per aggregate call with `{ fn, resource, field?, filter?/query?, value, via }` so the host can correlate a widget value back to the upstream call that produced it. See [§7](#7-logging).
+
+### Worked example: GitHub Search API
+
+GitHub exposes `/search/issues` with `total_count` in the response body, so `count(pull_request | issue, filter)` is one cheap request regardless of repo size:
+
+```ts
+override async aggregate(req, signal): Promise<AggregateValue> {
+  if (req.fn === 'count' && req.resource === 'pull_request') {
+    const q = ['repo:' + this.settings.owner + '/' + this.settings.repo, 'is:pr']
+      .concat(filterConditions(req.filter).map((c) => translateSearchQualifier('pr', c)))
+      .join(' ');
+    const res = await this.get<{ total_count: number }>(
+      `https://api.github.com/search/issues?per_page=1&q=${encodeURIComponent(q)}`,
+      { resource: 'pull_requests', signal },
+    );
+    this.logger.info('aggregate', {
+      fn: 'count', resource: 'pull_request', query: q, value: res.body.total_count, via: 'search API',
+    });
+    return res.body.total_count;
+  }
+  // …`latest` for repo stats / latest release / latest workflow run, …
+  throw new Error(`unsupported aggregate ${req.fn} for ${req.resource}`);
+}
+```
+
+The full implementation lives in [`packages/connectors/github/src/github.ts`](../packages/connectors/github/src/github.ts) (`aggregate`, `aggregateCount`, `aggregateLatest`, `searchCount`, `translateSearchQualifier`).
+
+## 7. Logging
+
+Connectors emit structured `info` and `warn` events through the `ConnectorLogger` injected at construction time (`ctx.logger`, defaulted to `createDefaultConnectorLogger({ scope: this.id })`). Hosts route these through their own logger; OSS dev prints them to stdout/stderr.
+
+The shape:
+
+```ts
+this.logger.info('event_name', { key: value, ... });
+this.logger.warn('event_name', { key: value, ... });
+```
+
+### What you must emit
+
+Per-page during paginated syncs:
+
+```ts
+this.logger.info('fetched page', {
+  resource, // resource key matching `static schemas`
+  page, // 1-indexed page number within the current phase
+  items, // number of items in this page's batch
+  cursor, // opaque inbound cursor (truncated by core if long)
+  next, // opaque outbound cursor (truncated)
+});
+```
+
+Per-resource summary after the phase finishes:
+
+```ts
+this.logger.info('resource done', {
+  resource,
+  pages, // total pages fetched this phase
+  items, // total items written this phase
+  duration_ms,
+});
+```
+
+On a page-fetch or batch-write failure (before returning a `transientError` from `sync()`):
+
+```ts
+this.logger.warn('fetch page failed', {
+  // or 'write batch failed'
+  resource,
+  page,
+  cursor,
+  error: err.message,
+});
+```
+
+For aggregate calls (see [§6](#6-aggregates-count-and-latest)):
+
+```ts
+this.logger.info('aggregate', {
+  fn, resource, field?, filter? /* or query */, value, via,
+});
+```
+
+### Free for `paginateChunked` callers
+
+The shape above is what `paginateChunked` (from `@rawdash/core`) emits if you pass it a `logger`. Connectors that use `paginateChunked` get the per-page log, the per-resource summary, and the WARN-on-error semantics for free — pass `this.logger` through and you're done. Connectors that hand-roll their pagination loop must emit the same shape themselves so dashboards and log queries are uniform.
+
+### What NOT to do
+
+- Don't `console.log` from a connector. The host's logger may be a structured pipeline; raw `console.log` bypasses it and ends up unstructured in production logs.
+- Don't log credentials or full pagination URLs that may carry tokens. Cursors are already truncated to 80 chars by the helper, but if you log a URL directly, sanitize first.
+- Don't log per-row. Per-page is the right granularity; per-row floods logs on large backfills.
+
+## 8. Storage durability
+
+`StorageHandle` is whatever the host wires up. In OSS dev, the default is now SQLite (`file:rawdash.db`), so **writes persist across restarts**. Earlier versions of the OSS dev runner used `InMemoryStorage` and started fresh on every boot; do not write a connector that depends on that behavior.
+
+Concrete implications:
+
+- **No implicit "first run" semantics.** Don't key cursor-init logic off "storage is empty" — it won't be on a restart of a long-running dev server. Either persist cursor state explicitly via the storage handle, or recompute it from the data already in storage.
+- **Replace scopes are still your friend.** Idempotency (per [§4](#4-implementing-sync)) is what makes a re-sync against a populated store converge. Pass `{ types: [...] }` / `{ kinds: [...] }` / `{ names: [...] }` to the batch writers so stale rows for resources you re-sync get dropped.
+- **Don't double-write on partial chunk completion.** A chunked sync that yields mid-resource and resumes from the same page **must not** re-write rows it already wrote. The simplest way to get this right is to make every write idempotent (entities upsert by `(type, id)`; events keyed on the source's own id). If you must clear a scope before writing, do it at the **start of the first chunk for that phase**, not at the start of every chunk — `paginateChunked`'s `writeBatch` is called once per page, not once per phase.
+- **`since` cursors must be designed for a populated store.** Once SQLite is the default, your `since` is on every tick — there is no "initial backfill" gap where you can rely on the local DB being empty. Use the latest written `updated_at` (or whatever timestamp your source uses) as the floor on subsequent ticks, not "now − N days".
+
+## 9. Rate-limit awareness
 
 For most connectors, sending a `RateLimitPolicy` to `request()` is enough — the shared client classifies 429s as `RateLimitError`, the host catches it, and reschedules.
 
@@ -383,7 +555,7 @@ Where you can do better: when you know in advance that the budget is gone (the r
 
 For pre-built policies (`githubRateLimit`, `sentryRateLimit`, `linearRateLimit`) the parsing is handled for you — the policy goes on the request, the parsed state shows up on the response. Add a new policy to `@rawdash/connector-shared` if your API uses a header convention that isn't there yet, so every future connector for that API can share it.
 
-## 7. Using `@rawdash/connector-shared`
+## 10. Using `@rawdash/connector-shared`
 
 This is the internal HTTP substrate. It is **not** published to npm; connectors that publish bundle it at build time via tsup's `noExternal`.
 
@@ -409,7 +581,7 @@ What it gives you:
 
 See [`packages/connector-shared/README.md`](../packages/connector-shared/README.md) for the full surface, including the rules for bundling (you depend on it via `workspace:*` in `devDependencies`, and add `noExternal: ['@rawdash/connector-shared']` to your `tsup.config.ts`).
 
-## 8. Testing locally
+## 11. Testing locally
 
 Before publishing, smoke-test the connector against a real source from one of the example apps:
 
@@ -427,7 +599,7 @@ Recommended loop:
 
 Unit-level tests live next to the source (`*.test.ts`). Mock at the `fetch` boundary; don't mock the storage handle — use `InMemoryStorage` from `@rawdash/core` if you want to assert on writes.
 
-## 9. Publishing
+## 12. Publishing
 
 - **Naming.** `@rawdash/connector-<source>`. The package name and the connector's `id` are related but serve different roles: the package name groups connectors by vendor or brand (`@rawdash/connector-github` is the home for anything GitHub-related), while the `id` identifies the specific data domain inside that package (`github-actions` for the GitHub Actions API). They don't need to be identical, but they should be obviously aligned. Once published, both the package name and the `id` are permanent — they appear in user config files and widget `source` strings.
 - **Lockstep versioning.** All published `@rawdash/*` packages share a single version. They're declared as a [`fixed` group](https://github.com/changesets/changesets/blob/main/docs/config-file-options.md#fixed-array-of-arrays-of-package-names) in [`.changeset/config.json`](../.changeset/config.json), so when any one of them releases, _all_ of them bump to the same version even if their source didn't change. **Add your new package's name to the `fixed` array** in the same PR that adds the package — otherwise it'll drift the moment another package releases. Use [changesets](https://github.com/changesets/changesets) for the release notes themselves: add one with every PR that touches a published package.
@@ -445,7 +617,7 @@ Unit-level tests live next to the source (`*.test.ts`). Mock at the `fetch` boun
 - **Dependency on `@rawdash/core`.** Declare it under `dependencies` (not peer) at `workspace:*`. The publish step rewrites it to the lockstep version at pack time. When `@rawdash/core` introduces a new optional field on `SyncOptions` or `SyncResult`, you don't need to bump anything; you only re-release when you actually use the new field.
 - **Dependency on `@rawdash/connector-shared`.** `workspace:*` in `devDependencies`, **never** in `dependencies`. Add `noExternal: ['@rawdash/connector-shared']` to `tsup.config.ts`. Verify with `pnpm pack` and inspect the tarball's `package.json` — `@rawdash/connector-shared` must not appear under `dependencies`.
 - **README.** Cover the consumer surface: install, quick example showing `defineMetric` against the connector's shapes, settings reference, credentials, and any source-specific gotchas (scopes, plans, rate limits). The authoring details belong in this guide; the README is for users.
-- **Smoke-test against the example app** (section 8) before publishing.
+- **Smoke-test against the example app** (section 11) before publishing.
 
 ### Wiring into CI
 
