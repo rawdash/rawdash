@@ -59,7 +59,13 @@ async function resolveWithCache(
       return hit;
     }
   }
-  const fresh = await resolveWidget(widgetId, widget, connectorNames, storage);
+  const fresh = await resolveWidget(
+    dashboardId,
+    widgetId,
+    widget,
+    connectorNames,
+    storage,
+  );
   if (fresh && cache) {
     await cacheSetSafe(cache, dashboardId, widgetId, widget, fresh);
   }

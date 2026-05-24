@@ -1122,12 +1122,17 @@ export class GitHubConnector extends BaseConnector<
     const { owner, repo } = this.settings;
     const parts = [`repo:${owner}/${repo}`, `is:${kind}`];
     for (const c of conditions) {
-      if (c.field === 'state' && c.op === 'eq') {
-        const v = String(c.value);
-        if (v === 'open' || v === 'closed') {
-          parts.push(`is:${v}`);
-        }
+      if (
+        c.field === 'state' &&
+        c.op === 'eq' &&
+        (c.value === 'open' || c.value === 'closed')
+      ) {
+        parts.push(`is:${c.value}`);
+        continue;
       }
+      throw new Error(
+        `GitHub aggregate count for ${kind}: unsupported filter ${c.field} ${c.op} ${String(c.value)}`,
+      );
     }
     const q = parts.join(' ');
     const url = `https://api.github.com/search/issues?per_page=1&q=${encodeURIComponent(q)}`;
@@ -1168,10 +1173,11 @@ function filterConditions(
   const out: FilterCondition[] = [];
   for (const clause of filter) {
     if ('or' in clause) {
-      out.push(...clause.or);
-    } else {
-      out.push(clause);
+      throw new Error(
+        'GitHub aggregate count: OR filters are not supported (GitHub search would silently turn them into AND)',
+      );
     }
+    out.push(clause);
   }
   return out;
 }

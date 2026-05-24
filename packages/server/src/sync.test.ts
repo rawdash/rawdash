@@ -373,9 +373,9 @@ describe('runSync — widget-driven backfill scoping', () => {
     expect(connector.aggregateCalls).toHaveLength(2);
     expect(connector.syncCalls).toEqual([]);
     const handle = storage.getStorageHandle(entry.name);
-    const open = await handle.getEntity(AGGREGATE_ENTITY_TYPE, 'open_prs');
+    const open = await handle.getEntity(AGGREGATE_ENTITY_TYPE, 'main:open_prs');
     expect(open?.attributes['value']).toBe(42);
-    const ci = await handle.getEntity(AGGREGATE_ENTITY_TYPE, 'ci');
+    const ci = await handle.getEntity(AGGREGATE_ENTITY_TYPE, 'main:ci');
     expect(ci?.attributes['value']).toBe('ok');
   });
 

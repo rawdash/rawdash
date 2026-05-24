@@ -28,6 +28,7 @@ export type {
 export type { AggregateClassification } from './aggregate';
 export {
   AGGREGATE_ENTITY_TYPE,
+  aggregateKey,
   classifyWidget,
   readAggregate,
   writeAggregate,

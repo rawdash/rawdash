@@ -32,6 +32,7 @@ function buildMetaFromHealth(health: ConnectorHealth): Record<string, unknown> {
 }
 
 export async function resolveWidget(
+  dashboardId: string,
   widgetId: string,
   widget: Widget,
   connectors: readonly string[] | undefined,
@@ -48,7 +49,7 @@ export async function resolveWidget(
   if (widget.kind !== 'status') {
     const classification = classifyWidget(widget);
     if (classification.via === 'aggregate') {
-      const cached = await readAggregate(handle, widgetId);
+      const cached = await readAggregate(handle, dashboardId, widgetId);
       data = cached ? cached.value : await computeMetric(handle, widget.metric);
     } else {
       data = await computeMetric(handle, widget.metric);

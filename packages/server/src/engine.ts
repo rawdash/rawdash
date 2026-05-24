@@ -46,7 +46,13 @@ export function createEngine(
       if (!widget) {
         return undefined;
       }
-      return resolveWidget(widgetId, widget, connectorNames, storage);
+      return resolveWidget(
+        dashboardId,
+        widgetId,
+        widget,
+        connectorNames,
+        storage,
+      );
     },
 
     async getWidgets(dashboardId) {
@@ -57,7 +63,7 @@ export function createEngine(
       const entries = Object.entries(dashboard.widgets);
       const resolved = await Promise.all(
         entries.map(([key, widget]) =>
-          resolveWidget(key, widget, connectorNames, storage),
+          resolveWidget(dashboardId, key, widget, connectorNames, storage),
         ),
       );
       return resolved.filter((w): w is CachedWidget => w !== undefined);

@@ -46,14 +46,19 @@ export function classifyWidget(widget: Widget): AggregateClassification {
   };
 }
 
+export function aggregateKey(dashboardId: string, widgetId: string): string {
+  return `${dashboardId}:${widgetId}`;
+}
+
 export async function writeAggregate(
   storage: StorageHandle,
+  dashboardId: string,
   widgetId: string,
   value: AggregateValue,
 ): Promise<void> {
   const entity: Entity = {
     type: AGGREGATE_ENTITY_TYPE,
-    id: widgetId,
+    id: aggregateKey(dashboardId, widgetId),
     attributes: { value: value as JSONValue },
     updated_at: Date.now(),
   };
@@ -62,9 +67,13 @@ export async function writeAggregate(
 
 export async function readAggregate(
   storage: StorageHandle,
+  dashboardId: string,
   widgetId: string,
 ): Promise<{ value: AggregateValue; updatedAt: number } | null> {
-  const entity = await storage.getEntity(AGGREGATE_ENTITY_TYPE, widgetId);
+  const entity = await storage.getEntity(
+    AGGREGATE_ENTITY_TYPE,
+    aggregateKey(dashboardId, widgetId),
+  );
   if (!entity) {
     return null;
   }

@@ -50,6 +50,7 @@ export interface RunSyncOptions {
  * Returns silently if another sync acquired the `running` lock first.
  */
 interface WidgetForConnector {
+  dashboardId: string;
   widgetId: string;
   widget: Widget;
   resource: string | undefined;
@@ -61,7 +62,7 @@ function widgetsForConnector(
   connectorName: string,
 ): WidgetForConnector[] {
   const out: WidgetForConnector[] = [];
-  for (const dashboard of Object.values(config.dashboards)) {
+  for (const [dashboardId, dashboard] of Object.entries(config.dashboards)) {
     for (const [widgetId, widget] of Object.entries(dashboard.widgets)) {
       if (widget.kind === 'status') {
         continue;
@@ -71,6 +72,7 @@ function widgetsForConnector(
       }
       const classification = classifyWidget(widget);
       out.push({
+        dashboardId,
         widgetId,
         widget,
         resource: widget.metric.name ?? widget.metric.entityType,
@@ -163,7 +165,7 @@ export async function runSync(
                 connector.aggregate!(w.aggregateRequest, controller.signal),
                 timeoutPromise,
               ]);
-              await writeAggregate(handle, w.widgetId, value);
+              await writeAggregate(handle, w.dashboardId, w.widgetId, value);
             });
           const aggResults = await Promise.allSettled(aggregateCalls);
           for (const r of aggResults) {
