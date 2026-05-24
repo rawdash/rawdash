@@ -1,4 +1,5 @@
 import type {
+  ConnectorLoggerFactory,
   ConnectorRegistry,
   DashboardConfig,
   SecretsResolver,
@@ -27,6 +28,13 @@ export interface MountEngineOptions {
    * instantiation.
    */
   secretsResolver?: SecretsResolver;
+  /**
+   * Build a connector logger for the runner and each connector instance.
+   * Called with `'runner'` for the sync-runner envelopes and with each
+   * connector instance name for per-connector progress logs. Defaults to
+   * a structured stdout logger.
+   */
+  loggerFactory?: ConnectorLoggerFactory;
   /** Set false to skip the background retention timer (e.g. on serverless). */
   startRetention?: boolean;
 }
@@ -51,7 +59,7 @@ export function mountEngine(
   options: MountEngineOptions,
 ): MountEngineResult {
   const storage: ServerStorage = options.storage ?? new InMemoryStorage();
-  const { connectorRegistry, secretsResolver } = options;
+  const { connectorRegistry, secretsResolver, loggerFactory } = options;
   const getConfig = (): DashboardConfig => config;
   const getStorage = (): ServerStorage => storage;
 
@@ -64,6 +72,7 @@ export function mountEngine(
       getStorage,
       connectorRegistry,
       secretsResolver,
+      loggerFactory,
     }),
   );
   app.route(ROUTES.syncState, createSyncStateRouter({ getStorage }));

@@ -298,4 +298,70 @@ describe('paginateChunked', () => {
     expect(result).toEqual({ done: true });
     expect(fetchPage).not.toHaveBeenCalled();
   });
+
+  it('emits structured per-page and per-phase logs when a logger is provided', async () => {
+    const events: Array<{
+      level: 'info' | 'warn';
+      event: string;
+      fields?: Record<string, unknown>;
+    }> = [];
+    const logger = {
+      info: (event: string, fields?: Record<string, unknown>) =>
+        events.push({ level: 'info', event, fields }),
+      warn: (event: string, fields?: Record<string, unknown>) =>
+        events.push({ level: 'warn', event, fields }),
+    };
+    await paginateChunked<Phase, number>({
+      phases: ['a'],
+      cursor: undefined,
+      signal: undefined,
+      fetchPage: async (_phase, page) => {
+        if (page === null) {
+          return { items: [1, 2], next: 1 };
+        }
+        return { items: [3], next: null };
+      },
+      writeBatch: async () => {},
+      logger,
+    });
+    const infos = events.filter((e) => e.level === 'info');
+    expect(infos.map((e) => e.event)).toEqual([
+      'fetched page',
+      'fetched page',
+      'resource done',
+    ]);
+    expect(infos[0]!.fields).toMatchObject({
+      resource: 'a',
+      page: 1,
+      items: 2,
+    });
+    expect(infos[2]!.fields).toMatchObject({
+      resource: 'a',
+      pages: 2,
+      items: 3,
+    });
+    expect(infos[2]!.fields).toHaveProperty('duration_ms');
+  });
+
+  it('emits a warn log when fetchPage throws a non-abort error', async () => {
+    const events: Array<{ level: string; event: string }> = [];
+    const logger = {
+      info: (event: string) => events.push({ level: 'info', event }),
+      warn: (event: string) => events.push({ level: 'warn', event }),
+    };
+    const result = await paginateChunked<Phase, number>({
+      phases: ['a'],
+      cursor: undefined,
+      signal: undefined,
+      fetchPage: async () => {
+        throw new Error('boom');
+      },
+      writeBatch: async () => {},
+      logger,
+    });
+    expect(result.done).toBe(false);
+    expect(
+      events.some((e) => e.level === 'warn' && e.event === 'fetch page failed'),
+    ).toBe(true);
+  });
 });

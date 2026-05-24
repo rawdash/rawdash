@@ -1,5 +1,8 @@
 import { serve as honoServe } from '@hono/node-server';
+import { SqliteStorage } from '@rawdash/adapter-sqlite';
 import { GitHubConnector } from '@rawdash/connector-github';
+import type { ServerStorage } from '@rawdash/core';
+import { InMemoryStorage } from '@rawdash/core';
 import { mountEngine } from '@rawdash/hono';
 
 import config from './rawdash.config';
@@ -19,7 +22,15 @@ function resolvePort(): number {
   return parsed;
 }
 
+function resolveStorage(): ServerStorage {
+  if (process.env['RAWDASH_STORAGE'] === 'memory') {
+    return new InMemoryStorage();
+  }
+  return new SqliteStorage('.rawdash/storage.sqlite');
+}
+
 const { app } = mountEngine(config, {
   connectorRegistry: { 'github-actions': GitHubConnector },
+  storage: resolveStorage(),
 });
 honoServe({ fetch: app.fetch, port: resolvePort() });

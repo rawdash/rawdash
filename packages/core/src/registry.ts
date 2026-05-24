@@ -1,3 +1,4 @@
+import type { ConnectorLogger } from '@rawdash/connector-shared';
 import type { z } from 'zod';
 
 import type { ConfiguredConnector } from './config';
@@ -41,6 +42,7 @@ export function instantiateConnector(
   entry: ConfiguredConnector,
   registry: ConnectorRegistry,
   secretsResolver?: SecretsResolver,
+  logger?: ConnectorLogger,
 ): Connector {
   const Cls = registry[entry.connectorId];
   if (!Cls) {
@@ -61,5 +63,6 @@ export function instantiateConnector(
   }
   return new Cls(settings as never, (credSchema ? creds : undefined) as never, {
     secretsResolver,
+    logger,
   });
 }

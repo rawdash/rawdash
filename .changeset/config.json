@@ -15,6 +15,7 @@
       "@rawdash/connector-sentry",
       "@rawdash/connector-vercel",
       "@rawdash/adapter-libsql",
+      "@rawdash/adapter-sqlite",
       "@rawdash/cli",
       "@rawdash/sdk-client",
       "@rawdash/sdk-runtime",

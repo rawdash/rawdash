@@ -1007,6 +1007,7 @@ export class GitHubConnector extends BaseConnector<
       phases,
       cursor,
       signal,
+      logger: this.logger,
       fetchPage: async (phase, page, sig) => {
         switch (phase) {
           case 'repo_stats':

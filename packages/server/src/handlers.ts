@@ -14,7 +14,7 @@ import type { DashboardConfig, ServerStorage } from '@rawdash/core';
 import type { EngineContext } from './context';
 import { RawdashError } from './errors';
 import { runRetention } from './retention';
-import { runSync } from './sync';
+import { type ConnectorLoggerFactory, runSync } from './sync';
 import type { WidgetCache } from './widget-cache';
 
 async function cacheGetSafe(
@@ -96,6 +96,7 @@ export interface InProcessTriggerSyncContext {
   getStorage: () => ServerStorage | Promise<ServerStorage>;
   connectorRegistry: ConnectorRegistry;
   secretsResolver?: SecretsResolver;
+  loggerFactory?: ConnectorLoggerFactory;
 }
 
 /**
@@ -180,6 +181,7 @@ export async function triggerSync(
   void runSync(config!, storage, {
     connectorRegistry: inProcessCtx.connectorRegistry,
     secretsResolver: inProcessCtx.secretsResolver,
+    loggerFactory: inProcessCtx.loggerFactory,
   }).catch((err) => {
     console.error('Rawdash sync failed', err);
   });

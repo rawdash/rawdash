@@ -36,6 +36,16 @@ export {
 
 export { BaseConnector, defineConnector } from './connector';
 
+export {
+  createDefaultConnectorLogger,
+  noopConnectorLogger,
+} from '@rawdash/connector-shared';
+export type {
+  ConnectorLogger,
+  ConnectorLoggerOptions,
+  LogFields,
+} from '@rawdash/connector-shared';
+
 export type {
   ChunkedSyncCursor,
   ChunkedSyncOptions,

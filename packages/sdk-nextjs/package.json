@@ -24,6 +24,11 @@
       "@rawdash/source": "./src/client.ts",
       "types": "./dist/client.d.ts",
       "import": "./dist/client.js"
+    },
+    "./skeleton": {
+      "@rawdash/source": "./src/skeleton.tsx",
+      "types": "./dist/skeleton.d.ts",
+      "import": "./dist/skeleton.js"
     }
   },
   "scripts": {

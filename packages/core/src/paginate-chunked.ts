@@ -1,3 +1,5 @@
+import type { ConnectorLogger } from '@rawdash/connector-shared';
+
 import type { SyncResult } from './connector';
 
 export interface ChunkedSyncCursor<TPhase extends string, TPage> {
@@ -58,12 +60,24 @@ export interface ChunkedSyncOptions<TPhase extends string, TPage> {
     items: unknown[],
     page: TPage | null,
   ) => Promise<void>;
+  logger?: ConnectorLogger;
+}
+
+function truncateCursor(page: unknown): string | undefined {
+  if (page === null || page === undefined) {
+    return undefined;
+  }
+  const s = typeof page === 'string' ? page : JSON.stringify(page);
+  if (s.length <= 80) {
+    return s;
+  }
+  return `${s.slice(0, 79)}…`;
 }
 
 export async function paginateChunked<TPhase extends string, TPage>(
   opts: ChunkedSyncOptions<TPhase, TPage>,
 ): Promise<SyncResult> {
-  const { phases, cursor, signal, fetchPage, writeBatch } = opts;
+  const { phases, cursor, signal, fetchPage, writeBatch, logger } = opts;
 
   if (phases.length === 0) {
     return { done: true };
@@ -77,6 +91,9 @@ export async function paginateChunked<TPhase extends string, TPage>(
     const phase = phases[i]!;
     let page: TPage | null =
       i === startIdx && hasKnownResumePhase ? cursor!.page : null;
+    let pageCount = 0;
+    let itemCount = 0;
+    const phaseStart = Date.now();
 
     while (true) {
       if (signal?.aborted) {
@@ -85,6 +102,7 @@ export async function paginateChunked<TPhase extends string, TPage>(
           cursor: { phase, page } satisfies ChunkedSyncCursor<TPhase, TPage>,
         };
       }
+      pageCount += 1;
       let items: unknown[];
       let next: TPage | null;
       try {
@@ -99,12 +117,26 @@ export async function paginateChunked<TPhase extends string, TPage>(
             cursor: { phase, page } satisfies ChunkedSyncCursor<TPhase, TPage>,
           };
         }
+        logger?.warn('fetch page failed', {
+          resource: phase,
+          page: pageCount,
+          cursor: truncateCursor(page),
+          error: err instanceof Error ? err.message : String(err),
+        });
         return {
           done: false,
           cursor: { phase, page } satisfies ChunkedSyncCursor<TPhase, TPage>,
           transientError: err,
         };
       }
+      itemCount += items.length;
+      logger?.info('fetched page', {
+        resource: phase,
+        page: pageCount,
+        items: items.length,
+        cursor: truncateCursor(page),
+        next: truncateCursor(next),
+      });
       try {
         await writeBatch(phase, items, page);
       } catch (err) {
@@ -117,6 +149,12 @@ export async function paginateChunked<TPhase extends string, TPage>(
             cursor: { phase, page } satisfies ChunkedSyncCursor<TPhase, TPage>,
           };
         }
+        logger?.warn('write batch failed', {
+          resource: phase,
+          page: pageCount,
+          cursor: truncateCursor(page),
+          error: err instanceof Error ? err.message : String(err),
+        });
         return {
           done: false,
           cursor: { phase, page } satisfies ChunkedSyncCursor<TPhase, TPage>,
@@ -128,6 +166,12 @@ export async function paginateChunked<TPhase extends string, TPage>(
       }
       page = next;
     }
+    logger?.info('resource done', {
+      resource: phase,
+      pages: pageCount,
+      items: itemCount,
+      duration_ms: Date.now() - phaseStart,
+    });
   }
 
   return { done: true };

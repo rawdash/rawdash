@@ -20,7 +20,7 @@ export type {
 } from './handlers';
 export type { WidgetCache, WidgetCacheKey } from './widget-cache';
 export { runSync, FULL_SYNC_TIMEOUT_MS, FULL_SYNC_MAX_CHUNKS } from './sync';
-export type { RunSyncOptions } from './sync';
+export type { ConnectorLoggerFactory, RunSyncOptions } from './sync';
 export {
   runRetention,
   hasPruningPolicy,
