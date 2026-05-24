@@ -231,6 +231,12 @@ export interface Connector {
     req: AggregateRequest,
     signal?: AbortSignal,
   ): Promise<AggregateValue>;
+  // Optional config-time validation: throw a descriptive Error if the
+  // connector cannot serve count(resource, filter). Core can call this
+  // when validating user-authored configs so unsupported filters fail
+  // fast instead of at sync time. Connectors that don't implement this
+  // are assumed to accept any filter the runtime hands them.
+  validateCountFilter?(resource: string, filter: FilterClause[]): void;
 }
 
 export interface ConnectorContext {
@@ -440,6 +446,11 @@ export function defineConnector<TSettings>() {
       req: AggregateRequest,
       signal?: AbortSignal,
     ) => Promise<AggregateValue>;
+    validateCountFilter?: (
+      this: { settings: TSettings; creds: InferCredentials<TCreds> },
+      resource: string,
+      filter: FilterClause[],
+    ) => void;
   }): {
     new (
       settings: TSettings,
@@ -478,6 +489,16 @@ export function defineConnector<TSettings>() {
               { settings: this.settings, creds: this.creds },
               req,
               signal,
+            );
+          }
+        : undefined;
+
+      validateCountFilter = def.validateCountFilter
+        ? (resource: string, filter: FilterClause[]): void => {
+            def.validateCountFilter!.call(
+              { settings: this.settings, creds: this.creds },
+              resource,
+              filter,
             );
           }
         : undefined;

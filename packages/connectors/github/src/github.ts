@@ -1055,19 +1055,75 @@ export class GitHubConnector extends BaseConnector<
     req: AggregateRequest,
     signal?: AbortSignal,
   ): Promise<AggregateValue> {
-    const { owner, repo } = this.settings;
     if (req.fn === 'count') {
-      if (req.resource === 'pull_request') {
-        return this.searchCount('pr', filterConditions(req.filter), signal);
-      }
-      if (req.resource === 'issue') {
-        return this.searchCount('issue', filterConditions(req.filter), signal);
-      }
-      if (req.resource === 'contributor') {
-        return this.countContributors(signal);
-      }
-      throw unsupportedAggregate(req);
+      return this.aggregateCount(req, signal);
     }
+    return this.aggregateLatest(req, signal);
+  }
+
+  validateCountFilter(resource: string, filter: FilterClause[]): void {
+    if (resource === 'contributor') {
+      if (filter.length > 0) {
+        throw new Error(
+          `GitHub aggregate count(contributor): filters are not supported`,
+        );
+      }
+      return;
+    }
+    if (resource !== 'pull_request' && resource !== 'issue') {
+      throw new Error(
+        `GitHub aggregate count: unsupported resource=${resource}`,
+      );
+    }
+    const conditions = filterConditions(filter);
+    for (const c of conditions) {
+      translateSearchQualifier(resource === 'pull_request' ? 'pr' : 'issue', c);
+    }
+  }
+
+  private async aggregateCount(
+    req: AggregateRequest,
+    signal: AbortSignal | undefined,
+  ): Promise<AggregateValue> {
+    if (req.resource === 'pull_request') {
+      return this.searchCount(
+        'pr',
+        filterConditions(req.filter),
+        'pull_request',
+        signal,
+      );
+    }
+    if (req.resource === 'issue') {
+      return this.searchCount(
+        'issue',
+        filterConditions(req.filter),
+        'issue',
+        signal,
+      );
+    }
+    if (req.resource === 'contributor') {
+      if (req.filter && req.filter.length > 0) {
+        throw new Error(
+          `GitHub aggregate count(contributor): filters are not supported`,
+        );
+      }
+      const value = await this.countContributors(signal);
+      this.logger.info('aggregate', {
+        fn: 'count',
+        resource: 'contributor',
+        value,
+        via: 'contributors API',
+      });
+      return value;
+    }
+    throw unsupportedAggregate(req);
+  }
+
+  private async aggregateLatest(
+    req: AggregateRequest,
+    signal: AbortSignal | undefined,
+  ): Promise<AggregateValue> {
+    const { owner, repo } = this.settings;
     if (req.resource === 'repo') {
       if (!req.field) {
         throw unsupportedAggregate(req);
@@ -1077,16 +1133,24 @@ export class GitHubConnector extends BaseConnector<
         'repo',
         signal,
       );
+      let value: AggregateValue;
       if (req.field === 'stars') {
-        return res.body.stargazers_count;
+        value = res.body.stargazers_count;
+      } else if (req.field === 'forks') {
+        value = res.body.forks_count;
+      } else if (req.field === 'watchers') {
+        value = res.body.subscribers_count;
+      } else {
+        throw unsupportedAggregate(req);
       }
-      if (req.field === 'forks') {
-        return res.body.forks_count;
-      }
-      if (req.field === 'watchers') {
-        return res.body.subscribers_count;
-      }
-      throw unsupportedAggregate(req);
+      this.logger.info('aggregate', {
+        fn: 'latest',
+        resource: 'repo',
+        field: req.field,
+        value,
+        via: 'repo API',
+      });
+      return value;
     }
     if (req.resource === 'workflow_run') {
       if (!req.field) {
@@ -1106,19 +1170,75 @@ export class GitHubConnector extends BaseConnector<
         signal,
       );
       const run = res.body.workflow_runs[0];
+      let value: AggregateValue;
       if (!run) {
-        return null;
+        value = null;
+      } else if (req.field === 'conclusion') {
+        value = run.conclusion ?? 'unknown';
+      } else if (req.field === 'status') {
+        value = run.status;
+      } else if (req.field === 'branch') {
+        value = run.head_branch ?? '';
+      } else {
+        value = run.actor?.login ?? '';
       }
-      if (req.field === 'conclusion') {
-        return run.conclusion ?? 'unknown';
+      this.logger.info('aggregate', {
+        fn: 'latest',
+        resource: 'workflow_run',
+        field: req.field,
+        value,
+        via: 'actions/runs API',
+      });
+      return value;
+    }
+    if (req.resource === 'release') {
+      if (
+        req.field !== 'tag_name' &&
+        req.field !== 'name' &&
+        req.field !== 'author' &&
+        req.field !== 'published_at'
+      ) {
+        throw unsupportedAggregate(req);
       }
-      if (req.field === 'status') {
-        return run.status;
+      let release: GitHubRelease | null;
+      try {
+        const res = await this.fetch<GitHubRelease>(
+          `https://api.github.com/repos/${owner}/${repo}/releases/latest`,
+          'releases',
+          signal,
+        );
+        release = res.body;
+      } catch (err) {
+        if (isNotFound(err)) {
+          release = null;
+        } else {
+          throw err;
+        }
       }
-      if (req.field === 'branch') {
-        return run.head_branch ?? '';
+      let value: AggregateValue;
+      if (!release) {
+        value = null;
+      } else if (req.field === 'tag_name') {
+        value = release.tag_name;
+      } else if (req.field === 'name') {
+        value = release.name ?? '';
+      } else if (req.field === 'author') {
+        value = release.author.login;
+      } else if (req.field === 'published_at') {
+        value = release.published_at
+          ? new Date(release.published_at).getTime()
+          : null;
+      } else {
+        throw unsupportedAggregate(req);
       }
-      return run.actor?.login ?? '';
+      this.logger.info('aggregate', {
+        fn: 'latest',
+        resource: 'release',
+        field: req.field,
+        value,
+        via: 'releases/latest API',
+      });
+      return value;
     }
     throw unsupportedAggregate(req);
   }
@@ -1126,30 +1246,28 @@ export class GitHubConnector extends BaseConnector<
   private async searchCount(
     kind: 'pr' | 'issue',
     conditions: FilterCondition[],
+    resourceLabel: 'pull_request' | 'issue',
     signal: AbortSignal | undefined,
   ): Promise<number> {
     const { owner, repo } = this.settings;
     const parts = [`repo:${owner}/${repo}`, `is:${kind}`];
     for (const c of conditions) {
-      if (
-        c.field === 'state' &&
-        c.op === 'eq' &&
-        (c.value === 'open' || c.value === 'closed')
-      ) {
-        parts.push(`is:${c.value}`);
-        continue;
-      }
-      throw new Error(
-        `GitHub aggregate count for ${kind}: unsupported filter ${c.field} ${c.op} ${String(c.value)}`,
-      );
+      parts.push(translateSearchQualifier(kind, c));
     }
     const q = parts.join(' ');
     const url = `https://api.github.com/search/issues?per_page=1&q=${encodeURIComponent(q)}`;
     const res = await this.fetch<{ total_count: number }>(
       url,
-      kind === 'pr' ? 'pull_requests' : 'issues',
+      resourceLabel === 'pull_request' ? 'pull_requests' : 'issues',
       signal,
     );
+    this.logger.info('aggregate', {
+      fn: 'count',
+      resource: resourceLabel,
+      query: q,
+      value: res.body.total_count,
+      via: 'search API',
+    });
     return res.body.total_count;
   }
 
@@ -1171,6 +1289,69 @@ export class GitHubConnector extends BaseConnector<
     }
     return Array.isArray(res.body) ? res.body.length : 0;
   }
+}
+
+function translateSearchQualifier(
+  kind: 'pr' | 'issue',
+  c: FilterCondition,
+): string {
+  if (c.op !== 'eq') {
+    throw new Error(
+      `GitHub aggregate count for ${kind}: unsupported filter op ${c.op} (only 'eq' is supported)`,
+    );
+  }
+  const value = String(c.value);
+  switch (c.field) {
+    case 'state':
+      if (value !== 'open' && value !== 'closed') {
+        throw new Error(
+          `GitHub aggregate count for ${kind}: state must be 'open' or 'closed' (got ${value})`,
+        );
+      }
+      return `is:${value}`;
+    case 'draft':
+      if (value === 'true' || c.value === true) {
+        return 'is:draft';
+      }
+      if (value === 'false' || c.value === false) {
+        return '-is:draft';
+      }
+      throw new Error(
+        `GitHub aggregate count for ${kind}: draft must be boolean (got ${value})`,
+      );
+    case 'label':
+      return `label:${quoteIfNeeded(value)}`;
+    case 'author':
+      return `author:${value}`;
+    case 'assignee':
+      return `assignee:${value}`;
+    case 'milestone':
+      return `milestone:${quoteIfNeeded(value)}`;
+    case 'head':
+      return `head:${value}`;
+    case 'base':
+      return `base:${value}`;
+    default:
+      throw new Error(
+        `GitHub aggregate count for ${kind}: unsupported filter field ${c.field}`,
+      );
+  }
+}
+
+function isNotFound(err: unknown): boolean {
+  // Duck-typed because HttpClientError can resolve to a different class
+  // instance across module boundaries (vitest source-resolved vs. core's
+  // pre-built dist), so `instanceof` would falsely return false.
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'response' in err &&
+    (err as { response?: { status?: number } }).response?.status === 404
+  );
+}
+
+function quoteIfNeeded(s: string): string {
+  return /\s/.test(s) ? `"${s}"` : s;
 }
 
 function unsupportedAggregate(req: AggregateRequest): Error {
