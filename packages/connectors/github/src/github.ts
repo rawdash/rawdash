@@ -1195,12 +1195,21 @@ export class GitHubConnector extends BaseConnector<
       if (!req.field) {
         throw unsupportedAggregate(req);
       }
-      const res = await this.fetch<GitHubRelease | null>(
-        `https://api.github.com/repos/${owner}/${repo}/releases/latest`,
-        'releases',
-        signal,
-      );
-      const release = res.body;
+      let release: GitHubRelease | null;
+      try {
+        const res = await this.fetch<GitHubRelease>(
+          `https://api.github.com/repos/${owner}/${repo}/releases/latest`,
+          'releases',
+          signal,
+        );
+        release = res.body;
+      } catch (err) {
+        if (isNotFound(err)) {
+          release = null;
+        } else {
+          throw err;
+        }
+      }
       let value: AggregateValue;
       if (!release) {
         value = null;
@@ -1322,6 +1331,18 @@ function translateSearchQualifier(
         `GitHub aggregate count for ${kind}: unsupported filter field ${c.field}`,
       );
   }
+}
+
+function isNotFound(err: unknown): boolean {
+  // Duck-typed because HttpClientError can resolve to a different class
+  // instance across module boundaries (vitest source-resolved vs. core's
+  // pre-built dist), so `instanceof` would falsely return false.
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'response' in err &&
+    (err as { response?: { status?: number } }).response?.status === 404
+  );
 }
 
 function quoteIfNeeded(s: string): string {

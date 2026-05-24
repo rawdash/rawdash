@@ -229,6 +229,23 @@ describe('GitHubConnector — aggregate', () => {
       );
     });
 
+    it('latest(release, tag_name) returns null when no published release exists (404)', async () => {
+      fetchSpy.mockResolvedValue({
+        ok: false,
+        status: 404,
+        statusText: 'Not Found',
+        headers: new Headers({ 'content-type': 'application/json' }),
+        text: () => Promise.resolve(JSON.stringify({ message: 'Not Found' })),
+      } as Response);
+      const connector = new GitHubConnector({ owner: 'o', repo: 'r' });
+      const value = await connector.aggregate({
+        fn: 'latest',
+        resource: 'release',
+        field: 'tag_name',
+      });
+      expect(value).toBeNull();
+    });
+
     it('latest(release) without field is unsupported', async () => {
       const connector = new GitHubConnector({ owner: 'o', repo: 'r' });
       await expect(
