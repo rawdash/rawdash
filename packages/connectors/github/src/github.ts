@@ -1192,7 +1192,12 @@ export class GitHubConnector extends BaseConnector<
       return value;
     }
     if (req.resource === 'release') {
-      if (!req.field) {
+      if (
+        req.field !== 'tag_name' &&
+        req.field !== 'name' &&
+        req.field !== 'author' &&
+        req.field !== 'published_at'
+      ) {
         throw unsupportedAggregate(req);
       }
       let release: GitHubRelease | null;
