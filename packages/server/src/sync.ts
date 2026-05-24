@@ -1,4 +1,5 @@
 import type {
+  ConnectorLogger,
   ConnectorRegistry,
   DashboardConfig,
   SecretsResolver,
@@ -14,9 +15,19 @@ export const FULL_SYNC_TIMEOUT_MS = 300_000;
 export const FULL_SYNC_MAX_CHUNKS = 1_000;
 export const BACKFILL_BUFFER_MS = 86_400_000;
 
+export type ConnectorLoggerFactory = (scope: string) => ConnectorLogger;
+
 export interface RunSyncOptions {
   connectorRegistry: ConnectorRegistry;
   secretsResolver?: SecretsResolver;
+  /**
+   * Build a logger for the runner and for each connector instance. Called
+   * with `'runner'` for the start/settled envelopes and with each
+   * `connector.name` for the per-connector progress logs. Defaults to
+   * {@link createDefaultConnectorLogger}, which writes a single-line
+   * `[scope] event key=value …` record to stdout/stderr.
+   */
+  loggerFactory?: ConnectorLoggerFactory;
 }
 
 /**
@@ -61,7 +72,10 @@ export async function runSync(
   const errors: string[] = [];
   const backfill = computeConnectorBackfill(config);
   const now = Date.now();
-  const runnerLogger = createDefaultConnectorLogger({ scope: 'runner' });
+  const loggerFactory: ConnectorLoggerFactory =
+    options.loggerFactory ??
+    ((scope) => createDefaultConnectorLogger({ scope }));
+  const runnerLogger = loggerFactory('runner');
   await Promise.allSettled(
     config.connectors.map(async (entry) => {
       if (entry.enabled === false) {
@@ -89,9 +103,7 @@ export async function runSync(
       const handle = storage.getStorageHandle(entry.name, {
         signal: controller.signal,
       });
-      const connectorLogger = createDefaultConnectorLogger({
-        scope: entry.name,
-      });
+      const connectorLogger = loggerFactory(entry.name);
       const syncStart = Date.now();
       runnerLogger.info('sync started', {
         connector: entry.name,

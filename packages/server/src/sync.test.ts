@@ -309,6 +309,36 @@ describe('runSync — widget-driven backfill scoping', () => {
     expect(Array.from(resources!).sort()).toEqual(['pull_request', 'repo']);
   });
 
+  it('uses a custom loggerFactory for both the runner and each connector instance', async () => {
+    const connector = new ChunkedConnector([{ done: true }]);
+    const { registry, entry } = makeRegistry(connector);
+    const storage = new InMemoryStorage();
+    const config = makeConfig(entry);
+    const factoryScopes: string[] = [];
+    const calls: Array<{ scope: string; level: string; event: string }> = [];
+    const loggerFactory = (scope: string) => {
+      factoryScopes.push(scope);
+      return {
+        info: (event: string) => calls.push({ scope, level: 'info', event }),
+        warn: (event: string) => calls.push({ scope, level: 'warn', event }),
+      };
+    };
+
+    await runSync(config, storage, {
+      connectorRegistry: registry,
+      loggerFactory,
+    });
+
+    expect(factoryScopes).toEqual(
+      expect.arrayContaining(['runner', entry.name]),
+    );
+    const runnerEvents = calls
+      .filter((c) => c.scope === 'runner')
+      .map((c) => c.event);
+    expect(runnerEvents).toContain('sync started');
+    expect(runnerEvents).toContain('sync settled');
+  });
+
   it('passes an empty resources set when only status widgets reference the connector', async () => {
     const connector = new ChunkedConnector([{ done: true }]);
     const { registry, entry } = makeRegistry(connector);
