@@ -1,11 +1,15 @@
+import { AutoRefresh } from '@/components/auto-refresh';
+import { LastRefreshed } from '@/components/last-refreshed';
 import { WidgetCard } from '@/components/widgets/widget-card';
 import { rawdash } from '@/lib/rawdash';
 
 export const revalidate = 60;
 
+const REFRESH_INTERVAL_MS = 60_000;
+
 export default async function DashboardPage() {
-  await rawdash.ensureFresh(60_000).catch((err: unknown) => {
-    console.error('rawdash.ensureFresh failed', err);
+  void rawdash.ensureFresh(REFRESH_INTERVAL_MS).catch((err: unknown) => {
+    console.warn('rawdash.ensureFresh failed', err);
   });
   const widgets = await rawdash.getWidgets('github').catch((err: unknown) => {
     console.error('rawdash.getWidgets failed', err);
@@ -22,8 +26,20 @@ export default async function DashboardPage() {
     );
   }
 
+  const cachedAtMs = widgets
+    .map((w) => w.cachedAt)
+    .filter((v): v is string => typeof v === 'string')
+    .map((s) => new Date(s).getTime())
+    .filter((ms) => Number.isFinite(ms));
+  const lastRefresh =
+    cachedAtMs.length > 0 ? new Date(Math.max(...cachedAtMs)) : new Date();
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
+      <AutoRefresh intervalMs={REFRESH_INTERVAL_MS} />
+      <div className="mb-3 flex justify-end">
+        <LastRefreshed timestamp={lastRefresh.toISOString()} />
+      </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {widgets.map((w) => (
           <WidgetCard key={`${w.connectorId}:${w.widgetId}`} widget={w} />
