@@ -5,7 +5,7 @@ import type { ServerStorage } from '@rawdash/core';
 import { InMemoryStorage } from '@rawdash/core';
 import { mountEngine } from '@rawdash/hono';
 
-import config from './rawdash.config';
+import config from './rawdash.config.mts';
 
 function resolvePort(): number {
   const raw = process.env['PORT'];
