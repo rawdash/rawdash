@@ -25,6 +25,10 @@ export function LastRefreshed({ timestamp }: LastRefreshedProps) {
     return () => clearInterval(id);
   }, []);
 
+  if (!Number.isFinite(target)) {
+    return null;
+  }
+
   return (
     <span className="text-[11px] text-gray-400">
       Last refreshed {formatRelative(now - target)}

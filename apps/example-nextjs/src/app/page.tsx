@@ -8,7 +8,7 @@ export const revalidate = 60;
 const REFRESH_INTERVAL_MS = 60_000;
 
 export default async function DashboardPage() {
-  void rawdash.ensureFresh(60_000).catch((err: unknown) => {
+  void rawdash.ensureFresh(REFRESH_INTERVAL_MS).catch((err: unknown) => {
     console.warn('rawdash.ensureFresh failed', err);
   });
   const widgets = await rawdash.getWidgets('github').catch((err: unknown) => {
@@ -26,13 +26,13 @@ export default async function DashboardPage() {
     );
   }
 
-  const cachedAts = widgets
+  const cachedAtMs = widgets
     .map((w) => w.cachedAt)
-    .filter((v): v is string => typeof v === 'string');
+    .filter((v): v is string => typeof v === 'string')
+    .map((s) => new Date(s).getTime())
+    .filter((ms) => Number.isFinite(ms));
   const lastRefresh =
-    cachedAts.length > 0
-      ? new Date(Math.max(...cachedAts.map((s) => new Date(s).getTime())))
-      : new Date();
+    cachedAtMs.length > 0 ? new Date(Math.max(...cachedAtMs)) : new Date();
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
