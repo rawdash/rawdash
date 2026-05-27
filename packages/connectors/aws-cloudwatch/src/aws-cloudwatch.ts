@@ -1,4 +1,13 @@
 import {
+  type StsCredentials,
+  createAuthorizationHeader,
+  formatAmzDate,
+  parseAssumeRole,
+  parseErrorCode,
+  parseGetMetricData,
+  sha256Hex,
+} from '@rawdash/connector-aws-shared';
+import {
   AuthError,
   type HttpClientError,
   type HttpResponse,
@@ -19,14 +28,6 @@ import {
   defineConfigFields,
 } from '@rawdash/core';
 import { z } from 'zod';
-
-import { createAuthorizationHeader, formatAmzDate, sha256Hex } from './sigv4';
-import {
-  type StsCredentials,
-  parseAssumeRole,
-  parseErrorCode,
-  parseGetMetricData,
-} from './xml';
 
 // Read an environment variable without depending on @types/node — the role
 // path falls back to the ambient AWS credentials when no static keys are given.
