@@ -526,19 +526,13 @@ export class HubSpotConnector extends BaseConnector<
   private async writeDealEvents(
     storage: StorageHandle,
     items: DealHistoryRecord[],
-    options: SyncOptions,
+    _options: SyncOptions,
   ): Promise<void> {
-    const sinceMs = options.since ? new Date(options.since).getTime() : null;
-    const floor = sinceMs !== null && Number.isFinite(sinceMs) ? sinceMs : null;
-
     for (const record of items) {
       const history = record.propertiesWithHistory?.dealstage ?? [];
       for (const entry of history) {
         const ts = parseEpoch(entry.timestamp, 'iso');
         if (ts === null) {
-          continue;
-        }
-        if (floor !== null && ts < floor) {
           continue;
         }
         await storage.event({
@@ -628,11 +622,15 @@ export class HubSpotConnector extends BaseConnector<
     items: CampaignDetail[],
   ): Promise<void> {
     for (const detail of items) {
+      const ts = parseEpoch(detail.lastProcessingFinishedAt, 'ms');
+      if (ts === null) {
+        continue;
+      }
       const counters = detail.counters ?? {};
       const sent = counterValue(counters.sent);
       await storage.metric({
         name: EMAIL_STATS_METRIC,
-        ts: parseEpoch(detail.lastProcessingFinishedAt, 'ms') ?? 0,
+        ts,
         value: sent,
         attributes: {
           campaignId: String(detail.id),

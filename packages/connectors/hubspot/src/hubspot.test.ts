@@ -313,7 +313,7 @@ describe('HubSpotConnector.sync', () => {
     expect(first.start_ts).toBe(Date.parse('2024-02-01T00:00:00.000Z'));
   });
 
-  it('filters deal stage-change events by the since window', async () => {
+  it('rewrites the full deal stage-change history on incremental sync', async () => {
     const fetchSpy = makeFetch((url, method) => {
       if (method === 'GET' && /\/crm\/v3\/objects\/deals\?/.test(url)) {
         return {
@@ -340,11 +340,11 @@ describe('HubSpotConnector.sync', () => {
       storage,
     );
 
-    expect(storage.event).toHaveBeenCalledTimes(1);
-    const only = storage.event.mock.calls[0]![0] as {
-      attributes: { stage: string };
-    };
-    expect(only.attributes.stage).toBe('b');
+    expect(storage.event).toHaveBeenCalledTimes(2);
+    const stages = storage.event.mock.calls.map(
+      (c) => (c[0] as { attributes: { stage: string } }).attributes.stage,
+    );
+    expect(stages).toEqual(['b', 'a']);
   });
 
   it('enumerates campaigns and writes campaign entities + stats', async () => {
