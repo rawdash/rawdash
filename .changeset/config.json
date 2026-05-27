@@ -15,6 +15,7 @@
       "@rawdash/connector-linear",
       "@rawdash/connector-sentry",
       "@rawdash/connector-vercel",
+      "@rawdash/connector-aws-cost",
       "@rawdash/connector-hubspot",
       "@rawdash/connector-jira",
       "@rawdash/adapter-libsql",
