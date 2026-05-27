@@ -112,6 +112,15 @@ describe('secrets set', () => {
     expect(message).toMatch(/Cannot combine/);
   });
 
+  it('rejects --from-file combined with a positional value', async () => {
+    const filePath = path.join(tmpDir, 'creds.json');
+    await writeFile(filePath, '{}', 'utf8');
+    await expect(
+      runSet('MY_SECRET', 'positional', '--from-file', filePath),
+    ).rejects.toBeInstanceOf(ProcessExit);
+    expect(setSecretMock).not.toHaveBeenCalled();
+  });
+
   it('rejects --json combined with --from-file', async () => {
     const filePath = path.join(tmpDir, 'creds.json');
     await writeFile(filePath, '{}', 'utf8');

@@ -166,6 +166,7 @@ For credentials that are logically one unit but contain multiple fields (e.g. a 
 
 ```ts
 import { withSecretRef } from '@rawdash/core';
+import { z } from 'zod';
 
 const credentialsSchema = withSecretRef(
   z.object({

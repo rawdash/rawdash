@@ -22,7 +22,7 @@ export function isSecret(value: unknown): value is Secret {
   );
 }
 
-export const secretRefSchema: z.ZodType<SecretRef> = z.object({
+export const secretRefSchema: z.ZodType<SecretRef> = z.strictObject({
   $secret: z.string(),
 });
 

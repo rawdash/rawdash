@@ -251,6 +251,11 @@ describe('withSecretRef()', () => {
     expect(() => schema.parse({ $secret: 42 })).toThrow();
   });
 
+  it('rejects a $secret reference with extra keys', () => {
+    const schema = withSecretRef(z.string());
+    expect(() => schema.parse({ $secret: 'MY_TOKEN', typo: 'oops' })).toThrow();
+  });
+
   it('rejects unrelated shapes', () => {
     const schema = withSecretRef(z.string());
     expect(() => schema.parse(123)).toThrow();
