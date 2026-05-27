@@ -114,7 +114,7 @@ export type { RetentionDeletionPlan, RetentionConfig } from './retention';
 
 export { computeRetention, selectForDeletion } from './retention';
 
-export type { Secret, SecretsResolver } from './secrets';
+export type { Secret, SecretRef, SecretsResolver } from './secrets';
 
 export {
   EnvSecretsResolver,
@@ -122,6 +122,8 @@ export {
   isSecret,
   resolveSecrets,
   secret,
+  secretRefSchema,
+  withSecretRef,
 } from './secrets';
 
 export type { ConfigFieldsSchema } from './config-fields';

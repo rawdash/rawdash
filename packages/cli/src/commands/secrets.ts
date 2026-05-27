@@ -1,5 +1,6 @@
 import { spinner } from '@clack/prompts';
 import { Command } from 'commander';
+import { readFile } from 'node:fs/promises';
 
 import {
   ApiError,
@@ -14,19 +15,81 @@ export const secretsCommand = new Command('secrets').description(
   'Manage secrets',
 );
 
+interface SetOptions {
+  json?: string;
+  fromFile?: string;
+}
+
 secretsCommand
   .command('set <name> [value]')
-  .description('Set a secret (reads value from stdin if not provided)')
-  .action(async (name: string, value?: string) => {
+  .description(
+    'Set a secret. Pass value as argument, via stdin, or as structured JSON via --json / --from-file.',
+  )
+  .option(
+    '--json <json>',
+    'Set the secret to a JSON-encoded value (object, array, etc.). Validated before sending.',
+  )
+  .option(
+    '--from-file <path>',
+    'Read the secret value as JSON from a file. Validated before sending.',
+  )
+  .action(async (name: string, value: string | undefined, opts: SetOptions) => {
     requireApiKey();
 
-    let secretValue = value;
-    if (secretValue === undefined) {
-      secretValue = await readStdin();
-      if (!secretValue) {
+    const usingJson = opts.json !== undefined;
+    const usingFile = opts.fromFile !== undefined;
+
+    if (usingJson && usingFile) {
+      printError('Cannot use --json and --from-file together.');
+      process.exit(1);
+    }
+    if ((usingJson || usingFile) && value !== undefined) {
+      printError(
+        'Cannot combine a positional value with --json or --from-file.',
+      );
+      process.exit(1);
+    }
+
+    let secretValue: string;
+    if (usingJson) {
+      const raw = opts.json!;
+      try {
+        JSON.parse(raw);
+      } catch (err) {
+        printError(
+          `Invalid JSON passed to --json: ${err instanceof Error ? err.message : String(err)}`,
+        );
+        process.exit(1);
+      }
+      secretValue = raw;
+    } else if (usingFile) {
+      let raw: string;
+      try {
+        raw = await readFile(opts.fromFile!, 'utf8');
+      } catch (err) {
+        printError(
+          `Failed to read file "${opts.fromFile}": ${err instanceof Error ? err.message : String(err)}`,
+        );
+        process.exit(1);
+      }
+      try {
+        JSON.parse(raw);
+      } catch (err) {
+        printError(
+          `File "${opts.fromFile}" does not contain valid JSON: ${err instanceof Error ? err.message : String(err)}`,
+        );
+        process.exit(1);
+      }
+      secretValue = raw;
+    } else if (value !== undefined) {
+      secretValue = value;
+    } else {
+      const stdin = await readStdin();
+      if (!stdin) {
         printError('No value provided. Pass as argument or via stdin.');
         process.exit(1);
       }
+      secretValue = stdin;
     }
 
     const s = spinner();

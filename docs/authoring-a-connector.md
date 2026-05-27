@@ -160,6 +160,24 @@ export const configFields = defineConfigFields(
 
 The `{ $secret: 'ENV_NAME' }` shape is how secrets travel through serialized config without ever inlining the resolved value.
 
+#### Composite (object) secrets
+
+For credentials that are logically one unit but contain multiple fields (e.g. a role-assumption bundle with `type` / `roleArn` / `externalId`, or a service-account JSON blob), declare the field with `withSecretRef` so it accepts either the fully-resolved object or a `secret()` reference to it:
+
+```ts
+import { withSecretRef } from '@rawdash/core';
+
+const credentialsSchema = withSecretRef(
+  z.object({
+    type: z.literal('role'),
+    roleArn: z.string(),
+    externalId: z.string(),
+  }),
+);
+```
+
+At resolve time, `EnvSecretsResolver` inspects the plaintext: if it starts with `{` or `[`, it attempts `JSON.parse` and substitutes the parsed object/array on success; otherwise it substitutes the raw string. So a single env var holding a JSON-encoded credential bundle resolves to one structured object, and existing string secrets (`ghp_…`, `sk_…`, etc.) keep behaving exactly as before. Bundle structured values into one secret rather than fanning out into N string secrets — rotation stays atomic.
+
 ### Declare credentials policy
 
 ```ts
