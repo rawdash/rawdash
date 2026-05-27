@@ -53,7 +53,16 @@ export const configFields = defineConfigFields(
         placeholder: '180',
       }),
     })
-    .refine(awsAuthRefine.predicate, { message: awsAuthRefine.message }),
+    .refine(awsAuthRefine.predicate, { message: awsAuthRefine.message })
+    .refine(
+      (cfg) =>
+        new Set(cfg.metricQueries.map((q) => q.id)).size ===
+        cfg.metricQueries.length,
+      {
+        path: ['metricQueries'],
+        message: 'Each metric query id must be unique',
+      },
+    ),
 );
 
 export interface CloudWatchMetricQuery {
@@ -192,7 +201,6 @@ export class CloudWatchConnector extends BaseAWSConnector<CloudWatchSettings> {
 
     const queriesById = new Map(queries.map((q) => [q.id, q]));
     const { startMs, endMs } = this.computeWindow(options);
-    const signingCredentials = await this.resolveSigningCredentials(signal);
 
     const samples: MetricSample[] = [];
     const host = `${CLOUDWATCH_SERVICE}.${this.settings.region}.amazonaws.com`;
@@ -211,6 +219,7 @@ export class CloudWatchConnector extends BaseAWSConnector<CloudWatchSettings> {
           endMs,
           nextToken,
         );
+        const signingCredentials = await this.resolveSigningCredentials(signal);
         const xml = await this.signedPost({
           host,
           service: CLOUDWATCH_SERVICE,

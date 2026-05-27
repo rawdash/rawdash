@@ -53,9 +53,15 @@ export interface AwsAuthConfig {
 }
 
 export const awsAuthRefine = {
-  predicate: (val: AwsAuthConfig): boolean =>
-    val.roleArn !== undefined ||
-    (val.accessKeyId !== undefined && val.secretAccessKey !== undefined),
+  predicate: (val: AwsAuthConfig): boolean => {
+    const hasRole = val.roleArn !== undefined;
+    const hasStatic =
+      val.accessKeyId !== undefined && val.secretAccessKey !== undefined;
+    if (val.externalId !== undefined && !hasRole) {
+      return false;
+    }
+    return hasRole || hasStatic;
+  },
   message:
-    'Provide either accessKeyId + secretAccessKey (static credentials) or roleArn (role assumption)',
+    'Provide either accessKeyId + secretAccessKey (static credentials) or roleArn (role assumption). externalId requires roleArn.',
 } as const;
