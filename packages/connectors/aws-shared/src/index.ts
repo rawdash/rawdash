@@ -16,3 +16,15 @@ export {
   parseGetMetricData,
   topLevelMembers,
 } from './xml';
+export {
+  type AwsCredentials,
+  type BaseAWSSettings,
+  type SigningCredentials,
+  BaseAWSConnector,
+  awsCredentialsSchema,
+} from './base-aws-connector';
+export {
+  type AwsAuthConfig,
+  awsAuthConfigShape,
+  awsAuthRefine,
+} from './config';

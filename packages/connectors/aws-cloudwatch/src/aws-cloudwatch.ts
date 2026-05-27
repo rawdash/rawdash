@@ -1,25 +1,13 @@
 import {
-  type StsCredentials,
-  createAuthorizationHeader,
-  formatAmzDate,
-  parseAssumeRole,
-  parseErrorCode,
+  BaseAWSConnector,
+  type BaseAWSSettings,
+  awsAuthConfigShape,
+  awsAuthRefine,
   parseGetMetricData,
-  sha256Hex,
 } from '@rawdash/connector-aws-shared';
+import { parseEpoch } from '@rawdash/connector-shared';
 import {
-  AuthError,
-  type HttpClientError,
-  type HttpResponse,
-  RateLimitError,
-  TransientError,
-  connectorUserAgent,
-  parseEpoch,
-} from '@rawdash/connector-shared';
-import {
-  BaseConnector,
   type ConnectorContext,
-  type CredentialsSchema,
   type JSONValue,
   type MetricSample,
   type StorageHandle,
@@ -28,21 +16,6 @@ import {
   defineConfigFields,
 } from '@rawdash/core';
 import { z } from 'zod';
-
-// Read an environment variable without depending on @types/node — the role
-// path falls back to the ambient AWS credentials when no static keys are given.
-function readEnv(name: string): string | undefined {
-  const env = (
-    globalThis as {
-      process?: { env?: Record<string, string | undefined> };
-    }
-  ).process?.env;
-  return env?.[name];
-}
-
-// ---------------------------------------------------------------------------
-// configFields
-// ---------------------------------------------------------------------------
 
 const metricQuerySchema = z.object({
   id: z
@@ -67,48 +40,7 @@ const metricQuerySchema = z.object({
 export const configFields = defineConfigFields(
   z
     .object({
-      region: z
-        .string()
-        .regex(
-          /^[a-z0-9-]+$/,
-          'region must look like an AWS region, e.g. us-east-1',
-        )
-        .meta({
-          label: 'AWS Region',
-          description:
-            'The AWS region whose CloudWatch metrics you want to read, e.g. us-east-1.',
-          placeholder: 'us-east-1',
-        }),
-      accessKeyId: z.object({ $secret: z.string() }).optional().meta({
-        label: 'Access Key ID',
-        description:
-          'AWS access key ID for an IAM principal with cloudwatch:GetMetricData. Use this together with the secret access key for static-credential auth.',
-        secret: true,
-      }),
-      secretAccessKey: z.object({ $secret: z.string() }).optional().meta({
-        label: 'Secret Access Key',
-        description:
-          'AWS secret access key paired with the access key ID above.',
-        secret: true,
-      }),
-      roleArn: z
-        .string()
-        .regex(
-          /^arn:aws:iam::\d{12}:role\/.+/,
-          'roleArn must be a full IAM role ARN, e.g. arn:aws:iam::123456789012:role/rawdash',
-        )
-        .optional()
-        .meta({
-          label: 'Role ARN',
-          description:
-            'IAM role to assume via STS instead of using static keys. The base credentials (the access key above, or the ambient AWS environment) must be allowed to sts:AssumeRole this role.',
-          placeholder: 'arn:aws:iam::123456789012:role/rawdash-cloudwatch',
-        }),
-      externalId: z.string().min(1).optional().meta({
-        label: 'External ID',
-        description:
-          'External ID required by the trust policy of the role being assumed. Only used with Role ARN.',
-      }),
+      ...awsAuthConfigShape,
       metricQueries: z.array(metricQuerySchema).nonempty().meta({
         label: 'Metric queries',
         description:
@@ -121,20 +53,8 @@ export const configFields = defineConfigFields(
         placeholder: '180',
       }),
     })
-    .refine(
-      (val) =>
-        val.roleArn !== undefined ||
-        (val.accessKeyId !== undefined && val.secretAccessKey !== undefined),
-      {
-        message:
-          'Provide either accessKeyId + secretAccessKey (static credentials) or roleArn (role assumption)',
-      },
-    ),
+    .refine(awsAuthRefine.predicate, { message: awsAuthRefine.message }),
 );
-
-// ---------------------------------------------------------------------------
-// Settings / credentials
-// ---------------------------------------------------------------------------
 
 export interface CloudWatchMetricQuery {
   id: string;
@@ -145,36 +65,10 @@ export interface CloudWatchMetricQuery {
   dimensions?: Record<string, string>;
 }
 
-export interface CloudWatchSettings {
-  region: string;
-  roleArn?: string;
-  externalId?: string;
+export interface CloudWatchSettings extends BaseAWSSettings {
   metricQueries: CloudWatchMetricQuery[];
   lookbackMinutes?: number;
 }
-
-const cloudWatchCredentials = {
-  accessKeyId: {
-    description: 'AWS access key ID',
-    auth: 'optional' as const,
-  },
-  secretAccessKey: {
-    description: 'AWS secret access key',
-    auth: 'optional' as const,
-  },
-} satisfies CredentialsSchema;
-
-type CloudWatchCredentials = typeof cloudWatchCredentials;
-
-interface SigningCredentials {
-  accessKeyId: string;
-  secretAccessKey: string;
-  sessionToken?: string;
-}
-
-// ---------------------------------------------------------------------------
-// Schemas — describe the logical GetMetricData response consumed by request()
-// ---------------------------------------------------------------------------
 
 const metricDataResponseSchema = z.object({
   MetricDataResults: z.array(
@@ -194,29 +88,13 @@ const metricDataResponseSchema = z.object({
   NextToken: z.string().optional(),
 });
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
 const CLOUDWATCH_SERVICE = 'monitoring';
 const CLOUDWATCH_API_VERSION = '2010-08-01';
-const STS_SERVICE = 'sts';
-const STS_API_VERSION = '2011-06-15';
 const MAX_QUERIES_PER_CALL = 500;
 const DEFAULT_LOOKBACK_MINUTES = 180;
-const ASSUMED_ROLE_TTL_BUFFER_MS = 60_000;
-const ASSUME_ROLE_DURATION_SECONDS = 3600;
 const MS_PER_MINUTE = 60_000;
-const FORM_CONTENT_TYPE = 'application/x-www-form-urlencoded; charset=utf-8';
 
-// ---------------------------------------------------------------------------
-// CloudWatchConnector
-// ---------------------------------------------------------------------------
-
-export class CloudWatchConnector extends BaseConnector<
-  CloudWatchSettings,
-  CloudWatchCredentials
-> {
+export class CloudWatchConnector extends BaseAWSConnector<CloudWatchSettings> {
   static readonly id = 'aws-cloudwatch';
 
   static readonly schemas = {
@@ -242,218 +120,6 @@ export class CloudWatchConnector extends BaseConnector<
   }
 
   readonly id = 'aws-cloudwatch';
-  override readonly credentials = cloudWatchCredentials;
-
-  private assumedCreds: {
-    value: SigningCredentials;
-    expiresAt: number;
-  } | null = null;
-
-  // -------------------------------------------------------------------------
-  // Credential resolution
-  // -------------------------------------------------------------------------
-
-  private baseCredentials(): SigningCredentials {
-    const { accessKeyId, secretAccessKey } = this.creds;
-    if (accessKeyId && secretAccessKey) {
-      return { accessKeyId, secretAccessKey };
-    }
-    const envAccessKeyId = readEnv('AWS_ACCESS_KEY_ID');
-    const envSecretAccessKey = readEnv('AWS_SECRET_ACCESS_KEY');
-    if (envAccessKeyId && envSecretAccessKey) {
-      return {
-        accessKeyId: envAccessKeyId,
-        secretAccessKey: envSecretAccessKey,
-        sessionToken: readEnv('AWS_SESSION_TOKEN') || undefined,
-      };
-    }
-    throw new AuthError(
-      'aws-cloudwatch: no AWS credentials available — provide accessKeyId + secretAccessKey, or set them in the environment for role assumption',
-    );
-  }
-
-  private async resolveSigningCredentials(
-    signal?: AbortSignal,
-  ): Promise<SigningCredentials> {
-    if (this.settings.roleArn === undefined) {
-      const { accessKeyId, secretAccessKey } = this.creds;
-      if (!accessKeyId || !secretAccessKey) {
-        throw new AuthError(
-          'aws-cloudwatch: static-credential auth requires both accessKeyId and secretAccessKey',
-        );
-      }
-      return { accessKeyId, secretAccessKey };
-    }
-
-    if (this.assumedCreds && Date.now() < this.assumedCreds.expiresAt) {
-      return this.assumedCreds.value;
-    }
-    const assumed = await this.assumeRole(this.settings.roleArn, signal);
-    return assumed;
-  }
-
-  private async assumeRole(
-    roleArn: string,
-    signal?: AbortSignal,
-  ): Promise<SigningCredentials> {
-    const params = new URLSearchParams();
-    params.set('Action', 'AssumeRole');
-    params.set('Version', STS_API_VERSION);
-    params.set('RoleArn', roleArn);
-    params.set('RoleSessionName', 'rawdash-aws-cloudwatch');
-    params.set('DurationSeconds', String(ASSUME_ROLE_DURATION_SECONDS));
-    if (this.settings.externalId !== undefined) {
-      params.set('ExternalId', this.settings.externalId);
-    }
-
-    const host = `sts.${this.settings.region}.amazonaws.com`;
-    const xml = await this.signedPost({
-      host,
-      service: STS_SERVICE,
-      body: params.toString(),
-      signingCredentials: this.baseCredentials(),
-      resource: 'assume_role',
-      signal,
-    });
-
-    const parsed = parseAssumeRole(xml);
-    if (parsed === null) {
-      throw new AuthError(
-        'aws-cloudwatch: STS AssumeRole returned no usable credentials',
-      );
-    }
-    this.cacheAssumedCredentials(parsed);
-    return {
-      accessKeyId: parsed.accessKeyId,
-      secretAccessKey: parsed.secretAccessKey,
-      sessionToken: parsed.sessionToken || undefined,
-    };
-  }
-
-  private cacheAssumedCredentials(parsed: StsCredentials): void {
-    const expirationMs = parseEpoch(parsed.expiration, 'iso');
-    const expiresAt =
-      expirationMs !== null
-        ? expirationMs - ASSUMED_ROLE_TTL_BUFFER_MS
-        : Date.now() + (ASSUME_ROLE_DURATION_SECONDS - 60) * 1000;
-    this.assumedCreds = {
-      value: {
-        accessKeyId: parsed.accessKeyId,
-        secretAccessKey: parsed.secretAccessKey,
-        sessionToken: parsed.sessionToken || undefined,
-      },
-      expiresAt,
-    };
-  }
-
-  // -------------------------------------------------------------------------
-  // Signed transport
-  // -------------------------------------------------------------------------
-
-  private async signedPost(args: {
-    host: string;
-    service: string;
-    body: string;
-    signingCredentials: SigningCredentials;
-    resource: string;
-    signal?: AbortSignal;
-  }): Promise<string> {
-    const { amzDate, dateStamp } = formatAmzDate(new Date());
-    const payloadHash = await sha256Hex(args.body);
-
-    const signedHeaders: Record<string, string> = {
-      host: args.host,
-      'content-type': FORM_CONTENT_TYPE,
-      'x-amz-content-sha256': payloadHash,
-      'x-amz-date': amzDate,
-    };
-    if (args.signingCredentials.sessionToken !== undefined) {
-      signedHeaders['x-amz-security-token'] =
-        args.signingCredentials.sessionToken;
-    }
-
-    const authorization = await createAuthorizationHeader({
-      method: 'POST',
-      host: args.host,
-      path: '/',
-      query: '',
-      headers: signedHeaders,
-      payloadHash,
-      accessKeyId: args.signingCredentials.accessKeyId,
-      secretAccessKey: args.signingCredentials.secretAccessKey,
-      region: this.settings.region,
-      service: args.service,
-      amzDate,
-      dateStamp,
-    });
-
-    // `host` is set by the runtime from the URL; everything else is sent
-    // verbatim. Extra unsigned headers added by the shared client are ignored
-    // by AWS because they are not listed in SignedHeaders.
-    const sendHeaders: Record<string, string> = {
-      'content-type': FORM_CONTENT_TYPE,
-      'x-amz-content-sha256': payloadHash,
-      'x-amz-date': amzDate,
-      'user-agent': connectorUserAgent('aws-cloudwatch'),
-      Authorization: authorization,
-    };
-    if (args.signingCredentials.sessionToken !== undefined) {
-      sendHeaders['x-amz-security-token'] =
-        args.signingCredentials.sessionToken;
-    }
-
-    try {
-      const res: HttpResponse<string> = await this.request<string>(
-        {
-          url: `https://${args.host}/`,
-          method: 'POST',
-          headers: sendHeaders,
-          body: args.body,
-          parseJson: false,
-          signal: args.signal,
-        },
-        { resource: args.resource },
-      );
-      return res.body;
-    } catch (err) {
-      throw this.classifyAwsError(err);
-    }
-  }
-
-  // CloudWatch and STS return AWS error codes inside the (XML) body even on a
-  // 400 — map the documented ones to the shared error taxonomy so the host
-  // backs off / pauses / retries correctly.
-  private classifyAwsError(err: unknown): unknown {
-    if (!(err instanceof Error) || !('kind' in err)) {
-      return err;
-    }
-    const httpErr = err as HttpClientError;
-    const body =
-      typeof httpErr.response?.body === 'string' ? httpErr.response.body : '';
-    const code = parseErrorCode(body) ?? '';
-    const status = httpErr.response?.status ?? 0;
-
-    if (
-      /throttl|RequestLimitExceeded|TooManyRequests|LimitExceeded/i.test(code)
-    ) {
-      return new RateLimitError(httpErr.message, httpErr.response);
-    }
-    if (
-      /AccessDenied|UnrecognizedClient|InvalidClientTokenId|SignatureDoesNotMatch|AuthFailure|InvalidAccessKeyId|Forbidden/i.test(
-        code,
-      )
-    ) {
-      return new AuthError(httpErr.message, httpErr.response);
-    }
-    if (status >= 500) {
-      return new TransientError(httpErr.message, httpErr.response);
-    }
-    return err;
-  }
-
-  // -------------------------------------------------------------------------
-  // GetMetricData request building
-  // -------------------------------------------------------------------------
 
   private computeWindow(options: SyncOptions): {
     startMs: number;
@@ -511,10 +177,6 @@ export class CloudWatchConnector extends BaseConnector<
 
     return params.toString();
   }
-
-  // -------------------------------------------------------------------------
-  // sync
-  // -------------------------------------------------------------------------
 
   async sync(
     options: SyncOptions,

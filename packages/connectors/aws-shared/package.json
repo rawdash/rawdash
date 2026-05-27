@@ -2,7 +2,7 @@
   "name": "@rawdash/connector-aws-shared",
   "version": "0.1.0",
   "private": true,
-  "description": "Internal shared substrate for Rawdash AWS connectors — SigV4 signing and AWS Query-protocol XML parsing",
+  "description": "Internal shared substrate for Rawdash AWS connectors — SigV4 signing, AWS Query XML, and BaseAWSConnector (region/credential resolution, STS AssumeRole, AWS error mapping)",
   "license": "Apache-2.0",
   "type": "module",
   "repository": {
@@ -27,7 +27,12 @@
     "lint": "eslint src",
     "test": "vitest run"
   },
+  "dependencies": {
+    "zod": "^4.4.3"
+  },
   "devDependencies": {
+    "@rawdash/connector-shared": "workspace:*",
+    "@rawdash/core": "workspace:*",
     "tsup": "^8.0.0",
     "typescript": "^5.7.2",
     "vitest": "^4.1.4"
