@@ -1,4 +1,7 @@
+import { z } from 'zod';
+
 export type Secret = { $secret: string };
+export type SecretRef = Secret;
 
 export function secret(name: string): Secret {
   if (!/^[A-Z][A-Z0-9_]*$/.test(name)) {
@@ -19,16 +22,41 @@ export function isSecret(value: unknown): value is Secret {
   );
 }
 
+export const secretRefSchema: z.ZodType<SecretRef> = z.strictObject({
+  $secret: z.string(),
+});
+
+export function withSecretRef<T extends z.ZodTypeAny>(
+  schema: T,
+): z.ZodUnion<[T, z.ZodType<SecretRef>]> {
+  return z.union([schema, secretRefSchema]);
+}
+
 export interface SecretsResolver {
-  resolve(name: string): string | undefined;
+  resolve(name: string): unknown;
 }
 
 export class EnvSecretsResolver implements SecretsResolver {
-  resolve(name: string): string | undefined {
+  resolve(name: string): unknown {
     const env = (
       globalThis as { process?: { env?: Record<string, string | undefined> } }
     ).process?.env;
-    return env?.[name];
+    const raw = env?.[name];
+    if (raw === undefined) {
+      return undefined;
+    }
+    if (raw.length === 0) {
+      return raw;
+    }
+    const first = raw.charCodeAt(0);
+    if (first !== 0x7b /* { */ && first !== 0x5b /* [ */) {
+      return raw;
+    }
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return raw;
+    }
   }
 }
 

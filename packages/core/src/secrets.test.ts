@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 
 import {
   EnvSecretsResolver,
@@ -6,6 +7,7 @@ import {
   isSecret,
   resolveSecrets,
   secret,
+  withSecretRef,
 } from './secrets';
 
 describe('secret()', () => {
@@ -139,25 +141,124 @@ describe('extractSecretNames()', () => {
 type NodeLike = { process?: { env?: Record<string, string | undefined> } };
 
 describe('EnvSecretsResolver', () => {
-  it('reads from process.env', () => {
-    const resolver = new EnvSecretsResolver();
+  const withEnv = <T>(
+    name: string,
+    value: string | undefined,
+    fn: () => T,
+  ): T => {
     const g = globalThis as unknown as NodeLike;
     g.process ??= { env: {} };
-    const prev = g.process.env!['__TEST_SECRET__'];
+    const prev = g.process.env![name];
     try {
-      g.process.env!['__TEST_SECRET__'] = 'test-value';
-      expect(resolver.resolve('__TEST_SECRET__')).toBe('test-value');
+      if (value === undefined) {
+        delete g.process.env![name];
+      } else {
+        g.process.env![name] = value;
+      }
+      return fn();
     } finally {
       if (prev === undefined) {
-        delete g.process.env!['__TEST_SECRET__'];
+        delete g.process.env![name];
       } else {
-        g.process.env!['__TEST_SECRET__'] = prev;
+        g.process.env![name] = prev;
       }
     }
+  };
+
+  it('reads a plain string from process.env', () => {
+    const resolver = new EnvSecretsResolver();
+    withEnv('__TEST_SECRET__', 'test-value', () => {
+      expect(resolver.resolve('__TEST_SECRET__')).toBe('test-value');
+    });
   });
 
   it('returns undefined for missing keys', () => {
     const resolver = new EnvSecretsResolver();
     expect(resolver.resolve('__DEFINITELY_NOT_SET__')).toBeUndefined();
+  });
+
+  it('parses a JSON object env var into an object', () => {
+    const resolver = new EnvSecretsResolver();
+    withEnv(
+      '__TEST_OBJ__',
+      '{"type":"role","roleArn":"arn:aws:iam::1:role/x","externalId":"abc"}',
+      () => {
+        expect(resolver.resolve('__TEST_OBJ__')).toEqual({
+          type: 'role',
+          roleArn: 'arn:aws:iam::1:role/x',
+          externalId: 'abc',
+        });
+      },
+    );
+  });
+
+  it('parses a JSON array env var into an array', () => {
+    const resolver = new EnvSecretsResolver();
+    withEnv('__TEST_ARR__', '[1,2,3]', () => {
+      expect(resolver.resolve('__TEST_ARR__')).toEqual([1, 2, 3]);
+    });
+  });
+
+  it('falls back to the raw string when a value starting with { is not valid JSON', () => {
+    const resolver = new EnvSecretsResolver();
+    withEnv('__TEST_BAD__', '{not json', () => {
+      expect(resolver.resolve('__TEST_BAD__')).toBe('{not json');
+    });
+  });
+
+  it('returns the empty string for an empty env var without attempting parse', () => {
+    const resolver = new EnvSecretsResolver();
+    withEnv('__TEST_EMPTY__', '', () => {
+      expect(resolver.resolve('__TEST_EMPTY__')).toBe('');
+    });
+  });
+
+  it('does not attempt to parse strings that do not start with { or [', () => {
+    const resolver = new EnvSecretsResolver();
+    withEnv('__TEST_PAT__', 'ghp_abc123', () => {
+      expect(resolver.resolve('__TEST_PAT__')).toBe('ghp_abc123');
+    });
+  });
+});
+
+describe('withSecretRef()', () => {
+  it('accepts the resolved value shape (string)', () => {
+    const schema = withSecretRef(z.string());
+    expect(schema.parse('plain-token')).toBe('plain-token');
+  });
+
+  it('accepts the resolved value shape (object)', () => {
+    const schema = withSecretRef(
+      z.object({
+        type: z.literal('role'),
+        roleArn: z.string(),
+        externalId: z.string(),
+      }),
+    );
+    const value = { type: 'role' as const, roleArn: 'arn:x', externalId: 'y' };
+    expect(schema.parse(value)).toEqual(value);
+  });
+
+  it('accepts a $secret reference', () => {
+    const schema = withSecretRef(z.string());
+    expect(schema.parse({ $secret: 'MY_TOKEN' })).toEqual({
+      $secret: 'MY_TOKEN',
+    });
+  });
+
+  it('rejects a malformed $secret reference (non-string name)', () => {
+    const schema = withSecretRef(z.string());
+    expect(() => schema.parse({ $secret: 42 })).toThrow();
+  });
+
+  it('rejects a $secret reference with extra keys', () => {
+    const schema = withSecretRef(z.string());
+    expect(() => schema.parse({ $secret: 'MY_TOKEN', typo: 'oops' })).toThrow();
+  });
+
+  it('rejects unrelated shapes', () => {
+    const schema = withSecretRef(z.string());
+    expect(() => schema.parse(123)).toThrow();
+    expect(() => schema.parse({ foo: 'bar' })).toThrow();
   });
 });
