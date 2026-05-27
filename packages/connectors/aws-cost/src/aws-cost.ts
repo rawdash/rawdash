@@ -45,11 +45,22 @@ export const configFields = defineConfigFields(
         description:
           'Time granularity of cost buckets. DAILY (default) or MONTHLY. Each Cost Explorer query is billed at $0.01, so MONTHLY is cheaper over long windows.',
       }),
-      groupBy: z.array(z.string()).optional().meta({
-        label: 'Group by (optional)',
-        description:
-          'Up to two Cost Explorer dimensions to break costs down by, e.g. SERVICE, LINKED_ACCOUNT, or TAG:Environment. Omit for total cost only.',
-      }),
+      groupBy: z
+        .array(
+          z
+            .string()
+            .regex(
+              /^(SERVICE|LINKED_ACCOUNT|TAG:.+|COST_CATEGORY:.+)$/,
+              'groupBy entries must be SERVICE, LINKED_ACCOUNT, TAG:<key>, or COST_CATEGORY:<key>',
+            ),
+        )
+        .max(2, 'Cost Explorer accepts at most two group-by dimensions')
+        .optional()
+        .meta({
+          label: 'Group by (optional)',
+          description:
+            'Up to two Cost Explorer dimensions to break costs down by, e.g. SERVICE, LINKED_ACCOUNT, or TAG:Environment. Omit for total cost only.',
+        }),
       lookbackDays: z.number().int().positive().optional().meta({
         label: 'Backfill window (days)',
         description:
@@ -404,19 +415,35 @@ export function getCostWindow(
   lookbackDays: number,
   now: number = Date.now(),
 ): CostWindow {
+  const sinceMs = options.since !== undefined ? Date.parse(options.since) : NaN;
+  const hasSince = Number.isFinite(sinceMs);
+
   let days = lookbackDays;
   if (options.mode === 'latest') {
     days = INCREMENTAL_LOOKBACK_DAYS;
-  } else if (options.since) {
-    const sinceMs = Date.parse(options.since);
-    if (Number.isFinite(sinceMs)) {
-      const elapsed = Math.ceil((now - sinceMs) / MS_PER_DAY);
-      days = Math.min(Math.max(elapsed, 1), lookbackDays);
-    }
+  } else if (hasSince) {
+    const elapsed = Math.ceil((now - sinceMs) / MS_PER_DAY);
+    days = Math.min(Math.max(elapsed, 1), lookbackDays);
   }
 
   if (granularity === 'MONTHLY') {
-    const months = Math.max(1, Math.ceil(days / 30));
+    // Derive month delta from calendar months so the bucket containing `since`
+    // is included, instead of rounding days/30 which under-fetches at month
+    // boundaries (e.g. since=2026-04-30, now=2026-05-27 needs 2 months, not 1).
+    let months: number;
+    if (options.mode === 'latest') {
+      months = 1;
+    } else if (hasSince) {
+      const since = new Date(sinceMs);
+      const nowDate = new Date(now);
+      const delta =
+        (nowDate.getUTCFullYear() - since.getUTCFullYear()) * 12 +
+        (nowDate.getUTCMonth() - since.getUTCMonth()) +
+        1;
+      months = Math.max(1, delta);
+    } else {
+      months = Math.max(1, Math.ceil(lookbackDays / 30));
+    }
     return {
       start: toDateStr(addMonthsFirstUtc(now, 1 - months)),
       end: toDateStr(addMonthsFirstUtc(now, 1)),
@@ -457,7 +484,10 @@ function isAwsCostCursor(value: unknown): value is AwsCostCursor {
     return false;
   }
   const p = c.page as { start?: unknown; end?: unknown } | null | undefined;
-  if (typeof p !== 'object' || p === null) {
+  if (p === null) {
+    return true;
+  }
+  if (typeof p !== 'object') {
     return false;
   }
   return typeof p.start === 'string' && typeof p.end === 'string';
