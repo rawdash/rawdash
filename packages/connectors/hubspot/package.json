@@ -1,13 +1,13 @@
 {
-  "name": "@rawdash/connector-aws-cost",
+  "name": "@rawdash/connector-hubspot",
   "version": "0.15.0",
-  "description": "Rawdash connector for AWS Cost Explorer — daily/monthly cost and forecast metrics, grouped by service, account, or tag",
+  "description": "Rawdash connector for HubSpot — CRM contacts, companies, deals, and marketing email performance",
   "license": "Apache-2.0",
   "type": "module",
   "repository": {
     "type": "git",
     "url": "https://github.com/rawdash/rawdash.git",
-    "directory": "packages/connectors/aws-cost"
+    "directory": "packages/connectors/hubspot"
   },
   "files": [
     "dist",
@@ -32,7 +32,6 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@rawdash/connector-aws-shared": "workspace:*",
     "@rawdash/connector-shared": "workspace:*",
     "@rawdash/connector-test-utils": "workspace:*",
     "fast-check": "^4.8.0",

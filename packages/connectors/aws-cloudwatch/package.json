@@ -1,13 +1,13 @@
 {
-  "name": "@rawdash/connector-aws-cost",
+  "name": "@rawdash/connector-aws-cloudwatch",
   "version": "0.15.0",
-  "description": "Rawdash connector for AWS Cost Explorer — daily/monthly cost and forecast metrics, grouped by service, account, or tag",
+  "description": "Rawdash connector for AWS CloudWatch — pulls declared metric queries into the six-shape storage model via GetMetricData",
   "license": "Apache-2.0",
   "type": "module",
   "repository": {
     "type": "git",
     "url": "https://github.com/rawdash/rawdash.git",
-    "directory": "packages/connectors/aws-cost"
+    "directory": "packages/connectors/aws-cloudwatch"
   },
   "files": [
     "dist",

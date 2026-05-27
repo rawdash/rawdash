@@ -43,12 +43,13 @@ function makeConnector(
     lookbackDays: number;
   }> = {},
 ) {
-  return new AwsCostConnector(settings, {
-    accessKeyId: 'AKIAEXAMPLE' as unknown as { $secret: string },
-    secretAccessKey: 'secret' as unknown as { $secret: string },
-    sessionToken: undefined,
-    externalId: undefined,
-  });
+  return new AwsCostConnector(
+    { region: 'us-east-1', ...settings },
+    {
+      accessKeyId: 'AKIAEXAMPLE' as unknown as { $secret: string },
+      secretAccessKey: 'secret' as unknown as { $secret: string },
+    },
+  );
 }
 
 function jsonResponse(body: unknown, status = 200) {
@@ -108,7 +109,7 @@ describe('configFields', () => {
       accessKeyId: { $secret: 'AWS_ACCESS_KEY_ID' },
       secretAccessKey: { $secret: 'AWS_SECRET_ACCESS_KEY' },
       roleArn: 'arn:aws:iam::123456789012:role/r',
-      externalId: { $secret: 'AWS_EXTERNAL_ID' },
+      externalId: 'rawdash-external-id',
       granularity: 'MONTHLY',
       groupBy: ['SERVICE', 'TAG:Environment'],
       lookbackDays: 30,
@@ -347,7 +348,7 @@ describe('AwsCostConnector.sync', () => {
         mode: 'full',
         cursor: {
           phase: 'forecast',
-          window: { start: '2025-01-01', end: '2025-04-01' },
+          page: { start: '2025-01-01', end: '2025-04-01' },
         },
       },
       storage,
@@ -379,7 +380,7 @@ describe('AwsCostConnector.sync', () => {
     const calls: Array<{ url: string; init: RequestInit | undefined }> = [];
     const spy = vi.fn().mockImplementation((url: string, init: RequestInit) => {
       calls.push({ url: String(url), init });
-      if (String(url).includes('sts.amazonaws.com')) {
+      if (String(url).includes('sts.')) {
         return Promise.resolve(xmlResponse(STS_ASSUME_ROLE_XML));
       }
       const target = targetOf(init);
@@ -406,7 +407,7 @@ describe('AwsCostConnector.sync', () => {
       roleArn: 'arn:aws:iam::123456789012:role/r',
     }).sync({ mode: 'full' }, storage);
 
-    expect(calls.some((c) => c.url.includes('sts.amazonaws.com'))).toBe(true);
+    expect(calls.some((c) => c.url.includes('sts.'))).toBe(true);
     const ceCall = calls.find((c) => c.url.includes('ce.us-east-1'));
     const headers = ceCall!.init?.headers as Record<string, string>;
     expect(headers['x-amz-security-token']).toBe('tempsession');

@@ -10,12 +10,10 @@ const CONNECTOR_ID = 'aws-cost';
 
 function makeConnector(): AwsCostConnector {
   return new AwsCostConnector(
-    {},
+    { region: 'us-east-1' },
     {
       accessKeyId: 'AKIAEXAMPLE' as unknown as { $secret: string },
       secretAccessKey: 'secret' as unknown as { $secret: string },
-      sessionToken: undefined,
-      externalId: undefined,
     },
   );
 }

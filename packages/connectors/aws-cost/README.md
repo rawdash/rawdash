@@ -49,7 +49,7 @@ const awsCost = {
     accessKeyId: secret('AWS_ACCESS_KEY_ID'),
     secretAccessKey: secret('AWS_SECRET_ACCESS_KEY'),
     roleArn: 'arn:aws:iam::123456789012:role/rawdash-cost-explorer',
-    externalId: secret('AWS_EXTERNAL_ID'),
+    externalId: 'rawdash-cost-explorer',
     groupBy: ['LINKED_ACCOUNT', 'TAG:Environment'],
   },
 };

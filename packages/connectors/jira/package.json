@@ -1,13 +1,13 @@
 {
-  "name": "@rawdash/connector-aws-cost",
-  "version": "0.15.0",
-  "description": "Rawdash connector for AWS Cost Explorer — daily/monthly cost and forecast metrics, grouped by service, account, or tag",
+  "name": "@rawdash/connector-jira",
+  "version": "0.0.1",
+  "description": "Rawdash connector for Jira Cloud — issues, status-change events, sprints, projects, and users",
   "license": "Apache-2.0",
   "type": "module",
   "repository": {
     "type": "git",
     "url": "https://github.com/rawdash/rawdash.git",
-    "directory": "packages/connectors/aws-cost"
+    "directory": "packages/connectors/jira"
   },
   "files": [
     "dist",
@@ -32,7 +32,6 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@rawdash/connector-aws-shared": "workspace:*",
     "@rawdash/connector-shared": "workspace:*",
     "@rawdash/connector-test-utils": "workspace:*",
     "fast-check": "^4.8.0",

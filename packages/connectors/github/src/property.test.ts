@@ -212,7 +212,8 @@ describe('GitHubConnector property tests', () => {
       sample: z.infer<typeof S.issues>,
     ): InvariantViolation[] => {
       const violations: InvariantViolation[] = [];
-      const lastByNumber = lastByKey(sample, (i) => String(i.number));
+      const nonPrIssues = sample.filter((i) => i.pull_request === undefined);
+      const lastByNumber = lastByKey(nonPrIssues, (i) => String(i.number));
       const stored = entityStoreFor(storage).get('issue') ?? new Map();
       if (stored.size !== lastByNumber.size) {
         violations.push({

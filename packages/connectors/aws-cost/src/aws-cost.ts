@@ -1,4 +1,14 @@
 import {
+  BaseAWSConnector,
+  type BaseAWSSettings,
+  type SigningCredentials,
+  awsAuthConfigShape,
+  awsAuthRefine,
+  createAuthorizationHeader,
+  formatAmzDate,
+  sha256Hex,
+} from '@rawdash/connector-aws-shared';
+import {
   AuthError,
   type HttpResponse,
   RateLimitError,
@@ -6,9 +16,8 @@ import {
   connectorUserAgent,
 } from '@rawdash/connector-shared';
 import {
-  BaseConnector,
+  type ChunkedSyncCursor,
   type ConnectorContext,
-  type CredentialsSchema,
   type JSONValue,
   type MetricSample,
   type StorageHandle,
@@ -21,39 +30,16 @@ import { z } from 'zod';
 // ---------------------------------------------------------------------------
 // Config
 // ---------------------------------------------------------------------------
+//
+// Cost Explorer is a global service reached through its us-east-1 endpoint, so
+// `region` is hardcoded rather than exposed in the connector config.
+
+const { region: _region, ...awsAuthWithoutRegion } = awsAuthConfigShape;
 
 export const configFields = defineConfigFields(
   z
     .object({
-      accessKeyId: z.object({ $secret: z.string() }).optional().meta({
-        label: 'AWS Access Key ID',
-        description:
-          'Access key ID for an IAM principal with `ce:GetCostAndUsage` and `ce:GetCostForecast`. For cross-account access, this is the key used to assume the role below.',
-        secret: true,
-      }),
-      secretAccessKey: z.object({ $secret: z.string() }).optional().meta({
-        label: 'AWS Secret Access Key',
-        description: 'Secret access key paired with the access key ID.',
-        secret: true,
-      }),
-      sessionToken: z.object({ $secret: z.string() }).optional().meta({
-        label: 'AWS Session Token (optional)',
-        description:
-          'Session token, only required when the access key/secret are temporary STS credentials.',
-        secret: true,
-      }),
-      roleArn: z.string().optional().meta({
-        label: 'Role ARN (optional)',
-        description:
-          'ARN of a role to assume via STS before calling Cost Explorer. Use this for cross-account access; the access key/secret above must be allowed to assume it.',
-        placeholder: 'arn:aws:iam::123456789012:role/rawdash-cost-explorer',
-      }),
-      externalId: z.object({ $secret: z.string() }).optional().meta({
-        label: 'External ID (optional)',
-        description:
-          'External ID required by the assumed role’s trust policy. Only used together with Role ARN.',
-        secret: true,
-      }),
+      ...awsAuthWithoutRegion,
       granularity: z.enum(['DAILY', 'MONTHLY']).optional().meta({
         label: 'Granularity',
         description:
@@ -71,56 +57,27 @@ export const configFields = defineConfigFields(
         placeholder: '90',
       }),
     })
-    .refine(
-      (val) =>
-        val.accessKeyId !== undefined && val.secretAccessKey !== undefined,
-      {
-        message: 'Provide both accessKeyId and secretAccessKey',
-      },
-    ),
+    .refine((val) => awsAuthRefine.predicate({ ...val, region: AWS_REGION }), {
+      message: awsAuthRefine.message,
+    }),
 );
 
-export interface AwsCostSettings {
-  roleArn?: string;
+export interface AwsCostSettings extends BaseAWSSettings {
   granularity?: 'DAILY' | 'MONTHLY';
   groupBy?: readonly string[];
   lookbackDays?: number;
 }
 
-const awsCostCredentials = {
-  accessKeyId: {
-    description: 'AWS access key ID',
-    auth: 'optional' as const,
-  },
-  secretAccessKey: {
-    description: 'AWS secret access key',
-    auth: 'optional' as const,
-  },
-  sessionToken: {
-    description: 'AWS session token (for temporary credentials)',
-    auth: 'optional' as const,
-  },
-  externalId: {
-    description: 'External ID for cross-account role assumption',
-    auth: 'optional' as const,
-  },
-} satisfies CredentialsSchema;
-
-type AwsCostCredentials = typeof awsCostCredentials;
-
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
-// Cost Explorer is a global service reached through its us-east-1 endpoint and
-// signed against the us-east-1 region regardless of where resources live.
 const AWS_REGION = 'us-east-1';
 const CE_HOST = 'ce.us-east-1.amazonaws.com';
 const CE_URL = `https://${CE_HOST}/`;
+const CE_SERVICE = 'ce';
 const CE_CONTENT_TYPE = 'application/x-amz-json-1.1';
 const CE_TARGET_PREFIX = 'AWSInsightsIndexService';
-const STS_HOST = 'sts.amazonaws.com';
-const STS_URL = `https://${STS_HOST}/`;
 
 const DAILY_METRIC_NAME = 'aws_cost_daily';
 const FORECAST_METRIC_NAME = 'aws_cost_forecast';
@@ -207,153 +164,6 @@ interface GetCostForecastBody {
   ForecastResultsByTime?: ForecastResult[];
 }
 
-interface AwsCredentials {
-  accessKeyId: string;
-  secretAccessKey: string;
-  sessionToken?: string;
-}
-
-// ---------------------------------------------------------------------------
-// AWS Signature V4 (header auth) — WebCrypto so it runs on both Node and
-// Cloudflare Workers, matching the runtime targets the connector ships to.
-// ---------------------------------------------------------------------------
-
-const textEncoder = new TextEncoder();
-
-function toHex(buffer: ArrayBuffer | Uint8Array): string {
-  const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
-  let out = '';
-  for (let i = 0; i < bytes.length; i++) {
-    out += bytes[i]!.toString(16).padStart(2, '0');
-  }
-  return out;
-}
-
-async function sha256Hex(data: string): Promise<string> {
-  const digest = await globalThis.crypto.subtle.digest(
-    'SHA-256',
-    textEncoder.encode(data),
-  );
-  return toHex(digest);
-}
-
-async function hmac(
-  key: ArrayBuffer | Uint8Array<ArrayBuffer>,
-  data: string,
-): Promise<ArrayBuffer> {
-  const cryptoKey = await globalThis.crypto.subtle.importKey(
-    'raw',
-    key,
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign'],
-  );
-  return globalThis.crypto.subtle.sign(
-    'HMAC',
-    cryptoKey,
-    textEncoder.encode(data),
-  );
-}
-
-async function deriveSigningKey(
-  secretAccessKey: string,
-  dateStamp: string,
-  region: string,
-  service: string,
-): Promise<ArrayBuffer> {
-  const kDate = await hmac(
-    textEncoder.encode(`AWS4${secretAccessKey}`),
-    dateStamp,
-  );
-  const kRegion = await hmac(kDate, region);
-  const kService = await hmac(kRegion, service);
-  return hmac(kService, 'aws4_request');
-}
-
-function amzDates(now: Date): { amzDate: string; dateStamp: string } {
-  const amzDate = now
-    .toISOString()
-    .replace(/[:-]/g, '')
-    .replace(/\.\d{3}/, '');
-  return { amzDate, dateStamp: amzDate.slice(0, 8) };
-}
-
-interface SigV4Params {
-  method: string;
-  host: string;
-  service: string;
-  region: string;
-  body: string;
-  contentType: string;
-  amzTarget?: string;
-  credentials: AwsCredentials;
-  now?: Date;
-}
-
-async function sigv4Headers(p: SigV4Params): Promise<Record<string, string>> {
-  const { amzDate, dateStamp } = amzDates(p.now ?? new Date());
-  const payloadHash = await sha256Hex(p.body);
-
-  const signedMap: Record<string, string> = {
-    'content-type': p.contentType,
-    host: p.host,
-    'x-amz-content-sha256': payloadHash,
-    'x-amz-date': amzDate,
-  };
-  if (p.amzTarget) {
-    signedMap['x-amz-target'] = p.amzTarget;
-  }
-  if (p.credentials.sessionToken) {
-    signedMap['x-amz-security-token'] = p.credentials.sessionToken;
-  }
-
-  const names = Object.keys(signedMap).sort();
-  const canonicalHeaders = names.map((n) => `${n}:${signedMap[n]}\n`).join('');
-  const signedHeaders = names.join(';');
-
-  const canonicalRequest = [
-    p.method,
-    '/',
-    '',
-    canonicalHeaders,
-    signedHeaders,
-    payloadHash,
-  ].join('\n');
-
-  const credentialScope = `${dateStamp}/${p.region}/${p.service}/aws4_request`;
-  const stringToSign = [
-    'AWS4-HMAC-SHA256',
-    amzDate,
-    credentialScope,
-    await sha256Hex(canonicalRequest),
-  ].join('\n');
-
-  const signingKey = await deriveSigningKey(
-    p.credentials.secretAccessKey,
-    dateStamp,
-    p.region,
-    p.service,
-  );
-  const signature = toHex(await hmac(signingKey, stringToSign));
-
-  const headers: Record<string, string> = {
-    'Content-Type': p.contentType,
-    'X-Amz-Date': amzDate,
-    'X-Amz-Content-Sha256': payloadHash,
-    Authorization:
-      `AWS4-HMAC-SHA256 Credential=${p.credentials.accessKeyId}/${credentialScope}, ` +
-      `SignedHeaders=${signedHeaders}, Signature=${signature}`,
-    'User-Agent': connectorUserAgent('aws-cost'),
-  };
-  if (p.amzTarget) {
-    headers['X-Amz-Target'] = p.amzTarget;
-  }
-  if (p.credentials.sessionToken) {
-    headers['X-Amz-Security-Token'] = p.credentials.sessionToken;
-  }
-  return headers;
-}
-
 // ---------------------------------------------------------------------------
 // Error mapping — Cost Explorer signals failures via the JSON `__type` field;
 // translate them into the shared error contract the runner understands.
@@ -395,7 +205,7 @@ function extractAwsErrorType(err: HttpErrorLike): string {
   return '';
 }
 
-function mapAwsError(err: unknown): unknown {
+function mapAwsJsonError(err: unknown): unknown {
   const httpError = asHttpError(err);
   if (!httpError) {
     return err;
@@ -633,37 +443,31 @@ function getForecastWindow(
   return { start: toDateStr(start), end: toDateStr(start + 31 * MS_PER_DAY) };
 }
 
-interface AwsCostCursor {
-  phase: AwsCostPhase;
-  window: CostWindow;
-}
+type AwsCostCursor = ChunkedSyncCursor<AwsCostPhase, CostWindow>;
 
 function isAwsCostCursor(value: unknown): value is AwsCostCursor {
   if (typeof value !== 'object' || value === null) {
     return false;
   }
-  const c = value as { phase?: unknown; window?: unknown };
+  const c = value as { phase?: unknown; page?: unknown };
   if (
     typeof c.phase !== 'string' ||
     !(PHASE_ORDER as readonly string[]).includes(c.phase)
   ) {
     return false;
   }
-  const w = c.window as { start?: unknown; end?: unknown } | null | undefined;
-  if (typeof w !== 'object' || w === null) {
+  const p = c.page as { start?: unknown; end?: unknown } | null | undefined;
+  if (typeof p !== 'object' || p === null) {
     return false;
   }
-  return typeof w.start === 'string' && typeof w.end === 'string';
+  return typeof p.start === 'string' && typeof p.end === 'string';
 }
 
 // ---------------------------------------------------------------------------
 // AwsCostConnector
 // ---------------------------------------------------------------------------
 
-export class AwsCostConnector extends BaseConnector<
-  AwsCostSettings,
-  AwsCostCredentials
-> {
+export class AwsCostConnector extends BaseAWSConnector<AwsCostSettings> {
   static readonly id = 'aws-cost';
 
   static readonly schemas = {
@@ -675,7 +479,9 @@ export class AwsCostConnector extends BaseConnector<
     const parsed = configFields.parse(input);
     return new AwsCostConnector(
       {
+        region: AWS_REGION,
         roleArn: parsed.roleArn,
+        externalId: parsed.externalId,
         granularity: parsed.granularity,
         groupBy: parsed.groupBy,
         lookbackDays: parsed.lookbackDays,
@@ -683,99 +489,12 @@ export class AwsCostConnector extends BaseConnector<
       {
         accessKeyId: parsed.accessKeyId,
         secretAccessKey: parsed.secretAccessKey,
-        sessionToken: parsed.sessionToken,
-        externalId: parsed.externalId,
       },
       ctx,
     );
   }
 
   readonly id = 'aws-cost';
-  override readonly credentials = awsCostCredentials;
-
-  private cachedAssumed: { creds: AwsCredentials; expiresAt: number } | null =
-    null;
-
-  private async resolveCredentials(
-    signal?: AbortSignal,
-  ): Promise<AwsCredentials> {
-    const { accessKeyId, secretAccessKey, sessionToken } = this.creds;
-    if (!accessKeyId || !secretAccessKey) {
-      throw new Error(
-        'aws-cost connector: accessKeyId and secretAccessKey are required',
-      );
-    }
-    const base: AwsCredentials = { accessKeyId, secretAccessKey, sessionToken };
-
-    if (!this.settings.roleArn) {
-      return base;
-    }
-    if (this.cachedAssumed && Date.now() < this.cachedAssumed.expiresAt) {
-      return this.cachedAssumed.creds;
-    }
-    const assumed = await this.assumeRole(
-      base,
-      this.settings.roleArn,
-      this.creds.externalId,
-      signal,
-    );
-    this.cachedAssumed = {
-      creds: assumed,
-      expiresAt: Date.now() + 50 * 60 * 1000,
-    };
-    return assumed;
-  }
-
-  private async assumeRole(
-    base: AwsCredentials,
-    roleArn: string,
-    externalId: string | undefined,
-    signal?: AbortSignal,
-  ): Promise<AwsCredentials> {
-    const params = new URLSearchParams({
-      Action: 'AssumeRole',
-      Version: '2011-06-15',
-      RoleArn: roleArn,
-      RoleSessionName: 'rawdash-aws-cost',
-      DurationSeconds: '3600',
-    });
-    if (externalId) {
-      params.set('ExternalId', externalId);
-    }
-    const body = params.toString();
-    const headers = await sigv4Headers({
-      method: 'POST',
-      host: STS_HOST,
-      service: 'sts',
-      region: AWS_REGION,
-      body,
-      contentType: 'application/x-www-form-urlencoded; charset=utf-8',
-      credentials: base,
-    });
-
-    let raw: string;
-    try {
-      const res = await this.post<string>(STS_URL, {
-        resource: 'assume_role',
-        headers,
-        body,
-        signal,
-      });
-      raw = typeof res.body === 'string' ? res.body : String(res.body ?? '');
-    } catch (err) {
-      throw mapAwsError(err);
-    }
-
-    const accessKeyId = matchXmlTag(raw, 'AccessKeyId');
-    const secretAccessKey = matchXmlTag(raw, 'SecretAccessKey');
-    const sessionToken = matchXmlTag(raw, 'SessionToken');
-    if (!accessKeyId || !secretAccessKey || !sessionToken) {
-      throw new AuthError(
-        'aws-cost connector: STS AssumeRole did not return temporary credentials',
-      );
-    }
-    return { accessKeyId, secretAccessKey, sessionToken };
-  }
 
   private async callCostExplorer<T>(
     action: string,
@@ -783,18 +502,9 @@ export class AwsCostConnector extends BaseConnector<
     resource: string,
     signal?: AbortSignal,
   ): Promise<T> {
-    const credentials = await this.resolveCredentials(signal);
+    const credentials = await this.resolveSigningCredentials(signal);
     const body = JSON.stringify(payload);
-    const headers = await sigv4Headers({
-      method: 'POST',
-      host: CE_HOST,
-      service: 'ce',
-      region: AWS_REGION,
-      body,
-      contentType: CE_CONTENT_TYPE,
-      amzTarget: `${CE_TARGET_PREFIX}.${action}`,
-      credentials,
-    });
+    const headers = await this.buildCeHeaders(action, body, credentials);
     try {
       const res = await this.post<unknown>(CE_URL, {
         resource,
@@ -806,8 +516,57 @@ export class AwsCostConnector extends BaseConnector<
         typeof res.body === 'string' ? JSON.parse(res.body) : res.body;
       return parsed as T;
     } catch (err) {
-      throw mapAwsError(err);
+      throw mapAwsJsonError(err);
     }
+  }
+
+  private async buildCeHeaders(
+    action: string,
+    body: string,
+    credentials: SigningCredentials,
+  ): Promise<Record<string, string>> {
+    const { amzDate, dateStamp } = formatAmzDate(new Date());
+    const payloadHash = await sha256Hex(body);
+    const amzTarget = `${CE_TARGET_PREFIX}.${action}`;
+
+    const signedHeaders: Record<string, string> = {
+      'content-type': CE_CONTENT_TYPE,
+      host: CE_HOST,
+      'x-amz-content-sha256': payloadHash,
+      'x-amz-date': amzDate,
+      'x-amz-target': amzTarget,
+    };
+    if (credentials.sessionToken !== undefined) {
+      signedHeaders['x-amz-security-token'] = credentials.sessionToken;
+    }
+
+    const authorization = await createAuthorizationHeader({
+      method: 'POST',
+      host: CE_HOST,
+      path: '/',
+      query: '',
+      headers: signedHeaders,
+      payloadHash,
+      accessKeyId: credentials.accessKeyId,
+      secretAccessKey: credentials.secretAccessKey,
+      region: AWS_REGION,
+      service: CE_SERVICE,
+      amzDate,
+      dateStamp,
+    });
+
+    const sendHeaders: Record<string, string> = {
+      'Content-Type': CE_CONTENT_TYPE,
+      'X-Amz-Content-Sha256': payloadHash,
+      'X-Amz-Date': amzDate,
+      'X-Amz-Target': amzTarget,
+      Authorization: authorization,
+      'User-Agent': connectorUserAgent(this.id),
+    };
+    if (credentials.sessionToken !== undefined) {
+      sendHeaders['X-Amz-Security-Token'] = credentials.sessionToken;
+    }
+    return sendHeaders;
   }
 
   private async syncDailyCost(
@@ -890,8 +649,8 @@ export class AwsCostConnector extends BaseConnector<
     const groupBy = this.settings.groupBy;
 
     const cursor = isAwsCostCursor(options.cursor) ? options.cursor : undefined;
-    const window =
-      cursor?.window ?? getCostWindow(options, granularity, lookbackDays);
+    const page =
+      cursor?.page ?? getCostWindow(options, granularity, lookbackDays);
 
     const resumeIdx = cursor ? PHASE_ORDER.indexOf(cursor.phase) : 0;
     const startIdx = resumeIdx >= 0 ? resumeIdx : 0;
@@ -899,7 +658,7 @@ export class AwsCostConnector extends BaseConnector<
     for (let i = startIdx; i < PHASE_ORDER.length; i++) {
       const phase = PHASE_ORDER[i]!;
       if (signal?.aborted) {
-        return { done: false, cursor: { phase, window } };
+        return { done: false, cursor: { phase, page } };
       }
       if (
         options.resources &&
@@ -910,19 +669,13 @@ export class AwsCostConnector extends BaseConnector<
       }
       try {
         if (phase === 'daily_cost') {
-          await this.syncDailyCost(
-            storage,
-            window,
-            granularity,
-            groupBy,
-            signal,
-          );
+          await this.syncDailyCost(storage, page, granularity, groupBy, signal);
         } else {
           await this.syncForecast(storage, granularity, signal);
         }
       } catch (err) {
         if (signal?.aborted) {
-          return { done: false, cursor: { phase, window } };
+          return { done: false, cursor: { phase, page } };
         }
         throw err;
       }
@@ -930,9 +683,4 @@ export class AwsCostConnector extends BaseConnector<
 
     return { done: true };
   }
-}
-
-function matchXmlTag(xml: string, tag: string): string | undefined {
-  const m = new RegExp(`<${tag}>([^<]*)</${tag}>`).exec(xml);
-  return m?.[1];
 }
