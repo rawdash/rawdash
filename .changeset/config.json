@@ -15,6 +15,7 @@
       "@rawdash/connector-sentry",
       "@rawdash/connector-vercel",
       "@rawdash/connector-hubspot",
+      "@rawdash/connector-jira",
       "@rawdash/adapter-libsql",
       "@rawdash/adapter-sqlite",
       "@rawdash/cli",
