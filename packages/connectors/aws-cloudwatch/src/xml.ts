@@ -18,9 +18,10 @@ function decodeEntities(value: string): string {
 // repeated `<member>` children (Timestamps, Values, MetricDataResults) do not
 // nest within themselves, so the first matching close tag is the correct one.
 export function firstInner(xml: string, tag: string): string | null {
-  const open = new RegExp(`<${tag}(?:\\s[^>]*)?>`).exec(xml);
+  const escapedTag = tag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const open = new RegExp(`<${escapedTag}(?:\\s[^>]*)?>`).exec(xml);
   if (!open) {
-    return new RegExp(`<${tag}\\s*/>`).test(xml) ? '' : null;
+    return new RegExp(`<${escapedTag}\\s*/>`).test(xml) ? '' : null;
   }
   const start = open.index + open[0].length;
   const closeIdx = xml.indexOf(`</${tag}>`, start);

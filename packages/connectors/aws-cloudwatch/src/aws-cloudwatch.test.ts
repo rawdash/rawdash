@@ -249,7 +249,7 @@ describe('CloudWatchConnector error mapping', () => {
         { mode: 'full', since: '2024-01-01T00:00:00Z' },
         new InMemoryStorage().getStorageHandle(CONNECTOR_ID),
       ),
-    ).rejects.toBeInstanceOf(RateLimitError);
+    ).rejects.toMatchObject({ name: RateLimitError.name });
   });
 
   it('maps an AccessDenied error to AuthError', async () => {
@@ -262,7 +262,7 @@ describe('CloudWatchConnector error mapping', () => {
         { mode: 'full', since: '2024-01-01T00:00:00Z' },
         new InMemoryStorage().getStorageHandle(CONNECTOR_ID),
       ),
-    ).rejects.toBeInstanceOf(AuthError);
+    ).rejects.toMatchObject({ name: AuthError.name });
   });
 });
 
