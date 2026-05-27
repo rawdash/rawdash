@@ -226,6 +226,7 @@ function dedupeByKey<T>(
 const isGitHubSyncCursor = makeChunkedCursorGuard(PHASE_ORDER);
 
 const workflowRunsResponseSchema = z.object({
+  total_count: z.number().int().optional(),
   workflow_runs: z.array(
     z.object({
       id: z.number().int(),
@@ -237,6 +238,32 @@ const workflowRunsResponseSchema = z.object({
       created_at: z.iso.datetime(),
       updated_at: z.iso.datetime(),
       run_attempt: z.number().int(),
+      artifacts_url: z.string().optional(),
+      cancel_url: z.string().optional(),
+      check_suite_id: z.number().int().optional(),
+      check_suite_node_id: z.string().optional(),
+      check_suite_url: z.string().optional(),
+      display_title: z.string().optional(),
+      event: z.string().optional(),
+      head_commit: z.unknown().optional(),
+      head_repository: z.unknown().optional(),
+      head_sha: z.string().optional(),
+      html_url: z.string().optional(),
+      jobs_url: z.string().optional(),
+      logs_url: z.string().optional(),
+      node_id: z.string().optional(),
+      path: z.string().optional(),
+      previous_attempt_url: z.string().nullable().optional(),
+      pull_requests: z.array(z.unknown()).optional(),
+      referenced_workflows: z.array(z.unknown()).optional(),
+      repository: z.unknown().optional(),
+      rerun_url: z.string().optional(),
+      run_number: z.number().int().optional(),
+      run_started_at: z.iso.datetime().optional(),
+      triggering_actor: z.object({ login: z.string().min(1) }).optional(),
+      url: z.string().optional(),
+      workflow_id: z.number().int().optional(),
+      workflow_url: z.string().optional(),
     }),
   ),
 });
