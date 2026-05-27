@@ -37,12 +37,19 @@ export const configFields = defineConfigFields(
       placeholder: 'ATATT...',
       secret: true,
     }),
-    host: z.string().min(1).meta({
-      label: 'Site host',
-      description:
-        'Your Jira Cloud host, e.g. yourorg.atlassian.net (no protocol, no trailing slash).',
-      placeholder: 'yourorg.atlassian.net',
-    }),
+    host: z
+      .string()
+      .min(1)
+      .regex(
+        /^[^/\s:?#]+$/,
+        'Use host only (no protocol, port, path, or query).',
+      )
+      .meta({
+        label: 'Site host',
+        description:
+          'Your Jira Cloud host, e.g. yourorg.atlassian.net (no protocol, no trailing slash).',
+        placeholder: 'yourorg.atlassian.net',
+      }),
     projectKeys: z.array(z.string().min(1)).nonempty().optional().meta({
       label: 'Project keys (optional)',
       description:
@@ -490,7 +497,10 @@ export class JiraConnector extends BaseConnector<
     const clauses: string[] = [];
     const keys = this.settings.projectKeys;
     if (keys && keys.length > 0) {
-      clauses.push(`project in (${keys.join(',')})`);
+      const quoted = keys.map(
+        (k) => `"${k.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`,
+      );
+      clauses.push(`project in (${quoted.join(',')})`);
     }
     if (options.mode === 'latest' && options.since) {
       const formatted = formatJqlDate(options.since);
@@ -523,7 +533,10 @@ export class JiraConnector extends BaseConnector<
       signal,
     );
     const values = res.body.values;
-    const next = res.body.isLast ? null : String(startAt + values.length);
+    const next =
+      res.body.isLast || values.length === 0
+        ? null
+        : String(startAt + values.length);
     return { items: values, next };
   }
 

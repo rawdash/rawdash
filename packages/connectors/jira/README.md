@@ -2,7 +2,7 @@
 
 Rawdash connector for [Jira Cloud](https://www.atlassian.com/software/jira) — syncs issues, issue status-change events, sprints, projects, and users into the six-shape storage model. Extends the engineering vertical beyond Linear-native shops.
 
-> **Cloud only.** This connector targets the Jira Cloud REST API v3 and Agile API. Jira Data Center / Server are out of scope for v1.
+> **Cloud only.** This connector targets the Jira Cloud REST API v3 and Agile API. Jira Data Center / Server are out of scope for v0.1.
 
 ## Auth setup
 
@@ -162,7 +162,7 @@ Timestamps are stored as Unix epoch milliseconds. `sprintId` is taken from the m
 
 ## Out of scope (post-v0.1)
 
-- **Jira Data Center / Server** — Cloud only for v1.
+- **Jira Data Center / Server** — Cloud only for v0.1.
 - **Confluence** — a separate connector if needed.
 - **Worklogs / time tracking** — not dashboard-shaped for the initial release.
 

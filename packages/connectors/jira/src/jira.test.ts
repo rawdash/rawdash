@@ -393,7 +393,7 @@ describe('JiraConnector.sync', () => {
     const issuesUrl = urlsFor(spy).find((u) => u.includes('/search/jql'));
     expect(issuesUrl).toBeDefined();
     const jql = new URL(issuesUrl!).searchParams.get('jql')!;
-    expect(jql).toContain('project in (ENG,OPS)');
+    expect(jql).toContain('project in ("ENG","OPS")');
     expect(jql).toContain('updated >= "2024-05-01 12:34"');
     expect(jql).toContain('ORDER BY updated ASC');
   });
