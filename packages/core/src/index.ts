@@ -1,6 +1,4 @@
 export type {
-  AggregateRequest,
-  AggregateValue,
   Connector,
   ConnectorContext,
   ConnectorHealth,
@@ -24,15 +22,6 @@ export type {
   SyncOptions,
   SyncResult,
 } from './connector';
-
-export type { AggregateClassification } from './aggregate';
-export {
-  AGGREGATE_ENTITY_TYPE,
-  aggregateKey,
-  classifyWidget,
-  readAggregate,
-  writeAggregate,
-} from './aggregate';
 
 export { BaseConnector, defineConnector } from './connector';
 
