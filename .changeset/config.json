@@ -19,6 +19,7 @@
       "@rawdash/connector-hubspot",
       "@rawdash/connector-jira",
       "@rawdash/connector-mixpanel",
+      "@rawdash/connector-posthog",
       "@rawdash/adapter-libsql",
       "@rawdash/adapter-sqlite",
       "@rawdash/cli",
