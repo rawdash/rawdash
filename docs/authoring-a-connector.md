@@ -557,7 +557,7 @@ Unit-level tests live next to the source (`*.test.ts`). Mock at the `fetch` boun
 - **Dependency on `@rawdash/core`.** Declare it under `dependencies` (not peer) at `workspace:*`. The publish step rewrites it to the lockstep version at pack time. When `@rawdash/core` introduces a new optional field on `SyncOptions` or `SyncResult`, you don't need to bump anything; you only re-release when you actually use the new field.
 - **Dependency on `@rawdash/connector-shared`.** `workspace:*` in `devDependencies`, **never** in `dependencies`. Add `noExternal: ['@rawdash/connector-shared']` to `tsup.config.ts`. Verify with `pnpm pack` and inspect the tarball's `package.json` — `@rawdash/connector-shared` must not appear under `dependencies`.
 - **README.** Cover the consumer surface: install, quick example showing `defineMetric` against the connector's shapes, settings reference, credentials, and any source-specific gotchas (scopes, plans, rate limits). The authoring details belong in this guide; the README is for users.
-- **Smoke-test against the example app** (section 11) before publishing.
+- **Smoke-test against the example app** (section 10) before publishing.
 
 ### Wiring into CI
 
