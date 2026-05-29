@@ -23,8 +23,14 @@ import type {
   ResourceDefinition,
   ResourceDefinitions,
 } from '@rawdash/core';
-import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import * as prettier from 'prettier';
@@ -490,25 +496,45 @@ function renderMdx(c: LoadedConnector): string {
   return parts.join('\n');
 }
 
-function renderCatalog(connectors: LoadedConnector[]): string {
+const ICON_ATTRIBUTION =
+  'Connector logos are trademarks of their respective owners and are shown for identification only. Icons are sourced from [Simple Icons](https://simpleicons.org/) (CC0) and, for AWS services, the [AWS Architecture Icons](https://aws.amazon.com/architecture/icons/) set.';
+
+function groupByCategory(
+  connectors: LoadedConnector[],
+): Map<string, LoadedConnector[]> {
   const byCategory = new Map<string, LoadedConnector[]>();
   for (const c of connectors) {
     const list = byCategory.get(c.doc.category) ?? [];
     list.push(c);
     byCategory.set(c.doc.category, list);
   }
+  for (const list of byCategory.values()) {
+    list.sort((a, b) => a.doc.displayName.localeCompare(b.doc.displayName));
+  }
+  return byCategory;
+}
+
+function connectorUrl(c: LoadedConnector): string {
+  return `/docs/connectors/${c.doc.category}/${c.id}/`;
+}
+
+// Top-level overview: links to each category page, no full connector list.
+function renderTopIndex(
+  connectors: LoadedConnector[],
+  byCategory: Map<string, LoadedConnector[]>,
+): string {
   const parts: string[] = [];
   parts.push(
     frontmatter({
       title: 'Connectors',
-      description: `Browse the ${connectors.length} built-in Rawdash connectors.`,
+      description: `Browse the ${connectors.length} built-in Rawdash connectors by category.`,
     }),
   );
   parts.push('');
   parts.push('{/* Generated from connector metadata. Do not edit. */}');
   parts.push('');
   parts.push(
-    `Rawdash ships ${connectors.length} built-in connectors. Each syncs data from a third-party API into the storage engine, where your widgets query it.`,
+    `Rawdash ships ${connectors.length} built-in connectors, grouped by category. Each syncs data from a third-party API into the storage engine, where your widgets query it.`,
   );
   parts.push('');
   for (const category of Object.keys(CATEGORY_LABELS)) {
@@ -516,20 +542,40 @@ function renderCatalog(connectors: LoadedConnector[]): string {
     if (!list?.length) {
       continue;
     }
-    parts.push(`## ${CATEGORY_LABELS[category]}`);
-    parts.push('');
-    for (const c of list.sort((a, b) => a.id.localeCompare(b.id))) {
-      parts.push(
-        `- [${c.doc.displayName}](/docs/connectors/${c.id}/) - ${escapeMdxText(c.doc.tagline)}`,
-      );
-    }
-    parts.push('');
+    const names = list.map((c) => c.doc.displayName).join(', ');
+    parts.push(
+      `- [${CATEGORY_LABELS[category]}](/docs/connectors/${category}/) (${list.length}) - ${escapeMdxText(names)}`,
+    );
   }
+  parts.push('');
   parts.push('---');
   parts.push('');
+  parts.push(ICON_ATTRIBUTION);
+  parts.push('');
+  return parts.join('\n');
+}
+
+// One page per category, listing that category's connectors.
+function renderCategoryIndex(
+  category: string,
+  list: LoadedConnector[],
+): string {
+  const label = CATEGORY_LABELS[category] ?? category;
+  const parts: string[] = [];
   parts.push(
-    'Connector logos are trademarks of their respective owners and are shown for identification only. Icons are sourced from [Simple Icons](https://simpleicons.org/) (CC0) and, for AWS services, the [AWS Architecture Icons](https://aws.amazon.com/architecture/icons/) set.',
+    frontmatter({
+      title: label,
+      description: `${label} connectors for Rawdash.`,
+    }),
   );
+  parts.push('');
+  parts.push('{/* Generated from connector metadata. Do not edit. */}');
+  parts.push('');
+  for (const c of list) {
+    parts.push(
+      `- [${c.doc.displayName}](${connectorUrl(c)}) - ${escapeMdxText(c.doc.tagline)}`,
+    );
+  }
   parts.push('');
   return parts.join('\n');
 }
@@ -543,7 +589,7 @@ function renderLandingData(connectors: LoadedConnector[]): string {
       name: c.doc.displayName,
       category: c.doc.category,
       tagline: c.doc.tagline,
-      href: `/docs/connectors/${c.id}/`,
+      href: connectorUrl(c),
       iconPath: `/connectors/${c.id}.svg`,
       brandColor: c.doc.brandColor ?? null,
     }));
@@ -587,13 +633,14 @@ async function formatOutput(file: OutFile): Promise<string> {
 
 function collectOutputs(connectors: LoadedConnector[]): OutFile[] {
   const out: OutFile[] = [];
+  const byCategory = groupByCategory(connectors);
   for (const c of connectors) {
     out.push({
       path: join(CONNECTORS_DIR, c.dir, 'README.md'),
       content: renderReadme(c),
     });
     out.push({
-      path: join(DOCS_CONNECTORS_DIR, `${c.id}.mdx`),
+      path: join(DOCS_CONNECTORS_DIR, c.doc.category, `${c.id}.mdx`),
       content: renderMdx(c),
     });
     out.push({
@@ -602,15 +649,48 @@ function collectOutputs(connectors: LoadedConnector[]): OutFile[] {
       raw: true,
     });
   }
+  for (const [category, list] of byCategory) {
+    out.push({
+      path: join(DOCS_CONNECTORS_DIR, category, 'index.mdx'),
+      content: renderCategoryIndex(category, list),
+    });
+  }
   out.push({
     path: join(DOCS_CONNECTORS_DIR, 'index.mdx'),
-    content: renderCatalog(connectors),
+    content: renderTopIndex(connectors, byCategory),
   });
   out.push({
     path: LANDING_DATA_FILE,
     content: renderLandingData(connectors),
   });
   return out;
+}
+
+// Recursively list files under a directory (absolute paths); empty if missing.
+function listFilesRecursive(dir: string): string[] {
+  if (!existsSync(dir)) {
+    return [];
+  }
+  const out: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      out.push(...listFilesRecursive(full));
+    } else {
+      out.push(full);
+    }
+  }
+  return out;
+}
+
+// Files the generator owns and may prune: the connector docs tree and the
+// public connector icons. Anything here not in the current output set is stale.
+function findStaleOutputs(expected: Set<string>): string[] {
+  const managed = [
+    ...listFilesRecursive(DOCS_CONNECTORS_DIR),
+    ...listFilesRecursive(PUBLIC_ICONS_DIR),
+  ];
+  return managed.filter((p) => !expected.has(p));
 }
 
 async function main(): Promise<void> {
@@ -651,6 +731,18 @@ async function main(): Promise<void> {
     } else {
       mkdirSync(dirname(file.path), { recursive: true });
       writeFileSync(file.path, content);
+    }
+  }
+
+  // Prune generated files that are no longer produced (e.g. a removed connector
+  // or, here, the old flat layout). In --check mode a stale file is drift.
+  const expected = new Set(outputs.map((o) => o.path));
+  const stale = findStaleOutputs(expected);
+  for (const path of stale) {
+    if (check) {
+      drifted.push(path);
+    } else {
+      rmSync(path);
     }
   }
 
