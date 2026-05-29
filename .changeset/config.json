@@ -18,6 +18,7 @@
       "@rawdash/connector-aws-cost",
       "@rawdash/connector-hubspot",
       "@rawdash/connector-jira",
+      "@rawdash/connector-mixpanel",
       "@rawdash/adapter-libsql",
       "@rawdash/adapter-sqlite",
       "@rawdash/cli",
