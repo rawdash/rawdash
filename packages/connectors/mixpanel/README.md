@@ -162,12 +162,12 @@ All resources are stored as **metric samples** (`shape: 'metric'`). The `ts` fie
 
 `MixpanelConnector.schemas` exposes the Zod schema for each `request()` resource — used by the cloud shape-drift pipeline to populate `connector_baselines` and by the package's property tests.
 
-| Resource              | Represents                                                                  |
-| --------------------- | --------------------------------------------------------------------------- | ------------------------------------- | ---------------------------- |
-| `dau` / `wau` / `mau` | `GET /api/2.0/segmentation?type=unique&unit=day                             | week                                  | month` per active-user event |
-| `events_per_day`      | `GET /api/2.0/segmentation?type=general                                     | unique&unit=day` per configured event |
-| `funnel_results`      | `GET /api/2.0/funnels?funnel_id=…&unit=day` per configured funnel           |
-| `retention`           | `GET /api/2.0/retention?retention_type=birth&unit=day&born_event=…&event=…` |
+| Resource              | Represents                                                                          |
+| --------------------- | ----------------------------------------------------------------------------------- |
+| `dau` / `wau` / `mau` | `GET /api/2.0/segmentation?type=unique&unit={day,week,month}` per active-user event |
+| `events_per_day`      | `GET /api/2.0/segmentation?type={general,unique}&unit=day` per configured event     |
+| `funnel_results`      | `GET /api/2.0/funnels?funnel_id=…&unit=day` per configured funnel                   |
+| `retention`           | `GET /api/2.0/retention?retention_type=birth&unit=day&born_event=…&event=…`         |
 
 ## Aggregates
 
