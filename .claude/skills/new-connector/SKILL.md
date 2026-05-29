@@ -101,7 +101,11 @@ These shape which existing connector you should copy from. Surface them explicit
 - Gate every phase (and any N+1 subresource calls) on `options.resources`.
 - Pass `logger: this.logger` to `paginateChunked` so the per-page / per-resource INFO logs land in the right shape; hand-rolled loops must mirror the shape from `docs/authoring-a-connector.md` §6.
 - Add a property-test `it` per resource in `src/property.test.ts`.
-- Wire the resource/storage shape check into the property tests: import `connectorResourceShapeViolations` from `@rawdash/connector-test-utils` and add it to each `runPropertySyncTest` call's `extraInvariants` as `(storage, connectorId) => connectorResourceShapeViolations(<Class>.resources, storage, connectorId)` (see `packages/connectors/github/src/property.test.ts`). For resources no property test writes, add one full-sync test that calls `assertConnectorResourceShapes(<Class>.resources, storage, connectorId)`. This fails if any stored resource is missing from `resources` or its declared `shape` doesn't match what was written.
+- Wire the resource/storage shape check into the property tests (see `packages/connectors/github/src/property.test.ts`):
+  - Import `connectorResourceShapeViolations` from `@rawdash/connector-test-utils`.
+  - Add it to each `runPropertySyncTest` call's `extraInvariants` as `(storage, connectorId) => connectorResourceShapeViolations(<Class>.resources, storage, connectorId)`.
+  - For resources no property test writes, add one full-sync test that calls `assertConnectorResourceShapes(<Class>.resources, storage, connectorId)`.
+  - This fails if any stored resource is missing from `resources` or its declared `shape` doesn't match what was written.
 - Fill in the per-resource `resources` definitions (shape + description + endpoint + fields/dimensions/notes + `responses` schemas) and the connector-level `doc` (`displayName`, `category`, `brandColor`, `tagline`, `vendor`, `auth`, optional `rateLimit`, `limitations`). The README and Cloud docs are generated from these; never hand-write them.
 - Use only regular hyphens (`-`) in all doc/resource/config-field strings; em-dashes (`—`) and en-dashes (`–`) fail the docs check.
 - Add `packages/connectors/<id>/icon.svg` (required, committed; the generator fails without it). Use Simple Icons (CC0) or the vendor's official mark, and set `doc.brandColor` to the brand hex.
