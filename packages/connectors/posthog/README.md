@@ -8,7 +8,7 @@ The connector authenticates with a **personal API key** (read access to the proj
 
 1. In PostHog, open **Settings → Personal API keys** (under your account menu).
 2. Click **Create personal API key**, give it a name (e.g. `rawdash`).
-3. Scope it to **read** access for the project's analytics and feature-flag resources (`query:read`, `feature_flag:read`). A read-only project key works for most resources.
+3. Scope it to **read** access for the project's analytics and feature-flag resources (`query:read`, `feature_flag:read`). A personal API key is required — project keys and organization keys are not supported.
 4. Copy the key (starts with `phx_`) — it's shown only once.
 
 You also need your **Project ID** (a number), found in **Settings → Project → Project ID**, and your instance **host**:

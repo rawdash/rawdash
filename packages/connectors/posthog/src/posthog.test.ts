@@ -201,16 +201,16 @@ describe('PostHogConnector', () => {
     });
   });
 
-  it('passes the incremental since bound into the HogQL window', async () => {
+  it('extends the HogQL window when since predates the lookback', async () => {
     const spy = installFetchMock(() => ({ results: [] }));
     const storage = new InMemoryStorage();
     await connector({ resources: ['events_per_day'] }).sync(
-      { mode: 'latest', since: '2026-05-15T00:00:00Z' },
+      { mode: 'latest', since: '2025-01-01T00:00:00Z' },
       storage.getStorageHandle(CONNECTOR_ID),
     );
 
     const body = String(spy.mock.calls[0]?.[1]?.body ?? '');
-    expect(body).toContain('2026-05-15');
+    expect(body).toContain('2025-01-01');
   });
 
   it('clears the metric scope on a full resync (idempotent rewrite)', async () => {

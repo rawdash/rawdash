@@ -139,7 +139,7 @@ export type PostHogResource = PostHogPhase;
 const isPostHogSyncCursor = makeChunkedCursorGuard(PHASE_ORDER);
 
 const FLAGS_PAGE_SIZE = 100;
-const QUERY_ROW_LIMIT = 100_000;
+const QUERY_PAGE_SIZE = 10_000;
 const DEFAULT_LOOKBACK_DAYS = 30;
 const DEFAULT_FUNNEL_WINDOW_DAYS = 14;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -253,6 +253,14 @@ function startOfUtcDay(ms: number): number {
   return Math.floor(ms / MS_PER_DAY) * MS_PER_DAY;
 }
 
+function safeOffset(page: string | null): number {
+  if (page === null) {
+    return 0;
+  }
+  const n = Number(page);
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
+}
+
 function quoteHogQLString(value: string): string {
   return `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
 }
@@ -349,16 +357,18 @@ export class PostHogConnector extends BaseConnector<
     };
   }
 
-  // ISO date (YYYY-MM-DD) that bounds the rollup window for a full or
-  // incremental sync. Incremental ticks pass `since`; we still cap the window
-  // to lookbackDays so a stale `since` can't trigger an unbounded scan.
+  // ISO date (YYYY-MM-DD) that bounds the rollup window. Metric phases use
+  // clear-and-rewrite, so the window must always cover the full lookback or
+  // an incremental tick would wipe history and only rewrite a narrower slice.
+  // A `since` earlier than the lookback extends the window; a later `since`
+  // is ignored.
   private windowStartDate(options: SyncOptions): string {
     const lookbackDays = this.settings.lookbackDays ?? DEFAULT_LOOKBACK_DAYS;
     const now = Date.now();
     let startMs = now - (lookbackDays - 1) * MS_PER_DAY;
     if (options.since) {
       const sinceMs = new Date(options.since).getTime();
-      if (Number.isFinite(sinceMs) && sinceMs > startMs) {
+      if (Number.isFinite(sinceMs) && sinceMs < startMs) {
         startMs = sinceMs;
       }
     }
@@ -389,7 +399,7 @@ export class PostHogConnector extends BaseConnector<
     page: string | null,
     signal?: AbortSignal,
   ): Promise<{ items: unknown[]; next: string | null }> {
-    const offset = page === null ? 0 : Number(page);
+    const offset = safeOffset(page);
     const url = new URL(
       `${this.baseUrl}/api/projects/${this.settings.projectId}/feature_flags/`,
     );
@@ -437,8 +447,10 @@ export class PostHogConnector extends BaseConnector<
 
   private async fetchEventsPerDay(
     startDate: string,
+    page: string | null,
     signal?: AbortSignal,
-  ): Promise<{ items: unknown[]; next: null }> {
+  ): Promise<{ items: unknown[]; next: string | null }> {
+    const offset = safeOffset(page);
     const clauses = [`timestamp >= toDateTime(${quoteHogQLString(startDate)})`];
     const events = this.settings.events;
     if (events && events.length > 0) {
@@ -449,13 +461,18 @@ export class PostHogConnector extends BaseConnector<
       `SELECT toString(toDate(timestamp)) AS day, event AS event, ` +
       `count() AS total, count(DISTINCT person_id) AS users ` +
       `FROM events WHERE ${clauses.join(' AND ')} ` +
-      `GROUP BY day, event ORDER BY day LIMIT ${QUERY_ROW_LIMIT}`;
+      `GROUP BY day, event ORDER BY day, event ` +
+      `LIMIT ${QUERY_PAGE_SIZE} OFFSET ${offset}`;
     const body = await this.runQuery<HogQLResponse>(
       { kind: 'HogQLQuery', query: sql },
       'events_per_day',
       signal,
     );
-    return { items: body.results, next: null };
+    const next =
+      body.results.length === QUERY_PAGE_SIZE
+        ? String(offset + QUERY_PAGE_SIZE)
+        : null;
+    return { items: body.results, next };
   }
 
   private async writeEventsPerDay(
@@ -487,21 +504,28 @@ export class PostHogConnector extends BaseConnector<
 
   private async fetchFlagUsage(
     startDate: string,
+    page: string | null,
     signal?: AbortSignal,
-  ): Promise<{ items: unknown[]; next: null }> {
+  ): Promise<{ items: unknown[]; next: string | null }> {
+    const offset = safeOffset(page);
     const sql =
       `SELECT toString(toDate(timestamp)) AS day, ` +
       `properties.$feature_flag AS flag, count() AS calls, ` +
       `count(DISTINCT person_id) AS users FROM events ` +
       `WHERE event = '$feature_flag_called' AND ` +
       `timestamp >= toDateTime(${quoteHogQLString(startDate)}) ` +
-      `GROUP BY day, flag ORDER BY day LIMIT ${QUERY_ROW_LIMIT}`;
+      `GROUP BY day, flag ORDER BY day, flag ` +
+      `LIMIT ${QUERY_PAGE_SIZE} OFFSET ${offset}`;
     const body = await this.runQuery<HogQLResponse>(
       { kind: 'HogQLQuery', query: sql },
       'feature_flag_usage',
       signal,
     );
-    return { items: body.results, next: null };
+    const next =
+      body.results.length === QUERY_PAGE_SIZE
+        ? String(offset + QUERY_PAGE_SIZE)
+        : null;
+    return { items: body.results, next };
   }
 
   private async writeFlagUsage(
@@ -587,8 +611,8 @@ export class PostHogConnector extends BaseConnector<
     signal?: AbortSignal,
   ): Promise<{ items: unknown[]; next: string | null }> {
     const funnels = this.settings.funnels ?? [];
-    const index = page === null ? 0 : Number(page);
-    if (!Number.isInteger(index) || index < 0 || index >= funnels.length) {
+    const index = safeOffset(page);
+    if (index >= funnels.length) {
       return { items: [], next: null };
     }
     const funnel = funnels[index]!;
@@ -729,9 +753,9 @@ export class PostHogConnector extends BaseConnector<
           case 'feature_flags':
             return this.fetchFeatureFlagsPage(page, sig);
           case 'events_per_day':
-            return this.fetchEventsPerDay(startDate, sig);
+            return this.fetchEventsPerDay(startDate, page, sig);
           case 'feature_flag_usage':
-            return this.fetchFlagUsage(startDate, sig);
+            return this.fetchFlagUsage(startDate, page, sig);
           case 'active_users':
             return this.fetchActiveUsers(startDate, sig);
           case 'funnels':

@@ -26,11 +26,11 @@ function uniqueFlagEntities(): (
   connectorId: string,
   sample: FeatureFlagsSample,
 ) => InvariantViolation[] {
-  return (storage, _connectorId, sample) => {
+  return (storage, connectorId, sample) => {
     const violations: InvariantViolation[] = [];
     const unique = new Set(sample.map((f) => String(f.id))).size;
     const written =
-      entityStoreFor(storage, CONNECTOR_ID).get('posthog_feature_flag')?.size ??
+      entityStoreFor(storage, connectorId).get('posthog_feature_flag')?.size ??
       0;
     if (written !== unique) {
       violations.push({
@@ -50,9 +50,9 @@ function metricsNeverExceedRows(
   connectorId: string,
   sample: HogQLSample,
 ) => InvariantViolation[] {
-  return (storage, _connectorId, sample) => {
+  return (storage, connectorId, sample) => {
     const violations: InvariantViolation[] = [];
-    const written = metricStoreFor(storage, CONNECTOR_ID).filter(
+    const written = metricStoreFor(storage, connectorId).filter(
       (m) => m.name === metricName,
     ).length;
     if (written > sample.results.length) {
