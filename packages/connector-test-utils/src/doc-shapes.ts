@@ -13,17 +13,22 @@ type ObservedShape = 'entity' | 'event' | 'metric';
 function observedShapes(
   storage: InMemoryStorage,
   connectorId: string,
-): Map<string, ObservedShape> {
+): Map<string, Set<ObservedShape>> {
   const snap = snapshotStorage(storage, connectorId);
-  const observed = new Map<string, ObservedShape>();
+  const observed = new Map<string, Set<ObservedShape>>();
+  const add = (name: string, shape: ObservedShape): void => {
+    const set = observed.get(name) ?? new Set<ObservedShape>();
+    set.add(shape);
+    observed.set(name, set);
+  };
   for (const e of snap.entities) {
-    observed.set(e.type, 'entity');
+    add(e.type, 'entity');
   }
   for (const ev of snap.events) {
-    observed.set(ev.name, 'event');
+    add(ev.name, 'event');
   }
   for (const m of snap.metrics) {
-    observed.set(m.name, 'metric');
+    add(m.name, 'metric');
   }
   return observed;
 }
@@ -59,23 +64,25 @@ export function connectorResourceShapeViolations(
   );
 
   const violations: InvariantViolation[] = [];
-  for (const [name, shape] of observed) {
+  for (const [name, shapes] of observed) {
     const declaredShape = declared.get(name);
-    if (declaredShape === undefined) {
-      if (dynamicShapes.has(shape)) {
-        continue;
+    for (const shape of shapes) {
+      if (declaredShape === undefined) {
+        if (dynamicShapes.has(shape)) {
+          continue;
+        }
+        violations.push({
+          invariant: 'every stored resource is declared in `resources`',
+          location: `${connectorId} resource "${name}"`,
+          detail: `wrote a ${shape} named "${name}" with no matching resource definition`,
+        });
+      } else if (declaredShape !== shape) {
+        violations.push({
+          invariant: 'resource `shape` matches the written storage shape',
+          location: `${connectorId} resource "${name}"`,
+          detail: `declared shape "${declaredShape}" but wrote "${shape}"`,
+        });
       }
-      violations.push({
-        invariant: 'every stored resource is declared in `resources`',
-        location: `${connectorId} resource "${name}"`,
-        detail: `wrote a ${shape} named "${name}" with no matching resource definition`,
-      });
-    } else if (declaredShape !== shape) {
-      violations.push({
-        invariant: 'resource `shape` matches the written storage shape',
-        location: `${connectorId} resource "${name}"`,
-        detail: `declared shape "${declaredShape}" but wrote "${shape}"`,
-      });
     }
   }
   return violations;

@@ -39,7 +39,7 @@ Authenticates over HTTP Basic auth using your Atlassian account email and an API
 1. Open id.atlassian.com -> Security -> Create and manage API tokens.
 2. Create an API token and copy its value.
 3. Store the token as a secret and reference it from the connector config as `apiToken: secret("JIRA_API_TOKEN")`, alongside your account email and site host (e.g. yourorg.atlassian.net).
-4. Story points and the sprint association live on custom fields whose IDs differ per Jira site. Discover them at https://&lt;host>/rest/api/3/field and set storyPointsField / sprintField to match.
+4. Story points and the sprint association live on custom fields whose IDs differ per Jira site. Discover them at `https://{host}/rest/api/3/field` and set storyPointsField / sprintField to match.
 
 ## Configuration
 

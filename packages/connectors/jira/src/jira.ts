@@ -101,7 +101,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
       'Open id.atlassian.com -> Security -> Create and manage API tokens.',
       'Create an API token and copy its value.',
       'Store the token as a secret and reference it from the connector config as `apiToken: secret("JIRA_API_TOKEN")`, alongside your account email and site host (e.g. yourorg.atlassian.net).',
-      'Story points and the sprint association live on custom fields whose IDs differ per Jira site. Discover them at https://<host>/rest/api/3/field and set storyPointsField / sprintField to match.',
+      'Story points and the sprint association live on custom fields whose IDs differ per Jira site. Discover them at `https://{host}/rest/api/3/field` and set storyPointsField / sprintField to match.',
     ],
   },
   rateLimit:
