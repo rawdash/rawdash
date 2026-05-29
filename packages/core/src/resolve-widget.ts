@@ -1,4 +1,3 @@
-import { classifyWidget, readAggregate } from './aggregate';
 import { computeMetric } from './compute';
 import type { Widget } from './config';
 import type { ConnectorHealth } from './connector';
@@ -47,13 +46,7 @@ export async function resolveWidget(
   const health = (await handle.getHealth?.()) ?? null;
   let data: unknown = null;
   if (widget.kind !== 'status') {
-    const classification = classifyWidget(widget);
-    if (classification.via === 'aggregate') {
-      const cached = await readAggregate(handle, dashboardId, widgetId);
-      data = cached ? cached.value : await computeMetric(handle, widget.metric);
-    } else {
-      data = await computeMetric(handle, widget.metric);
-    }
+    data = await computeMetric(handle, widget.metric);
   }
 
   let syncState: WidgetSyncState | undefined;

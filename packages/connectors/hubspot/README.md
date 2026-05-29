@@ -146,16 +146,6 @@ Monetary amounts (deal `amount`) are in the account's currency, as returned by H
 
 > **Search API ceiling:** HubSpot's Search API caps results at 10,000 per query. Very large CRM portfolios may not backfill in full in a single window; incremental syncs (which filter on `hs_lastmodifieddate`) stay well under the ceiling.
 
-## Aggregates
-
-| Function | Resource          | Upstream call                                                |
-| -------- | ----------------- | ------------------------------------------------------------ |
-| `count`  | `hubspot_contact` | `POST /crm/v3/objects/contacts/search` (`limit=1`, `total`)  |
-| `count`  | `hubspot_company` | `POST /crm/v3/objects/companies/search` (`limit=1`, `total`) |
-| `count`  | `hubspot_deal`    | `POST /crm/v3/objects/deals/search` (`limit=1`, `total`)     |
-
-`count` widgets are served directly from the Search API `total`, so the runner can skip backfilling the underlying entities for that tick. Filter conditions translate to HubSpot search operators (`eq→EQ`, `neq→NEQ`, `gt→GT`, `gte→GTE`, `lt→LT`, `lte→LTE`, `contains→CONTAINS_TOKEN`). `OR` clauses and `latest` aggregates aren't supported and fall back to evaluating against synced storage rows.
-
 ## Registering in the MCP server
 
 To make the connector available via the `add_connector` MCP tool, include it in `connectorFactories`:

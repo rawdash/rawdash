@@ -4,12 +4,9 @@ import {
   parseEpoch,
 } from '@rawdash/connector-shared';
 import {
-  type AggregateRequest,
-  type AggregateValue,
   BaseConnector,
   type ConnectorContext,
   type CredentialsSchema,
-  type FilterClause,
   type StorageHandle,
   type SyncOptions,
   type SyncResult,
@@ -204,23 +201,6 @@ const ENTITY_TYPE_BY_PHASE: Partial<Record<HubSpotPhase, string>> = {
 const DEAL_STAGE_EVENT = 'hubspot_deal_stage_change';
 const EMAIL_STATS_METRIC = 'hubspot_email_stats';
 
-// Aggregate `resource` (the widget's entity type) → CRM search object.
-const COUNT_RESOURCE_TO_OBJECT: Record<string, CrmObjectPhase> = {
-  hubspot_contact: 'contacts',
-  hubspot_company: 'companies',
-  hubspot_deal: 'deals',
-};
-
-const FILTER_OP_TO_HUBSPOT: Record<string, string> = {
-  eq: 'EQ',
-  neq: 'NEQ',
-  gt: 'GT',
-  gte: 'GTE',
-  lt: 'LT',
-  lte: 'LTE',
-  contains: 'CONTAINS_TOKEN',
-};
-
 // ---------------------------------------------------------------------------
 // Value helpers
 // ---------------------------------------------------------------------------
@@ -235,12 +215,6 @@ function finiteNumberOrNull(value: string | null | undefined): number | null {
 
 function counterValue(value: number | undefined): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
-}
-
-function unsupportedAggregate(req: AggregateRequest): Error {
-  return new Error(
-    `HubSpot aggregate: unsupported ${req.fn} for resource=${req.resource}`,
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -745,77 +719,5 @@ export class HubSpotConnector extends BaseConnector<
         await this.writePhase(storage, phase, items, options);
       },
     });
-  }
-
-  // -------------------------------------------------------------------------
-  // Aggregates — count via the CRM Search API `total` (one request)
-  // -------------------------------------------------------------------------
-
-  override async aggregate(
-    req: AggregateRequest,
-    signal?: AbortSignal,
-  ): Promise<AggregateValue> {
-    if (req.fn !== 'count') {
-      throw unsupportedAggregate(req);
-    }
-    const object = COUNT_RESOURCE_TO_OBJECT[req.resource];
-    if (!object) {
-      throw unsupportedAggregate(req);
-    }
-    const filterGroups = this.translateCountFilter(req.filter);
-    const res = await this.apiPost<CrmSearchResponse>(
-      `${BASE_URL}/crm/v3/objects/${object}/search`,
-      object,
-      { filterGroups, properties: [], limit: 1 },
-      signal,
-    );
-    const value = res.body.total ?? 0;
-    this.logger.info('aggregate', {
-      fn: 'count',
-      resource: req.resource,
-      filter: req.filter,
-      value,
-      via: 'CRM search API',
-    });
-    return value;
-  }
-
-  validateCountFilter(resource: string, filter: FilterClause[]): void {
-    if (!COUNT_RESOURCE_TO_OBJECT[resource]) {
-      throw new Error(
-        `HubSpot aggregate count: unsupported resource=${resource}`,
-      );
-    }
-    this.translateCountFilter(filter);
-  }
-
-  // Translates flat AND filter conditions into HubSpot search `filterGroups`.
-  // OR clauses aren't expressible alongside the rest of the group model, so
-  // they throw "unsupported" and the runner falls back to storage rows.
-  private translateCountFilter(
-    filter: FilterClause[] | undefined,
-  ): Array<{ filters: unknown[] }> {
-    if (!filter || filter.length === 0) {
-      return [];
-    }
-    const filters = filter.map((clause) => {
-      if ('or' in clause) {
-        throw new Error(
-          'HubSpot aggregate count: OR filter clauses are not supported',
-        );
-      }
-      const operator = FILTER_OP_TO_HUBSPOT[clause.op];
-      if (!operator) {
-        throw new Error(
-          `HubSpot aggregate count: unsupported filter operator ${clause.op}`,
-        );
-      }
-      return {
-        propertyName: clause.field,
-        operator,
-        value: String(clause.value),
-      };
-    });
-    return [{ filters }];
   }
 }
