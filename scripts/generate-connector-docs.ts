@@ -28,7 +28,7 @@ import { mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import * as prettier from 'prettier';
-import type { z } from 'zod';
+import { z } from 'zod';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CONNECTORS_DIR = join(ROOT, 'packages', 'connectors');
@@ -174,24 +174,29 @@ function describeConfigFields(
     const required = !field.safeParse(undefined).success;
     let inner: z.ZodType = field;
     while (
-      (inner as { def?: { type?: string; innerType?: z.ZodType } }).def &&
-      ((inner as { def: { type: string } }).def.type === 'optional' ||
-        (inner as { def: { type: string } }).def.type === 'default')
+      inner instanceof z.ZodOptional ||
+      inner instanceof z.ZodNullable ||
+      inner instanceof z.ZodDefault
     ) {
-      inner = (inner as { def: { innerType: z.ZodType } }).def.innerType;
+      inner = inner.unwrap();
     }
-    const innerType =
-      (inner as { def?: { type?: string } }).def?.type ?? 'unknown';
     let type: string;
     if (meta.secret) {
       type = 'secret';
-    } else if (innerType === 'enum') {
-      const values = Object.values(
-        (inner as { def: { entries: Record<string, string> } }).def.entries,
-      );
-      type = values.map((v) => `\`${v}\``).join(' \\| ');
+    } else if (inner instanceof z.ZodEnum) {
+      type = inner.options.map((v) => `\`${v}\``).join(' \\| ');
+    } else if (inner instanceof z.ZodString) {
+      type = 'string';
+    } else if (inner instanceof z.ZodNumber) {
+      type = 'number';
+    } else if (inner instanceof z.ZodBoolean) {
+      type = 'boolean';
+    } else if (inner instanceof z.ZodArray) {
+      type = 'array';
+    } else if (inner instanceof z.ZodObject) {
+      type = 'object';
     } else {
-      type = innerType;
+      type = 'unknown';
     }
     fields.push({
       name,
