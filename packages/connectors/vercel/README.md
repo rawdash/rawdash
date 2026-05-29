@@ -143,10 +143,6 @@ Timestamps are stored as Unix epoch milliseconds. `buildDurationMs` is computed 
 - **Rate limits**: Vercel sends `X-RateLimit-Remaining` and `X-RateLimit-Reset` (Unix seconds) — the connector reports the parsed state back to the host so the engine can budget future requests. 429 responses are surfaced as `RateLimitError` by the shared HTTP client.
 - **Resumable**: every paginated phase yields a `{ phase, page }` cursor (`ChunkedSyncCursor<TPhase, TPage>`) where `page` is the sanitized pagination URL. Pagination URLs are validated on the way in — only `https://api.vercel.com/v9/projects` and `https://api.vercel.com/v6/deployments` are accepted — to prevent a malicious or corrupted cursor from steering a follow-up request elsewhere.
 
-## Aggregates
-
-No aggregates yet — `count` / `latest` widgets fall back to evaluating against synced storage rows. Tracking as a follow-up: Vercel's `/v6/deployments?limit=1&state=READY` could serve `count(vercel_deployment, filter)` plus `latest(vercel_deployment, ...)` directly, since the deployments list response carries `pagination.count` and an ordered first row.
-
 ## Errors
 
 `@rawdash/connector-shared` maps Vercel's HTTP responses to typed errors automatically:

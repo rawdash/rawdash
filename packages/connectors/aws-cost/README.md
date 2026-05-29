@@ -146,7 +146,3 @@ When `groupBy` is set, each group becomes its own sample with the dimension valu
 - **Pagination**: `GetCostAndUsage` is drained via `NextPageToken`. Interrupted syncs return a cursor and resume from the same phase and window.
 - **Endpoint/region**: Cost Explorer is global and is always reached through `ce.us-east-1.amazonaws.com`, signed against `us-east-1` regardless of where your resources run.
 - **Errors**: `ThrottlingException` → `RateLimitError` (host backs off), `AccessDenied`/auth failures → `AuthError`, 5xx → `TransientError`. A `DataUnavailableException` from the forecast API (typical for brand-new accounts) is treated as "no forecast" rather than a hard failure.
-
-## Aggregates
-
-No `aggregate()` hook — the data is already aggregated upstream, so `count` / `latest` widgets resolve cheaply against the local metric table.
