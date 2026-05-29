@@ -296,6 +296,14 @@ nav {
   border-radius: var(--radius);
   text-align: center;
   transition: border-color 0.15s;
+  color: inherit;
+  text-decoration: none;
+}
+
+.connector-icon img {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
 }
 
 .connector-card.available {

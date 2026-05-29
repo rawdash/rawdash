@@ -11,6 +11,7 @@ import {
   BaseConnector,
   type ChunkedSyncCursor,
   type ConnectorContext,
+  type ConnectorDoc,
   type CredentialsSchema,
   type FetchPageResult,
   type FilterClause,
@@ -19,8 +20,11 @@ import {
   type SyncOptions,
   type SyncResult,
   defineConfigFields,
+  defineConnectorDoc,
+  defineResources,
   makeChunkedCursorGuard,
   paginateChunked,
+  schemasFromResources,
 } from '@rawdash/core';
 import { z } from 'zod';
 
@@ -43,6 +47,34 @@ export const configFields = defineConfigFields(
     }),
   }),
 );
+
+export const doc: ConnectorDoc = defineConnectorDoc({
+  displayName: 'GitHub',
+  category: 'engineering',
+  brandColor: '#181717',
+  tagline:
+    'Sync pull requests, issues, deployments, releases, CI runs, and contributor activity from a GitHub repository.',
+  vendor: {
+    name: 'GitHub',
+    apiDocs: 'https://docs.github.com/rest',
+    website: 'https://github.com',
+  },
+  auth: {
+    summary:
+      'A personal access token is optional for public repositories but required for private repos and to avoid the low unauthenticated rate limit.',
+    setup: [
+      'Open GitHub → Settings → Developer settings → Personal access tokens.',
+      'Generate a token with the `repo` scope (read access is sufficient).',
+      'Store it as a secret and reference it from the connector config as `token: secret("GITHUB_TOKEN")`.',
+    ],
+  },
+  rateLimit:
+    'Unauthenticated requests share GitHub’s low 60 requests/hour limit; an authenticated token raises it to 5,000 requests/hour.',
+  limitations: [
+    'The GitHub REST API can return the same item more than once within a sync (cursor pagination overlapping a mutating collection, retried requests, or an item surfaced via multiple endpoints). Each resource dedupes by stable id before writing, keeping the last copy seen.',
+    'Public repositories without a token are subject to GitHub’s low unauthenticated rate limit.',
+  ],
+});
 
 export interface GitHubSettings {
   owner: string;
@@ -427,23 +459,75 @@ const repoStatsSchema = z.object({
   subscribers_count: z.number().int(),
 });
 
+const githubResources = defineResources({
+  repo: {
+    shape: 'entity',
+    description:
+      'Top-level repository stats (stars, forks, and watchers) as a single entity.',
+    endpoint: 'GET /repos/{owner}/{repo}',
+    responses: { repo: repoStatsSchema },
+  },
+  workflow_run: {
+    shape: 'event',
+    description: 'GitHub Actions CI pipeline executions.',
+    endpoint: 'GET /repos/{owner}/{repo}/actions/runs',
+    responses: { workflow_runs: workflowRunsResponseSchema },
+  },
+  pull_request: {
+    shape: 'entity',
+    description:
+      'Open and closed pull requests, including draft state, author, and review state.',
+    endpoint: 'GET /repos/{owner}/{repo}/pulls',
+    notes:
+      'Review state is folded in from GET /repos/{owner}/{repo}/pulls/{number}/reviews per PR.',
+    responses: {
+      pull_requests: pullRequestsSchema,
+      pull_request_reviews: reviewsSchema,
+    },
+  },
+  issue: {
+    shape: 'entity',
+    description:
+      'Open and closed issues with labels, assignees, and author (pull requests excluded).',
+    endpoint: 'GET /repos/{owner}/{repo}/issues',
+    responses: { issues: issuesSchema },
+  },
+  deployment: {
+    shape: 'entity',
+    description:
+      'Deployments with their latest status, keyed by environment and ref.',
+    endpoint: 'GET /repos/{owner}/{repo}/deployments',
+    notes:
+      'The latest status is folded in from GET /repos/{owner}/{repo}/deployments/{id}/statuses.',
+    responses: {
+      deployments: deploymentsSchema,
+      deployment_statuses: deploymentStatusesSchema,
+    },
+  },
+  release: {
+    shape: 'entity',
+    description: 'Published, draft, and prerelease GitHub releases.',
+    endpoint: 'GET /repos/{owner}/{repo}/releases',
+    responses: { releases: releasesSchema },
+  },
+  contributor: {
+    shape: 'entity',
+    description:
+      'Per-author commit activity (commits, additions, deletions) for the repository.',
+    endpoint: 'GET /repos/{owner}/{repo}/stats/contributors',
+    responses: { contributors: contributorsSchema },
+  },
+});
+
 export class GitHubConnector extends BaseConnector<
   GitHubSettings,
   GitHubCredentials
 > {
   static readonly id = 'github-actions';
 
-  static readonly schemas = {
-    repo: repoStatsSchema,
-    workflow_runs: workflowRunsResponseSchema,
-    pull_requests: pullRequestsSchema,
-    pull_request_reviews: reviewsSchema,
-    issues: issuesSchema,
-    deployments: deploymentsSchema,
-    deployment_statuses: deploymentStatusesSchema,
-    releases: releasesSchema,
-    contributors: contributorsSchema,
-  } as const;
+  static readonly resources = githubResources;
+
+  static readonly schemas = schemasFromResources(githubResources);
 
   static create(input: unknown, ctx?: ConnectorContext): GitHubConnector {
     const parsed = configFields.parse(input);

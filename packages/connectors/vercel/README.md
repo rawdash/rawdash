@@ -1,114 +1,80 @@
+<!-- This file is generated from connector metadata by scripts/generate-connector-docs.ts. Do not edit by hand. -->
+
 # @rawdash/connector-vercel
 
-Rawdash connector for [Vercel](https://vercel.com) — syncs projects, deployments, and deployment state-transition events into the six-shape storage model. Pairs with `@rawdash/connector-github` for "is this deploy healthy" widgets.
+[![npm version](https://img.shields.io/npm/v/@rawdash/connector-vercel)](https://www.npmjs.com/package/@rawdash/connector-vercel)
+[![license](https://img.shields.io/npm/l/@rawdash/connector-vercel)](https://github.com/rawdash/rawdash/blob/main/LICENSE)
 
-## Auth setup
+Sync Vercel projects and deployments - including build state, target, git ref, and build duration - across your team.
 
-The connector authenticates with a Vercel access token. Two flavours work:
+## Install
 
-- **Personal access token** (recommended for single-user installs): Vercel → **Account Settings → Tokens → Create**. Scope it to the team you want to sync, or leave it user-scoped.
-- **Team access token**: Vercel → **Team Settings → Security → Tokens → Create**. You must set `teamId` in the config for the token to read team resources.
+```sh
+npm install @rawdash/connector-vercel
+```
 
-The token only needs read permissions for projects and deployments. No webhook configuration is required.
+## Authentication
+
+A Vercel access token is required. Use a team token (with the team ID) to sync a team scope, or a personal token for the token owner scope.
+
+1. Open Vercel → Account Settings → Tokens.
+2. Create an access token with read access to the projects and deployments you want to sync.
+3. Store it as a secret and reference it from the connector config as `apiToken: secret("VERCEL_TOKEN")`.
+4. If the token is a team token, set `teamId` to the team slug or `team_...` id.
 
 ## Configuration
 
+| Field                     | Type   | Required | Description                                                                                                                                                                                                                       |
+| ------------------------- | ------ | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apiToken`                | secret | Yes      | Vercel access token (Personal or Team). Create one at Vercel → Account Settings → Tokens.                                                                                                                                         |
+| `teamId`                  | string | No       | Vercel team ID (slug or `team_...`). Omit to use the token owner scope. Required if the token is a team token.                                                                                                                    |
+| `projects`                | array  | No       | Restrict deployment sync to specific Vercel project IDs (e.g. `prj_...`). Omit to sync every project the token can see.                                                                                                           |
+| `resources`               | array  | No       | Which Vercel resources to sync. Omit to sync all of them. 'deployment_events' depends on 'deployments' being fetched - enabling it without 'deployments' still runs the deployments query, but skips writing deployment entities. |
+| `deploymentsLookbackDays` | number | No       | How many days back to fetch deployments on a full sync. Defaults to 30. Vercel returns deployments newest-first; this caps the backfill window.                                                                                   |
+
+## Resources
+
+- **`vercel_project`** _(entity)_ - Vercel projects with name, framework, owning account, and create/update timestamps.
+  - Endpoint: `GET /v9/projects`
+- **`vercel_deployment`** _(entity)_ - Deployments with build state, target environment, git ref/sha, creator, and build duration.
+  - Endpoint: `GET /v6/deployments`
+  - buildDurationMs is ready minus buildingAt when both are present, otherwise null. gitRef prefers meta.githubCommitRef, falling back to gitlabCommitRef, bitbucketCommitRef, then meta.branch.
+- **`vercel_deployment_event`** _(event)_ - Each deployment emitted as a time-bounded event spanning creation to ready, carrying the same attributes as the deployment entity.
+  - Endpoint: `GET /v6/deployments`
+
+## Example
+
 ```ts
-import { secret } from '@rawdash/core';
+import {
+  defineConfig,
+  defineDashboard,
+  defineMetric,
+  secret,
+} from '@rawdash/core';
 
 const vercel = {
   name: 'vercel',
   connectorId: 'vercel',
   config: {
-    apiToken: secret('VERCEL_API_TOKEN'),
-    // teamId: 'team_abc123',                       // optional — needed for team tokens
-    // projects: ['prj_one', 'prj_two'],            // optional — restrict deployments to specific projects
-    // resources: ['projects', 'deployments'],      // optional — defaults to all three
-    // deploymentsLookbackDays: 30,                 // optional — backfill window for full sync (default 30)
+    apiToken: secret('VERCEL_TOKEN'),
+    teamId: 'team_abc123',
+    deploymentsLookbackDays: 30,
   },
 };
-```
-
-Register the connector class when mounting the engine:
-
-```ts
-import { VercelConnector } from '@rawdash/connector-vercel';
-import { mountEngine } from '@rawdash/hono';
-
-mountEngine(config, { connectorRegistry: { vercel: VercelConnector } });
-```
-
-### Choosing resources
-
-The connector exposes three resources, written across two internal sync phases:
-
-| Resource            | Phase       | What gets written                                                                                        |
-| ------------------- | ----------- | -------------------------------------------------------------------------------------------------------- |
-| `projects`          | projects    | `vercel_project` entities, one per Vercel project                                                        |
-| `deployments`       | deployments | `vercel_deployment` entities, one per deployment, with build duration and git ref attributes             |
-| `deployment_events` | deployments | `vercel_deployment_event` events, one per deployment with `start_ts=createdAt`, `end_ts=ready` (or null) |
-
-`deployment_events` shares the `deployments` phase because each event is derived from the same payload as its parent deployment entity. Enabling `deployment_events` without `deployments` still runs the deployments query (so the events have data to emit) but skips writing the deployment entities themselves.
-
-### Example dashboard
-
-```ts
-import { defineConfig, defineDashboard, defineMetric } from '@rawdash/core';
 
 export default defineConfig({
   connectors: [vercel],
   dashboards: {
-    deploys: defineDashboard({
+    infrastructure: defineDashboard({
       widgets: {
-        deploys_today: {
+        deployments: {
           kind: 'stat',
-          title: 'Deploys today',
-          metric: defineMetric({
-            connector: vercel,
-            shape: 'event',
-            name: 'vercel_deployment_event',
-            field: 'start_ts',
-            fn: 'count',
-            window: '24h',
-          }),
-        },
-        deploy_failure_rate_7d: {
-          kind: 'stat',
-          title: 'Failure rate (7d)',
-          metric: defineMetric({
-            connector: vercel,
-            shape: 'event',
-            name: 'vercel_deployment_event',
-            field: 'start_ts',
-            fn: 'count',
-            window: '7d',
-            filter: [{ field: 'state', op: 'eq', value: 'ERROR' }],
-          }),
-        },
-        deploys_by_project: {
-          kind: 'distribution',
-          title: 'Deploys by project',
+          title: 'Deployments',
           metric: defineMetric({
             connector: vercel,
             shape: 'event',
             name: 'vercel_deployment_event',
             fn: 'count',
-            window: '7d',
-            groupBy: { field: 'projectId' },
-          }),
-        },
-        deploys_per_day: {
-          kind: 'timeseries',
-          title: 'Daily deploys',
-          window: '14d',
-          metric: defineMetric({
-            connector: vercel,
-            shape: 'event',
-            name: 'vercel_deployment_event',
-            field: 'start_ts',
-            fn: 'count',
-            window: '14d',
-            groupBy: { field: 'start_ts', granularity: 'day' },
           }),
         },
       },
@@ -117,73 +83,22 @@ export default defineConfig({
 });
 ```
 
-## Data model
+## Rate limits
 
-| Storage shape | Entity/event type         | Key attributes                                                                                                                                          |
-| ------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| entity        | `vercel_project`          | name, framework, accountId, createdAt, updatedAt                                                                                                        |
-| entity        | `vercel_deployment`       | deploymentId, name, url, state, target, projectId, creatorUid, creatorUsername, source, gitRef, gitSha, createdAt, buildingAt, readyAt, buildDurationMs |
-| event         | `vercel_deployment_event` | same attribute set as `vercel_deployment`. `start_ts = createdAt`, `end_ts = ready` (or `null` for in-flight builds).                                   |
+Vercel returns X-RateLimit-Remaining / X-RateLimit-Reset headers (Unix seconds).
 
-Timestamps are stored as Unix epoch milliseconds. `buildDurationMs` is computed as `ready - buildingAt` when both are present, otherwise `null`. The `gitRef` attribute prefers `meta.githubCommitRef`, falling back to `gitlabCommitRef`, `bitbucketCommitRef`, then `meta.branch`.
+## Limitations
 
-## Schemas
+- Deployments are fetched newest-first within the configured lookback window (`deploymentsLookbackDays`, default 30 days); older deployments are not backfilled.
+- Enabling `deployment_events` without `deployments` still runs the deployments query but skips writing deployment entities.
+- Web Vitals / Speed Insights, edge function logs, and DNS/domain APIs are out of scope.
 
-`VercelConnector.schemas` declares the Zod schema for each resource's raw API response. Used by the cloud shape-drift pipeline to populate `connector_baselines`, and by the package's property tests.
+## Links
 
-| Resource      | Represents                 |
-| ------------- | -------------------------- |
-| `projects`    | `GET /v9/projects` page    |
-| `deployments` | `GET /v6/deployments` page |
+- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Vercel API docs](https://vercel.com/docs/rest-api)
+- [GitHub](https://github.com/rawdash/rawdash)
 
-## Sync behaviour
+## License
 
-- **Backfill** (`mode: 'full'`): paginates `/v9/projects` and `/v6/deployments` via Vercel's `pagination.next` cursor (page size 100), passing the returned millisecond timestamp back as the `until` query param. Project and deployment entity scopes (plus the `vercel_deployment_event` event scope) are cleared at the start of their phase so deletions in Vercel converge. Deployments are bounded by `deploymentsLookbackDays` (default 30) — the connector sets `since` on the first page to cap the backfill window.
-- **Incremental** (`mode: 'latest'`): applies `since={ms}` to the deployments endpoint so only deployments newer than the last sync are pulled. Projects are still refreshed on every sync since the list is small.
-- **Rate limits**: Vercel sends `X-RateLimit-Remaining` and `X-RateLimit-Reset` (Unix seconds) — the connector reports the parsed state back to the host so the engine can budget future requests. 429 responses are surfaced as `RateLimitError` by the shared HTTP client.
-- **Resumable**: every paginated phase yields a `{ phase, page }` cursor (`ChunkedSyncCursor<TPhase, TPage>`) where `page` is the sanitized pagination URL. Pagination URLs are validated on the way in — only `https://api.vercel.com/v9/projects` and `https://api.vercel.com/v6/deployments` are accepted — to prevent a malicious or corrupted cursor from steering a follow-up request elsewhere.
-
-## Aggregates
-
-No aggregates yet — `count` / `latest` widgets fall back to evaluating against synced storage rows. Tracking as a follow-up: Vercel's `/v6/deployments?limit=1&state=READY` could serve `count(vercel_deployment, filter)` plus `latest(vercel_deployment, ...)` directly, since the deployments list response carries `pagination.count` and an ordered first row.
-
-## Errors
-
-`@rawdash/connector-shared` maps Vercel's HTTP responses to typed errors automatically:
-
-- `401` / `403` → `AuthError` — host stops syncing until the token is replaced.
-- `429` → `RateLimitError` — host backs off and reschedules.
-- `5xx` → `TransientError` — host retries on the next tick.
-
-## Out of scope (post-v0.1)
-
-- **Web Vitals / Speed Insights** — Vercel does not expose aggregated p75 metrics via the public REST API; the dashboard surface and Insights API require a different access pattern (per-page-view event ingest). Tracking as a follow-up.
-- **Edge function logs** — high volume, low signal for a dashboard widget. Use the Vercel log drain integration instead.
-- **DNS / Domain APIs** — not dashboard-shaped.
-
-## Registering in the MCP server
-
-```ts
-import { VercelConnector, configFields } from '@rawdash/connector-vercel';
-
-createMcpServer({
-  // ...
-  connectorFactories: [
-    {
-      id: 'vercel',
-      configFields,
-      create: VercelConnector.create,
-    },
-  ],
-});
-```
-
-## Property tests
-
-Resources in this connector have fast-check property tests under `src/property.test.ts` that:
-
-1. Generate synthetic API payloads from a Zod schema mirroring Vercel's response shape.
-2. Pipe them through `connector.sync()` against an `InMemoryStorage` instance.
-3. Assert universal invariants — non-empty entity ids, finite event timestamps, no `undefined` reaching storage, no thrown errors on any valid input — plus per-resource counts.
-
-The helper lives in `@rawdash/connector-test-utils`. When adding a new resource, add a Zod schema for its payload and a test wired up via `runPropertySyncTest`.
+Apache-2.0

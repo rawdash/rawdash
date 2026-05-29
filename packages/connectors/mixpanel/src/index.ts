@@ -6,6 +6,7 @@ export {
   buildFunnelSamples,
   buildRetentionSamples,
   configFields,
+  doc,
   getDateRange,
   MixpanelConnector,
 } from './mixpanel';

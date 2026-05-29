@@ -1,87 +1,80 @@
+<!-- This file is generated from connector metadata by scripts/generate-connector-docs.ts. Do not edit by hand. -->
+
 # @rawdash/connector-stripe
 
-Rawdash connector for Stripe — syncs customers, subscriptions, invoices, charges, payment intents, products, prices, disputes, and refunds into the six-shape storage model.
+[![npm version](https://img.shields.io/npm/v/@rawdash/connector-stripe)](https://www.npmjs.com/package/@rawdash/connector-stripe)
+[![license](https://img.shields.io/npm/l/@rawdash/connector-stripe)](https://github.com/rawdash/rawdash/blob/main/LICENSE)
 
-## Auth setup
+Sync customers, products, prices, subscriptions, and invoices alongside charge, payment, dispute, and refund events from your Stripe account.
 
-### Creating a Restricted API key
+## Install
 
-1. Log in to your Stripe Dashboard and navigate to **Developers → API keys**.
-2. Click **+ Create restricted key**.
-3. Give it a name (e.g. `rawdash-readonly`).
-4. Enable **Read** access only for the resources you want to sync. The connector supports any subset of:
-   - Customers
-   - Subscriptions
-   - Invoices
-   - Charges
-   - Payment Intents
-   - Products
-   - Prices
-   - Disputes
-   - Refunds
-5. Click **Create key** and copy the key value starting with `rk_live_…` (or `rk_test_…` for test mode).
+```sh
+npm install @rawdash/connector-stripe
+```
 
-> **Note:** Never use your full Secret key — a Restricted key with only the scopes above is safer and sufficient.
+## Authentication
 
-### Stripe Connect platforms
+Authenticates with a Stripe restricted API key that has read-only access to the resources you want to sync.
 
-If you are a platform and want to sync data for a connected account, supply the `accountId` field (format: `acct_…`). The connector will send the `Stripe-Account` header on every request.
+1. Open the Stripe Dashboard → Developers → API keys.
+2. Create a restricted key with Read access for the resources you plan to sync (customers, products, prices, subscriptions, invoices, charges, payment intents, disputes, refunds).
+3. Store the key as a secret and reference it from the connector config as `apiKey: secret("STRIPE_API_KEY")`.
 
 ## Configuration
 
+| Field       | Type   | Required | Description                                                                                                                  |
+| ----------- | ------ | -------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `apiKey`    | secret | Yes      | Stripe Restricted API key with read-only access. Create one at Dashboard → Developers → API keys.                            |
+| `accountId` | string | No       | Stripe Connect account ID. Only needed if you are a platform accessing a connected account.                                  |
+| `resources` | array  | No       | Which Stripe resources to sync. Omit to sync all resources. The API key only needs Read scope for the resources listed here. |
+
+## Resources
+
+- **`stripe_customer`** _(entity)_ - Customers with email, name, default currency, and delinquency state.
+  - Endpoint: `GET /v1/customers`
+- **`stripe_product`** _(entity)_ - Products in your catalog, including active state.
+  - Endpoint: `GET /v1/products`
+- **`stripe_price`** _(entity)_ - Prices with unit amount, currency, and recurring interval, linked to their product.
+  - Endpoint: `GET /v1/prices`
+- **`stripe_subscription`** _(entity)_ - Subscriptions with status, current period, cancellation state, and computed monthly recurring revenue (mrrAmount, in the smallest currency unit).
+  - Endpoint: `GET /v1/subscriptions`
+  - mrrAmount is computed as unit_amount x quantity, normalized to a monthly cadence (yearly / 12, weekly x 52 / 12, etc.).
+- **`stripe_invoice`** _(entity)_ - Invoices with amount due, amount paid, status, and due date, linked to their customer and subscription.
+  - Endpoint: `GET /v1/invoices`
+- **`stripe_charge`** _(event)_ - Charge attempts with amount, currency, status, and failure code, timestamped at creation.
+  - Endpoint: `GET /v1/charges`
+- **`stripe_payment_intent`** _(event)_ - Payment intents with amount, currency, and status, timestamped at creation.
+  - Endpoint: `GET /v1/payment_intents`
+- **`stripe_dispute`** _(event)_ - Disputes with amount, currency, reason, and status, linked to the disputed charge.
+  - Endpoint: `GET /v1/disputes`
+- **`stripe_refund`** _(event)_ - Refunds with amount, currency, reason, and status, linked to the refunded charge.
+  - Endpoint: `GET /v1/refunds`
+
+## Example
+
 ```ts
-import { secret } from '@rawdash/core';
+import {
+  defineConfig,
+  defineDashboard,
+  defineMetric,
+  secret,
+} from '@rawdash/core';
 
 const stripe = {
   name: 'stripe',
   connectorId: 'stripe',
   config: {
     apiKey: secret('STRIPE_API_KEY'),
-    // accountId: 'acct_…', // optional, Stripe Connect only
-    // resources: ['customers', 'subscriptions', 'invoices'], // optional, defaults to all
+    resources: ['customers', 'subscriptions', 'invoices', 'charges'],
   },
 };
-```
-
-Register the connector class when mounting the engine:
-
-```ts
-import { StripeConnector } from '@rawdash/connector-stripe';
-import { mountEngine } from '@rawdash/hono';
-
-mountEngine(config, { connectorRegistry: { stripe: StripeConnector } });
-```
-
-### Choosing resources
-
-By default the connector syncs every supported resource. To sync only a subset, pass `resources` with any combination of:
-
-`customers`, `products`, `prices`, `subscriptions`, `invoices`, `charges`, `payment_intents`, `disputes`, `refunds`
-
-Each name is a Stripe API resource. The list you choose should match the Read scopes on your Restricted API key — picking only what you need also reduces API calls during full syncs.
-
-Then pass it to `defineConfig`:
-
-```ts
-import { defineConfig, defineDashboard, defineMetric } from '@rawdash/core';
 
 export default defineConfig({
   connectors: [stripe],
   dashboards: {
-    billing: defineDashboard({
+    revenue: defineDashboard({
       widgets: {
-        mrr: {
-          kind: 'stat',
-          title: 'MRR',
-          metric: defineMetric({
-            connector: stripe,
-            shape: 'entity',
-            entityType: 'stripe_subscription',
-            field: 'mrrAmount',
-            fn: 'sum',
-            filter: [{ field: 'status', op: 'eq', value: 'active' }],
-          }),
-        },
         active_subscriptions: {
           kind: 'stat',
           title: 'Active subscriptions',
@@ -93,111 +86,28 @@ export default defineConfig({
             filter: [{ field: 'status', op: 'eq', value: 'active' }],
           }),
         },
-        failed_charges_today: {
-          kind: 'stat',
-          title: 'Failed charges today',
-          metric: defineMetric({
-            connector: stripe,
-            shape: 'event',
-            name: 'stripe_charge',
-            fn: 'count',
-            window: '1d',
-            filter: [{ field: 'status', op: 'eq', value: 'failed' }],
-          }),
-        },
-        daily_revenue: {
-          kind: 'timeseries',
-          title: 'Daily revenue',
-          window: '30d',
-          metric: defineMetric({
-            connector: stripe,
-            shape: 'event',
-            name: 'stripe_charge',
-            field: 'amount',
-            fn: 'sum',
-            window: '30d',
-            filter: [{ field: 'status', op: 'eq', value: 'succeeded' }],
-            groupBy: { field: 'start_ts', granularity: 'day' },
-          }),
-        },
       },
     }),
   },
 });
 ```
 
-## Data model
+## Rate limits
 
-All monetary amounts are in the **smallest currency unit** (e.g. cents for USD).
+Stripe 429 responses carry a Retry-After header; requests are retried with exponential backoff. List pagination uses the starting_after cursor (limit 100).
 
-| Storage shape | Entity/event type       | Key attributes                                                                                                                 |
-| ------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| entity        | `stripe_customer`       | email, name, created, currency, delinquent, livemode                                                                           |
-| entity        | `stripe_product`        | name, active, created                                                                                                          |
-| entity        | `stripe_price`          | productId, unitAmount, currency, interval, intervalCount, active, created                                                      |
-| entity        | `stripe_subscription`   | customerId, status, planId, currentPeriodStart, currentPeriodEnd, cancelAtPeriodEnd, canceledAt, trialEnd, mrrAmount, currency |
-| entity        | `stripe_invoice`        | customerId, subscriptionId, status, amountDue, amountPaid, currency, created, dueDate, hostedInvoiceUrl                        |
-| event         | `stripe_charge`         | id, customerId, amount, currency, status, failureCode, paymentIntentId                                                         |
-| event         | `stripe_payment_intent` | id, customerId, amount, currency, status                                                                                       |
-| event         | `stripe_dispute`        | id, chargeId, amount, currency, reason, status                                                                                 |
-| event         | `stripe_refund`         | id, chargeId, amount, currency, reason, status                                                                                 |
+## Limitations
 
-### `mrrAmount`
+- Monetary amounts are stored in the smallest currency unit (e.g. cents), matching the Stripe API.
+- The set of synced resources is controlled by the `resources` config field; omit it to sync all of them.
+- Incremental syncs use a 7-day lookback for entities and created[gt] for events.
 
-Pre-computed monthly-equivalent revenue for each subscription in the smallest currency unit. Formula: `unit_amount × quantity`, normalised to a monthly cadence (yearly ÷ 12, weekly × 52 ÷ 12, etc.).
+## Links
 
-## Schemas
+- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Stripe API docs](https://stripe.com/docs/api)
+- [GitHub](https://github.com/rawdash/rawdash)
 
-`StripeConnector.schemas` declares the Zod schema for each resource's raw API response (one key per `GET /v1/{resource}` list endpoint). Used by the cloud shape-drift pipeline to populate `connector_baselines`, and by the package's property tests.
+## License
 
-| Resource          | Represents                     |
-| ----------------- | ------------------------------ |
-| `customers`       | `GET /v1/customers` page       |
-| `products`        | `GET /v1/products` page        |
-| `prices`          | `GET /v1/prices` page          |
-| `subscriptions`   | `GET /v1/subscriptions` page   |
-| `invoices`        | `GET /v1/invoices` page        |
-| `charges`         | `GET /v1/charges` page         |
-| `payment_intents` | `GET /v1/payment_intents` page |
-| `disputes`        | `GET /v1/disputes` page        |
-| `refunds`         | `GET /v1/refunds` page         |
-
-## Sync behaviour
-
-- **Backfill** (`mode: 'full'`): fetches all records via `starting_after` cursor pagination (`limit=100`).
-- **Incremental** (`mode: 'latest'`): entity phases use a 7-day lookback (`created[gte]`) to catch status mutations; event phases use `created[gt]` to fetch only new records.
-- **Rate limits**: Stripe's 429 responses carry a `Retry-After` header. The built-in HTTP client retries automatically with exponential back-off.
-- **Resumable**: if a sync is interrupted (signal abort), the connector returns a cursor so the engine can resume from the same page.
-
-## Aggregates
-
-No aggregates yet — `count` / `latest` widgets fall back to evaluating against synced storage rows. Tracking as a follow-up: Stripe's list endpoints (`/v1/subscriptions?status=active&limit=1`, `/v1/charges?limit=1`, etc.) plus the `?ending_before=` cursor can serve `count` and `latest` for most resources without touching the full backfill.
-
-## Registering in the MCP server
-
-To make the connector available via the `add_connector` MCP tool, include it in `connectorFactories`:
-
-```ts
-import { StripeConnector, configFields } from '@rawdash/connector-stripe';
-
-createMcpServer({
-  // ...
-  connectorFactories: [
-    {
-      id: 'stripe',
-      configFields,
-      create: StripeConnector.create,
-    },
-  ],
-});
-```
-
-## Property tests
-
-Resources in this connector have fast-check property tests under `src/property.test.ts` that:
-
-1. Generate N≥50 synthetic API payloads from a Zod schema mirroring the upstream API response.
-2. Pipe them through `connector.sync()` against an `InMemoryStorage` instance.
-3. Assert universal invariants — non-empty entity ids, finite event timestamps, no `undefined` leaking into storage, no thrown errors on any valid input — plus per-resource counts.
-
-The helper lives in `@rawdash/connector-test-utils`. When adding a new resource, add a Zod schema for its payload and a test wired up via `runPropertySyncTest`.
+Apache-2.0

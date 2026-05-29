@@ -5,13 +5,17 @@ import {
 import {
   BaseConnector,
   type ConnectorContext,
+  type ConnectorDoc,
   type CredentialsSchema,
   type StorageHandle,
   type SyncOptions,
   type SyncResult,
   defineConfigFields,
+  defineConnectorDoc,
+  defineResources,
   makeChunkedCursorGuard,
   paginateChunked,
+  schemasFromResources,
   selectActivePhases,
 } from '@rawdash/core';
 import { z } from 'zod';
@@ -54,6 +58,35 @@ export const configFields = defineConfigFields(
       }),
   }),
 );
+
+export const doc: ConnectorDoc = defineConnectorDoc({
+  displayName: 'Stripe',
+  category: 'finance',
+  brandColor: '#635BFF',
+  tagline:
+    'Sync customers, products, prices, subscriptions, and invoices alongside charge, payment, dispute, and refund events from your Stripe account.',
+  vendor: {
+    name: 'Stripe',
+    apiDocs: 'https://stripe.com/docs/api',
+    website: 'https://stripe.com',
+  },
+  auth: {
+    summary:
+      'Authenticates with a Stripe restricted API key that has read-only access to the resources you want to sync.',
+    setup: [
+      'Open the Stripe Dashboard → Developers → API keys.',
+      'Create a restricted key with Read access for the resources you plan to sync (customers, products, prices, subscriptions, invoices, charges, payment intents, disputes, refunds).',
+      'Store the key as a secret and reference it from the connector config as `apiKey: secret("STRIPE_API_KEY")`.',
+    ],
+  },
+  rateLimit:
+    'Stripe 429 responses carry a Retry-After header; requests are retried with exponential backoff. List pagination uses the starting_after cursor (limit 100).',
+  limitations: [
+    'Monetary amounts are stored in the smallest currency unit (e.g. cents), matching the Stripe API.',
+    'The set of synced resources is controlled by the `resources` config field; omit it to sync all of them.',
+    'Incremental syncs use a 7-day lookback for entities and created[gt] for events.',
+  ],
+});
 
 export interface StripeSettings {
   accountId?: string;
@@ -383,6 +416,73 @@ const refundSchema = z.object({
   created: z.number().int().nonnegative(),
 });
 
+const stripeResources = defineResources({
+  stripe_customer: {
+    shape: 'entity',
+    description:
+      'Customers with email, name, default currency, and delinquency state.',
+    endpoint: 'GET /v1/customers',
+    responses: { customers: z.array(customerSchema) },
+  },
+  stripe_product: {
+    shape: 'entity',
+    description: 'Products in your catalog, including active state.',
+    endpoint: 'GET /v1/products',
+    responses: { products: z.array(productSchema) },
+  },
+  stripe_price: {
+    shape: 'entity',
+    description:
+      'Prices with unit amount, currency, and recurring interval, linked to their product.',
+    endpoint: 'GET /v1/prices',
+    responses: { prices: z.array(priceSchema) },
+  },
+  stripe_subscription: {
+    shape: 'entity',
+    description:
+      'Subscriptions with status, current period, cancellation state, and computed monthly recurring revenue (mrrAmount, in the smallest currency unit).',
+    endpoint: 'GET /v1/subscriptions',
+    notes:
+      'mrrAmount is computed as unit_amount x quantity, normalized to a monthly cadence (yearly / 12, weekly x 52 / 12, etc.).',
+    responses: { subscriptions: z.array(subscriptionSchema) },
+  },
+  stripe_invoice: {
+    shape: 'entity',
+    description:
+      'Invoices with amount due, amount paid, status, and due date, linked to their customer and subscription.',
+    endpoint: 'GET /v1/invoices',
+    responses: { invoices: z.array(invoiceSchema) },
+  },
+  stripe_charge: {
+    shape: 'event',
+    description:
+      'Charge attempts with amount, currency, status, and failure code, timestamped at creation.',
+    endpoint: 'GET /v1/charges',
+    responses: { charges: z.array(chargeSchema) },
+  },
+  stripe_payment_intent: {
+    shape: 'event',
+    description:
+      'Payment intents with amount, currency, and status, timestamped at creation.',
+    endpoint: 'GET /v1/payment_intents',
+    responses: { payment_intents: z.array(paymentIntentSchema) },
+  },
+  stripe_dispute: {
+    shape: 'event',
+    description:
+      'Disputes with amount, currency, reason, and status, linked to the disputed charge.',
+    endpoint: 'GET /v1/disputes',
+    responses: { disputes: z.array(disputeSchema) },
+  },
+  stripe_refund: {
+    shape: 'event',
+    description:
+      'Refunds with amount, currency, reason, and status, linked to the refunded charge.',
+    endpoint: 'GET /v1/refunds',
+    responses: { refunds: z.array(refundSchema) },
+  },
+});
+
 // ---------------------------------------------------------------------------
 // StripeConnector
 // ---------------------------------------------------------------------------
@@ -393,17 +493,9 @@ export class StripeConnector extends BaseConnector<
 > {
   static readonly id = 'stripe';
 
-  static readonly schemas = {
-    customers: z.array(customerSchema),
-    products: z.array(productSchema),
-    prices: z.array(priceSchema),
-    subscriptions: z.array(subscriptionSchema),
-    invoices: z.array(invoiceSchema),
-    charges: z.array(chargeSchema),
-    payment_intents: z.array(paymentIntentSchema),
-    disputes: z.array(disputeSchema),
-    refunds: z.array(refundSchema),
-  } as const;
+  static readonly resources = stripeResources;
+
+  static readonly schemas = schemasFromResources(stripeResources);
 
   static create(input: unknown, ctx?: ConnectorContext): StripeConnector {
     const parsed = configFields.parse(input);

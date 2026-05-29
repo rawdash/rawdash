@@ -1,5 +1,6 @@
 import {
   type InvariantViolation,
+  connectorResourceShapeViolations,
   runPropertySyncTest,
 } from '@rawdash/connector-test-utils';
 import type { InMemoryStorage } from '@rawdash/core';
@@ -9,6 +10,16 @@ import type { z } from 'zod';
 import { CloudWatchConnector } from './aws-cloudwatch';
 
 const CONNECTOR_ID = 'aws-cloudwatch';
+
+const docShapeExtra = (
+  storage: InMemoryStorage,
+  connectorId: string,
+): InvariantViolation[] =>
+  connectorResourceShapeViolations(
+    CloudWatchConnector.resources,
+    storage,
+    connectorId,
+  );
 
 type MetricDataSample = z.infer<typeof CloudWatchConnector.schemas.metric_data>;
 
@@ -80,7 +91,7 @@ describe('CloudWatchConnector property tests', () => {
       resource: 'metric_data',
       connectorId: CONNECTOR_ID,
       runs: 100,
-      extraInvariants: [expectedCount],
+      extraInvariants: [expectedCount, docShapeExtra],
       run: async (sample, storage) => {
         // Give each result a clean id (the fuzzer otherwise produces ids with
         // whitespace/entities that the parser normalizes, breaking the

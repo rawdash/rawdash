@@ -9,13 +9,17 @@ import {
   BaseConnector,
   type ChunkedSyncCursor,
   type ConnectorContext,
+  type ConnectorDoc,
   type CredentialsSchema,
   type StorageHandle,
   type SyncOptions,
   type SyncResult,
   defineConfigFields,
+  defineConnectorDoc,
+  defineResources,
   makeChunkedCursorGuard,
   paginateChunked,
+  schemasFromResources,
   selectActivePhases,
 } from '@rawdash/core';
 import { z } from 'zod';
@@ -50,7 +54,7 @@ export const configFields = defineConfigFields(
       .meta({
         label: 'Resources',
         description:
-          "Which Sentry resources to sync. Omit to sync all of them. 'issue_events' depends on 'issues' being fetched — enabling it without 'issues' still runs the issues query, but skips writing issue entities.",
+          "Which Sentry resources to sync. Omit to sync all of them. 'issue_events' depends on 'issues' being fetched - enabling it without 'issues' still runs the issues query, but skips writing issue entities.",
       }),
     eventsPerIssueCap: z.number().int().positive().max(100).optional().meta({
       label: 'Events per issue cap',
@@ -66,6 +70,35 @@ export const configFields = defineConfigFields(
     }),
   }),
 );
+
+export const doc: ConnectorDoc = defineConnectorDoc({
+  displayName: 'Sentry',
+  category: 'engineering',
+  brandColor: '#362D59',
+  tagline:
+    'Sync issues, issue events, releases, and hourly error rates from a Sentry organization.',
+  vendor: {
+    name: 'Sentry',
+    apiDocs: 'https://docs.sentry.io/api/',
+    website: 'https://sentry.io',
+  },
+  auth: {
+    summary:
+      'A Sentry auth token is required. Use an organization-level Internal Integration token or a User Auth Token with read access to issues, events, and releases.',
+    setup: [
+      'Open Sentry → Settings → Custom Integrations → New Internal Integration (or Settings → Auth Tokens for a personal token).',
+      'Grant read access to Issues & Events and Releases.',
+      'Copy the generated token and store it as a secret, referencing it from the connector config as `authToken: secret("SENTRY_AUTH_TOKEN")`.',
+      'Set the `organization` slug as it appears in your Sentry URL.',
+    ],
+  },
+  rateLimit:
+    'Sentry returns X-Sentry-Rate-Limit-Remaining / X-Sentry-Rate-Limit-Reset headers (reset in seconds); list pagination uses the Link header (page size 100).',
+  limitations: [
+    'Performance / trace data is out of scope (high cost, low signal for dashboards).',
+    'Self-hosted Sentry on custom hosts is out of scope (pagination URLs are pinned to sentry.io).',
+  ],
+});
 
 export type SentryResource =
   | 'issues'
@@ -269,18 +302,53 @@ const errorStatsResponseSchema = z.object({
   end: z.string().optional(),
 });
 
+const sentryResources = defineResources({
+  sentry_issue: {
+    shape: 'entity',
+    description:
+      'Sentry issues (error groups) with level, status, occurrence count, affected user count, and first/last seen timestamps.',
+    endpoint: 'GET /api/0/organizations/{organization}/issues/',
+    responses: { issues: issueResponseSchema },
+  },
+  sentry_issue_event: {
+    shape: 'event',
+    description:
+      'Individual event occurrences sampled per issue, with platform, environment, level, and message.',
+    endpoint: 'GET /api/0/issues/{issueId}/events/',
+    notes:
+      'Events are sampled: at most eventsPerIssueCap recent events per issue per sync (Sentry caps a single events page at 100), so this is a representative sample, not a full audit trail.',
+    responses: { issue_events: issueEventResponseSchema },
+  },
+  sentry_release: {
+    shape: 'entity',
+    description:
+      'Releases with their versions, associated project slugs, and creation/release/last-event timestamps.',
+    endpoint: 'GET /api/0/organizations/{organization}/releases/',
+    responses: { releases: releaseResponseSchema },
+  },
+  sentry_errors_per_hour: {
+    shape: 'metric',
+    description:
+      'Hourly count of error events, broken down by project, over the configured lookback window.',
+    endpoint: 'GET /api/0/organizations/{organization}/stats_v2/',
+    unit: 'errors',
+    granularity: '1h',
+    dimensions: [
+      { name: 'project', description: 'Sentry project slug or id.' },
+    ],
+    responses: { error_stats: errorStatsResponseSchema },
+  },
+});
+
 export class SentryConnector extends BaseConnector<
   SentrySettings,
   SentryCredentials
 > {
   static readonly id = 'sentry';
 
-  static readonly schemas = {
-    issues: issueResponseSchema,
-    issue_events: issueEventResponseSchema,
-    releases: releaseResponseSchema,
-    error_stats: errorStatsResponseSchema,
-  } as const;
+  static readonly resources = sentryResources;
+
+  static readonly schemas = schemasFromResources(sentryResources);
 
   static create(input: unknown, ctx?: ConnectorContext): SentryConnector {
     const parsed = configFields.parse(input);

@@ -1,30 +1,65 @@
+<!-- This file is generated from connector metadata by scripts/generate-connector-docs.ts. Do not edit by hand. -->
+
 # @rawdash/connector-aws-cost
 
-Rawdash connector for [AWS Cost Explorer](https://docs.aws.amazon.com/aws-cost-management/latest/APIReference/Welcome.html) — syncs daily/monthly spend and cost forecasts into the six-shape storage model, optionally broken down by service, linked account, or tag.
+[![npm version](https://img.shields.io/npm/v/@rawdash/connector-aws-cost)](https://www.npmjs.com/package/@rawdash/connector-aws-cost)
+[![license](https://img.shields.io/npm/l/@rawdash/connector-aws-cost)](https://github.com/rawdash/rawdash/blob/main/LICENSE)
 
-> **Cost note:** every Cost Explorer query is billed at **$0.01** by AWS. This connector's defaults are deliberately conservative — a single daily sync issues two queries (`GetCostAndUsage` + `GetCostForecast`). Keep the sync interval at a day (the minimum sensible cadence is 1 hour) and prefer `MONTHLY` granularity for long windows.
+Track AWS spend over time and projected month-end costs, optionally broken down by service, account, tag, or cost category.
 
-## Auth setup
+> **Cost & frequency.** Each AWS Cost Explorer query is billed $0.01; avoid syncing more often than necessary. Recommended sync interval: **1 day**. Minimum sensible interval: **1 hour**. Each sync costs roughly: 2 Cost Explorer queries (about $0.02).
 
-Cost Explorer must be queried from the **management (payer) account**, or from a member account that has been granted explicit Cost Explorer access. The connector uses the same auth shape as `@rawdash/connector-aws-cloudwatch`: a static access key/secret, optionally combined with a cross-account role to assume.
+## Install
 
-### Option A — Access key + secret
+```sh
+npm install @rawdash/connector-aws-cost
+```
 
-1. In the AWS console open **IAM → Users** and create (or pick) a programmatic user.
-2. Attach a policy granting `ce:GetCostAndUsage` and `ce:GetCostForecast` (the managed `AWSBillingReadOnlyAccess` policy is sufficient).
-3. Create an access key for the user and store the two halves as the secrets `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`.
+## Authentication
 
-### Option B — Cross-account role assumption
+Authenticate either with a long-lived IAM access key pair or by assuming an IAM role (Role ARN with an optional External ID). The principal needs the `ce:GetCostAndUsage` and `ce:GetCostForecast` permissions. Cost Explorer is a global service reached through its us-east-1 endpoint.
 
-1. In the **management account**, create a role (e.g. `rawdash-cost-explorer`) with the Cost Explorer permissions above and a trust policy allowing your base principal to assume it. Require an **external ID** to guard against the confused-deputy problem.
-2. Provide `roleArn` and the matching `externalId`, plus a base access key/secret that is allowed to call `sts:AssumeRole` on that role.
-
-The connector calls `sts:AssumeRole`, then signs Cost Explorer requests with the returned temporary credentials.
+1. In the AWS console, create an IAM user or role granting `ce:GetCostAndUsage` and `ce:GetCostForecast`.
+2. For access-key auth, generate an access key pair and store both halves as secrets, then reference them as `accessKeyId: secret("AWS_ACCESS_KEY_ID")` and `secretAccessKey: secret("AWS_SECRET_ACCESS_KEY")`.
+3. For role-assumption auth, set `roleArn` to the role to assume and (if configured) `externalId` to the role’s expected external ID.
+4. Cost Explorer must be enabled for the account; the first activation can take up to 24 hours before data is queryable.
 
 ## Configuration
 
+| Field             | Type                 | Required | Description                                                                                                                                                                       |
+| ----------------- | -------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `accessKeyId`     | secret               | No       | AWS access key ID for an IAM principal with permission to call the relevant service. Use together with the secret access key for static-credential auth.                          |
+| `secretAccessKey` | secret               | No       | AWS secret access key paired with the access key ID above.                                                                                                                        |
+| `roleArn`         | string               | No       | IAM role to assume via STS instead of using static keys. The base credentials (the access key above, or the ambient AWS environment) must be allowed to sts:AssumeRole this role. |
+| `externalId`      | string               | No       | External ID required by the trust policy of the role being assumed. Only used with Role ARN.                                                                                      |
+| `granularity`     | `DAILY` \| `MONTHLY` | No       | Time granularity of cost buckets. DAILY (default) or MONTHLY. Each Cost Explorer query is billed at $0.01, so MONTHLY is cheaper over long windows.                               |
+| `groupBy`         | array                | No       | Up to two Cost Explorer dimensions to break costs down by, e.g. SERVICE, LINKED_ACCOUNT, or TAG:Environment. Omit for total cost only.                                            |
+| `lookbackDays`    | number               | No       | How many days of history to fetch on a full sync. Defaults to 90.                                                                                                                 |
+
+## Resources
+
+- **`aws_cost_daily`** _(metric)_ - Historical unblended AWS cost per time bucket, optionally split across the configured group-by dimensions. The current bucket is estimated and overwritten on later syncs as it finalizes.
+  - Endpoint: `POST GetCostAndUsage`
+  - Unit: USD
+  - Granularity: daily
+  - Dimensions: `granularity`, `estimated`, `unit`, `service`
+  - Prefer MONTHLY granularity over long windows since each Cost Explorer query is billed. Cost Explorer accepts at most two group-by dimensions per query.
+- **`aws_cost_forecast`** _(metric)_ - Projected future unblended AWS cost (mean value) with optional lower and upper prediction-interval bounds. Empty when the account has insufficient history to forecast.
+  - Endpoint: `POST GetCostForecast`
+  - Unit: USD
+  - Granularity: daily
+  - Dimensions: `granularity`, `unit`, `lowerBound`, `upperBound`
+  - Prefer MONTHLY granularity over long windows since each Cost Explorer query is billed.
+
+## Example
+
 ```ts
-import { secret } from '@rawdash/core';
+import {
+  defineConfig,
+  defineDashboard,
+  defineMetric,
+  secret,
+} from '@rawdash/core';
 
 const awsCost = {
   name: 'aws-cost',
@@ -32,84 +67,25 @@ const awsCost = {
   config: {
     accessKeyId: secret('AWS_ACCESS_KEY_ID'),
     secretAccessKey: secret('AWS_SECRET_ACCESS_KEY'),
-    granularity: 'DAILY', // or 'MONTHLY'
-    groupBy: ['SERVICE'], // optional — up to two dimensions
-    lookbackDays: 90, // optional backfill window, defaults to 90
+    granularity: 'DAILY',
+    groupBy: ['SERVICE'],
+    lookbackDays: 90,
   },
 };
-```
-
-Cross-account variant:
-
-```ts
-const awsCost = {
-  name: 'aws-cost',
-  connectorId: 'aws-cost',
-  config: {
-    accessKeyId: secret('AWS_ACCESS_KEY_ID'),
-    secretAccessKey: secret('AWS_SECRET_ACCESS_KEY'),
-    roleArn: 'arn:aws:iam::123456789012:role/rawdash-cost-explorer',
-    externalId: 'rawdash-cost-explorer',
-    groupBy: ['LINKED_ACCOUNT', 'TAG:Environment'],
-  },
-};
-```
-
-`groupBy` accepts Cost Explorer dimension keys (`SERVICE`, `LINKED_ACCOUNT`, `REGION`, …), tag keys prefixed with `TAG:` (e.g. `TAG:Environment`), or cost categories prefixed with `COST_CATEGORY:`. Cost Explorer allows at most two group-by keys; extras are ignored.
-
-Register the connector class when mounting the engine:
-
-```ts
-import { AwsCostConnector } from '@rawdash/connector-aws-cost';
-import { mountEngine } from '@rawdash/hono';
-
-mountEngine(config, {
-  connectorRegistry: { 'aws-cost': AwsCostConnector },
-});
-```
-
-Then wire it into `defineConfig`:
-
-```ts
-import { defineConfig, defineDashboard, defineMetric } from '@rawdash/core';
 
 export default defineConfig({
   connectors: [awsCost],
   dashboards: {
-    spend: defineDashboard({
+    finance: defineDashboard({
       widgets: {
-        cost_today: {
+        spend_by_service: {
           kind: 'stat',
-          title: 'Spend today',
+          title: 'Total spend (last 30d)',
           metric: defineMetric({
             connector: awsCost,
             shape: 'metric',
             name: 'aws_cost_daily',
             fn: 'sum',
-            window: '1d',
-          }),
-        },
-        cost_over_time: {
-          kind: 'timeseries',
-          title: 'Daily spend',
-          window: '30d',
-          metric: defineMetric({
-            connector: awsCost,
-            shape: 'metric',
-            name: 'aws_cost_daily',
-            fn: 'sum',
-            window: '30d',
-            groupBy: { field: 'ts', granularity: 'day' },
-          }),
-        },
-        forecast: {
-          kind: 'stat',
-          title: 'Forecast (this month)',
-          metric: defineMetric({
-            connector: awsCost,
-            shape: 'metric',
-            name: 'aws_cost_forecast',
-            fn: 'latest',
           }),
         },
       },
@@ -118,35 +94,21 @@ export default defineConfig({
 });
 ```
 
-## Data model
+## Rate limits
 
-All resources are stored as **metric samples** (`shape: 'metric'`). The `ts` field is the start of each cost period in Unix milliseconds and `value` is the unblended cost amount.
+Cost Explorer throttling (ThrottlingException) is retried with backoff. Cost Explorer is global and always reached via ce.us-east-1.amazonaws.com.
 
-| Metric name         | Source resource | `value`              | Attributes                                                     |
-| ------------------- | --------------- | -------------------- | -------------------------------------------------------------- |
-| `aws_cost_daily`    | `daily_cost`    | unblended cost       | `granularity`, `unit`, `estimated`, plus one per `groupBy` key |
-| `aws_cost_forecast` | `forecast`      | forecasted mean cost | `granularity`, `unit`, `lowerBound`, `upperBound`              |
+## Limitations
 
-When `groupBy` is set, each group becomes its own sample with the dimension value stored under a normalized attribute name (`SERVICE` → `service`, `LINKED_ACCOUNT` → `linked_account`, `TAG:Environment` → `tag_Environment`).
+- Cost Explorer data can be revised for a couple of days after the fact, so incremental syncs refetch a short trailing window.
+- Forecast is unavailable for brand-new accounts (DataUnavailableException is treated as no forecast, not an error).
 
-## Schemas
+## Links
 
-`AwsCostConnector.schemas` declares the Zod schema for each `request()` resource. Used by the cloud shape-drift pipeline to populate `connector_baselines`, and by the package's property tests.
+- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Amazon Web Services API docs](https://docs.aws.amazon.com/aws-cost-management/latest/APIReference/API_Operations_AWS_Cost_Explorer_Service.html)
+- [GitHub](https://github.com/rawdash/rawdash)
 
-| Resource     | Represents                                                               |
-| ------------ | ------------------------------------------------------------------------ |
-| `daily_cost` | `GetCostAndUsage` — per-period unblended cost, optionally grouped        |
-| `forecast`   | `GetCostForecast` — forecasted unblended cost for the upcoming period(s) |
+## License
 
-## Sync behaviour
-
-- **Backfill** (`mode: 'full'`): fetches a rolling window (default 90 days, configurable via `lookbackDays`) of `daily_cost`, plus the upcoming forecast.
-- **Incremental** (`mode: 'latest'`): fetches only the trailing 3 days, since Cost Explorer data can be revised for a couple of days after the fact.
-- Both modes **clear existing metric data** for each resource before re-inserting, preventing duplicate rows across sync runs.
-- **Pagination**: `GetCostAndUsage` is drained via `NextPageToken`. Interrupted syncs return a cursor and resume from the same phase and window.
-- **Endpoint/region**: Cost Explorer is global and is always reached through `ce.us-east-1.amazonaws.com`, signed against `us-east-1` regardless of where your resources run.
-- **Errors**: `ThrottlingException` → `RateLimitError` (host backs off), `AccessDenied`/auth failures → `AuthError`, 5xx → `TransientError`. A `DataUnavailableException` from the forecast API (typical for brand-new accounts) is treated as "no forecast" rather than a hard failure.
-
-## Aggregates
-
-No `aggregate()` hook — the data is already aggregated upstream, so `count` / `latest` widgets resolve cheaply against the local metric table.
+Apache-2.0

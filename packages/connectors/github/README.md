@@ -1,13 +1,11 @@
+<!-- This file is generated from connector metadata by scripts/generate-connector-docs.ts. Do not edit by hand. -->
+
 # @rawdash/connector-github
 
 [![npm version](https://img.shields.io/npm/v/@rawdash/connector-github)](https://www.npmjs.com/package/@rawdash/connector-github)
 [![license](https://img.shields.io/npm/l/@rawdash/connector-github)](https://github.com/rawdash/rawdash/blob/main/LICENSE)
 
-GitHub connector for rawdash — sync pull requests, issues, deployments, releases, and CI runs into your dashboard.
-
-## What it is
-
-`@rawdash/connector-github` is a rawdash connector that pulls data from the GitHub REST API. It syncs workflow runs, pull requests, issues, deployments, releases, and contributor activity into the rawdash storage engine, where they become available to widgets defined in your `rawdash.config.ts`.
+Sync pull requests, issues, deployments, releases, CI runs, and contributor activity from a GitHub repository.
 
 ## Install
 
@@ -15,10 +13,44 @@ GitHub connector for rawdash — sync pull requests, issues, deployments, releas
 npm install @rawdash/connector-github
 ```
 
-## Quick example
+## Authentication
+
+A personal access token is optional for public repositories but required for private repos and to avoid the low unauthenticated rate limit.
+
+1. Open GitHub → Settings → Developer settings → Personal access tokens.
+2. Generate a token with the `repo` scope (read access is sufficient).
+3. Store it as a secret and reference it from the connector config as `token: secret("GITHUB_TOKEN")`.
+
+## Configuration
+
+| Field   | Type   | Required | Description                           |
+| ------- | ------ | -------- | ------------------------------------- |
+| `owner` | string | Yes      | GitHub username or organization name. |
+| `repo`  | string | Yes      | Repository name.                      |
+| `token` | secret | No       | GitHub PAT with `repo` scope.         |
+
+## Resources
+
+- **`repo`** _(entity)_ - Top-level repository stats (stars, forks, and watchers) as a single entity.
+  - Endpoint: `GET /repos/{owner}/{repo}`
+- **`workflow_run`** _(event)_ - GitHub Actions CI pipeline executions.
+  - Endpoint: `GET /repos/{owner}/{repo}/actions/runs`
+- **`pull_request`** _(entity)_ - Open and closed pull requests, including draft state, author, and review state.
+  - Endpoint: `GET /repos/{owner}/{repo}/pulls`
+  - Review state is folded in from GET /repos/{owner}/{repo}/pulls/{number}/reviews per PR.
+- **`issue`** _(entity)_ - Open and closed issues with labels, assignees, and author (pull requests excluded).
+  - Endpoint: `GET /repos/{owner}/{repo}/issues`
+- **`deployment`** _(entity)_ - Deployments with their latest status, keyed by environment and ref.
+  - Endpoint: `GET /repos/{owner}/{repo}/deployments`
+  - The latest status is folded in from GET /repos/{owner}/{repo}/deployments/{id}/statuses.
+- **`release`** _(entity)_ - Published, draft, and prerelease GitHub releases.
+  - Endpoint: `GET /repos/{owner}/{repo}/releases`
+- **`contributor`** _(entity)_ - Per-author commit activity (commits, additions, deletions) for the repository.
+  - Endpoint: `GET /repos/{owner}/{repo}/stats/contributors`
+
+## Example
 
 ```ts
-import { GitHubConnector } from '@rawdash/connector-github';
 import {
   defineConfig,
   defineDashboard,
@@ -32,7 +64,7 @@ const github = {
   config: {
     owner: 'my-org',
     repo: 'my-repo',
-    token: secret('GITHUB_TOKEN'), // optional for public repos
+    token: secret('GITHUB_TOKEN'),
   },
 };
 
@@ -47,94 +79,31 @@ export default defineConfig({
           metric: defineMetric({
             connector: github,
             shape: 'entity',
-            field: 'id',
+            entityType: 'pull_request',
             fn: 'count',
             filter: [{ field: 'state', op: 'eq', value: 'open' }],
           }),
-        },
-        ci_status: {
-          kind: 'status',
-          title: 'CI',
-          source: `${github.name}:workflow_runs`,
         },
       },
     }),
   },
 });
-
-// Wire the registry separately when mounting:
-//   mountEngine(config, { connectorRegistry: { 'github-actions': GitHubConnector } });
 ```
 
-## Configuration
+## Rate limits
 
-| Field   | Type     | Required | Description                                                                       |
-| ------- | -------- | -------- | --------------------------------------------------------------------------------- |
-| `owner` | `string` | Yes      | GitHub username or organization name                                              |
-| `repo`  | `string` | Yes      | Repository name                                                                   |
-| `token` | `Secret` | No       | GitHub PAT with `repo` scope. Required for private repos and to avoid rate limits |
+Unauthenticated requests share GitHub’s low 60 requests/hour limit; an authenticated token raises it to 5,000 requests/hour.
 
-## Data synced
+## Limitations
 
-- **Workflow runs** — CI pipeline executions (shape: `event`)
-- **Pull requests** — open and closed PRs with review state (shape: `entity`)
-- **Issues** — open and closed issues with labels and assignees (shape: `entity`)
-- **Deployments** — deployment events and statuses (shape: `event`)
-- **Releases** — published GitHub releases (shape: `event`)
-- **Contributors** — commit activity per author (shape: `metric`)
-
-## Schemas
-
-`GitHubConnector.schemas` declares the Zod schema for each resource's raw API response. The cloud shape-drift pipeline reads these at deploy time to populate `connector_baselines`, and the package's property tests fuzz against them.
-
-| Resource               | Represents                                            |
-| ---------------------- | ----------------------------------------------------- |
-| `repo`                 | `GET /repos/{owner}/{repo}` — top-level repo stats    |
-| `workflow_runs`        | `GET /repos/{owner}/{repo}/actions/runs` page         |
-| `pull_requests`        | `GET /repos/{owner}/{repo}/pulls` page                |
-| `pull_request_reviews` | `GET /repos/{owner}/{repo}/pulls/{n}/reviews`         |
-| `issues`               | `GET /repos/{owner}/{repo}/issues` page               |
-| `deployments`          | `GET /repos/{owner}/{repo}/deployments` page          |
-| `deployment_statuses`  | `GET /repos/{owner}/{repo}/deployments/{id}/statuses` |
-| `releases`             | `GET /repos/{owner}/{repo}/releases` page             |
-| `contributors`         | `GET /repos/{owner}/{repo}/stats/contributors`        |
-
-## Aggregates
-
-The connector implements `aggregate()` so the runner can serve `stat` and `status` widgets without first syncing the underlying rows into storage. Each call is one upstream request, regardless of how many objects the answer covers.
-
-| `fn`     | Resource       | Upstream endpoint                                                            | Supported filters / fields                                                                                                                     |
-| -------- | -------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `count`  | `pull_request` | `GET /search/issues?q=repo:{owner}/{repo} is:pr ...`                         | `state=eq:open\|closed`, `draft=eq:bool`, `label=eq:str`, `author=eq:str`, `assignee=eq:str`, `milestone=eq:str`, `head=eq:str`, `base=eq:str` |
-| `count`  | `issue`        | `GET /search/issues?q=repo:{owner}/{repo} is:issue ...`                      | same filter set as `pull_request` (except `head`/`base`)                                                                                       |
-| `count`  | `contributor`  | `GET /repos/{owner}/{repo}/contributors?per_page=1` (parses `Link rel=last`) | no filters                                                                                                                                     |
-| `latest` | `repo`         | `GET /repos/{owner}/{repo}`                                                  | `field=stars\|forks\|watchers`                                                                                                                 |
-| `latest` | `workflow_run` | `GET /repos/{owner}/{repo}/actions/runs?per_page=1`                          | `field=conclusion\|status\|branch\|actor`                                                                                                      |
-| `latest` | `release`      | `GET /repos/{owner}/{repo}/releases/latest`                                  | `field=tag_name\|name\|author\|published_at`                                                                                                   |
-
-`count` filter conditions are translated to GitHub Search API qualifiers (`is:open`, `label:"needs review"`, `author:octocat`, etc.). Only `op: 'eq'` is supported for now; the connector throws a descriptive error on unsupported ops, fields, or combinations, which causes the runner to fall back to evaluating the metric against synced storage rows.
-
-## Duplicate handling
-
-The GitHub REST API can return the same item more than once within a single sync — for example when cursor pagination overlaps as the underlying collection mutates mid-fetch, when a retried request re-introduces items already seen, or when the same entity appears via more than one endpoint.
-
-Per resource (`workflow_runs`, `pull_requests`, `issues`, `deployments`, `releases`, `contributors`), the connector dedupes by stable id before writing to storage. The strategy is **keep last**: when two copies share an id, the later copy in the API response wins. `workflow_runs` additionally tracks ids across paginated pages within a single sync so the same run can't be written as two separate events. When duplicates are dropped, the connector emits a `console.warn` with the count so the behavior is observable. `repo_stats` is a single-document resource so dedupe doesn't apply.
-
-## Property tests
-
-Every resource in this connector has a fast-check property test under `src/property.test.ts` that:
-
-1. Generates N≥100 synthetic API payloads from a Zod schema mirroring the GitHub API response.
-2. Pipes them through `connector.sync()` against an `InMemoryStorage` instance.
-3. Asserts universal invariants — non-empty entity ids, finite event timestamps, no `undefined` leaking into storage, no thrown errors on any valid input — plus per-resource counts.
-
-The helper lives in `@rawdash/connector-test-utils`. When extending the connector with a new resource, add a Zod schema for its payload and a test wired up via `runPropertySyncTest`.
+- The GitHub REST API can return the same item more than once within a sync (cursor pagination overlapping a mutating collection, retried requests, or an item surfaced via multiple endpoints). Each resource dedupes by stable id before writing, keeping the last copy seen.
+- Public repositories without a token are subject to GitHub’s low unauthenticated rate limit.
 
 ## Links
 
-- [rawdash docs](https://rawdash.dev)
+- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [GitHub API docs](https://docs.github.com/rest)
 - [GitHub](https://github.com/rawdash/rawdash)
-- [Issues](https://github.com/rawdash/rawdash/issues)
 
 ## License
 

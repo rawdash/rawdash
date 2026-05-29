@@ -6,13 +6,17 @@ import {
 import {
   BaseConnector,
   type ConnectorContext,
+  type ConnectorDoc,
   type CredentialsSchema,
   type StorageHandle,
   type SyncOptions,
   type SyncResult,
   defineConfigFields,
+  defineConnectorDoc,
+  defineResources,
   makeChunkedCursorGuard,
   paginateChunked,
+  schemasFromResources,
   selectActivePhases,
 } from '@rawdash/core';
 import { z } from 'zod';
@@ -48,6 +52,34 @@ export const configFields = defineConfigFields(
     }),
   }),
 );
+
+export const doc: ConnectorDoc = defineConnectorDoc({
+  displayName: 'Linear',
+  category: 'product',
+  brandColor: '#5E6AD2',
+  tagline:
+    'Sync teams, members, cycles, issues, and issue state-transition events from a Linear workspace.',
+  vendor: {
+    name: 'Linear',
+    apiDocs: 'https://developers.linear.app/docs',
+    website: 'https://linear.app',
+  },
+  auth: {
+    summary:
+      'A Linear Personal API Key is required. It authenticates all GraphQL requests and scopes the sync to the workspaces and teams the key can access.',
+    setup: [
+      'Open Linear → Settings → API → Personal API keys.',
+      'Create a new personal API key.',
+      'Store it as a secret and reference it from the connector config as `apiKey: secret("LINEAR_API_KEY")`.',
+    ],
+  },
+  rateLimit:
+    'Linear returns X-RateLimit-Requests-Remaining / X-RateLimit-Requests-Reset headers (reset in ms); requests are paged 50 at a time.',
+  limitations: [
+    'API key auth only (OAuth not yet supported).',
+    'Webhooks and roadmap/initiative resources are out of scope.',
+  ],
+});
 
 export interface LinearSettings {
   teamIds?: readonly string[];
@@ -323,18 +355,53 @@ const issueSchema = z.object({
   }),
 });
 
+const linearResources = defineResources({
+  linear_team: {
+    shape: 'entity',
+    description: 'Workspace teams with their name and key.',
+    endpoint: 'GraphQL query: teams { nodes { ... } }',
+    responses: { teams: z.array(teamSchema) },
+  },
+  linear_user: {
+    shape: 'entity',
+    description:
+      'Workspace members, including name, email, display name, and active state.',
+    endpoint: 'GraphQL query: users { nodes { ... } }',
+    responses: { users: z.array(userSchema) },
+  },
+  linear_cycle: {
+    shape: 'entity',
+    description:
+      'Team cycles with their number, dates, progress, and final scope / completed-scope figures.',
+    endpoint: 'GraphQL query: cycles { nodes { ... } }',
+    responses: { cycles: z.array(cycleSchema) },
+  },
+  linear_issue: {
+    shape: 'entity',
+    description:
+      'Issues with their state, priority, assignee, team, project, cycle, labels, estimate, and lifecycle timestamps.',
+    endpoint: 'GraphQL query: issues { nodes { ... } }',
+    responses: { issues: z.array(issueSchema) },
+  },
+  linear_issue_state_change: {
+    shape: 'event',
+    description:
+      'State-transition events derived from each issue’s history (from-state to to-state), keyed by the originating actor.',
+    endpoint: 'GraphQL query: issues { nodes { history { nodes { ... } } } }',
+    notes:
+      'Only history entries with a non-null fromState and toState (where they differ) become events; these append-only events accumulate across incremental syncs.',
+  },
+});
+
 export class LinearConnector extends BaseConnector<
   LinearSettings,
   LinearCredentials
 > {
   static readonly id = 'linear';
 
-  static readonly schemas = {
-    teams: z.array(teamSchema),
-    users: z.array(userSchema),
-    cycles: z.array(cycleSchema),
-    issues: z.array(issueSchema),
-  } as const;
+  static readonly resources = linearResources;
+
+  static readonly schemas = schemasFromResources(linearResources);
 
   static create(input: unknown, ctx?: ConnectorContext): LinearConnector {
     const parsed = configFields.parse(input);

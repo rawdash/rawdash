@@ -1,26 +1,78 @@
+<!-- This file is generated from connector metadata by scripts/generate-connector-docs.ts. Do not edit by hand. -->
+
 # @rawdash/connector-posthog
 
-Rawdash connector for [PostHog](https://posthog.com) — syncs event volume, active users (DAU/WAU/MAU), feature flags, feature-flag usage, and declared funnels into the six-shape storage model. Built for the product-analytics vertical: engineering and product teams that already run PostHog can chart adoption, rollout exposure, and conversion alongside the rest of their dashboards.
+[![npm version](https://img.shields.io/npm/v/@rawdash/connector-posthog)](https://www.npmjs.com/package/@rawdash/connector-posthog)
+[![license](https://img.shields.io/npm/l/@rawdash/connector-posthog)](https://github.com/rawdash/rawdash/blob/main/LICENSE)
 
-## Auth setup
+Sync feature flags, per-day event volume, feature flag usage, active users, and funnel conversion from a PostHog project.
 
-The connector authenticates with a **personal API key** (read access to the project).
+## Install
 
-1. In PostHog, open **Settings → Personal API keys** (under your account menu).
-2. Click **Create personal API key**, give it a name (e.g. `rawdash`).
-3. Scope it to **read** access for the project's analytics and feature-flag resources (`query:read`, `feature_flag:read`). A personal API key is required — project keys and organization keys are not supported.
-4. Copy the key (starts with `phx_`) — it's shown only once.
+```sh
+npm install @rawdash/connector-posthog
+```
 
-You also need your **Project ID** (a number), found in **Settings → Project → Project ID**, and your instance **host**:
+## Authentication
 
-- PostHog Cloud US: `https://us.posthog.com`
-- PostHog Cloud EU: `https://eu.posthog.com`
-- Self-hosted: your own origin, e.g. `https://posthog.internal.example.com`
+A PostHog personal API key with read access to the project is required, along with the numeric project ID and the instance host.
+
+1. Open PostHog → Settings → Personal API keys and create a key with read access to the project (it starts with `phx_`).
+2. Find your numeric project ID in PostHog → Settings → Project → Project ID.
+3. Set `host` to your instance base URL - `https://us.posthog.com` or `https://eu.posthog.com` for PostHog Cloud, or your self-hosted origin (no trailing slash).
+4. Store the key as a secret and reference it from config as `apiKey: secret("POSTHOG_API_KEY")`.
 
 ## Configuration
 
+| Field          | Type   | Required | Description                                                                                                                                                                          |
+| -------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `apiKey`       | secret | Yes      | PostHog personal API key with read access to the project. Create one at PostHog → Settings → Personal API keys (starts with `phx_`).                                                 |
+| `projectId`    | string | Yes      | Numeric ID of your PostHog project. Find it in PostHog → Settings → Project → Project ID.                                                                                            |
+| `host`         | string | No       | PostHog instance base URL. Use https://us.posthog.com or https://eu.posthog.com for PostHog Cloud, or your self-hosted origin. No trailing slash.                                    |
+| `events`       | array  | No       | Event names to roll up in the `events_per_day` resource. Omit to roll up every event in the project.                                                                                 |
+| `funnels`      | array  | No       | Funnel definitions to evaluate. Each funnel is an object with name, steps (an ordered list of event names), and an optional windowDays. Conversion is measured over the sync window. |
+| `lookbackDays` | number | No       | How many calendar days of history to roll up on a full sync. Defaults to 30.                                                                                                         |
+| `resources`    | array  | No       | Which PostHog resources to sync. Omit to sync all of them.                                                                                                                           |
+
+## Resources
+
+- **`posthog_feature_flag`** _(entity)_ - Feature flags in the project, keyed by flag id, with key, name, active state, rollout percentage, and a JSON snapshot of the flag filters.
+  - Endpoint: `GET /api/projects/{projectId}/feature_flags/`
+  - Feature flags upsert by id on every run.
+- **`posthog_events_per_day`** _(metric)_ - Daily event volume rolled up by event name via HogQL. One sample per (day, event) over the lookback window. Restricted to the configured `events` list when provided, otherwise every event.
+  - Endpoint: `POST /api/projects/{projectId}/query (HogQLQuery)`
+  - Unit: events
+  - Granularity: Daily (UTC)
+  - Dimensions: `event`, `count`, `distinctUsers`
+  - Rollup metrics are stamped at UTC midnight of the day they cover.
+- **`posthog_feature_flag_usage`** _(metric)_ - Daily `$feature_flag_called` volume rolled up by flag key via HogQL. One sample per (day, flag) over the lookback window.
+  - Endpoint: `POST /api/projects/{projectId}/query (HogQLQuery)`
+  - Unit: calls
+  - Granularity: Daily (UTC)
+  - Dimensions: `flagKey`, `callCount`, `uniqueUsers`
+  - Rollup metrics are stamped at UTC midnight of the day they cover.
+- **`posthog_active_users`** _(metric)_ - Daily active-user counts from a TrendsQuery, with one sample per day per rolling window (daily, weekly, and monthly active users).
+  - Endpoint: `POST /api/projects/{projectId}/query (TrendsQuery)`
+  - Unit: users
+  - Granularity: Daily (UTC)
+  - Dimensions: `window`
+  - Rollup metrics are stamped at UTC midnight of the day they cover.
+- **`posthog_funnel`** _(metric)_ - Funnel conversion snapshot. One sample per declared funnel step, stamped at the start of the current UTC day, carrying the step user count and conversion rate relative to the first step. Only written when `funnels` are configured.
+  - Endpoint: `POST /api/projects/{projectId}/query (FunnelsQuery)`
+  - Unit: users
+  - Granularity: Snapshot per sync (start of UTC day)
+  - Dimensions: `funnel`, `step`, `stepName`, `users`, `conversionRate`
+  - A single conversion snapshot measured over the lookback window, stamped at the start of the current UTC day, not a per-day time series.
+
+## Example
+
 ```ts
-import { secret } from '@rawdash/core';
+import {
+  defineConfig,
+  defineDashboard,
+  defineMetric,
+  secret,
+} from '@rawdash/core';
 
 const posthog = {
   name: 'posthog',
@@ -28,100 +80,25 @@ const posthog = {
   config: {
     apiKey: secret('POSTHOG_API_KEY'),
     projectId: '12345',
-    host: 'https://us.posthog.com', // defaults to https://us.posthog.com
-    // events: ['$pageview', 'signed_up'],          // optional, defaults to all events
-    // funnels: [{ name: 'Signup', steps: ['$pageview', 'signed_up'] }],
-    // resources: ['events_per_day', 'feature_flags'], // optional, defaults to all
+    host: 'https://us.posthog.com',
+    events: ['pageview', 'signup'],
   },
 };
-```
-
-Register the connector class when mounting the engine:
-
-```ts
-import { PostHogConnector } from '@rawdash/connector-posthog';
-import { mountEngine } from '@rawdash/hono';
-
-mountEngine(config, { connectorRegistry: { posthog: PostHogConnector } });
-```
-
-### Choosing resources
-
-By default the connector syncs every supported resource. Pass `resources` to sync only a subset:
-
-`feature_flags`, `events_per_day`, `feature_flag_usage`, `active_users`, `funnels`
-
-### Configuration reference
-
-| Field          | Required | Description                                                                                        |
-| -------------- | -------- | -------------------------------------------------------------------------------------------------- |
-| `apiKey`       | yes      | Personal API key (secret). Bearer-authenticated.                                                   |
-| `projectId`    | yes      | Numeric PostHog project ID.                                                                        |
-| `host`         | no       | Instance base URL. Defaults to `https://us.posthog.com`. No trailing slash.                        |
-| `events`       | no       | Event names to roll up in `events_per_day`. Omit to roll up every event.                           |
-| `funnels`      | no       | Funnel definitions: `{ name, steps: [event, …], windowDays? }`. `steps` needs at least two events. |
-| `lookbackDays` | no       | Days of history to roll up on a full sync. Defaults to 30.                                         |
-| `resources`    | no       | Subset of resources to sync. Omit for all.                                                         |
-
-### Example dashboard
-
-```ts
-import { defineConfig, defineDashboard, defineMetric } from '@rawdash/core';
 
 export default defineConfig({
   connectors: [posthog],
   dashboards: {
     product: defineDashboard({
       widgets: {
-        active_flags: {
-          kind: 'stat',
-          title: 'Active feature flags',
-          metric: defineMetric({
-            connector: posthog,
-            shape: 'entity',
-            entityType: 'posthog_feature_flag',
-            fn: 'count',
-            filter: [{ field: 'active', op: 'eq', value: true }],
-          }),
-        },
-        dau: {
+        daily_events: {
           kind: 'timeseries',
-          title: 'Daily active users',
+          title: 'Events per day',
           window: '30d',
           metric: defineMetric({
             connector: posthog,
             shape: 'metric',
-            name: 'posthog_active_users',
-            field: 'value',
-            fn: 'latest',
-            window: '30d',
-            filter: [{ field: 'window', op: 'eq', value: 'dau' }],
-            groupBy: { field: 'ts', granularity: 'day' },
-          }),
-        },
-        events_by_name: {
-          kind: 'distribution',
-          title: 'Events by name (30d)',
-          metric: defineMetric({
-            connector: posthog,
-            shape: 'metric',
             name: 'posthog_events_per_day',
-            field: 'count',
             fn: 'sum',
-            groupBy: { field: 'event' },
-          }),
-        },
-        checkout_funnel: {
-          kind: 'funnel',
-          title: 'Checkout conversion',
-          metric: defineMetric({
-            connector: posthog,
-            shape: 'metric',
-            name: 'posthog_funnel',
-            field: 'conversionRate',
-            fn: 'latest',
-            filter: [{ field: 'funnel', op: 'eq', value: 'Checkout' }],
-            groupBy: { field: 'step' },
           }),
         },
       },
@@ -130,42 +107,20 @@ export default defineConfig({
 });
 ```
 
-## Data model
+## Rate limits
 
-Timestamps stored in attributes are Unix milliseconds. Rollup metrics are stamped at UTC midnight of the day they cover.
+PostHog allows roughly 1200 requests/min per personal API key; Retry-After is honored.
 
-| Storage shape | Type                         | Key attributes                                        |
-| ------------- | ---------------------------- | ----------------------------------------------------- |
-| entity        | `posthog_feature_flag`       | key, name, active, rolloutPercentage, filters (JSON)  |
-| metric        | `posthog_events_per_day`     | event, count, distinctUsers (value = count)           |
-| metric        | `posthog_feature_flag_usage` | flagKey, callCount, uniqueUsers (value = callCount)   |
-| metric        | `posthog_active_users`       | window (`dau` / `wau` / `mau`) (value = active users) |
-| metric        | `posthog_funnel`             | funnel, step, stepName, users, conversionRate         |
+## Limitations
 
-- **`posthog_events_per_day`** is a HogQL rollup grouped by `(day, event)`. Restrict it to specific events with the `events` config field.
-- **`posthog_active_users`** runs one Trends query with `dau` / `weekly_active` / `monthly_active` series; each series is written under the matching `window` attribute so a single metric drives all three.
-- **`posthog_feature_flag_usage`** counts `$feature_flag_called` events grouped by `(day, flag key)`.
-- **`posthog_funnel`** evaluates each declared funnel over the sync window and writes one sample per step; `conversionRate` is the step's users relative to the first step.
+- Session recordings/replays and cohorts are not synced.
 
-## Schemas
+## Links
 
-`PostHogConnector.schemas` declares the Zod schema for each resource's raw API payload — the feature-flag record array, the positional HogQL result rows, the Trends series, and the funnel step results. Used by the cloud shape-drift pipeline to populate `connector_baselines`, and by the package's property tests.
+- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [PostHog API docs](https://posthog.com/docs/api)
+- [GitHub](https://github.com/rawdash/rawdash)
 
-## Sync behaviour
+## License
 
-- **Backfill** (`mode: 'full'`): rolls up the last `lookbackDays` (default 30) of analytics and rewrites every metric scope; feature flags are enumerated in full.
-- **Incremental** (`mode: 'latest'`): the rollup window starts at `options.since` (capped to `lookbackDays`), so analytics queries scan only the changed window. Feature flags upsert by id on every run.
-- **Resumable**: `feature_flags` yields an offset cursor and `funnels` yields a per-funnel index cursor, so an interrupted sync resumes from the same page. The single-shot query phases re-run from scratch (their scope is cleared first, so the rewrite is idempotent).
-- **Rate limits**: PostHog enforces ~1200 requests/min per personal key and returns `429` when exceeded. The shared HTTP client retries automatically with exponential back-off and honours `Retry-After`.
-
-## Aggregates
-
-No aggregates yet. PostHog's `query` endpoint could serve `count(...)` widgets server-side (a HogQL `count()` over the events table), which would let stat widgets skip a rollup backfill; the hook is left for a follow-up once the count-filter translation surface is defined.
-
-## Property tests
-
-`feature_flags`, `events_per_day`, `feature_flag_usage`, and `active_users` have fast-check property tests under `src/property.test.ts` that generate synthetic API payloads from each resource's Zod schema, run them through `connector.sync()` against an `InMemoryStorage`, and assert universal invariants (non-empty ids, finite timestamps, no `undefined` in storage, no thrown errors). Funnels and the HogQL/Trends mapping details are covered by example-driven unit tests in `src/posthog.test.ts`.
-
-## Out of scope
-
-Session recordings / replays and cohorts are intentionally not synced — they aren't dashboard-shaped. Open an issue if you need them.
+Apache-2.0
