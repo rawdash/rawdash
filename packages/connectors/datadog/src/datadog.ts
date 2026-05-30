@@ -9,6 +9,7 @@ import {
   BaseConnector,
   type ChunkedSyncCursor,
   type ConnectorContext,
+  type ConnectorDoc,
   type CredentialsSchema,
   type Entity,
   type JSONValue,
@@ -16,8 +17,11 @@ import {
   type SyncOptions,
   type SyncResult,
   defineConfigFields,
+  defineConnectorDoc,
+  defineResources,
   makeChunkedCursorGuard,
   paginateChunked,
+  schemasFromResources,
   selectActivePhases,
 } from '@rawdash/core';
 import { z } from 'zod';
@@ -37,7 +41,7 @@ const metricQuerySchema = z.object({
   interval: z
     .enum(['5m', '15m', '1h', '1d'])
     .optional()
-    .describe('Aggregation interval — defaults to 1h.'),
+    .describe('Aggregation interval - defaults to 1h.'),
 });
 
 const datadogSiteSchema = z
@@ -92,7 +96,7 @@ export const configFields = defineConfigFields(
       .meta({
         label: 'Resources',
         description:
-          "Which Datadog resources to sync. Omit to sync all of them. 'monitor_events' depends on 'monitors' being fetched — enabling it without 'monitors' still runs the monitors query but skips writing monitor entities.",
+          "Which Datadog resources to sync. Omit to sync all of them. 'monitor_events' depends on 'monitors' being fetched - enabling it without 'monitors' still runs the monitors query but skips writing monitor entities.",
       }),
     metricsLookbackHours: z.number().int().positive().max(168).optional().meta({
       label: 'Metrics lookback (hours)',
@@ -102,6 +106,37 @@ export const configFields = defineConfigFields(
     }),
   }),
 );
+
+export const doc: ConnectorDoc = defineConnectorDoc({
+  displayName: 'Datadog',
+  category: 'infrastructure',
+  brandColor: '#632CA6',
+  tagline:
+    'Sync monitor health, monitor state-change events, incidents, SLOs, and user-declared metric queries from a Datadog org.',
+  vendor: {
+    name: 'Datadog',
+    apiDocs: 'https://docs.datadoghq.com/api/latest/',
+    website: 'https://www.datadoghq.com',
+  },
+  auth: {
+    summary:
+      'A Datadog API key and Application key are required, scoped to the org and site you want to read from. Both are stored as secrets.',
+    setup: [
+      'Open Datadog → Organization Settings → API Keys and create (or copy) an API key.',
+      'Open Datadog → Organization Settings → Application Keys and create an Application key with read access to monitors, incidents, SLOs, and metrics.',
+      'Store both as secrets and reference them from the connector config as `apiKey: secret("DD_API_KEY")` and `appKey: secret("DD_APP_KEY")`.',
+      'Set `site` to your Datadog site host (e.g. `datadoghq.com`, `datadoghq.eu`, `us3.datadoghq.com`); it defaults to `datadoghq.com`.',
+    ],
+  },
+  rateLimit:
+    'Datadog returns X-RateLimit-Remaining / X-RateLimit-Reset headers (reset in seconds) on the v2 endpoints, wired through the standard rate-limit policy so the host scheduler backs off on near-empty windows.',
+  limitations: [
+    'Logs and RUM session data are out of scope (high volume, low dashboard signal).',
+    'Synthetic monitor results are out of scope.',
+    'Monitor entities are not cleared on a full sync - the monitor_events diff depends on the prior status being stored.',
+    'Pagination URLs are pinned to the configured `api.<site>` host.',
+  ],
+});
 
 export type DatadogResource =
   | 'monitors'
@@ -385,6 +420,68 @@ const INTERVAL_MS: Record<
 const DEFAULT_INTERVAL_MS = INTERVAL_MS['1h'];
 
 // ---------------------------------------------------------------------------
+// Resource definitions
+// ---------------------------------------------------------------------------
+
+const datadogResources = defineResources({
+  datadog_monitor: {
+    shape: 'entity',
+    description:
+      'Datadog monitors with name, type, current status (OK / Alert / Warn / No Data), priority, and tags.',
+    endpoint: 'GET /api/v1/monitor/search',
+    responses: { monitors: monitorSearchResponseSchema },
+  },
+  datadog_monitor_event: {
+    shape: 'event',
+    description:
+      "Monitor state-transition events, emitted whenever a monitor's status changes from its previously-stored value.",
+    notes:
+      "Derived by diffing each monitor's current status against the last-synced status, so it depends on the monitors phase running and on prior monitor state being stored.",
+  },
+  datadog_incident: {
+    shape: 'entity',
+    description:
+      'Datadog incidents with title, severity, state, and created / resolved timestamps.',
+    endpoint: 'GET /api/v2/incidents',
+    responses: { incidents: incidentsResponseSchema },
+  },
+  datadog_slo: {
+    shape: 'entity',
+    description:
+      'Service Level Objectives with type, thresholds, primary target, and latest SLI value.',
+    endpoint: 'GET /api/v1/slo',
+    responses: { slos: slosResponseSchema },
+  },
+  datadog_slo_sli: {
+    shape: 'metric',
+    description:
+      'SLI value samples per SLO, one per overall_status snapshot reported by Datadog.',
+    unit: 'percent',
+    dimensions: [
+      { name: 'sloId', description: 'Datadog SLO id.' },
+      { name: 'sloType', description: 'SLO type (metric, monitor, etc.).' },
+    ],
+  },
+  datadog_metric: {
+    shape: 'metric',
+    dynamic: true,
+    description:
+      'User-declared metric timeseries samples, stored as `datadog_metric.<query name>`, from the Datadog Metrics Query API.',
+    endpoint: 'POST /api/v2/query/timeseries',
+    dimensions: [
+      { name: 'queryName', description: 'The user-declared query name.' },
+      { name: 'query', description: 'The Datadog metrics query string.' },
+      {
+        name: 'tags',
+        description:
+          'Comma-joined group tags for the series, or `*` when the series is ungrouped.',
+      },
+    ],
+    responses: { metric_queries: timeseriesResponseSchema },
+  },
+});
+
+// ---------------------------------------------------------------------------
 // DatadogConnector
 // ---------------------------------------------------------------------------
 
@@ -394,12 +491,9 @@ export class DatadogConnector extends BaseConnector<
 > {
   static readonly id = 'datadog';
 
-  static readonly schemas = {
-    monitors: monitorSearchResponseSchema,
-    incidents: incidentsResponseSchema,
-    slos: slosResponseSchema,
-    metric_queries: timeseriesResponseSchema,
-  } as const;
+  static readonly resources = datadogResources;
+
+  static readonly schemas = schemasFromResources(datadogResources);
 
   static create(input: unknown, ctx?: ConnectorContext): DatadogConnector {
     const parsed = configFields.parse(input);

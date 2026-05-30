@@ -1,11 +1,30 @@
-<!-- This file is generated from connector metadata by scripts/generate-connector-docs.ts. Do not edit by hand. -->
+---
+title: 'Datadog'
+description: 'Sync monitor health, monitor state-change events, incidents, SLOs, and user-declared metric queries from a Datadog org.'
+---
 
-# @rawdash/connector-datadog
+{/* datadog: generated from connector metadata. Do not edit. */}
 
-[![npm version](https://img.shields.io/npm/v/@rawdash/connector-datadog)](https://www.npmjs.com/package/@rawdash/connector-datadog)
-[![license](https://img.shields.io/npm/l/@rawdash/connector-datadog)](https://github.com/rawdash/rawdash/blob/main/LICENSE)
+import { Aside, Badge } from '@astrojs/starlight/components';
+
+<p style="display:flex;align-items:center;gap:0.75rem;margin:0 0 1rem;">
+  <img
+    src="/connectors/datadog.svg"
+    alt="Datadog logo"
+    width="40"
+    height="40"
+    style="background:#fff;border-radius:8px;padding:6px;box-sizing:border-box;"
+  />{' '}
+  <Badge text="Infrastructure" variant="tip" />{' '}
+  <Badge text="@rawdash/connector-datadog" variant="note" />
+</p>
 
 Sync monitor health, monitor state-change events, incidents, SLOs, and user-declared metric queries from a Datadog org.
+
+<Aside title="Vendor">
+  Data source: [Datadog](https://www.datadoghq.com) · [API
+  docs](https://docs.datadoghq.com/api/latest/)
+</Aside>
 
 ## Install
 
@@ -102,13 +121,3 @@ Datadog returns X-RateLimit-Remaining / X-RateLimit-Reset headers (reset in seco
 - Synthetic monitor results are out of scope.
 - Monitor entities are not cleared on a full sync - the monitor_events diff depends on the prior status being stored.
 - Pagination URLs are pinned to the configured `api.<site>` host.
-
-## Links
-
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
-- [Datadog API docs](https://docs.datadoghq.com/api/latest/)
-- [GitHub](https://github.com/rawdash/rawdash)
-
-## License
-
-Apache-2.0
