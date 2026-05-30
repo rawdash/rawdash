@@ -97,11 +97,6 @@ jobs:
       - name: Format check
         run: pnpm format:check
 
-      - name: Check connector publishing prerequisites
-        env:
-          GITHUB_BASE_REF: ${{ github.event.pull_request.base.ref }}
-        run: npx tsx scripts/check-connector-publishing-prereqs.ts
-
       - name: Determine affected filter
         id: affected
         run: |
@@ -133,6 +128,11 @@ jobs:
 
       - name: Build
         run: pnpm turbo run build --filter="${{ steps.affected.outputs.filter }}"
+
+      - name: Check connector publishing prerequisites
+        env:
+          GITHUB_BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: npx tsx scripts/check-connector-publishing-prereqs.ts
 
       - name: Test
         run: pnpm turbo run test --filter="${{ steps.affected.outputs.filter }}"
