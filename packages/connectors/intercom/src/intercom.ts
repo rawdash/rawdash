@@ -48,7 +48,7 @@ export const configFields = defineConfigFields(
     region: z.enum(['us', 'eu', 'au']).default('us').meta({
       label: 'Region',
       description:
-        'Intercom region of your workspace. Selects the API host: us → api.intercom.io, eu → api.eu.intercom.com, au → api.au.intercom.com.',
+        'Intercom region of your workspace. Selects the API host: us → api.intercom.io, eu → api.eu.intercom.io, au → api.au.intercom.io.',
       placeholder: 'us',
     }),
     resources: z
@@ -118,8 +118,8 @@ const CONVERSATION_STATE_EVENT = 'intercom_conversation_state_change';
 
 const REGION_HOSTS: Record<IntercomSettings['region'], string> = {
   us: 'https://api.intercom.io',
-  eu: 'https://api.eu.intercom.com',
-  au: 'https://api.au.intercom.com',
+  eu: 'https://api.eu.intercom.io',
+  au: 'https://api.au.intercom.io',
 };
 
 // ---------------------------------------------------------------------------
@@ -550,10 +550,18 @@ export class IntercomConnector extends BaseConnector<
     options: SyncOptions,
     signal?: AbortSignal,
   ): Promise<{ items: unknown[]; next: string | null }> {
+    // conversation_events clears and rewrites its whole scope on every sync
+    // (events can't be upserted by key), so it must re-fetch every conversation
+    // even on incremental ticks — otherwise a `since` filter would drop the
+    // historical events for conversations untouched in this window.
+    const fetchOptions =
+      resource === 'conversation_events'
+        ? { ...options, since: undefined }
+        : options;
     const res = await this.apiPost<ConversationSearchResponse>(
       `${this.baseUrl}/conversations/search`,
       resource,
-      this.buildConversationSearchBody(page, options),
+      this.buildConversationSearchBody(page, fetchOptions),
       signal,
     );
     return {

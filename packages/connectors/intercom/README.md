@@ -43,11 +43,11 @@ mountEngine(config, { connectorRegistry: { intercom: IntercomConnector } });
 
 Set `region` to match the data residency of your Intercom workspace. The connector routes every request to the matching host:
 
-| `region` | Host                          |
-| -------- | ----------------------------- |
-| `us`     | `https://api.intercom.io`     |
-| `eu`     | `https://api.eu.intercom.com` |
-| `au`     | `https://api.au.intercom.com` |
+| `region` | Host                         |
+| -------- | ---------------------------- |
+| `us`     | `https://api.intercom.io`    |
+| `eu`     | `https://api.eu.intercom.io` |
+| `au`     | `https://api.au.intercom.io` |
 
 ### Choosing resources
 
@@ -157,7 +157,7 @@ Timestamps stored in attributes are Unix milliseconds (Intercom returns Unix sec
 - **Backfill** (`mode: 'full'`): admins and teams come from `GET /admins` / `GET /teams` in a single page. Contacts and conversations stream through `POST /contacts/search` / `POST /conversations/search` with no query filter, sorted by `updated_at` ascending and paginated with the API's `starting_after` cursor.
 - **Incremental** (`mode: 'latest'`): contact and conversation searches add a `query: { field: 'updated_at', operator: '>', value: <since> }` clause (Unix seconds), so only records modified since the last sync are returned. Entity phases upsert by id (no scope clear); `conversation_events` always clears and rewrites its scope.
 - **Resumable**: each search phase yields a `starting_after` string cursor on abort, so an interrupted sync resumes from the same page. Admins and teams are single-shot.
-- **Rate limits**: Intercom enforces 1000 requests/minute per access token and returns `429` with a `Retry-After` header when exceeded. The shared HTTP client retries automatically with exponential back-off and honors `Retry-After`.
+- **Rate limits**: Intercom enforces per-app and per-workspace limits (the default is ~1000 requests/minute; see [Intercom's rate-limiting docs](https://developers.intercom.com/docs/references/rest-api/errors/rate-limiting) for current values) and signals quota state through the `X-RateLimit-*` response headers — notably `X-RateLimit-Reset`, a UNIX timestamp for when the window resets. On `429` the shared HTTP client backs off and retries, preferring `X-RateLimit-Reset` when present.
 
 ## Registering in the MCP server
 
