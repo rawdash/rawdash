@@ -33,7 +33,12 @@ const haystack = (c: (typeof connectors)[number]) =>
   </div>
 
   <div class="catalog-filters" role="group" aria-label="Filter by category">
-    <button type="button" class="catalog-chip is-active" data-category-filter="">
+    <button
+      type="button"
+      class="catalog-chip is-active"
+      data-category-filter=""
+      aria-pressed="true"
+    >
       All <span class="catalog-chip-count">{connectors.length}</span>
     </button>
     {
@@ -42,6 +47,7 @@ const haystack = (c: (typeof connectors)[number]) =>
           type="button"
           class="catalog-chip"
           data-category-filter={cat.id}
+          aria-pressed="false"
         >
           {cat.label} <span class="catalog-chip-count">{cat.count}</span>
         </button>
@@ -170,6 +176,9 @@ const haystack = (c: (typeof connectors)[number]) =>
     border-color: var(--sl-color-accent);
     transform: translateY(-2px);
   }
+  .catalog-card[hidden] {
+    display: none;
+  }
   .catalog-card-icon {
     flex: none;
     display: inline-flex;
@@ -267,7 +276,9 @@ const haystack = (c: (typeof connectors)[number]) =>
       chip.addEventListener('click', () => {
         category = chip.dataset.categoryFilter ?? '';
         for (const other of chips) {
-          other.classList.toggle('is-active', other === chip);
+          const active = other === chip;
+          other.classList.toggle('is-active', active);
+          other.setAttribute('aria-pressed', String(active));
         }
         apply();
       });
