@@ -8,12 +8,17 @@ import {
 import { parseEpoch } from '@rawdash/connector-shared';
 import {
   type ConnectorContext,
+  type ConnectorCost,
+  type ConnectorDoc,
   type JSONValue,
   type MetricSample,
   type StorageHandle,
   type SyncOptions,
   type SyncResult,
   defineConfigFields,
+  defineConnectorDoc,
+  defineResources,
+  schemasFromResources,
 } from '@rawdash/core';
 import { z } from 'zod';
 
@@ -44,7 +49,7 @@ export const configFields = defineConfigFields(
       metricQueries: z.array(metricQuerySchema).nonempty().meta({
         label: 'Metric queries',
         description:
-          'CloudWatch is too broad to mirror wholesale — declare the specific metrics to pull. Each query needs an id, namespace, metric name, statistic, and period (seconds, multiple of 60), with optional dimensions.',
+          'CloudWatch is too broad to mirror wholesale; declare the specific metrics to pull. Each query needs an id, namespace, metric name, statistic, and period (seconds, multiple of 60), with optional dimensions.',
       }),
       lookbackMinutes: z.number().int().positive().max(40_320).optional().meta({
         label: 'Lookback (minutes)',
@@ -64,6 +69,39 @@ export const configFields = defineConfigFields(
       },
     ),
 );
+
+export const doc: ConnectorDoc = defineConnectorDoc({
+  displayName: 'AWS CloudWatch',
+  category: 'infrastructure',
+  brandColor: '#FF4F8B',
+  tagline:
+    'Pull declared CloudWatch metric time series (any namespace, statistic, and period) into a single metric series per query.',
+  rateLimit:
+    'GetMetricData is batched at most 500 metrics per call with NextToken pagination; throttling (Throttling / RequestLimitExceeded / TooManyRequests) is retried with backoff.',
+  vendor: {
+    name: 'Amazon Web Services',
+    apiDocs:
+      'https://docs.aws.amazon.com/AmazonCloudWatch/latest/APIReference/API_GetMetricData.html',
+    website: 'https://aws.amazon.com/cloudwatch/',
+  },
+  auth: {
+    summary:
+      'Authenticate with either static IAM access keys or an assumed IAM role (STS). The principal needs cloudwatch:GetMetricData on the target region.',
+    setup: [
+      'Create an IAM user or role with a policy granting `cloudwatch:GetMetricData`.',
+      'For static credentials, generate an access key ID and secret access key for that IAM user and store them as secrets.',
+      'For role assumption, set `roleArn` to the role to assume (and `externalId` if its trust policy requires one); the base credentials must be allowed to `sts:AssumeRole` it.',
+      'Set `region` to the AWS region whose CloudWatch endpoint holds the metrics, e.g. `us-east-1`.',
+      'Reference the keys from config, e.g. `accessKeyId: secret("AWS_ACCESS_KEY_ID")` and `secretAccessKey: secret("AWS_SECRET_ACCESS_KEY")`.',
+    ],
+  },
+  limitations: [
+    'CloudWatch is too broad to mirror wholesale; only the metrics declared in `metricQueries` are synced; there is no automatic metric discovery.',
+    'The series name is derived from the query namespace/metric, so two queries against the same metric with different statistics or dimensions share one series name and are distinguished only by sample attributes.',
+    'Each query period must be a multiple of 60 seconds; sub-minute resolution is not supported.',
+    'A full sync uses lookbackMinutes; a latest sync uses a short window covering the last few periods.',
+  ],
+});
 
 export interface CloudWatchMetricQuery {
   id: string;
@@ -97,6 +135,46 @@ const metricDataResponseSchema = z.object({
   NextToken: z.string().optional(),
 });
 
+const awsCloudwatchResources = defineResources({
+  '<namespace>/<metric>': {
+    shape: 'metric',
+    dynamic: true,
+    description:
+      'One metric series per declared metric query. The series name is the query namespace/metric (e.g. `AWS/EC2/CPUUtilization`), so the actual keys depend on the configured `metricQueries`. Each sample carries the query statistic, period, query id, the upstream status code, and label as attributes.',
+    endpoint: 'POST / (GetMetricData)',
+    granularity: 'Per query period (periodSeconds, a multiple of 60)',
+    notes:
+      'Each sync replaces the full set of samples for the metric names it owns (idempotent).',
+    dimensions: [
+      {
+        name: 'stat',
+        description:
+          'The CloudWatch statistic requested for the query, e.g. Average, Sum, or p99.',
+      },
+      {
+        name: 'period',
+        description: 'The aggregation period in seconds for the data points.',
+      },
+      {
+        name: 'queryId',
+        description:
+          'The configured id of the metric query that produced the sample.',
+      },
+      {
+        name: 'statusCode',
+        description:
+          'GetMetricData result status for the series (Complete, PartialData, InternalError, or Forbidden).',
+      },
+      {
+        name: 'label',
+        description:
+          'The human-readable label CloudWatch returned for the series.',
+      },
+    ],
+    responses: { metric_data: metricDataResponseSchema },
+  },
+});
+
 const CLOUDWATCH_SERVICE = 'monitoring';
 const CLOUDWATCH_API_VERSION = '2010-08-01';
 const MAX_QUERIES_PER_CALL = 500;
@@ -106,9 +184,14 @@ const MS_PER_MINUTE = 60_000;
 export class CloudWatchConnector extends BaseAWSConnector<CloudWatchSettings> {
   static readonly id = 'aws-cloudwatch';
 
-  static readonly schemas = {
-    metric_data: metricDataResponseSchema,
-  } as const;
+  static readonly resources = awsCloudwatchResources;
+
+  static readonly schemas = schemasFromResources(awsCloudwatchResources);
+
+  static readonly cost: ConnectorCost = {
+    warning:
+      'CloudWatch GetMetricData is billed per metric requested on the paid tier; high-frequency syncs over many metrics add up.',
+  };
 
   static create(input: unknown, ctx?: ConnectorContext): CloudWatchConnector {
     const parsed = configFields.parse(input);

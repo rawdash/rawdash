@@ -2,13 +2,17 @@ import { connectorUserAgent, parseEpoch } from '@rawdash/connector-shared';
 import {
   BaseConnector,
   type ConnectorContext,
+  type ConnectorDoc,
   type CredentialsSchema,
   type StorageHandle,
   type SyncOptions,
   type SyncResult,
   defineConfigFields,
+  defineConnectorDoc,
+  defineResources,
   makeChunkedCursorGuard,
   paginateChunked,
+  schemasFromResources,
   selectActivePhases,
 } from '@rawdash/core';
 import { z } from 'zod';
@@ -64,7 +68,7 @@ export const configFields = defineConfigFields(
     funnels: z.array(funnelDefinition).nonempty().optional().meta({
       label: 'Funnels',
       description:
-        'Funnel definitions to evaluate. Each funnel is { name, steps: [event, …], windowDays? }. Conversion is measured over the sync window.',
+        'Funnel definitions to evaluate. Each funnel is an object with name, steps (an ordered list of event names), and an optional windowDays. Conversion is measured over the sync window.',
     }),
     lookbackDays: z.number().int().positive().optional().meta({
       label: 'Lookback days (full sync)',
@@ -91,6 +95,32 @@ export const configFields = defineConfigFields(
       }),
   }),
 );
+
+export const doc: ConnectorDoc = defineConnectorDoc({
+  displayName: 'PostHog',
+  category: 'product',
+  brandColor: '#000000',
+  tagline:
+    'Sync feature flags, per-day event volume, feature flag usage, active users, and funnel conversion from a PostHog project.',
+  vendor: {
+    name: 'PostHog',
+    apiDocs: 'https://posthog.com/docs/api',
+    website: 'https://posthog.com',
+  },
+  auth: {
+    summary:
+      'A PostHog personal API key with read access to the project is required, along with the numeric project ID and the instance host.',
+    setup: [
+      'Open PostHog → Settings → Personal API keys and create a key with read access to the project (it starts with `phx_`).',
+      'Find your numeric project ID in PostHog → Settings → Project → Project ID.',
+      'Set `host` to your instance base URL - `https://us.posthog.com` or `https://eu.posthog.com` for PostHog Cloud, or your self-hosted origin (no trailing slash).',
+      'Store the key as a secret and reference it from config as `apiKey: secret("POSTHOG_API_KEY")`.',
+    ],
+  },
+  rateLimit:
+    'PostHog allows roughly 1200 requests/min per personal API key; Retry-After is honored.',
+  limitations: ['Session recordings/replays and cohorts are not synced.'],
+});
 
 // ---------------------------------------------------------------------------
 // Settings / credentials
@@ -309,6 +339,107 @@ const funnelSchema = z.object({
 });
 
 // ---------------------------------------------------------------------------
+// Resources
+// ---------------------------------------------------------------------------
+
+const posthogResources = defineResources({
+  posthog_feature_flag: {
+    shape: 'entity',
+    description:
+      'Feature flags in the project, keyed by flag id, with key, name, active state, rollout percentage, and a JSON snapshot of the flag filters.',
+    endpoint: 'GET /api/projects/{projectId}/feature_flags/',
+    notes: 'Feature flags upsert by id on every run.',
+    responses: { feature_flags: z.array(featureFlagSchema) },
+  },
+  posthog_events_per_day: {
+    shape: 'metric',
+    description:
+      'Daily event volume rolled up by event name via HogQL. One sample per (day, event) over the lookback window. Restricted to the configured `events` list when provided, otherwise every event.',
+    endpoint: 'POST /api/projects/{projectId}/query (HogQLQuery)',
+    unit: 'events',
+    granularity: 'Daily (UTC)',
+    notes: 'Rollup metrics are stamped at UTC midnight of the day they cover.',
+    dimensions: [
+      { name: 'event', description: 'The PostHog event name.' },
+      { name: 'count', description: 'Total event occurrences that day.' },
+      {
+        name: 'distinctUsers',
+        description: 'Distinct persons who fired the event that day.',
+      },
+    ],
+    responses: { events_per_day: hogqlSchema },
+  },
+  posthog_feature_flag_usage: {
+    shape: 'metric',
+    description:
+      'Daily `$feature_flag_called` volume rolled up by flag key via HogQL. One sample per (day, flag) over the lookback window.',
+    endpoint: 'POST /api/projects/{projectId}/query (HogQLQuery)',
+    unit: 'calls',
+    granularity: 'Daily (UTC)',
+    notes: 'Rollup metrics are stamped at UTC midnight of the day they cover.',
+    dimensions: [
+      {
+        name: 'flagKey',
+        description: 'The feature flag key that was evaluated.',
+      },
+      {
+        name: 'callCount',
+        description: 'Number of flag evaluations that day.',
+      },
+      {
+        name: 'uniqueUsers',
+        description: 'Distinct persons who evaluated the flag that day.',
+      },
+    ],
+    responses: { feature_flag_usage: hogqlSchema },
+  },
+  posthog_active_users: {
+    shape: 'metric',
+    description:
+      'Daily active-user counts from a TrendsQuery, with one sample per day per rolling window (daily, weekly, and monthly active users).',
+    endpoint: 'POST /api/projects/{projectId}/query (TrendsQuery)',
+    unit: 'users',
+    granularity: 'Daily (UTC)',
+    notes: 'Rollup metrics are stamped at UTC midnight of the day they cover.',
+    dimensions: [
+      {
+        name: 'window',
+        description:
+          'The active-user window the sample belongs to: `dau`, `wau`, or `mau`.',
+      },
+    ],
+    responses: { active_users: trendsSchema },
+  },
+  posthog_funnel: {
+    shape: 'metric',
+    description:
+      'Funnel conversion snapshot. One sample per declared funnel step, stamped at the start of the current UTC day, carrying the step user count and conversion rate relative to the first step. Only written when `funnels` are configured.',
+    endpoint: 'POST /api/projects/{projectId}/query (FunnelsQuery)',
+    unit: 'users',
+    granularity: 'Snapshot per sync (start of UTC day)',
+    notes:
+      'A single conversion snapshot measured over the lookback window, stamped at the start of the current UTC day, not a per-day time series.',
+    dimensions: [
+      { name: 'funnel', description: 'The configured funnel name.' },
+      {
+        name: 'step',
+        description: 'Zero-based step order within the funnel.',
+      },
+      {
+        name: 'stepName',
+        description: 'The event name for the step, if returned.',
+      },
+      { name: 'users', description: 'Users who reached this step.' },
+      {
+        name: 'conversionRate',
+        description: 'Step users divided by first-step users (0 when no base).',
+      },
+    ],
+    responses: { funnels: funnelSchema },
+  },
+});
+
+// ---------------------------------------------------------------------------
 // PostHogConnector
 // ---------------------------------------------------------------------------
 
@@ -318,13 +449,9 @@ export class PostHogConnector extends BaseConnector<
 > {
   static readonly id = 'posthog';
 
-  static readonly schemas = {
-    feature_flags: z.array(featureFlagSchema),
-    events_per_day: hogqlSchema,
-    feature_flag_usage: hogqlSchema,
-    active_users: trendsSchema,
-    funnels: funnelSchema,
-  } as const;
+  static readonly resources = posthogResources;
+
+  static readonly schemas = schemasFromResources(posthogResources);
 
   static create(input: unknown, ctx?: ConnectorContext): PostHogConnector {
     const parsed = configFields.parse(input);

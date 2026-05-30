@@ -34,6 +34,10 @@ export default defineConfig({
           ],
         },
         {
+          label: 'Connectors',
+          autogenerate: { directory: 'docs/connectors' },
+        },
+        {
           label: 'Reference',
           items: [{ label: 'API Reference', slug: 'docs/api-reference' }],
         },

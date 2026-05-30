@@ -9,14 +9,18 @@ import {
   BaseConnector,
   type ChunkedSyncCursor,
   type ConnectorContext,
+  type ConnectorDoc,
   type CredentialsSchema,
   type JSONValue,
   type StorageHandle,
   type SyncOptions,
   type SyncResult,
   defineConfigFields,
+  defineConnectorDoc,
+  defineResources,
   makeChunkedCursorGuard,
   paginateChunked,
+  schemasFromResources,
   selectActivePhases,
 } from '@rawdash/core';
 import { z } from 'zod';
@@ -52,7 +56,7 @@ export const configFields = defineConfigFields(
       .meta({
         label: 'Resources',
         description:
-          "Which Vercel resources to sync. Omit to sync all of them. 'deployment_events' depends on 'deployments' being fetched — enabling it without 'deployments' still runs the deployments query, but skips writing deployment entities.",
+          "Which Vercel resources to sync. Omit to sync all of them. 'deployment_events' depends on 'deployments' being fetched - enabling it without 'deployments' still runs the deployments query, but skips writing deployment entities.",
       }),
     deploymentsLookbackDays: z
       .number()
@@ -86,6 +90,40 @@ const vercelCredentials = {
 } satisfies CredentialsSchema;
 
 type VercelCredentials = typeof vercelCredentials;
+
+// ---------------------------------------------------------------------------
+// Connector documentation metadata
+// ---------------------------------------------------------------------------
+
+export const doc: ConnectorDoc = defineConnectorDoc({
+  displayName: 'Vercel',
+  category: 'infrastructure',
+  brandColor: '#000000',
+  tagline:
+    'Sync Vercel projects and deployments - including build state, target, git ref, and build duration - across your team.',
+  vendor: {
+    name: 'Vercel',
+    apiDocs: 'https://vercel.com/docs/rest-api',
+    website: 'https://vercel.com',
+  },
+  auth: {
+    summary:
+      'A Vercel access token is required. Use a team token (with the team ID) to sync a team scope, or a personal token for the token owner scope.',
+    setup: [
+      'Open Vercel → Account Settings → Tokens.',
+      'Create an access token with read access to the projects and deployments you want to sync.',
+      'Store it as a secret and reference it from the connector config as `apiToken: secret("VERCEL_TOKEN")`.',
+      'If the token is a team token, set `teamId` to the team slug or `team_...` id.',
+    ],
+  },
+  rateLimit:
+    'Vercel returns X-RateLimit-Remaining / X-RateLimit-Reset headers (Unix seconds).',
+  limitations: [
+    'Deployments are fetched newest-first within the configured lookback window (`deploymentsLookbackDays`, default 30 days); older deployments are not backfilled.',
+    'Enabling `deployment_events` without `deployments` still runs the deployments query but skips writing deployment entities.',
+    'Web Vitals / Speed Insights, edge function logs, and DNS/domain APIs are out of scope.',
+  ],
+});
 
 // ---------------------------------------------------------------------------
 // Rate-limit policy — Vercel sends standard `X-RateLimit-*` headers, reset is
@@ -238,6 +276,31 @@ const deploymentsResponseSchema = z.object({
   pagination: paginationSchema,
 });
 
+const vercelResources = defineResources({
+  vercel_project: {
+    shape: 'entity',
+    description:
+      'Vercel projects with name, framework, owning account, and create/update timestamps.',
+    endpoint: 'GET /v9/projects',
+    responses: { projects: projectsResponseSchema },
+  },
+  vercel_deployment: {
+    shape: 'entity',
+    description:
+      'Deployments with build state, target environment, git ref/sha, creator, and build duration.',
+    endpoint: 'GET /v6/deployments',
+    notes:
+      'buildDurationMs is ready minus buildingAt when both are present, otherwise null. gitRef prefers meta.githubCommitRef, falling back to gitlabCommitRef, bitbucketCommitRef, then meta.branch.',
+    responses: { deployments: deploymentsResponseSchema },
+  },
+  vercel_deployment_event: {
+    shape: 'event',
+    description:
+      'Each deployment emitted as a time-bounded event spanning creation to ready, carrying the same attributes as the deployment entity.',
+    endpoint: 'GET /v6/deployments',
+  },
+});
+
 // ---------------------------------------------------------------------------
 // VercelConnector
 // ---------------------------------------------------------------------------
@@ -255,10 +318,9 @@ export class VercelConnector extends BaseConnector<
 > {
   static readonly id = 'vercel';
 
-  static readonly schemas = {
-    projects: projectsResponseSchema,
-    deployments: deploymentsResponseSchema,
-  } as const;
+  static readonly resources = vercelResources;
+
+  static readonly schemas = schemasFromResources(vercelResources);
 
   static create(input: unknown, ctx?: ConnectorContext): VercelConnector {
     const parsed = configFields.parse(input);

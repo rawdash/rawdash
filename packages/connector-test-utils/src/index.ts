@@ -17,3 +17,7 @@ export {
   mockResponse,
 } from './fetch-mock';
 export type { MockResponseInit } from './fetch-mock';
+export {
+  assertConnectorResourceShapes,
+  connectorResourceShapeViolations,
+} from './doc-shapes';

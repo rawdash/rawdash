@@ -1,6 +1,6 @@
 import { CloudWatchConnector } from './aws-cloudwatch';
 
-export { CloudWatchConnector, configFields } from './aws-cloudwatch';
+export { CloudWatchConnector, configFields, doc } from './aws-cloudwatch';
 export type {
   CloudWatchMetricQuery,
   CloudWatchSettings,

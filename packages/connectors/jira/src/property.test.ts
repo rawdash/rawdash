@@ -1,5 +1,6 @@
 import {
   type InvariantViolation,
+  connectorResourceShapeViolations,
   entityStoreFor,
   installFetchMock,
   runPropertySyncTest,
@@ -9,6 +10,16 @@ import { afterEach, describe, it, vi } from 'vitest';
 import { z } from 'zod';
 
 import { JiraConnector } from './jira';
+
+const docShapeExtra = (
+  storage: InMemoryStorage,
+  connectorId: string,
+): InvariantViolation[] =>
+  connectorResourceShapeViolations(
+    JiraConnector.resources,
+    storage,
+    connectorId,
+  );
 
 const CONNECTOR_ID = 'jira';
 
@@ -59,7 +70,7 @@ describe('JiraConnector property tests', () => {
       resource: 'projects',
       connectorId: CONNECTOR_ID,
       runs: 50,
-      extraInvariants: [extra],
+      extraInvariants: [extra, docShapeExtra],
       run: async (sample, storage) => {
         const terminated = { ...sample, isLast: true };
         installFetchMock(() => terminated);
@@ -96,7 +107,7 @@ describe('JiraConnector property tests', () => {
       resource: 'users',
       connectorId: CONNECTOR_ID,
       runs: 50,
-      extraInvariants: [extra],
+      extraInvariants: [extra, docShapeExtra],
       run: async (sample, storage) => {
         // The /users/search payload is a plain array; <50 items terminates.
         installFetchMock(() => sample);
@@ -133,7 +144,7 @@ describe('JiraConnector property tests', () => {
       resource: 'sprints',
       connectorId: CONNECTOR_ID,
       runs: 50,
-      extraInvariants: [extra],
+      extraInvariants: [extra, docShapeExtra],
       run: async (sample, storage) => {
         installFetchMock((url) => {
           if (url.includes('/sprint')) {
@@ -185,7 +196,7 @@ describe('JiraConnector property tests', () => {
       resource: 'issues',
       connectorId: CONNECTOR_ID,
       runs: 50,
-      extraInvariants: [extra],
+      extraInvariants: [extra, docShapeExtra],
       run: async (sample, storage) => {
         const terminated = { ...sample, isLast: true, nextPageToken: null };
         installFetchMock(() => terminated);
