@@ -28,13 +28,13 @@ export const configFields = defineConfigFields(
         'Consumer key (client ID) of the Salesforce Connected App used for OAuth 2.0 refresh-token exchange.',
       placeholder: '3MVG9...',
     }),
-    clientSecret: z.object({ $secret: z.string() }).meta({
+    clientSecret: z.object({ $secret: z.string().min(1) }).meta({
       label: 'Connected app consumer secret',
       description: 'Consumer secret of the Salesforce Connected App.',
       placeholder: 'SF_CLIENT_SECRET',
       secret: true,
     }),
-    refreshToken: z.object({ $secret: z.string() }).meta({
+    refreshToken: z.object({ $secret: z.string().min(1) }).meta({
       label: 'OAuth refresh token',
       description:
         'OAuth 2.0 refresh token obtained from the Connected App authorization code flow. Stored as a secret.',
@@ -460,7 +460,14 @@ export class SalesforceConnector extends BaseConnector<
   ): Promise<{ items: unknown[]; next: string | null }> {
     let path: string;
     if (page) {
-      path = page;
+      // Resumed cursor pages may have been tampered with; re-run them through
+      // the same allowlist used for fresh nextRecordsUrl values so a forged
+      // absolute URL can never carry the bearer token to an unintended host.
+      const safePage = this.sanitizeNextRecordsUrl(page);
+      if (!safePage) {
+        throw new Error(`Invalid Salesforce cursor page: ${page}`);
+      }
+      path = safePage;
     } else {
       const soql = buildPhaseSoql(phase, options.since);
       const url = new URL(

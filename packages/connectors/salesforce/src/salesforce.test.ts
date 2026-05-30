@@ -561,6 +561,29 @@ describe('SalesforceConnector.sync', () => {
     ).toBe(false);
   });
 
+  it('never issues a request for a resumed cursor page that points off the /services/data path', async () => {
+    const fetchSpy = makeFetch(() => undefined);
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const result = await connector().sync(
+      {
+        mode: 'full',
+        cursor: {
+          phase: 'opportunities',
+          page: 'https://evil.example.com/leak',
+        },
+      },
+      makeStorage(),
+    );
+
+    expect((result.transientError as Error | undefined)?.message).toMatch(
+      /Invalid Salesforce cursor page/,
+    );
+    expect(
+      recordCalls(fetchSpy).some((c) => c.url.includes('evil.example.com')),
+    ).toBe(false);
+  });
+
   it('strips a trailing slash on instanceUrl when building URLs', async () => {
     const fetchSpy = makeFetch(() => undefined);
     vi.stubGlobal('fetch', fetchSpy);

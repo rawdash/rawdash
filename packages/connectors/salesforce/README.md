@@ -126,7 +126,7 @@ Monetary amounts (`amount`, `annualRevenue`) are in the org's currency. Timestam
 
 ## Schemas
 
-`SalesforceConnector.schemas` declares the Zod schema for each resource's raw API response (`oauth_token` plus an array of records for each SOQL phase). Used by the cloud shape-drift pipeline to populate `connector_baselines`, and by the package's property tests.
+`SalesforceConnector.schemas` declares the Zod schema for each resource's raw API response (`oauth_token` plus an array of records for each SOQL phase). It is consumed by the package's property tests, and (internal to the rawdash platform) by the cloud shape-drift pipeline that populates `connector_baselines`.
 
 ## Sync behaviour
 
