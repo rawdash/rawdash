@@ -534,8 +534,16 @@ function renderTopIndex(
   parts.push('{/* Generated from connector metadata. Do not edit. */}');
   parts.push('');
   parts.push(
+    "import ConnectorCatalog from '../../../../components/ConnectorCatalog.astro';",
+  );
+  parts.push('');
+  parts.push(
     `Rawdash ships ${connectors.length} built-in connectors, grouped by category. Each syncs data from a third-party API into the storage engine, where your widgets query it.`,
   );
+  parts.push('');
+  parts.push('<ConnectorCatalog />');
+  parts.push('');
+  parts.push('## Browse by category');
   parts.push('');
   for (const category of Object.keys(CATEGORY_LABELS)) {
     const list = byCategory.get(category);
@@ -580,7 +588,23 @@ function renderCategoryIndex(
   return parts.join('\n');
 }
 
-function renderLandingData(connectors: LoadedConnector[]): string {
+// Distinct lowercase tokens a connector should match on beyond its name and
+// tagline: resource keys, the vendor name, and the package name. Powers the
+// catalog quick-filter's "search by resource" without bloating the card UI.
+function connectorKeywords(c: LoadedConnector): string[] {
+  const tokens = new Set<string>();
+  for (const key of Object.keys(c.resources)) {
+    tokens.add(key.toLowerCase());
+  }
+  tokens.add(c.doc.vendor.name.toLowerCase());
+  tokens.add(c.packageName.toLowerCase());
+  return [...tokens].sort();
+}
+
+function renderLandingData(
+  connectors: LoadedConnector[],
+  byCategory: Map<string, LoadedConnector[]>,
+): string {
   const items = connectors
     .slice()
     .sort((a, b) => a.doc.displayName.localeCompare(b.doc.displayName))
@@ -588,10 +612,19 @@ function renderLandingData(connectors: LoadedConnector[]): string {
       id: c.id,
       name: c.doc.displayName,
       category: c.doc.category,
+      categoryLabel: CATEGORY_LABELS[c.doc.category] ?? c.doc.category,
       tagline: c.doc.tagline,
       href: connectorUrl(c),
       iconPath: `/connectors/${c.id}.svg`,
       brandColor: c.doc.brandColor ?? null,
+      keywords: connectorKeywords(c),
+    }));
+  const categories = Object.keys(CATEGORY_LABELS)
+    .filter((category) => byCategory.get(category)?.length)
+    .map((category) => ({
+      id: category,
+      label: CATEGORY_LABELS[category],
+      count: byCategory.get(category)!.length,
     }));
   return [
     '// Generated from connector metadata by scripts/generate-connector-docs.ts.',
@@ -601,13 +634,23 @@ function renderLandingData(connectors: LoadedConnector[]): string {
     '  id: string;',
     '  name: string;',
     '  category: string;',
+    '  categoryLabel: string;',
     '  tagline: string;',
     '  href: string;',
     '  iconPath: string;',
     '  brandColor: string | null;',
+    '  keywords: string[];',
+    '}',
+    '',
+    'export interface ConnectorCategory {',
+    '  id: string;',
+    '  label: string;',
+    '  count: number;',
     '}',
     '',
     `export const connectors: ConnectorCard[] = ${JSON.stringify(items, null, 2)};`,
+    '',
+    `export const connectorCategories: ConnectorCategory[] = ${JSON.stringify(categories, null, 2)};`,
     '',
   ].join('\n');
 }
@@ -661,7 +704,7 @@ function collectOutputs(connectors: LoadedConnector[]): OutFile[] {
   });
   out.push({
     path: LANDING_DATA_FILE,
-    content: renderLandingData(connectors),
+    content: renderLandingData(connectors, byCategory),
   });
   return out;
 }
