@@ -119,6 +119,22 @@ export type { ConfigFieldsSchema } from './config-fields';
 
 export { defineConfigFields } from './config-fields';
 
+export type { ConnectorCategory, ConnectorDoc } from './connector-doc';
+
+export {
+  connectorCategorySchema,
+  connectorDocSchema,
+  defineConnectorDoc,
+} from './connector-doc';
+
+export type {
+  ResourceDefinition,
+  ResourceDefinitions,
+  ResourceField,
+} from './resource';
+
+export { defineResources, schemasFromResources } from './resource';
+
 export { computeMetric } from './compute';
 
 export type { ConnectorBackfill, ResourceBackfill } from './backfill-window';
@@ -131,6 +147,7 @@ export { computeWidgetEtag, hashWidgetConfig } from './widget-etag';
 
 export type {
   ConnectorClass,
+  ConnectorCost,
   ConnectorRegistry,
   ConnectorSchemas,
 } from './registry';

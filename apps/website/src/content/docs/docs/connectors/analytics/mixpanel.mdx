@@ -1,0 +1,156 @@
+---
+title: 'Mixpanel'
+description: 'Sync Mixpanel active-user counts, per-event volume, funnel conversion, and cohort retention as metric time series.'
+---
+
+{/* mixpanel: generated from connector metadata. Do not edit. */}
+
+import { Aside, Badge } from '@astrojs/starlight/components';
+
+<p style="display:flex;align-items:center;gap:0.75rem;margin:0 0 1rem;">
+  <img
+    src="/connectors/mixpanel.svg"
+    alt="Mixpanel logo"
+    width="40"
+    height="40"
+    style="background:#fff;border-radius:8px;padding:6px;box-sizing:border-box;"
+  />{' '}
+  <Badge text="Analytics" variant="tip" />{' '}
+  <Badge text="@rawdash/connector-mixpanel" variant="note" />
+</p>
+
+Sync Mixpanel active-user counts, per-event volume, funnel conversion, and cohort retention as metric time series.
+
+<Aside type="caution" title="Cost & frequency">
+  Each configured event and funnel costs one or more queries per sync against
+  Mixpanel quotas; adding many events/funnels or syncing frequently can exhaust
+  the quota.
+</Aside>
+
+<Aside title="Vendor">
+  Data source: [Mixpanel](https://mixpanel.com) · [API
+  docs](https://developer.mixpanel.com/reference/query-api)
+</Aside>
+
+## Install
+
+```sh
+npm install @rawdash/connector-mixpanel
+```
+
+## Authentication
+
+Authenticate with a Mixpanel service account (username + secret) over HTTP Basic auth, scoped to a numeric project ID.
+
+1. In Mixpanel, open Project settings → Service Accounts and create a service account with at least read access to the project.
+2. Copy the generated username (e.g. `rawdash-reader.abcdef.mp-service-account`) and the secret shown once at creation.
+3. Find the numeric project ID under Project settings → Overview and set it as `projectId`.
+4. Store the secret and reference it from config as `secret: secret("MIXPANEL_SECRET")`, alongside the `username`.
+5. For EU-resident projects, set `region: "eu"`.
+
+## Configuration
+
+| Field             | Type         | Required | Description                                                                                                                             |
+| ----------------- | ------------ | -------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `username`        | string       | Yes      | Mixpanel service account username (e.g. `rawdash-reader.abcdef.mp-service-account`). Create one at Project settings → Service Accounts. |
+| `secret`          | secret       | Yes      | Mixpanel service account secret, paired with the username via HTTP Basic auth.                                                          |
+| `projectId`       | string       | Yes      | Numeric Mixpanel project ID. Found under Project settings → Overview.                                                                   |
+| `region`          | `us` \| `eu` | No       | Mixpanel API region. Defaults to `us`.                                                                                                  |
+| `events`          | array        | No       | Event names to fetch per-day volume and unique-user counts for. Each event runs one segmentation query per sync per type.               |
+| `funnels`         | array        | No       | Mixpanel funnels to sync per-day conversion data for. Add one entry per funnel ID.                                                      |
+| `retentionEvent`  | string       | No       | Event name to use for cohort retention. When set, the connector runs a single retention query per sync.                                 |
+| `activeUserEvent` | string       | No       | Event name used for DAU/WAU/MAU unique-user counts. Defaults to the first entry in `events` when unset.                                 |
+| `lookbackDays`    | number       | No       | How many days to fetch on a full sync. Defaults to 90.                                                                                  |
+
+## Resources
+
+- **`mixpanel_dau`** _(metric)_ - Daily active users - unique-user counts for the active-user event, one sample per day.
+  - Endpoint: `GET /api/2.0/segmentation (type=unique, unit=day)`
+  - Unit: users
+  - Granularity: day
+  - Dimensions: `unit`, `event`
+  - Each metric is rewritten in full per sync (idempotent replace).
+- **`mixpanel_wau`** _(metric)_ - Weekly active users - unique-user counts for the active-user event, one sample per week.
+  - Endpoint: `GET /api/2.0/segmentation (type=unique, unit=week)`
+  - Unit: users
+  - Granularity: week
+  - Dimensions: `unit`, `event`
+  - Each metric is rewritten in full per sync (idempotent replace).
+- **`mixpanel_mau`** _(metric)_ - Monthly active users - unique-user counts for the active-user event, one sample per month.
+  - Endpoint: `GET /api/2.0/segmentation (type=unique, unit=month)`
+  - Unit: users
+  - Granularity: month
+  - Dimensions: `unit`, `event`
+  - Each metric is rewritten in full per sync (idempotent replace).
+- **`mixpanel_events_per_day`** _(metric)_ - Per-day volume for each configured event. The sample value is the total event count; unique-user count is carried as an attribute.
+  - Endpoint: `GET /api/2.0/segmentation (type=general and type=unique)`
+  - Unit: events
+  - Granularity: day
+  - Dimensions: `event`, `count`, `uniqueUsers`
+  - Each metric is rewritten in full per sync (idempotent replace).
+- **`mixpanel_funnel_results`** _(metric)_ - Per-day funnel conversion. One sample per (date, step); the value is the user count reaching that step.
+  - Endpoint: `GET /api/2.0/funnels (unit=day)`
+  - Unit: users
+  - Granularity: day
+  - Dimensions: `funnelId`, `funnelName`, `step`, `stepLabel`, `users`, `conversionRate`, `stepConversionRate`
+  - Each metric is rewritten in full per sync (idempotent replace).
+- **`mixpanel_retention`** _(metric)_ - Cohort retention for the retention event. One sample per (cohort date, period); the value is the retained user count.
+  - Endpoint: `GET /api/2.0/retention (retention_type=birth, unit=day)`
+  - Unit: users
+  - Granularity: day
+  - Dimensions: `event`, `period`, `cohortSize`, `retentionRate`
+  - Each metric is rewritten in full per sync (idempotent replace).
+
+## Example
+
+```ts
+import {
+  defineConfig,
+  defineDashboard,
+  defineMetric,
+  secret,
+} from '@rawdash/core';
+
+const mixpanel = {
+  name: 'mixpanel',
+  connectorId: 'mixpanel',
+  config: {
+    username: 'rawdash-reader.abcdef.mp-service-account',
+    secret: secret('MIXPANEL_SECRET'),
+    projectId: '1234567',
+    events: ['Signed Up', 'Purchase'],
+    activeUserEvent: 'Signed Up',
+    retentionEvent: 'Signed Up',
+    funnels: [{ id: 42, name: 'Signup to Purchase' }],
+  },
+};
+
+export default defineConfig({
+  connectors: [mixpanel],
+  dashboards: {
+    growth: defineDashboard({
+      widgets: {
+        dau: {
+          kind: 'timeseries',
+          title: 'Daily Active Users',
+          window: '30d',
+          metric: defineMetric({
+            connector: mixpanel,
+            shape: 'metric',
+            name: 'mixpanel_dau',
+            fn: 'sum',
+          }),
+        },
+      },
+    }),
+  },
+});
+```
+
+## Rate limits
+
+Mixpanel's Query API quota is 60 queries/hour per project (default); requests are retried with backoff.
+
+## Limitations
+
+- Incremental syncs refetch a 3-day overlap because Mixpanel can re-attribute late-arriving events.

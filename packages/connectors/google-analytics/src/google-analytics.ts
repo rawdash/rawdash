@@ -2,11 +2,15 @@ import { connectorUserAgent } from '@rawdash/connector-shared';
 import {
   BaseConnector,
   type ConnectorContext,
+  type ConnectorDoc,
   type CredentialsSchema,
   type StorageHandle,
   type SyncOptions,
   type SyncResult,
   defineConfigFields,
+  defineConnectorDoc,
+  defineResources,
+  schemasFromResources,
 } from '@rawdash/core';
 import { z } from 'zod';
 
@@ -66,6 +70,35 @@ export const configFields = defineConfigFields(
       },
     ),
 );
+
+export const doc: ConnectorDoc = defineConnectorDoc({
+  displayName: 'Google Analytics',
+  category: 'analytics',
+  brandColor: '#E37400',
+  tagline:
+    'Sync daily GA4 traffic, acquisition, top pages, events, conversions, and geography metrics from a Google Analytics 4 property.',
+  vendor: {
+    name: 'Google Analytics',
+    apiDocs:
+      'https://developers.google.com/analytics/devguides/reporting/data/v1',
+    website: 'https://analytics.google.com',
+  },
+  auth: {
+    summary:
+      'Authenticate against the GA4 Data API with either a Google service account JSON key (recommended) or an OAuth 2.0 refresh-token tuple. The identity must have at least the Analytics Viewer role on the property.',
+    setup: [
+      'Find your GA4 Property ID under Google Analytics -> Admin -> Property settings (numeric, e.g. 123456789).',
+      'Recommended: create a service account at Google Cloud -> IAM & Admin -> Service Accounts, generate a JSON key, and grant it the Analytics Viewer role on the property. Store the JSON as a secret and reference it as serviceAccountJson: secret("GA4_SERVICE_ACCOUNT_JSON").',
+      'Alternative: provide an OAuth 2.0 refresh token with the analytics.readonly scope together with its clientId and clientSecret from the Google Cloud Console.',
+    ],
+  },
+  rateLimit:
+    'GA4 Data API quota is 200,000 tokens/day per property (default); 429 responses are retried automatically with exponential backoff.',
+  limitations: [
+    'Incremental syncs use a 30-day window because GA4 can attribute conversions up to 3 days after the session.',
+    'Report pagination is 10,000 rows per page.',
+  ],
+});
 
 // ---------------------------------------------------------------------------
 // Settings / credentials
@@ -452,18 +485,115 @@ const tokenResponseSchema = z.object({
   expires_in: z.number().int().positive().optional(),
 });
 
+const googleAnalyticsResources = defineResources({
+  ga4_traffic_by_day: {
+    shape: 'metric',
+    description:
+      'Daily site traffic totals - sessions, total users, new users, page views, and engagement rate.',
+    unit: 'sessions',
+    granularity: 'day',
+    endpoint: 'POST /v1beta/properties/{propertyId}:runReport',
+    dimensions: [
+      { name: 'date', description: 'Calendar day of the metric sample.' },
+    ],
+    responses: {
+      oauth_token: tokenResponseSchema,
+      traffic_by_day: reportSchema(1),
+    },
+  },
+  ga4_traffic_by_source: {
+    shape: 'metric',
+    description:
+      'Daily sessions and conversions broken down by acquisition source and medium.',
+    unit: 'sessions',
+    granularity: 'day',
+    endpoint: 'POST /v1beta/properties/{propertyId}:runReport',
+    dimensions: [
+      { name: 'date', description: 'Calendar day of the metric sample.' },
+      {
+        name: 'sessionSource',
+        description: 'Origin of the session (e.g. google, direct, newsletter).',
+      },
+      {
+        name: 'sessionMedium',
+        description:
+          'Acquisition medium of the session (e.g. organic, cpc, referral).',
+      },
+    ],
+    responses: { traffic_by_source: reportSchema(3) },
+  },
+  ga4_top_pages: {
+    shape: 'metric',
+    description:
+      'Daily page views and average session duration bucketed by page path.',
+    unit: 'page_views',
+    granularity: 'day',
+    endpoint: 'POST /v1beta/properties/{propertyId}:runReport',
+    dimensions: [
+      { name: 'date', description: 'Calendar day of the metric sample.' },
+      {
+        name: 'pagePath',
+        description: 'URL path of the page that was viewed.',
+      },
+    ],
+    responses: { top_pages: reportSchema(2) },
+  },
+  ga4_events: {
+    shape: 'metric',
+    description:
+      'Daily event counts and the users that triggered them, bucketed by event name.',
+    unit: 'events',
+    granularity: 'day',
+    endpoint: 'POST /v1beta/properties/{propertyId}:runReport',
+    dimensions: [
+      { name: 'date', description: 'Calendar day of the metric sample.' },
+      {
+        name: 'eventName',
+        description: 'GA4 event name (e.g. page_view, scroll, click).',
+      },
+    ],
+    responses: { events: reportSchema(2) },
+  },
+  ga4_conversions: {
+    shape: 'metric',
+    description:
+      'Daily conversion counts and total revenue bucketed by conversion event name.',
+    unit: 'conversions',
+    granularity: 'day',
+    endpoint: 'POST /v1beta/properties/{propertyId}:runReport',
+    dimensions: [
+      { name: 'date', description: 'Calendar day of the metric sample.' },
+      {
+        name: 'eventName',
+        description:
+          'GA4 conversion event name (e.g. purchase, generate_lead).',
+      },
+    ],
+    responses: { conversions: reportSchema(2) },
+  },
+  ga4_geo: {
+    shape: 'metric',
+    description: 'Daily sessions and total users bucketed by visitor country.',
+    unit: 'sessions',
+    granularity: 'day',
+    endpoint: 'POST /v1beta/properties/{propertyId}:runReport',
+    dimensions: [
+      { name: 'date', description: 'Calendar day of the metric sample.' },
+      {
+        name: 'country',
+        description: 'Country the session originated from.',
+      },
+    ],
+    responses: { geo: reportSchema(2) },
+  },
+});
+
 export class GA4Connector extends BaseConnector<GA4Settings, GA4Credentials> {
   static readonly id = 'google-analytics';
 
-  static readonly schemas = {
-    oauth_token: tokenResponseSchema,
-    traffic_by_day: reportSchema(1),
-    traffic_by_source: reportSchema(3),
-    top_pages: reportSchema(2),
-    events: reportSchema(2),
-    conversions: reportSchema(2),
-    geo: reportSchema(2),
-  } as const;
+  static readonly resources = googleAnalyticsResources;
+
+  static readonly schemas = schemasFromResources(googleAnalyticsResources);
 
   static create(input: unknown, ctx?: ConnectorContext): GA4Connector {
     const parsed = configFields.parse(input);

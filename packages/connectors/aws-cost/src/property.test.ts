@@ -1,10 +1,23 @@
 import {
+  type InvariantViolation,
+  connectorResourceShapeViolations,
   mockJsonResponse,
   runPropertySyncTest,
 } from '@rawdash/connector-test-utils';
+import { InMemoryStorage } from '@rawdash/core';
 import { afterEach, describe, it, vi } from 'vitest';
 
 import { AwsCostConnector } from './aws-cost';
+
+const docShapeExtra = (
+  storage: InMemoryStorage,
+  connectorId: string,
+): InvariantViolation[] =>
+  connectorResourceShapeViolations(
+    AwsCostConnector.resources,
+    storage,
+    connectorId,
+  );
 
 const CONNECTOR_ID = 'aws-cost';
 
@@ -42,6 +55,7 @@ describe('AwsCostConnector property tests', () => {
       resource: 'daily_cost',
       connectorId: CONNECTOR_ID,
       runs: 50,
+      extraInvariants: [docShapeExtra],
       run: async (sample, storage) => {
         installMock(sample);
         await makeConnector().sync(
@@ -58,6 +72,7 @@ describe('AwsCostConnector property tests', () => {
       resource: 'forecast',
       connectorId: CONNECTOR_ID,
       runs: 50,
+      extraInvariants: [docShapeExtra],
       run: async (sample, storage) => {
         installMock(sample);
         await makeConnector().sync(

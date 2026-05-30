@@ -32,17 +32,23 @@ Trigger on requests like:
    - Package name in `package.json` (and `version` to `0.0.1`).
    - Class name, exported types, `static id`, `readonly id`.
    - File names where applicable (`src/<id>.ts`, `src/property.test.ts`).
-   - All references in `README.md`.
+   - The `doc` export (`defineConnectorDoc({...})`) — copy it and re-export it from `src/index.ts` like the source connector does.
+
+   Do **not** hand-edit `README.md`. It is generated from the connector's metadata (see step 12); the copied README will be overwritten.
 5. **Strip what's vendor-specific from the copy** so the dev fills it in:
    - API response TypeScript types.
-   - Zod response schemas (`static schemas`).
+   - The `resources` definitions: each connector declares `const <id>Resources = defineResources({...})` at module scope, one entry per **stored resource** (the entity `type` / event `name` / metric `name` widgets query), keyed by that stored name. Each entry carries `shape`, `description`, optional `endpoint`/`notes`, shape-specific doc fields (entity/event `fields`; metric `unit`/`granularity`/`dimensions`), and a `responses` map holding the raw API-response Zod schema(s) that resource is built from (keyed by the `resource` tag passed to `request()`). The class then exposes `static readonly resources = <id>Resources` and `static readonly schemas = schemasFromResources(<id>Resources)`. There is no separate central `schemas` map.
    - URL builders (`buildInitial*Url`, `allowedPagePath`).
    - Per-phase `fetchPage` and `writeBatch` bodies.
    - Entity/event/metric writers.
    - `PHASE_ORDER` and resource enum.
+   - The `doc` contents (connector-level only): `displayName`, `category`, `brandColor`, `tagline`, `vendor`, `auth`, optional `rateLimit`, `limitations`. Per-resource docs live in `resources` (above), not here; the example lives in a file (step 6a).
 
    Leave `TODO(connector)` comments at each removed site so `grep TODO(connector)` finds every spot the dev needs to revisit.
-6. **Keep the shared substrate calls intact** — these are the parts the dev should NOT re-derive:
+6. **Add the connector's brand icon** at `packages/connectors/<id>/icon.svg`. This is a required, committed asset (the docs generator fails if it's missing). Source it from [Simple Icons](https://simpleicons.org/) (CC0) when the vendor is listed there, or the vendor's official icon set otherwise; co-locate it like the existing connectors (e.g. `packages/connectors/github/icon.svg`). Use the brand's hex as `doc.brandColor`. Logos are trademarks of their owners; use the unmodified mark for identification only.
+7. **Add a type-checked example** at `packages/connectors/<id>/src/example.config.ts`: a real `defineConfig(...)` importing only `@rawdash/core` and using the connector's real `connectorId` and config fields (see `packages/connectors/github/src/example.config.ts`). It lives under `src/` so the package's typecheck covers it and it can't go stale; the generator inlines it into the docs. Do not import the connector class into it (avoid unused imports).
+8. **Report cost only when it's real.** If syncing this connector at a high cadence is genuinely expensive (per-query billing, tight quotas), add `static readonly cost: ConnectorCost = {...}` to the class (`recommendedInterval`, `minInterval`, `perSync`, `warning`). The generator renders it as a callout and the cloud surfaces it next to the frequency field. Omit it for connectors where frequent syncing is cheap.
+9. **Keep the shared substrate calls intact** — these are the parts the dev should NOT re-derive:
    - `BaseConnector` extension, `protected fetch` / `get` / `post`.
    - `paginateChunked` orchestration.
    - `makeChunkedCursorGuard`, `selectActivePhases`, `sanitizeAllowedUrl`.
@@ -50,8 +56,9 @@ Trigger on requests like:
    - `connectorUserAgent('<id>')`.
    - `parseEpoch` for any timestamp normalization.
    - The property-test scaffolding from `@rawdash/connector-test-utils`.
-7. **Auth setup** — do **not** invent or recommend an auth shape. Read the vendor's official docs and follow what they recommend for server-to-server access. Write the `Auth setup` section of the new connector's `README.md` to mirror the existing connectors' style: numbered steps, links to the vendor's console, exactly the secrets the dev needs to store. If the vendor supports multiple auth methods, document the recommended one as Option A and any alternatives as Option B/C, matching what the vendor's docs call out.
-8. **Run `pnpm install`** so workspace links pick up the new package.
+10. **Auth setup** - do **not** invent or recommend an auth shape. Read the vendor's official docs and follow what they recommend for server-to-server access. Capture it in the connector's `doc.auth` (`summary` plus numbered `setup` steps with the exact secrets to store) — this is what renders the README/docs `Authentication` section. Do not hand-write it into the README. If the vendor supports multiple auth methods, describe the recommended one and note alternatives in the setup steps.
+11. **Run `pnpm install`** so workspace links pick up the new package.
+12. **Generate the docs** - run `pnpm docs:connectors`. This renders the new connector's `README.md`, its Cloud docs page under `apps/website/src/content/docs/docs/connectors/<id>.mdx`, and refreshes the catalog. CI runs `pnpm docs:connectors:check` and fails if these are out of date, so regenerate and commit whenever the connector's metadata changes.
 
 ## Bias against asking questions
 
@@ -94,6 +101,15 @@ These shape which existing connector you should copy from. Surface them explicit
 - Gate every phase (and any N+1 subresource calls) on `options.resources`.
 - Pass `logger: this.logger` to `paginateChunked` so the per-page / per-resource INFO logs land in the right shape; hand-rolled loops must mirror the shape from `docs/authoring-a-connector.md` §6.
 - Add a property-test `it` per resource in `src/property.test.ts`.
-- Write the README's `Auth setup` and `Configuration` sections following the vendor's official docs.
+- Wire the resource/storage shape check into the property tests (see `packages/connectors/github/src/property.test.ts`):
+  - Import `connectorResourceShapeViolations` from `@rawdash/connector-test-utils`.
+  - Add it to each `runPropertySyncTest` call's `extraInvariants` as `(storage, connectorId) => connectorResourceShapeViolations(<Class>.resources, storage, connectorId)`.
+  - For resources no property test writes, add one full-sync test that calls `assertConnectorResourceShapes(<Class>.resources, storage, connectorId)`.
+  - This fails if any stored resource is missing from `resources` or its declared `shape` doesn't match what was written.
+- Fill in the per-resource `resources` definitions (shape + description + endpoint + fields/dimensions/notes + `responses` schemas) and the connector-level `doc` (`displayName`, `category`, `brandColor`, `tagline`, `vendor`, `auth`, optional `rateLimit`, `limitations`). The README and Cloud docs are generated from these; never hand-write them.
+- Use only regular hyphens (`-`) in all doc/resource/config-field strings; em-dashes (`—`) and en-dashes (`–`) fail the docs check.
+- Add `packages/connectors/<id>/icon.svg` (required, committed; the generator fails without it). Use Simple Icons (CC0) or the vendor's official mark, and set `doc.brandColor` to the brand hex.
+- Add `packages/connectors/<id>/src/example.config.ts` (a type-checked `defineConfig`; the generator inlines it).
+- Run `pnpm docs:connectors` and commit the generated `README.md` + `apps/website/src/content/docs/docs/connectors/<id>.mdx` + `apps/website/public/connectors/<id>.svg` + the updated landing data. `pnpm docs:connectors:check` must pass (it's the CI drift guard).
 - `pnpm --filter @rawdash/connector-<id> test` should pass.
 - `grep -rn "TODO(connector)" packages/connectors/<id>` should return nothing.

@@ -6,13 +6,17 @@ import {
 import {
   BaseConnector,
   type ConnectorContext,
+  type ConnectorDoc,
   type CredentialsSchema,
   type StorageHandle,
   type SyncOptions,
   type SyncResult,
   defineConfigFields,
+  defineConnectorDoc,
+  defineResources,
   makeChunkedCursorGuard,
   paginateChunked,
+  schemasFromResources,
   selectActivePhases,
 } from '@rawdash/core';
 import { z } from 'zod';
@@ -46,6 +50,36 @@ export const configFields = defineConfigFields(
       }),
   }),
 );
+
+export const doc: ConnectorDoc = defineConnectorDoc({
+  displayName: 'HubSpot',
+  category: 'sales',
+  brandColor: '#FF7A59',
+  tagline:
+    'Sync CRM contacts, companies, and deals plus deal stage-change events and marketing email campaign stats from HubSpot.',
+  vendor: {
+    name: 'HubSpot',
+    apiDocs: 'https://developers.hubspot.com/docs/api/overview',
+    website: 'https://www.hubspot.com',
+  },
+  auth: {
+    summary:
+      'A HubSpot private app access token with read scopes for the resources you sync (contacts, companies, deals, and marketing email).',
+    setup: [
+      'In HubSpot, go to Settings → Integrations → Private Apps and create a private app.',
+      'Grant read scopes for the resources you intend to sync (CRM contacts, companies, deals, and marketing email).',
+      'Copy the generated access token (starts with `pat-`).',
+      'Store it as a secret and reference it from the connector config as `accessToken: secret("HUBSPOT_ACCESS_TOKEN")`.',
+    ],
+  },
+  rateLimit:
+    'HubSpot allows 100 requests / 10s; the Search API caps results at 10,000 per query.',
+  limitations: [
+    'Deal stage-change events are rewritten on every sync because the deal list endpoint has no incremental `since` filter.',
+    'Marketing email campaign data comes from the legacy email campaigns API and is only available for marketing emails.',
+    'Very large CRM portfolios may not backfill in full because the Search API caps at 10,000 results per query.',
+  ],
+});
 
 export interface HubSpotSettings {
   resources?: readonly HubSpotResource[];
@@ -299,6 +333,72 @@ const campaignDetailSchema = z.object({
     .optional(),
 });
 
+const contactsSchema = z.array(crmRecordSchema(contactProperties));
+const companiesSchema = z.array(crmRecordSchema(companyProperties));
+const dealsSchema = z.array(crmRecordSchema(dealProperties));
+const dealEventsSchema = z.array(dealHistoryRecordSchema);
+const campaignsSchema = z.array(campaignDetailSchema);
+
+const hubspotResources = defineResources({
+  hubspot_contact: {
+    shape: 'entity',
+    description:
+      'CRM contacts with email, lifecycle stage, lead status, owner, and creation time.',
+    endpoint: 'POST /crm/v3/objects/contacts/search',
+    responses: { contacts: contactsSchema },
+  },
+  hubspot_company: {
+    shape: 'entity',
+    description:
+      'CRM companies with name, domain, industry, lifecycle stage, and creation time.',
+    endpoint: 'POST /crm/v3/objects/companies/search',
+    responses: { companies: companiesSchema },
+  },
+  hubspot_deal: {
+    shape: 'entity',
+    description:
+      'CRM deals with name, stage, pipeline, amount, close date, owner, and creation time.',
+    endpoint: 'POST /crm/v3/objects/deals/search',
+    responses: { deals: dealsSchema },
+  },
+  hubspot_deal_stage_change: {
+    shape: 'event',
+    description:
+      'Deal stage-change events derived from deal property history, one event per stage transition.',
+    endpoint: 'GET /crm/v3/objects/deals?propertiesWithHistory=dealstage',
+    responses: { deal_events: dealEventsSchema },
+  },
+  hubspot_email_campaign: {
+    shape: 'entity',
+    description:
+      'Marketing email campaigns with name, subject, sender, type, send date, and recipient count.',
+    endpoint: 'GET /email/public/v1/campaigns',
+    responses: { email_campaigns: campaignsSchema },
+  },
+  hubspot_email_stats: {
+    shape: 'metric',
+    description:
+      'Per-campaign marketing email engagement stats (sent, delivered, opened, clicked, bounced, unsubscribed) timestamped at the campaign send time.',
+    endpoint: 'GET /email/public/v1/campaigns/{id}',
+    unit: 'emails',
+    notes:
+      'One sample per campaign; value is the sent count, and every counter (delivered, opened, clicked, bounced, unsubscribed) is also exposed in attributes.',
+    dimensions: [
+      { name: 'campaignId', description: 'HubSpot campaign id.' },
+      { name: 'campaignName', description: 'Campaign name.' },
+      { name: 'delivered', description: 'Number of emails delivered.' },
+      { name: 'opened', description: 'Number of emails opened.' },
+      { name: 'clicked', description: 'Number of emails clicked.' },
+      { name: 'bounced', description: 'Number of emails bounced.' },
+      {
+        name: 'unsubscribed',
+        description: 'Number of recipients who unsubscribed.',
+      },
+    ],
+    responses: { email_stats: campaignsSchema },
+  },
+});
+
 // ---------------------------------------------------------------------------
 // HubSpotConnector
 // ---------------------------------------------------------------------------
@@ -309,14 +409,9 @@ export class HubSpotConnector extends BaseConnector<
 > {
   static readonly id = 'hubspot';
 
-  static readonly schemas = {
-    contacts: z.array(crmRecordSchema(contactProperties)),
-    companies: z.array(crmRecordSchema(companyProperties)),
-    deals: z.array(crmRecordSchema(dealProperties)),
-    deal_events: z.array(dealHistoryRecordSchema),
-    email_campaigns: z.array(campaignDetailSchema),
-    email_stats: z.array(campaignDetailSchema),
-  } as const;
+  static readonly resources = hubspotResources;
+
+  static readonly schemas = schemasFromResources(hubspotResources);
 
   static create(input: unknown, ctx?: ConnectorContext): HubSpotConnector {
     const parsed = configFields.parse(input);

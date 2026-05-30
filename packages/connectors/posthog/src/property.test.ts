@@ -1,11 +1,13 @@
 import {
   type InvariantViolation,
+  assertConnectorResourceShapes,
+  connectorResourceShapeViolations,
   entityStoreFor,
   installFetchMock,
   metricStoreFor,
   runPropertySyncTest,
 } from '@rawdash/connector-test-utils';
-import type { InMemoryStorage } from '@rawdash/core';
+import { InMemoryStorage } from '@rawdash/core';
 import { afterEach, describe, it, vi } from 'vitest';
 import { z } from 'zod';
 
@@ -14,6 +16,16 @@ import { PostHogConnector } from './posthog';
 const CONNECTOR_ID = 'posthog';
 const API_KEY = 'POSTHOG_API_KEY' as unknown as { $secret: string };
 const HOST = 'https://us.posthog.com';
+
+const docShapeExtra = (
+  storage: InMemoryStorage,
+  connectorId: string,
+): InvariantViolation[] =>
+  connectorResourceShapeViolations(
+    PostHogConnector.resources,
+    storage,
+    connectorId,
+  );
 
 type FeatureFlagsSample = z.infer<
   typeof PostHogConnector.schemas.feature_flags
@@ -77,7 +89,7 @@ describe('PostHogConnector property tests', () => {
       resource: 'feature_flags',
       connectorId: CONNECTOR_ID,
       runs: 100,
-      extraInvariants: [uniqueFlagEntities()],
+      extraInvariants: [uniqueFlagEntities(), docShapeExtra],
       run: async (sample, storage) => {
         installFetchMock(() => ({ results: sample, next: null }));
         const c = new PostHogConnector(
@@ -95,7 +107,10 @@ describe('PostHogConnector property tests', () => {
       resource: 'events_per_day',
       connectorId: CONNECTOR_ID,
       runs: 100,
-      extraInvariants: [metricsNeverExceedRows('posthog_events_per_day')],
+      extraInvariants: [
+        metricsNeverExceedRows('posthog_events_per_day'),
+        docShapeExtra,
+      ],
       run: async (sample, storage) => {
         installFetchMock(() => sample);
         const c = new PostHogConnector(
@@ -113,7 +128,10 @@ describe('PostHogConnector property tests', () => {
       resource: 'feature_flag_usage',
       connectorId: CONNECTOR_ID,
       runs: 100,
-      extraInvariants: [metricsNeverExceedRows('posthog_feature_flag_usage')],
+      extraInvariants: [
+        metricsNeverExceedRows('posthog_feature_flag_usage'),
+        docShapeExtra,
+      ],
       run: async (sample, storage) => {
         installFetchMock(() => sample);
         const c = new PostHogConnector(
@@ -131,6 +149,7 @@ describe('PostHogConnector property tests', () => {
       resource: 'active_users',
       connectorId: CONNECTOR_ID,
       runs: 100,
+      extraInvariants: [docShapeExtra],
       run: async (sample, storage) => {
         installFetchMock(() => sample);
         const c = new PostHogConnector(
@@ -140,5 +159,62 @@ describe('PostHogConnector property tests', () => {
         await c.sync({ mode: 'full' }, storage.getStorageHandle(CONNECTOR_ID));
       },
     });
+  });
+
+  it('full sync across every phase upholds doc/storage shapes', async () => {
+    let queryCall = 0;
+    installFetchMock((url) => {
+      if (String(url).includes('/feature_flags')) {
+        return {
+          results: [
+            {
+              id: 1,
+              key: 'flag-a',
+              name: 'Flag A',
+              active: true,
+              rollout_percentage: 50,
+              created_at: '2026-05-01T00:00:00Z',
+            },
+          ],
+          next: null,
+        };
+      }
+      queryCall += 1;
+      if (queryCall === 1) {
+        return { results: [['2026-05-01', 'pageview', 100, 40]] };
+      }
+      if (queryCall === 2) {
+        return { results: [['2026-05-01', 'flag-a', 25, 10]] };
+      }
+      if (queryCall === 3) {
+        return {
+          results: [{ data: [10, 12], days: ['2026-05-01', '2026-05-02'] }],
+        };
+      }
+      return {
+        results: [
+          { count: 100, name: 'pageview', order: 0 },
+          { count: 40, name: 'signup', order: 1 },
+        ],
+      };
+    });
+
+    const storage = new InMemoryStorage();
+    const c = new PostHogConnector(
+      {
+        projectId: '1',
+        host: HOST,
+        events: ['pageview', 'signup'],
+        funnels: [{ name: 'activation', steps: ['pageview', 'signup'] }],
+      },
+      { apiKey: API_KEY },
+    );
+    await c.sync({ mode: 'full' }, storage.getStorageHandle(CONNECTOR_ID));
+
+    assertConnectorResourceShapes(
+      PostHogConnector.resources,
+      storage,
+      CONNECTOR_ID,
+    );
   });
 });
