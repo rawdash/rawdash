@@ -12,6 +12,22 @@ import { DatadogConnector } from './datadog';
 
 const CONNECTOR_ID = 'datadog';
 
+function setsEqual(a: Set<string>, b: Set<string>): boolean {
+  if (a.size !== b.size) {
+    return false;
+  }
+  for (const v of a) {
+    if (!b.has(v)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function formatIds(ids: Set<string>): string {
+  return `[${[...ids].sort().join(', ')}]`;
+}
+
 type MonitorsSample = z.infer<typeof DatadogConnector.schemas.monitors>;
 type IncidentsSample = z.infer<typeof DatadogConnector.schemas.incidents>;
 type SlosSample = z.infer<typeof DatadogConnector.schemas.slos>;
@@ -28,14 +44,16 @@ describe('DatadogConnector property tests', () => {
       sample: MonitorsSample,
     ): InvariantViolation[] => {
       const violations: InvariantViolation[] = [];
-      const uniqueIds = new Set(sample.monitors.map((m) => String(m.id))).size;
-      const written =
-        entityStoreFor(storage, CONNECTOR_ID).get('datadog_monitor')?.size ?? 0;
-      if (written !== uniqueIds) {
+      const expectedIds = new Set(sample.monitors.map((m) => String(m.id)));
+      const storedIds = new Set(
+        entityStoreFor(storage, CONNECTOR_ID).get('datadog_monitor')?.keys() ??
+          [],
+      );
+      if (!setsEqual(expectedIds, storedIds)) {
         violations.push({
           invariant: 'one datadog_monitor entity per unique monitor id',
           location: 'monitors phase',
-          detail: `expected ${uniqueIds} entities, got ${written}`,
+          detail: `expected ids ${formatIds(expectedIds)}, got ${formatIds(storedIds)}`,
         });
       }
       return violations;
@@ -82,15 +100,16 @@ describe('DatadogConnector property tests', () => {
       sample: IncidentsSample,
     ): InvariantViolation[] => {
       const violations: InvariantViolation[] = [];
-      const uniqueIds = new Set(sample.data.map((inc) => inc.id)).size;
-      const written =
-        entityStoreFor(storage, CONNECTOR_ID).get('datadog_incident')?.size ??
-        0;
-      if (written !== uniqueIds) {
+      const expectedIds = new Set(sample.data.map((inc) => inc.id));
+      const storedIds = new Set(
+        entityStoreFor(storage, CONNECTOR_ID).get('datadog_incident')?.keys() ??
+          [],
+      );
+      if (!setsEqual(expectedIds, storedIds)) {
         violations.push({
           invariant: 'one datadog_incident entity per unique incident id',
           location: 'incidents phase',
-          detail: `expected ${uniqueIds} entities, got ${written}`,
+          detail: `expected ids ${formatIds(expectedIds)}, got ${formatIds(storedIds)}`,
         });
       }
       return violations;
@@ -131,14 +150,15 @@ describe('DatadogConnector property tests', () => {
       sample: SlosSample,
     ): InvariantViolation[] => {
       const violations: InvariantViolation[] = [];
-      const uniqueIds = new Set(sample.data.map((s) => s.id)).size;
-      const written =
-        entityStoreFor(storage, CONNECTOR_ID).get('datadog_slo')?.size ?? 0;
-      if (written !== uniqueIds) {
+      const expectedIds = new Set(sample.data.map((s) => s.id));
+      const storedIds = new Set(
+        entityStoreFor(storage, CONNECTOR_ID).get('datadog_slo')?.keys() ?? [],
+      );
+      if (!setsEqual(expectedIds, storedIds)) {
         violations.push({
           invariant: 'one datadog_slo entity per unique slo id',
           location: 'slos phase',
-          detail: `expected ${uniqueIds} entities, got ${written}`,
+          detail: `expected ids ${formatIds(expectedIds)}, got ${formatIds(storedIds)}`,
         });
       }
       return violations;

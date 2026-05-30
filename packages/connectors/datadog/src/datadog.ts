@@ -40,23 +40,33 @@ const metricQuerySchema = z.object({
     .describe('Aggregation interval — defaults to 1h.'),
 });
 
+const datadogSiteSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .toLowerCase()
+  .regex(/^(?:[a-z0-9-]+\.)*(?:datadoghq\.com|datadoghq\.eu|ddog-gov\.com)$/, {
+    message:
+      'Site must be a Datadog hostname (e.g. datadoghq.com, datadoghq.eu, us3.datadoghq.com)',
+  });
+
 export const configFields = defineConfigFields(
   z.object({
-    apiKey: z.object({ $secret: z.string() }).meta({
+    apiKey: z.object({ $secret: z.string().min(1) }).meta({
       label: 'API Key',
       description:
         'Datadog API key. Create at Datadog → Organization Settings → API Keys.',
       placeholder: 'dd_api_key',
       secret: true,
     }),
-    appKey: z.object({ $secret: z.string() }).meta({
+    appKey: z.object({ $secret: z.string().min(1) }).meta({
       label: 'Application Key',
       description:
         'Datadog Application key. Create at Datadog → Organization Settings → Application Keys. Used in tandem with the API key to authenticate REST calls.',
       placeholder: 'dd_app_key',
       secret: true,
     }),
-    site: z.string().min(1).optional().meta({
+    site: datadogSiteSchema.optional().meta({
       label: 'Site',
       description:
         'Datadog site host (e.g. `datadoghq.com`, `datadoghq.eu`, `us3.datadoghq.com`). Defaults to `datadoghq.com`.',
@@ -409,7 +419,7 @@ export class DatadogConnector extends BaseConnector<
   override readonly credentials = datadogCredentials;
 
   private get apiHost(): string {
-    return `api.${this.settings.site ?? DEFAULT_SITE}`;
+    return `api.${(this.settings.site ?? DEFAULT_SITE).toLowerCase()}`;
   }
 
   private get apiBase(): string {
@@ -863,7 +873,7 @@ export class DatadogConnector extends BaseConnector<
           createdAt: createdMs,
           modifiedAt: modifiedMs,
         },
-        updated_at: Math.max(modifiedMs ?? 0, createdMs ?? 0, Date.now()),
+        updated_at: modifiedMs ?? createdMs ?? Date.now(),
       });
 
       for (const status of s.overall_status ?? []) {

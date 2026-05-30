@@ -526,7 +526,15 @@ describe('DatadogConnector.sync', () => {
     );
     const incidentsCall = calls.find((c) => c.includes('/api/v2/incidents'));
     expect(incidentsCall).toBeDefined();
-    expect(incidentsCall).toContain('filter');
+    const params = new URL(incidentsCall!).searchParams;
+    const filterEntries: [string, string][] = [];
+    params.forEach((value, key) => {
+      if (key.startsWith('filter[')) {
+        filterEntries.push([key, value]);
+      }
+    });
+    expect(filterEntries.length).toBeGreaterThan(0);
+    expect(filterEntries.some(([, v]) => v === since)).toBe(true);
   });
 
   it('writes slo entities and sli metrics', async () => {
