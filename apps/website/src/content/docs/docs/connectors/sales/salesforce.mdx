@@ -1,11 +1,30 @@
-<!-- This file is generated from connector metadata by scripts/generate-connector-docs.ts. Do not edit by hand. -->
+---
+title: 'Salesforce'
+description: 'Sync opportunities, opportunity stage-change events, accounts, leads, and users from a Salesforce org for pipeline, forecast, and quota-attainment dashboards.'
+---
 
-# @rawdash/connector-salesforce
+{/* salesforce: generated from connector metadata. Do not edit. */}
 
-[![npm version](https://img.shields.io/npm/v/@rawdash/connector-salesforce)](https://www.npmjs.com/package/@rawdash/connector-salesforce)
-[![license](https://img.shields.io/npm/l/@rawdash/connector-salesforce)](https://github.com/rawdash/rawdash/blob/main/LICENSE)
+import { Aside, Badge } from '@astrojs/starlight/components';
+
+<p style="display:flex;align-items:center;gap:0.75rem;margin:0 0 1rem;">
+  <img
+    src="/connectors/salesforce.svg"
+    alt="Salesforce logo"
+    width="40"
+    height="40"
+    style="background:#fff;border-radius:8px;padding:6px;box-sizing:border-box;"
+  />{' '}
+  <Badge text="Sales" variant="tip" />{' '}
+  <Badge text="@rawdash/connector-salesforce" variant="note" />
+</p>
 
 Sync opportunities, opportunity stage-change events, accounts, leads, and users from a Salesforce org for pipeline, forecast, and quota-attainment dashboards.
+
+<Aside title="Vendor">
+  Data source: [Salesforce](https://www.salesforce.com) · [API
+  docs](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/)
+</Aside>
 
 ## Install
 
@@ -21,7 +40,7 @@ OAuth 2.0 with a refresh token issued by a Salesforce Connected App. Requires th
 2. Set the callback URL to a URL you control (e.g. https://localhost:8080/callback); it only has to be reachable when minting the initial refresh token.
 3. Under Selected OAuth Scopes add "Access and manage your data (api)" and "Perform requests on your behalf at any time (refresh_token, offline_access)".
 4. Save, then copy the Consumer Key (client ID) and Consumer Secret from the connected app detail page.
-5. Authorize via https://login.salesforce.com/services/oauth2/authorize?response_type=code&client_id=<KEY>&redirect_uri=<URL> and exchange the resulting code at /services/oauth2/token to obtain a refresh token and the org instance_url.
+5. Authorize via https://login.salesforce.com/services/oauth2/authorize?response_type=code&client_id=&lt;KEY>&redirect_uri=&lt;URL> and exchange the resulting code at /services/oauth2/token to obtain a refresh token and the org instance_url.
 6. Use the org instance URL from the token response (e.g. https://mycompany.my.salesforce.com), not login.salesforce.com.
 7. Store the consumer secret and refresh token as rawdash secrets and reference them as secret("SF_CLIENT_SECRET") and secret("SF_REFRESH_TOKEN").
 
@@ -145,13 +164,3 @@ Salesforce caps total API calls per org per 24 hours. Responses include a Sforce
 
 - Custom objects are out of scope for v1; only the standard objects listed above are synced.
 - Salesforce Marketing Cloud is tracked under a separate connector.
-
-## Links
-
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
-- [Salesforce API docs](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/)
-- [GitHub](https://github.com/rawdash/rawdash)
-
-## License
-
-Apache-2.0

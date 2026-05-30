@@ -5,13 +5,17 @@ import {
 import {
   BaseConnector,
   type ConnectorContext,
+  type ConnectorDoc,
   type CredentialsSchema,
   type StorageHandle,
   type SyncOptions,
   type SyncResult,
   defineConfigFields,
+  defineConnectorDoc,
+  defineResources,
   makeChunkedCursorGuard,
   paginateChunked,
+  schemasFromResources,
   selectActivePhases,
 } from '@rawdash/core';
 import { z } from 'zod';
@@ -76,6 +80,39 @@ export const configFields = defineConfigFields(
       }),
   }),
 );
+
+export const doc: ConnectorDoc = defineConnectorDoc({
+  displayName: 'Salesforce',
+  category: 'sales',
+  brandColor: '#00A1E0',
+  tagline:
+    'Sync opportunities, opportunity stage-change events, accounts, leads, and users from a Salesforce org for pipeline, forecast, and quota-attainment dashboards.',
+  vendor: {
+    name: 'Salesforce',
+    apiDocs:
+      'https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/',
+    website: 'https://www.salesforce.com',
+  },
+  auth: {
+    summary:
+      'OAuth 2.0 with a refresh token issued by a Salesforce Connected App. Requires the consumer key/secret, a refresh token, and the org instance URL.',
+    setup: [
+      'In Salesforce, go to Setup → App Manager → New Connected App and check "Enable OAuth Settings".',
+      'Set the callback URL to a URL you control (e.g. https://localhost:8080/callback); it only has to be reachable when minting the initial refresh token.',
+      'Under Selected OAuth Scopes add "Access and manage your data (api)" and "Perform requests on your behalf at any time (refresh_token, offline_access)".',
+      'Save, then copy the Consumer Key (client ID) and Consumer Secret from the connected app detail page.',
+      'Authorize via https://login.salesforce.com/services/oauth2/authorize?response_type=code&client_id=<KEY>&redirect_uri=<URL> and exchange the resulting code at /services/oauth2/token to obtain a refresh token and the org instance_url.',
+      'Use the org instance URL from the token response (e.g. https://mycompany.my.salesforce.com), not login.salesforce.com.',
+      'Store the consumer secret and refresh token as rawdash secrets and reference them as secret("SF_CLIENT_SECRET") and secret("SF_REFRESH_TOKEN").',
+    ],
+  },
+  rateLimit:
+    'Salesforce caps total API calls per org per 24 hours. Responses include a Sforce-Limit-Info header (api-usage=NN/MM); size sync intervals so the daily budget is not exhausted. The shared HTTP client retries on 429 with Retry-After.',
+  limitations: [
+    'Custom objects are out of scope for v1; only the standard objects listed above are synced.',
+    'Salesforce Marketing Cloud is tracked under a separate connector.',
+  ],
+});
 
 export interface SalesforceSettings {
   instanceUrl: string;
@@ -266,6 +303,120 @@ const fieldHistorySchema = z.object({
 });
 
 // ---------------------------------------------------------------------------
+// Resources
+// ---------------------------------------------------------------------------
+
+const salesforceResources = defineResources({
+  salesforce_user: {
+    shape: 'entity',
+    description:
+      'Salesforce users, keyed by user id, with name, email, and active state. Used to attribute opportunities, accounts, and stage changes to owners.',
+    endpoint: 'GET /services/data/v{version}/query (SOQL: FROM User)',
+    notes: 'Users are backfilled in full on every run; the table is small.',
+    fields: [
+      { name: 'name', description: 'Full name of the user.' },
+      { name: 'email', description: 'User email address.' },
+      { name: 'isActive', description: 'Whether the user is active.' },
+    ],
+    responses: {
+      oauth_token: oauthTokenSchema,
+      users: z.array(userSchema),
+    },
+  },
+  salesforce_account: {
+    shape: 'entity',
+    description:
+      'Accounts (companies), keyed by account id, with industry, annual revenue, owner, and creation time.',
+    endpoint: 'GET /services/data/v{version}/query (SOQL: FROM Account)',
+    notes: 'Upserts by id; incremental syncs filter on LastModifiedDate.',
+    fields: [
+      { name: 'name', description: 'Account name.' },
+      { name: 'industry', description: 'Industry classification.' },
+      {
+        name: 'annualRevenue',
+        description: 'Annual revenue in the org currency.',
+      },
+      { name: 'ownerId', description: 'User id of the account owner.' },
+      {
+        name: 'createdAt',
+        description: 'Account creation time (Unix ms).',
+      },
+    ],
+    responses: { accounts: z.array(accountSchema) },
+  },
+  salesforce_lead: {
+    shape: 'entity',
+    description:
+      'Leads, keyed by lead id, with email, status, source, and conversion time.',
+    endpoint: 'GET /services/data/v{version}/query (SOQL: FROM Lead)',
+    notes: 'Upserts by id; incremental syncs filter on LastModifiedDate.',
+    fields: [
+      { name: 'email', description: 'Lead email address.' },
+      { name: 'status', description: 'Lead status.' },
+      { name: 'source', description: 'Lead source (LeadSource).' },
+      {
+        name: 'convertedAt',
+        description: 'When the lead was converted (Unix ms), if any.',
+      },
+      { name: 'createdAt', description: 'Lead creation time (Unix ms).' },
+    ],
+    responses: { leads: z.array(leadSchema) },
+  },
+  salesforce_opportunity: {
+    shape: 'entity',
+    description:
+      'Opportunities, keyed by opportunity id, with stage, amount, close date, owner, probability, forecast category, and closed/won flags.',
+    endpoint: 'GET /services/data/v{version}/query (SOQL: FROM Opportunity)',
+    notes: 'Upserts by id; incremental syncs filter on LastModifiedDate.',
+    fields: [
+      { name: 'name', description: 'Opportunity name.' },
+      { name: 'stage', description: 'Current StageName.' },
+      { name: 'amount', description: 'Opportunity amount in org currency.' },
+      { name: 'closeDate', description: 'Expected close date (Unix ms).' },
+      { name: 'ownerId', description: 'User id of the opportunity owner.' },
+      { name: 'probability', description: 'Win probability percentage.' },
+      {
+        name: 'forecastCategory',
+        description: 'Forecast category name.',
+      },
+      { name: 'isClosed', description: 'Whether the opportunity is closed.' },
+      { name: 'isWon', description: 'Whether the opportunity is won.' },
+      {
+        name: 'createdAt',
+        description: 'Opportunity creation time (Unix ms).',
+      },
+    ],
+    responses: { opportunities: z.array(opportunitySchema) },
+  },
+  salesforce_opportunity_stage_change: {
+    shape: 'event',
+    description:
+      'Opportunity stage transitions derived from OpportunityFieldHistory rows where Field = StageName. One event per transition, timestamped at the change CreatedDate.',
+    endpoint:
+      "GET /services/data/v{version}/query (SOQL: FROM OpportunityFieldHistory WHERE Field = 'StageName')",
+    notes:
+      'Stage-change events are immutable; their scope is only cleared on a full sync so an incremental window does not drop history outside its range.',
+    fields: [
+      {
+        name: 'historyId',
+        description: 'OpportunityFieldHistory row id.',
+      },
+      {
+        name: 'opportunityId',
+        description: 'Id of the opportunity that changed stage.',
+      },
+      { name: 'fromStage', description: 'Previous StageName (OldValue).' },
+      { name: 'toStage', description: 'New StageName (NewValue).' },
+      {
+        name: 'actorId',
+        description: 'User id who made the change (CreatedById).',
+      },
+    ],
+    responses: { opportunity_events: z.array(fieldHistorySchema) },
+  },
+});
+
+// ---------------------------------------------------------------------------
 // SOQL helpers
 // ---------------------------------------------------------------------------
 
@@ -341,14 +492,9 @@ export class SalesforceConnector extends BaseConnector<
 > {
   static readonly id = 'salesforce';
 
-  static readonly schemas = {
-    oauth_token: oauthTokenSchema,
-    users: z.array(userSchema),
-    accounts: z.array(accountSchema),
-    leads: z.array(leadSchema),
-    opportunities: z.array(opportunitySchema),
-    opportunity_events: z.array(fieldHistorySchema),
-  } as const;
+  static readonly resources = salesforceResources;
+
+  static readonly schemas = schemasFromResources(salesforceResources);
 
   static create(input: unknown, ctx?: ConnectorContext): SalesforceConnector {
     const parsed = configFields.parse(input);
