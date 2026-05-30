@@ -1,5 +1,30 @@
 # @rawdash/cli
 
+## 0.16.0
+
+### Minor Changes
+
+- 422b711: Support composite (object) secret values via `secret()` references.
+  - `@rawdash/core`: add `withSecretRef(schema)` helper for connector authors to declare credential fields that accept either a fully-resolved value (string, object, array, …) or a `{ $secret: 'NAME' }` reference. Extend `EnvSecretsResolver` with a JSON-parse heuristic: env var values starting with `{` or `[` are parsed as JSON; anything else (including PATs like `ghp_…`) stays a string. `SecretsResolver.resolve` is now typed `unknown` instead of `string | undefined` to allow resolved object/array values — implementers of the interface should widen accordingly.
+  - `@rawdash/cli`: `rawdash secrets set <NAME>` now accepts `--json '<inline json>'` and `--from-file <path>`. Both validate that the input parses as JSON before any network call; combining either with a positional value (or with each other) errors. The plaintext is forwarded as-is to the secret store, and the runtime resolver parses it back on use.
+
+### Patch Changes
+
+- Updated dependencies [422b711]
+- Updated dependencies [79fdd64]
+- Updated dependencies [a1c4c66]
+- Updated dependencies [074ec25]
+- Updated dependencies [022cbf1]
+- Updated dependencies [e104540]
+- Updated dependencies [9169ceb]
+- Updated dependencies [5026a5b]
+- Updated dependencies [c27c332]
+- Updated dependencies [e8b014a]
+- Updated dependencies [7060534]
+- Updated dependencies [d52a6a8]
+- Updated dependencies [d17a523]
+  - @rawdash/core@0.16.0
+
 ## 0.15.0
 
 ### Minor Changes
