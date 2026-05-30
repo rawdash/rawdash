@@ -1,0 +1,25 @@
+# @rawdash/connector-aws-cloudwatch
+
+## 0.16.0
+
+### Minor Changes
+
+- bee436f: Add `@rawdash/connector-aws-cloudwatch` (plus an internal `@rawdash/connector-aws-shared` package that holds the SigV4 signer and AWS Query XML parser for future AWS connectors; bundled into the cloudwatch dist via tsup `noExternal`, not a published dependency) — reads AWS CloudWatch metrics into the `metric` storage shape via `GetMetricData`. Users declare explicit metric queries (namespace, metric, statistic, period, dimensions); the connector batches up to 500 per call, follows `NextToken` pagination, and emits one sample per data point. Authenticates with either static `accessKeyId`/`secretAccessKey` or STS role assumption (`roleArn` + optional `externalId`), signing requests with AWS Signature V4 via the Web Crypto API (no AWS SDK dependency). Throttling maps to `RateLimitError`, access-denied to `AuthError`, and 5xx to `TransientError`.
+
+### Patch Changes
+
+- f0a0d0c: Fix the AWS connectors' build so their default export extends the real `@rawdash/core` `BaseConnector`. `@rawdash/connector-aws-shared` listed `@rawdash/core` as a devDependency, so tsup bundled a duplicate `BaseConnector` into its dist; the AWS connectors then inlined that duplicate, and the publish-time default-export check (which compares by prototype identity) failed. `@rawdash/core` is now kept external in the aws-shared build, so there is a single `BaseConnector` instance through the bundled base class.
+- Updated dependencies [422b711]
+- Updated dependencies [79fdd64]
+- Updated dependencies [a1c4c66]
+- Updated dependencies [074ec25]
+- Updated dependencies [022cbf1]
+- Updated dependencies [e104540]
+- Updated dependencies [9169ceb]
+- Updated dependencies [5026a5b]
+- Updated dependencies [c27c332]
+- Updated dependencies [e8b014a]
+- Updated dependencies [7060534]
+- Updated dependencies [d52a6a8]
+- Updated dependencies [d17a523]
+  - @rawdash/core@0.16.0
