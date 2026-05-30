@@ -1,6 +1,7 @@
 import {
   type InvariantViolation,
   type MockResponseInit,
+  connectorResourceShapeViolations,
   installFetchMockAdvanced,
   runPropertySyncTest,
   entityStoreFor as sharedEntityStoreFor,
@@ -11,6 +12,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
 import { GitHubConnector } from './github';
+
+const docShapeExtra = (
+  storage: InMemoryStorage,
+  connectorId: string,
+): InvariantViolation[] =>
+  connectorResourceShapeViolations(
+    GitHubConnector.resources,
+    storage,
+    connectorId,
+  );
 
 const CONNECTOR_ID = 'github-actions';
 
@@ -120,7 +131,7 @@ describe('GitHubConnector property tests', () => {
       resource: 'workflow_runs',
       connectorId: CONNECTOR_ID,
       runs: 100,
-      extraInvariants: [extra],
+      extraInvariants: [extra, docShapeExtra],
       run: async (sample, storage) => {
         installFetchMock((url) => {
           if (url.includes('/actions/runs')) {
@@ -186,7 +197,7 @@ describe('GitHubConnector property tests', () => {
       schema: combinedSchema,
       connectorId: CONNECTOR_ID,
       runs: 100,
-      extraInvariants: [extra],
+      extraInvariants: [extra, docShapeExtra],
       run: async (sample, storage) => {
         installFetchMock((url) => {
           if (url.includes('/reviews')) {
@@ -251,7 +262,7 @@ describe('GitHubConnector property tests', () => {
       resource: 'issues',
       connectorId: CONNECTOR_ID,
       runs: 100,
-      extraInvariants: [extra],
+      extraInvariants: [extra, docShapeExtra],
       run: async (sample, storage) => {
         installFetchMock((url) => {
           if (url.includes('/issues')) {
@@ -316,7 +327,7 @@ describe('GitHubConnector property tests', () => {
       schema: combinedSchema,
       connectorId: CONNECTOR_ID,
       runs: 100,
-      extraInvariants: [extra],
+      extraInvariants: [extra, docShapeExtra],
       run: async (sample, storage) => {
         installFetchMock((url) => {
           if (url.includes('/statuses')) {
@@ -380,7 +391,7 @@ describe('GitHubConnector property tests', () => {
       resource: 'releases',
       connectorId: CONNECTOR_ID,
       runs: 100,
-      extraInvariants: [extra],
+      extraInvariants: [extra, docShapeExtra],
       run: async (sample, storage) => {
         installFetchMock((url) => {
           if (url.includes('/releases')) {
@@ -438,7 +449,7 @@ describe('GitHubConnector property tests', () => {
       resource: 'contributors',
       connectorId: CONNECTOR_ID,
       runs: 100,
-      extraInvariants: [extra],
+      extraInvariants: [extra, docShapeExtra],
       run: async (sample, storage) => {
         installFetchMock((url) => {
           if (url.includes('/stats/contributors')) {
@@ -759,7 +770,7 @@ describe('GitHubConnector property tests', () => {
       resource: 'repo',
       connectorId: CONNECTOR_ID,
       runs: 100,
-      extraInvariants: [extra],
+      extraInvariants: [extra, docShapeExtra],
       run: async (sample, storage) => {
         installFetchMock((url) => {
           if (url.match(/\/repos\/[^/]+\/[^/]+$/)) {

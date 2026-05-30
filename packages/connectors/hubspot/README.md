@@ -1,114 +1,84 @@
+<!-- This file is generated from connector metadata by scripts/generate-connector-docs.ts. Do not edit by hand. -->
+
 # @rawdash/connector-hubspot
 
-Rawdash connector for HubSpot — syncs CRM contacts, companies, and deals, deal stage-change events, and marketing email campaign performance into the six-shape storage model. Covers both the sales (pipeline, win rate) and marketing (email engagement) verticals from a single connector.
+[![npm version](https://img.shields.io/npm/v/@rawdash/connector-hubspot)](https://www.npmjs.com/package/@rawdash/connector-hubspot)
+[![license](https://img.shields.io/npm/l/@rawdash/connector-hubspot)](https://github.com/rawdash/rawdash/blob/main/LICENSE)
 
-## Auth setup
+Sync CRM contacts, companies, and deals plus deal stage-change events and marketing email campaign stats from HubSpot.
 
-The connector authenticates with a **private app access token**.
+## Install
 
-1. In HubSpot, go to **Settings → Integrations → Private Apps**.
-2. Click **Create a private app**.
-3. On the **Basic Info** tab, give it a name (e.g. `rawdash`).
-4. On the **Scopes** tab, enable read access for the resources you want to sync:
-   - `crm.objects.contacts.read`
-   - `crm.objects.companies.read`
-   - `crm.objects.deals.read`
-   - `marketing-email` (only needed for `email_campaigns` / `email_stats`)
-5. Click **Create app**, then **Continue creating** to confirm.
-6. Open the app's **Auth** tab and copy the **Access token** (starts with `pat-`).
+```sh
+npm install @rawdash/connector-hubspot
+```
 
-> **Note:** The token only needs read scopes for the resources you actually sync. Pick the narrowest set that covers your dashboards.
+## Authentication
+
+A HubSpot private app access token with read scopes for the resources you sync (contacts, companies, deals, and marketing email).
+
+1. In HubSpot, go to Settings → Integrations → Private Apps and create a private app.
+2. Grant read scopes for the resources you intend to sync (CRM contacts, companies, deals, and marketing email).
+3. Copy the generated access token (starts with `pat-`).
+4. Store it as a secret and reference it from the connector config as `accessToken: secret("HUBSPOT_ACCESS_TOKEN")`.
 
 ## Configuration
 
+| Field         | Type   | Required | Description                                                                                                                                                  |
+| ------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `accessToken` | secret | Yes      | HubSpot private app access token with read scopes for contacts, companies, deals, and marketing email. Create one at Settings → Integrations → Private Apps. |
+| `resources`   | array  | No       | Which HubSpot resources to sync. Omit to sync all resources. The access token only needs read scopes for the resources listed here.                          |
+
+## Resources
+
+- **`hubspot_contact`** _(entity)_ - CRM contacts with email, lifecycle stage, lead status, owner, and creation time.
+  - Endpoint: `POST /crm/v3/objects/contacts/search`
+- **`hubspot_company`** _(entity)_ - CRM companies with name, domain, industry, lifecycle stage, and creation time.
+  - Endpoint: `POST /crm/v3/objects/companies/search`
+- **`hubspot_deal`** _(entity)_ - CRM deals with name, stage, pipeline, amount, close date, owner, and creation time.
+  - Endpoint: `POST /crm/v3/objects/deals/search`
+- **`hubspot_deal_stage_change`** _(event)_ - Deal stage-change events derived from deal property history, one event per stage transition.
+  - Endpoint: `GET /crm/v3/objects/deals?propertiesWithHistory=dealstage`
+- **`hubspot_email_campaign`** _(entity)_ - Marketing email campaigns with name, subject, sender, type, send date, and recipient count.
+  - Endpoint: `GET /email/public/v1/campaigns`
+- **`hubspot_email_stats`** _(metric)_ - Per-campaign marketing email engagement stats (sent, delivered, opened, clicked, bounced, unsubscribed) timestamped at the campaign send time.
+  - Endpoint: `GET /email/public/v1/campaigns/{id}`
+  - Unit: emails
+  - Dimensions: `campaignId`, `campaignName`, `delivered`, `opened`, `clicked`, `bounced`, `unsubscribed`
+  - One sample per campaign; value is the sent count, and every counter (delivered, opened, clicked, bounced, unsubscribed) is also exposed in attributes.
+
+## Example
+
 ```ts
-import { secret } from '@rawdash/core';
+import {
+  defineConfig,
+  defineDashboard,
+  defineMetric,
+  secret,
+} from '@rawdash/core';
 
 const hubspot = {
   name: 'hubspot',
   connectorId: 'hubspot',
   config: {
     accessToken: secret('HUBSPOT_ACCESS_TOKEN'),
-    // resources: ['contacts', 'deals', 'deal_events'], // optional, defaults to all
+    resources: ['contacts', 'companies', 'deals'],
   },
 };
-```
-
-Register the connector class when mounting the engine:
-
-```ts
-import { HubSpotConnector } from '@rawdash/connector-hubspot';
-import { mountEngine } from '@rawdash/hono';
-
-mountEngine(config, { connectorRegistry: { hubspot: HubSpotConnector } });
-```
-
-### Choosing resources
-
-By default the connector syncs every supported resource. To sync only a subset, pass `resources` with any combination of:
-
-`contacts`, `companies`, `deals`, `deal_events`, `email_campaigns`, `email_stats`
-
-The access token only needs read scopes for the resources you list, and picking only what you need reduces API calls during full syncs.
-
-### Example dashboard
-
-```ts
-import { defineConfig, defineDashboard, defineMetric } from '@rawdash/core';
 
 export default defineConfig({
   connectors: [hubspot],
   dashboards: {
     sales: defineDashboard({
       widgets: {
-        open_deal_value: {
-          kind: 'stat',
-          title: 'Open deal value',
-          metric: defineMetric({
-            connector: hubspot,
-            shape: 'entity',
-            entityType: 'hubspot_deal',
-            field: 'amount',
-            fn: 'sum',
-            filter: [{ field: 'dealStage', op: 'neq', value: 'closedlost' }],
-          }),
-        },
         open_deals: {
           kind: 'stat',
-          title: 'Open deals',
+          title: 'Open Deals',
           metric: defineMetric({
             connector: hubspot,
             shape: 'entity',
             entityType: 'hubspot_deal',
             fn: 'count',
-            filter: [
-              { field: 'dealstage', op: 'eq', value: 'appointmentscheduled' },
-            ],
-          }),
-        },
-        contacts_by_lifecycle: {
-          kind: 'distribution',
-          title: 'Contacts by lifecycle stage',
-          metric: defineMetric({
-            connector: hubspot,
-            shape: 'entity',
-            entityType: 'hubspot_contact',
-            fn: 'count',
-            groupBy: { field: 'lifecycleStage' },
-          }),
-        },
-        email_opens: {
-          kind: 'timeseries',
-          title: 'Email opens per campaign',
-          window: '90d',
-          metric: defineMetric({
-            connector: hubspot,
-            shape: 'metric',
-            name: 'hubspot_email_stats',
-            field: 'opened',
-            fn: 'sum',
-            window: '90d',
-            groupBy: { field: 'ts', granularity: 'day' },
           }),
         },
       },
@@ -117,54 +87,22 @@ export default defineConfig({
 });
 ```
 
-## Data model
+## Rate limits
 
-Monetary amounts (deal `amount`) are in the account's currency, as returned by HubSpot. Timestamps stored in attributes are Unix milliseconds.
+HubSpot allows 100 requests / 10s; the Search API caps results at 10,000 per query.
 
-| Storage shape | Entity/event/metric type    | Key attributes                                                                    |
-| ------------- | --------------------------- | --------------------------------------------------------------------------------- |
-| entity        | `hubspot_contact`           | email, lifecycleStage, leadStatus, ownerId, createdAt                             |
-| entity        | `hubspot_company`           | name, domain, industry, lifecycleStage, createdAt                                 |
-| entity        | `hubspot_deal`              | dealName, dealStage, pipeline, amount, closeDate, ownerId, createdAt              |
-| event         | `hubspot_deal_stage_change` | dealId, stage, sourceType                                                         |
-| entity        | `hubspot_email_campaign`    | name, subject, fromName, type, sentDate, numIncluded                              |
-| metric        | `hubspot_email_stats`       | campaignId, campaignName, sent, delivered, opened, clicked, bounced, unsubscribed |
+## Limitations
 
-- **`hubspot_deal_stage_change`** events come from the `dealstage` property history on each deal (`propertiesWithHistory=dealstage`). One event per recorded stage value, timestamped at the moment the stage was set.
-- **`hubspot_email_stats`** metrics carry one sample per campaign; `value` is the `sent` count and every counter is also exposed in `attributes` so timeseries / distribution widgets can chart any of them.
+- Deal stage-change events are rewritten on every sync because the deal list endpoint has no incremental `since` filter.
+- Marketing email campaign data comes from the legacy email campaigns API and is only available for marketing emails.
+- Very large CRM portfolios may not backfill in full because the Search API caps at 10,000 results per query.
 
-## Schemas
+## Links
 
-`HubSpotConnector.schemas` declares the Zod schema for each resource's raw API response (the array of records for CRM resources, the deal-history record array, and the campaign-detail object array). Used by the cloud shape-drift pipeline to populate `connector_baselines`, and by the package's property tests.
+- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [HubSpot API docs](https://developers.hubspot.com/docs/api/overview)
+- [GitHub](https://github.com/rawdash/rawdash)
 
-## Sync behaviour
+## License
 
-- **Backfill** (`mode: 'full'`): CRM objects are fetched via the Search API (`POST /crm/v3/objects/{object}/search`) sorted by last-modified ascending, paginated with the `after` cursor; deal events and email data are enumerated and rewritten in full.
-- **Incremental** (`mode: 'latest'`): CRM searches add a `filterGroups` `GTE` filter on the object's last-modified property so only changed records are fetched. Entity phases upsert (no clear); the event and metric phases rewrite their requested window each run.
-- **Resumable**: each phase yields an `after`/offset cursor on abort, so an interrupted sync resumes from the same page.
-- **Rate limits**: HubSpot returns `429` when the per-app limit (100 requests / 10s) is exceeded. The shared HTTP client retries automatically with exponential back-off and honors `Retry-After`.
-
-> **Search API ceiling:** HubSpot's Search API caps results at 10,000 per query. Very large CRM portfolios may not backfill in full in a single window; incremental syncs (which filter on `hs_lastmodifieddate`) stay well under the ceiling.
-
-## Registering in the MCP server
-
-To make the connector available via the `add_connector` MCP tool, include it in `connectorFactories`:
-
-```ts
-import { HubSpotConnector, configFields } from '@rawdash/connector-hubspot';
-
-createMcpServer({
-  // ...
-  connectorFactories: [
-    {
-      id: 'hubspot',
-      configFields,
-      create: HubSpotConnector.create,
-    },
-  ],
-});
-```
-
-## Property tests
-
-The CRM entity resources (`contacts`, `companies`, `deals`) have fast-check property tests under `src/property.test.ts` that generate synthetic API payloads from each resource's Zod schema, run them through `connector.sync()` against an `InMemoryStorage`, and assert universal invariants (non-empty ids, finite timestamps, no `undefined` in storage, no thrown errors) plus per-resource entity counts. Deal events, email campaigns, and email stats are covered by example-driven unit tests in `src/hubspot.test.ts`.
+Apache-2.0

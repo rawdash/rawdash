@@ -5,6 +5,7 @@ export {
   buildDailyCostSamples,
   buildForecastSamples,
   configFields,
+  doc,
   getCostWindow,
 } from './aws-cost';
 export type { AwsCostSettings } from './aws-cost';

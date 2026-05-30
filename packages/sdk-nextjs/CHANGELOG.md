@@ -1,5 +1,107 @@
 # @rawdash/nextjs
 
+## 0.16.0
+
+### Minor Changes
+
+- 9318670: **Breaking:** the two frontend SDK packages have been renamed with an `sdk-` prefix so the namespace stays consistent as more SDK-layer packages land (notably the upcoming `@rawdash/sdk-runtime`).
+  - `@rawdash/client` → `@rawdash/sdk-client`
+  - `@rawdash/nextjs` → `@rawdash/sdk-nextjs`
+
+  There are no compatibility shims under the old names. The old packages are deprecated on npm — installing them will print a pointer to the new names but will not be republished.
+
+  ## Migration
+
+  ### 1. Swap the dependencies in `package.json`
+
+  ```bash
+  npm uninstall @rawdash/client @rawdash/nextjs
+  npm install @rawdash/sdk-client @rawdash/sdk-nextjs
+  # or: pnpm remove ... && pnpm add ...
+  # or: yarn remove ...   && yarn add ...
+  ```
+
+  Only install the packages you were already using.
+
+  ### 2. Update imports across your codebase
+
+  Two literal replacements, nothing else changes:
+  - `@rawdash/client` → `@rawdash/sdk-client`
+  - `@rawdash/nextjs` → `@rawdash/sdk-nextjs`
+
+  A portable one-liner that works on macOS and Linux:
+
+  ```bash
+  git grep -lE '@rawdash/(client|nextjs)' \
+    | xargs perl -i -pe 's{\@rawdash/client\b}{\@rawdash/sdk-client}g; s{\@rawdash/nextjs\b}{\@rawdash/sdk-nextjs}g'
+  ```
+
+  The `\b` word boundary is important — without it, a naive replace would corrupt `@rawdash/connector-*` paths or any future `@rawdash/client-*` / `@rawdash/nextjs-*` package names.
+
+  ### 3. Drop any `@rawdash/core` imports that only existed for types
+
+  `@rawdash/sdk-nextjs` now re-exports the public consumer surface from `@rawdash/core` — `DataSource`, `CachedWidget`, `HealthResponse`, `SyncState`, `SyncStatus`, `TriggerSyncResponse`, `WidgetSyncState`, `WidgetsListResponse`, plus the `isSyncActive` / `ACTIVE_SYNC_STATUSES` helpers. If you only imported `@rawdash/core` to type a `DataSource` helper, you can now pull it from `@rawdash/sdk-nextjs` instead and remove the direct `@rawdash/core` dependency from your app.
+
+  No runtime, wire-format, or API-shape changes. The version of both packages is bumped to a `minor` per the pre-1.0 breaking-change policy.
+
+- 7060534: **New:** `@rawdash/sdk-runtime` — framework-agnostic auto-polling subscription engine that drives client-side dashboards from the schedule the server already publishes (`cachedAt` + `syncIntervalSeconds` on each `CachedWidget`).
+
+  Per-widget state machine handles every `WidgetSyncState` branch: `fresh` advances notify subscribers and sleep until the next expected sync; mid-flight `syncing` polls fast (capped); late syncs back off (3s → 6s → 12s, capped at 30s) and resume normal scheduling after 2× the interval; `failing` / `stale` fires once and backs off ≥ 1 min; `unsynced` polls moderately. Pauses when `document.hidden` and resumes on visibility/focus.
+
+  **Wire:** `CachedWidget` now carries `syncIntervalSeconds?: number` so clients can schedule polling without an extra request.
+
+  **Next.js:** `@rawdash/sdk-nextjs` exposes client-side hooks at the `/client` subpath:
+
+  ```tsx
+  'use client';
+
+  import { http } from '@rawdash/sdk-nextjs';
+  import { useDashboard, useWidget } from '@rawdash/sdk-nextjs/client';
+
+  const source = http({ baseUrl: '/rawdash' });
+
+  export function MyWidget() {
+    const { widget } = useWidget(source, 'main', 'revenue');
+    return <div>{widget?.data}</div>;
+  }
+  ```
+
+  Hooks add `react >= 18` as a peer dependency. Server-side `createRawdashClient` / `revalidateTag` flow is unchanged — import it from `@rawdash/sdk-nextjs` as before.
+
+- 5a0e27e: **New:** `Skeleton` primitive exported from `@rawdash/sdk-nextjs/skeleton`. A dependency-free pulsing placeholder that consumers can use to render loading states keyed off `CachedWidget.syncState` (`syncing` / `unsynced`) without pulling in a styling framework.
+
+  Use it to replace static "Not yet synced" placeholders with a real loading affordance:
+
+  ```tsx
+  import { Skeleton } from '@rawdash/sdk-nextjs/skeleton';
+
+  if (widget.data === null && widget.syncState !== 'failing') {
+    return <Skeleton width="60%" height="2.5rem" />;
+  }
+  ```
+
+  The component injects a keyframe `<style>` tag with React 19's `precedence` dedup, so multiple skeletons on the same page share a single animation rule.
+
+### Patch Changes
+
+- Updated dependencies [422b711]
+- Updated dependencies [79fdd64]
+- Updated dependencies [a1c4c66]
+- Updated dependencies [074ec25]
+- Updated dependencies [022cbf1]
+- Updated dependencies [e104540]
+- Updated dependencies [9169ceb]
+- Updated dependencies [5026a5b]
+- Updated dependencies [c27c332]
+- Updated dependencies [9318670]
+- Updated dependencies [e8b014a]
+- Updated dependencies [7060534]
+- Updated dependencies [d52a6a8]
+- Updated dependencies [d17a523]
+  - @rawdash/core@0.16.0
+  - @rawdash/sdk-client@0.16.0
+  - @rawdash/sdk-runtime@0.16.0
+
 ## 0.15.0
 
 ### Patch Changes

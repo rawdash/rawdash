@@ -1,16 +1,27 @@
 import {
   type InvariantViolation,
+  connectorResourceShapeViolations,
   mockJsonResponse,
   runPropertySyncTest,
   metricStoreFor as sharedMetricStoreFor,
 } from '@rawdash/connector-test-utils';
-import type { InMemoryStorage } from '@rawdash/core';
-import { afterEach, describe, it, vi } from 'vitest';
+import { InMemoryStorage } from '@rawdash/core';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
 import { GA4Connector } from './google-analytics';
 
 const CONNECTOR_ID = 'google-analytics';
+
+const docShapeExtra = (
+  storage: InMemoryStorage,
+  connectorId: string,
+): InvariantViolation[] =>
+  connectorResourceShapeViolations(
+    GA4Connector.resources,
+    storage,
+    connectorId,
+  );
 
 function installFetchMock(
   reportBody: (
@@ -89,7 +100,7 @@ describe('GA4Connector property tests', () => {
       resource: 'traffic_by_day',
       connectorId: CONNECTOR_ID,
       runs: 50,
-      extraInvariants: [extra],
+      extraInvariants: [extra, docShapeExtra],
       run: async (sample, storage) => {
         const rows = sample.rows ?? [];
         installFetchMock((firstDim) => {
@@ -104,5 +115,58 @@ describe('GA4Connector property tests', () => {
         );
       },
     });
+  });
+
+  it('full sync writes only documented metric resources', async () => {
+    installFetchMock((_firstDim, body) => {
+      const dimensions = body.dimensions ?? [];
+      const parsed = body as unknown as {
+        dimensions: Array<{ name: string }>;
+        metrics?: Array<{ name: string }>;
+      };
+      const metrics = parsed.metrics ?? [];
+      return {
+        rows: [
+          {
+            dimensionValues: dimensions.map((d) => ({
+              value: d.name === 'date' ? '20250101' : 'sample',
+            })),
+            metricValues: metrics.map(() => ({ value: '1' })),
+          },
+        ],
+        rowCount: 1,
+        dimensionHeaders: dimensions.map((d) => ({ name: d.name })),
+        metricHeaders: metrics.map((m) => ({
+          name: m.name,
+          type: 'TYPE_INTEGER',
+        })),
+      };
+    });
+
+    const storage = new InMemoryStorage();
+    await makeConnector().sync(
+      { mode: 'full' },
+      storage.getStorageHandle(CONNECTOR_ID),
+    );
+
+    const writtenNames = new Set(metricStoreFor(storage).map((m) => m.name));
+    expect(writtenNames).toEqual(
+      new Set([
+        'ga4_traffic_by_day',
+        'ga4_traffic_by_source',
+        'ga4_top_pages',
+        'ga4_events',
+        'ga4_conversions',
+        'ga4_geo',
+      ]),
+    );
+
+    expect(
+      connectorResourceShapeViolations(
+        GA4Connector.resources,
+        storage,
+        CONNECTOR_ID,
+      ),
+    ).toEqual([]);
   });
 });

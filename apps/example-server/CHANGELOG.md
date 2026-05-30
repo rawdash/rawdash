@@ -1,5 +1,32 @@
 # example-server
 
+## 0.0.19
+
+### Patch Changes
+
+- Updated dependencies [422b711]
+- Updated dependencies [79fdd64]
+- Updated dependencies [a1c4c66]
+- Updated dependencies [074ec25]
+- Updated dependencies [022cbf1]
+- Updated dependencies [e104540]
+- Updated dependencies [a2d6e6d]
+- Updated dependencies [9169ceb]
+- Updated dependencies [d08fcfc]
+- Updated dependencies [681c49b]
+- Updated dependencies [79ca05e]
+- Updated dependencies [5026a5b]
+- Updated dependencies [c27c332]
+- Updated dependencies [e8b014a]
+- Updated dependencies [7060534]
+- Updated dependencies [d52a6a8]
+- Updated dependencies [d17a523]
+  - @rawdash/core@0.16.0
+  - @rawdash/server@0.16.0
+  - @rawdash/connector-github@0.16.0
+  - @rawdash/hono@0.16.0
+  - @rawdash/adapter-libsql@0.16.0
+
 ## 0.0.18
 
 ### Patch Changes

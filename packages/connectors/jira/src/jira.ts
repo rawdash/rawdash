@@ -6,14 +6,18 @@ import {
 import {
   BaseConnector,
   type ConnectorContext,
+  type ConnectorDoc,
   type CredentialsSchema,
   type JSONValue,
   type StorageHandle,
   type SyncOptions,
   type SyncResult,
   defineConfigFields,
+  defineConnectorDoc,
+  defineResources,
   makeChunkedCursorGuard,
   paginateChunked,
+  schemasFromResources,
   selectActivePhases,
 } from '@rawdash/core';
 import { z } from 'zod';
@@ -62,7 +66,7 @@ export const configFields = defineConfigFields(
       .meta({
         label: 'Resources',
         description:
-          "Which Jira resources to sync. Omit to sync all of them. 'issue_events' shares the issues query — enabling it without 'issues' still fetches issues (with changelog) but skips writing issue entities.",
+          "Which Jira resources to sync. Omit to sync all of them. 'issue_events' shares the issues query - enabling it without 'issues' still fetches issues (with changelog) but skips writing issue entities.",
       }),
     storyPointsField: z.string().min(1).optional().meta({
       label: 'Story points field ID',
@@ -78,6 +82,36 @@ export const configFields = defineConfigFields(
     }),
   }),
 );
+
+export const doc: ConnectorDoc = defineConnectorDoc({
+  displayName: 'Jira',
+  category: 'product',
+  brandColor: '#0052CC',
+  tagline:
+    'Sync projects, users, sprints, issues, and issue status-change events from a Jira Cloud site.',
+  vendor: {
+    name: 'Atlassian',
+    apiDocs: 'https://developer.atlassian.com/cloud/jira/platform/rest/v3/',
+    website: 'https://www.atlassian.com/software/jira',
+  },
+  auth: {
+    summary:
+      'Authenticates over HTTP Basic auth using your Atlassian account email and an API token. The token must belong to an account with access to the projects you want to sync.',
+    setup: [
+      'Open id.atlassian.com -> Security -> Create and manage API tokens.',
+      'Create an API token and copy its value.',
+      'Store the token as a secret and reference it from the connector config as `apiToken: secret("JIRA_API_TOKEN")`, alongside your account email and site host (e.g. yourorg.atlassian.net).',
+      'Story points and the sprint association live on custom fields whose IDs differ per Jira site. Discover them at `https://{host}/rest/api/3/field` and set storyPointsField / sprintField to match.',
+    ],
+  },
+  rateLimit:
+    'Jira Cloud uses cost-based rate limiting; 429 responses with Retry-After are honored.',
+  limitations: [
+    'Sprints are only synced from scrum boards; kanban boards are skipped.',
+    'Issue status-change events are derived from each issue changelog; only `status` field transitions are written.',
+    'Targets Jira Cloud REST API v3 and the Agile API; Jira Data Center / Server are out of scope.',
+  ],
+});
 
 export type JiraResource =
   | 'projects'
@@ -337,6 +371,47 @@ const issuesResponseSchema = z.object({
   isLast: z.boolean().optional(),
 });
 
+const jiraResources = defineResources({
+  jira_project: {
+    shape: 'entity',
+    description:
+      'Jira projects with key, name, type, and project lead. Restrict via projectKeys to limit the sync.',
+    endpoint: 'GET /rest/api/3/project/search',
+    responses: { projects: projectsResponseSchema },
+  },
+  jira_user: {
+    shape: 'entity',
+    description:
+      'Atlassian accounts visible to the connector, including display name, email, account type, and active state.',
+    endpoint: 'GET /rest/api/3/users/search',
+    responses: { users: usersResponseSchema },
+  },
+  jira_sprint: {
+    shape: 'entity',
+    description:
+      'Sprints from scrum boards with state, start/end/complete dates, and owning board.',
+    endpoint: 'GET /rest/agile/1.0/board/{boardId}/sprint',
+    responses: { sprints: sprintsResponseSchema },
+  },
+  jira_issue: {
+    shape: 'entity',
+    description:
+      'Issues with status, priority, type, assignee, reporter, project, sprint, story points, and resolution date.',
+    endpoint: 'GET /rest/api/3/search/jql',
+    notes:
+      "sprintId is taken from the most recent sprint on the issue's sprint custom field.",
+    responses: { issues: issuesResponseSchema },
+  },
+  jira_issue_status_change: {
+    shape: 'event',
+    description:
+      'Status transition events derived from issue changelogs, capturing the from/to status, author, and project.',
+    endpoint: 'GET /rest/api/3/search/jql (expand=changelog)',
+    notes:
+      'start_ts is the changelog entry time, end_ts is null. Timestamps are Unix epoch milliseconds.',
+  },
+});
+
 // ---------------------------------------------------------------------------
 // JiraConnector
 // ---------------------------------------------------------------------------
@@ -404,12 +479,9 @@ export class JiraConnector extends BaseConnector<
 > {
   static readonly id = 'jira';
 
-  static readonly schemas = {
-    projects: projectsResponseSchema,
-    users: usersResponseSchema,
-    sprints: sprintsResponseSchema,
-    issues: issuesResponseSchema,
-  } as const;
+  static readonly resources = jiraResources;
+
+  static readonly schemas = schemasFromResources(jiraResources);
 
   static create(input: unknown, ctx?: ConnectorContext): JiraConnector {
     const parsed = configFields.parse(input);

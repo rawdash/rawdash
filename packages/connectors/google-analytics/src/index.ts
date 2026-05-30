@@ -2,6 +2,7 @@ import { GA4Connector } from './google-analytics';
 
 export {
   configFields,
+  doc,
   GA4Connector,
   rowToMetricSample,
 } from './google-analytics';

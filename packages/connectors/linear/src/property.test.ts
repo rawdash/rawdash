@@ -1,5 +1,6 @@
 import {
   type InvariantViolation,
+  connectorResourceShapeViolations,
   entityStoreFor,
   mockJsonResponse,
   runPropertySyncTest,
@@ -11,6 +12,16 @@ import { z } from 'zod';
 import { LinearConnector } from './linear';
 
 const CONNECTOR_ID = 'linear';
+
+const docShapeExtra = (
+  storage: InMemoryStorage,
+  connectorId: string,
+): InvariantViolation[] =>
+  connectorResourceShapeViolations(
+    LinearConnector.resources,
+    storage,
+    connectorId,
+  );
 
 interface GraphQLCall {
   query: string;
@@ -79,7 +90,7 @@ describe('LinearConnector property tests', () => {
       resource: 'teams',
       connectorId: CONNECTOR_ID,
       runs: 100,
-      extraInvariants: [extra],
+      extraInvariants: [extra, docShapeExtra],
       run: async (sample, storage) => {
         installGraphqlMock((op) => {
           if (op === 'Teams') {
@@ -130,7 +141,7 @@ describe('LinearConnector property tests', () => {
       resource: 'users',
       connectorId: CONNECTOR_ID,
       runs: 100,
-      extraInvariants: [extra],
+      extraInvariants: [extra, docShapeExtra],
       run: async (sample, storage) => {
         installGraphqlMock((op) => {
           if (op === 'Users') {
@@ -181,7 +192,7 @@ describe('LinearConnector property tests', () => {
       resource: 'cycles',
       connectorId: CONNECTOR_ID,
       runs: 100,
-      extraInvariants: [extra],
+      extraInvariants: [extra, docShapeExtra],
       run: async (sample, storage) => {
         installGraphqlMock((op) => {
           if (op === 'Cycles') {
@@ -232,7 +243,7 @@ describe('LinearConnector property tests', () => {
       resource: 'issues',
       connectorId: CONNECTOR_ID,
       runs: 50,
-      extraInvariants: [extra],
+      extraInvariants: [extra, docShapeExtra],
       run: async (sample, storage) => {
         installGraphqlMock((op) => {
           if (op === 'Issues') {
