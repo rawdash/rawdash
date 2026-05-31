@@ -46,7 +46,7 @@ export const configFields = defineConfigFields(
       .meta({
         label: 'Intercom API version',
         description:
-          'Value sent in the Intercom-Version header. Defaults to 2.11 — pin a specific version here when upgrading deliberately.',
+          'Value sent in the Intercom-Version header. Defaults to 2.11; pin a specific version here when upgrading deliberately.',
         placeholder: '2.11',
       }),
     region: z.enum(['us', 'eu', 'au']).default('us').meta({

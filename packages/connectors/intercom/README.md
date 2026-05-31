@@ -27,7 +27,7 @@ An Intercom access token (personal or app) with read access to conversations, co
 | Field         | Type                 | Required | Description                                                                                                                                                                     |
 | ------------- | -------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `accessToken` | secret               | Yes      | Intercom access token (personal or app) with read access to conversations, contacts, teams, and admins. Generate one at Settings → Developers → Developer Hub → Authentication. |
-| `apiVersion`  | string               | No       | Value sent in the Intercom-Version header. Defaults to 2.11 — pin a specific version here when upgrading deliberately.                                                          |
+| `apiVersion`  | string               | No       | Value sent in the Intercom-Version header. Defaults to 2.11; pin a specific version here when upgrading deliberately.                                                           |
 | `region`      | `us` \| `eu` \| `au` | No       | Intercom region of your workspace. Selects the API host: us → api.intercom.io, eu → api.eu.intercom.io, au → api.au.intercom.io.                                                |
 | `resources`   | array                | No       | Which Intercom resources to sync. Omit to sync all of them. The access token only needs read scopes for the resources listed here.                                              |
 
