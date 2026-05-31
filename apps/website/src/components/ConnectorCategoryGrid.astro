@@ -1,0 +1,141 @@
+---
+import { connectors, connectorCategories } from '../generated/connectors';
+
+const haystack = (c: (typeof connectors)[number]) =>
+  [c.name, c.tagline, c.categoryLabel, ...c.keywords].join(' ').toLowerCase();
+
+const iconsByCategory = new Map<string, typeof connectors>();
+for (const c of connectors) {
+  const list = iconsByCategory.get(c.category) ?? [];
+  list.push(c);
+  iconsByCategory.set(c.category, list);
+}
+---
+
+<div class="connector-catalog" data-category-catalog>
+  <div class="catalog-search">
+    <svg
+      class="catalog-search-icon"
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="11" cy="11" r="8"></circle>
+      <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+    </svg>
+    <input
+      type="search"
+      class="catalog-search-input"
+      placeholder="Search connectors by name, vendor, or resource…"
+      aria-label="Search connectors"
+      autocomplete="off"
+      data-catalog-input
+    />
+  </div>
+
+  <div class="category-grid" data-category-grid>
+    {
+      connectorCategories.map((cat) => (
+        <a class="category-card" href={`/docs/connectors/${cat.id}/`}>
+          <span class="category-card-head">
+            <span class="category-card-name">{cat.label}</span>
+            <span class="category-card-count">
+              {cat.count} {cat.count === 1 ? 'connector' : 'connectors'}
+            </span>
+          </span>
+          <span class="category-card-icons">
+            {(iconsByCategory.get(cat.id) ?? []).slice(0, 8).map((c) => (
+              <img
+                src={c.iconPath}
+                alt={`${c.name} logo`}
+                width="24"
+                height="24"
+                loading="lazy"
+              />
+            ))}
+          </span>
+        </a>
+      ))
+    }
+  </div>
+
+  <div class="catalog-grid" data-results-grid hidden>
+    {
+      connectors.map((c) => (
+        <a
+          class="catalog-card"
+          href={c.href}
+          data-connector-card
+          data-search={haystack(c)}
+        >
+          <span class="catalog-card-icon">
+            <img src={c.iconPath} alt={`${c.name} logo`} width="28" height="28" loading="lazy" />
+          </span>
+          <span class="catalog-card-body">
+            <span class="catalog-card-head">
+              <span class="catalog-card-name">{c.name}</span>
+              <span class="catalog-card-category">{c.categoryLabel}</span>
+            </span>
+            <span class="catalog-card-tagline">{c.tagline}</span>
+          </span>
+        </a>
+      ))
+    }
+  </div>
+
+  <p class="catalog-empty" data-catalog-empty hidden>
+    No connectors match your search.
+  </p>
+</div>
+
+<script>
+  function normalize(value: string): string {
+    return value.trim().toLowerCase();
+  }
+
+  for (const root of document.querySelectorAll<HTMLElement>(
+    '[data-category-catalog]',
+  )) {
+    const input = root.querySelector<HTMLInputElement>('[data-catalog-input]');
+    const categoryGrid = root.querySelector<HTMLElement>(
+      '[data-category-grid]',
+    );
+    const resultsGrid = root.querySelector<HTMLElement>('[data-results-grid]');
+    const cards = [
+      ...root.querySelectorAll<HTMLAnchorElement>('[data-connector-card]'),
+    ];
+    const empty = root.querySelector<HTMLElement>('[data-catalog-empty]');
+
+    const apply = () => {
+      const query = normalize(input?.value ?? '');
+      if (!query) {
+        if (categoryGrid) categoryGrid.hidden = false;
+        if (resultsGrid) resultsGrid.hidden = true;
+        if (empty) empty.hidden = true;
+        return;
+      }
+      if (categoryGrid) categoryGrid.hidden = true;
+      if (resultsGrid) resultsGrid.hidden = false;
+      let visible = 0;
+      for (const card of cards) {
+        const show = (card.dataset.search ?? '').includes(query);
+        card.hidden = !show;
+        if (show) {
+          visible += 1;
+        }
+      }
+      if (empty) {
+        empty.hidden = visible > 0;
+      }
+    };
+
+    input?.addEventListener('input', apply);
+    apply();
+  }
+</script>

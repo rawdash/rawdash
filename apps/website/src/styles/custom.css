@@ -22,3 +22,170 @@
   --sl-color-accent: #7c3aed;
   --sl-color-accent-high: #4c1d95;
 }
+
+/* Connector catalog — shared by the connectors index (category cards) and the
+   per-category pages (connector cards). See ConnectorCategoryGrid.astro and
+   ConnectorGrid.astro. */
+.connector-catalog {
+  margin: 1.5rem 0 2rem;
+}
+.catalog-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.catalog-search-icon {
+  position: absolute;
+  left: 0.75rem;
+  color: var(--sl-color-gray-3);
+  pointer-events: none;
+}
+.catalog-search-input {
+  width: 100%;
+  padding: 0.6rem 0.75rem 0.6rem 2.25rem;
+  font-size: var(--sl-text-base);
+  color: var(--sl-color-white);
+  background: var(--sl-color-black);
+  border: 1px solid var(--sl-color-gray-5);
+  border-radius: 0.5rem;
+}
+.catalog-search-input:focus {
+  outline: none;
+  border-color: var(--sl-color-accent);
+  box-shadow: 0 0 0 1px var(--sl-color-accent);
+}
+.catalog-count {
+  margin: 1rem 0 0.5rem;
+  font-size: var(--sl-text-sm);
+  color: var(--sl-color-gray-3);
+}
+.catalog-empty {
+  margin-top: 1rem;
+  color: var(--sl-color-gray-3);
+}
+
+/* Category cards (connectors index). */
+.category-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+.category-grid[hidden] {
+  display: none;
+}
+.category-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 1.1rem;
+  text-decoration: none;
+  color: var(--sl-color-white);
+  background: var(--sl-color-black);
+  border: 1px solid var(--sl-color-gray-5);
+  border-radius: 0.6rem;
+  transition:
+    border-color 0.15s ease,
+    transform 0.15s ease;
+}
+.category-card:hover {
+  border-color: var(--sl-color-accent);
+  transform: translateY(-2px);
+}
+.category-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.category-card-name {
+  font-weight: 600;
+  font-size: var(--sl-text-lg);
+}
+.category-card-count {
+  flex: none;
+  font-size: var(--sl-text-xs);
+  color: var(--sl-color-gray-3);
+}
+.category-card-icons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.category-card-icons img {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 0.35rem;
+  background: #ffffff;
+  padding: 0.2rem;
+  box-sizing: border-box;
+}
+
+/* Connector cards (search results + per-category pages). */
+.catalog-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+.catalog-grid[hidden] {
+  display: none;
+}
+.catalog-card {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.9rem;
+  text-decoration: none;
+  color: var(--sl-color-white);
+  background: var(--sl-color-black);
+  border: 1px solid var(--sl-color-gray-5);
+  border-radius: 0.6rem;
+  transition:
+    border-color 0.15s ease,
+    transform 0.15s ease;
+}
+.catalog-card:hover {
+  border-color: var(--sl-color-accent);
+  transform: translateY(-2px);
+}
+.catalog-card[hidden] {
+  display: none;
+}
+.catalog-card-icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.45rem;
+  box-sizing: border-box;
+  padding: 0.35rem;
+  background: #ffffff;
+}
+.catalog-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+.catalog-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.catalog-card-name {
+  font-weight: 600;
+  font-size: var(--sl-text-base);
+}
+.catalog-card-category {
+  flex: none;
+  font-size: var(--sl-text-xs);
+  color: var(--sl-color-gray-3);
+}
+.catalog-card-tagline {
+  font-size: var(--sl-text-sm);
+  color: var(--sl-color-gray-2);
+  line-height: 1.4;
+}

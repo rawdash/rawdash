@@ -524,10 +524,10 @@ function connectorUrl(c: LoadedConnector): string {
   return `/docs/connectors/${c.doc.category}/${c.id}/`;
 }
 
-// Top-level overview: links to each category page, no full connector list.
-// Connector counts are intentionally omitted from the prose; the catalog
-// component computes them dynamically so the markdown never goes stale.
-function renderTopIndex(byCategory: Map<string, LoadedConnector[]>): string {
+// Top-level overview: a connector search plus category cards. The cards (and
+// their counts) are rendered from the generated catalog data, so the page never
+// lists individual connectors in prose and never goes stale.
+function renderTopIndex(): string {
   const parts: string[] = [];
   parts.push(
     frontmatter({
@@ -539,27 +539,14 @@ function renderTopIndex(byCategory: Map<string, LoadedConnector[]>): string {
   parts.push(GENERATED_NOTE_MDX);
   parts.push('');
   parts.push(
-    "import ConnectorCatalog from '../../../../components/ConnectorCatalog.astro';",
+    "import ConnectorCategoryGrid from '../../../../components/ConnectorCategoryGrid.astro';",
   );
   parts.push('');
   parts.push(
-    'Rawdash ships built-in connectors, grouped by category. Each syncs data from a third-party API into the storage engine, where your widgets query it.',
+    'Rawdash ships built-in connectors, grouped by category. Each syncs data from a third-party API into the storage engine, where your widgets query it. Search for a connector, or pick a category to browse.',
   );
   parts.push('');
-  parts.push('<ConnectorCatalog />');
-  parts.push('');
-  parts.push('## Browse by category');
-  parts.push('');
-  for (const category of Object.keys(CATEGORY_LABELS)) {
-    const list = byCategory.get(category);
-    if (!list?.length) {
-      continue;
-    }
-    const names = list.map((c) => c.doc.displayName).join(', ');
-    parts.push(
-      `- [${CATEGORY_LABELS[category]}](/docs/connectors/${category}/) - ${escapeMdxText(names)}`,
-    );
-  }
+  parts.push('<ConnectorCategoryGrid />');
   parts.push('');
   parts.push('---');
   parts.push('');
@@ -568,11 +555,8 @@ function renderTopIndex(byCategory: Map<string, LoadedConnector[]>): string {
   return parts.join('\n');
 }
 
-// One page per category, listing that category's connectors.
-function renderCategoryIndex(
-  category: string,
-  list: LoadedConnector[],
-): string {
+// One page per category, showing that category's connectors as cards.
+function renderCategoryIndex(category: string): string {
   const label = CATEGORY_LABELS[category] ?? category;
   const parts: string[] = [];
   parts.push(
@@ -584,11 +568,11 @@ function renderCategoryIndex(
   parts.push('');
   parts.push(GENERATED_NOTE_MDX);
   parts.push('');
-  for (const c of list) {
-    parts.push(
-      `- [${c.doc.displayName}](${connectorUrl(c)}) - ${escapeMdxText(c.doc.tagline)}`,
-    );
-  }
+  parts.push(
+    "import ConnectorGrid from '../../../../../components/ConnectorGrid.astro';",
+  );
+  parts.push('');
+  parts.push(`<ConnectorGrid category="${category}" />`);
   parts.push('');
   return parts.join('\n');
 }
@@ -702,16 +686,16 @@ function collectOutputs(connectors: LoadedConnector[]): OutFile[] {
       tracked: false,
     });
   }
-  for (const [category, list] of byCategory) {
+  for (const category of byCategory.keys()) {
     out.push({
       path: join(DOCS_CONNECTORS_DIR, category, 'index.mdx'),
-      content: renderCategoryIndex(category, list),
+      content: renderCategoryIndex(category),
       tracked: false,
     });
   }
   out.push({
     path: join(DOCS_CONNECTORS_DIR, 'index.mdx'),
-    content: renderTopIndex(byCategory),
+    content: renderTopIndex(),
     tracked: false,
   });
   out.push({
