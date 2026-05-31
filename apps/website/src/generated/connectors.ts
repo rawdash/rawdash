@@ -136,6 +136,25 @@ export const connectors: ConnectorCard[] = [
     ],
   },
   {
+    id: 'google-search-console',
+    name: 'Google Search Console',
+    category: 'marketing',
+    categoryLabel: 'Marketing',
+    tagline:
+      'Sync daily Search Console SEO metrics - clicks, impressions, CTR, and average position - by date, query, page, and country.',
+    href: '/docs/connectors/marketing/google-search-console/',
+    iconPath: '/connectors/google-search-console.svg',
+    brandColor: '#458CF5',
+    keywords: [
+      '@rawdash/connector-google-search-console',
+      'google search console',
+      'gsc_search_analytics_by_day',
+      'gsc_top_countries',
+      'gsc_top_pages',
+      'gsc_top_queries',
+    ],
+  },
+  {
     id: 'hubspot',
     name: 'HubSpot',
     category: 'sales',
@@ -378,7 +397,7 @@ export const connectorCategories: ConnectorCategory[] = [
   {
     id: 'marketing',
     label: 'Marketing',
-    count: 1,
+    count: 3,
   },
   {
     id: 'sales',
