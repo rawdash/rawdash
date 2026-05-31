@@ -319,8 +319,14 @@ function renderCore(c: LoadedConnector): {
   };
 }
 
-const GENERATED_NOTE =
-  '<!-- This file is generated from connector metadata by scripts/generate-connector-docs.ts. Do not edit by hand. -->';
+// Every generated file carries one of these banners at the very top (for the
+// .mdx outputs, immediately after the frontmatter, which must come first), so
+// the artifact is obviously machine-written when read or diffed in isolation.
+const GENERATED_MESSAGE =
+  'This file is generated from connector metadata by scripts/generate-connector-docs.ts. Do not edit by hand.';
+const GENERATED_NOTE = `<!-- ${GENERATED_MESSAGE} -->`;
+const GENERATED_NOTE_MDX = `{/* ${GENERATED_MESSAGE} */}`;
+const GENERATED_NOTE_TS = `// ${GENERATED_MESSAGE}`;
 
 function renderReadme(c: LoadedConnector): string {
   const core = renderCore(c);
@@ -433,7 +439,7 @@ function renderMdx(c: LoadedConnector): string {
     }),
   );
   parts.push('');
-  parts.push(`{/* ${id}: generated from connector metadata. Do not edit. */}`);
+  parts.push(GENERATED_NOTE_MDX);
   parts.push('');
   parts.push("import { Aside, Badge } from '@astrojs/starlight/components';");
   parts.push('');
@@ -519,26 +525,25 @@ function connectorUrl(c: LoadedConnector): string {
 }
 
 // Top-level overview: links to each category page, no full connector list.
-function renderTopIndex(
-  connectors: LoadedConnector[],
-  byCategory: Map<string, LoadedConnector[]>,
-): string {
+// Connector counts are intentionally omitted from the prose; the catalog
+// component computes them dynamically so the markdown never goes stale.
+function renderTopIndex(byCategory: Map<string, LoadedConnector[]>): string {
   const parts: string[] = [];
   parts.push(
     frontmatter({
       title: 'Connectors',
-      description: `Browse the ${connectors.length} built-in Rawdash connectors by category.`,
+      description: 'Browse the built-in Rawdash connectors by category.',
     }),
   );
   parts.push('');
-  parts.push('{/* Generated from connector metadata. Do not edit. */}');
+  parts.push(GENERATED_NOTE_MDX);
   parts.push('');
   parts.push(
     "import ConnectorCatalog from '../../../../components/ConnectorCatalog.astro';",
   );
   parts.push('');
   parts.push(
-    `Rawdash ships ${connectors.length} built-in connectors, grouped by category. Each syncs data from a third-party API into the storage engine, where your widgets query it.`,
+    'Rawdash ships built-in connectors, grouped by category. Each syncs data from a third-party API into the storage engine, where your widgets query it.',
   );
   parts.push('');
   parts.push('<ConnectorCatalog />');
@@ -552,7 +557,7 @@ function renderTopIndex(
     }
     const names = list.map((c) => c.doc.displayName).join(', ');
     parts.push(
-      `- [${CATEGORY_LABELS[category]}](/docs/connectors/${category}/) (${list.length}) - ${escapeMdxText(names)}`,
+      `- [${CATEGORY_LABELS[category]}](/docs/connectors/${category}/) - ${escapeMdxText(names)}`,
     );
   }
   parts.push('');
@@ -577,7 +582,7 @@ function renderCategoryIndex(
     }),
   );
   parts.push('');
-  parts.push('{/* Generated from connector metadata. Do not edit. */}');
+  parts.push(GENERATED_NOTE_MDX);
   parts.push('');
   for (const c of list) {
     parts.push(
@@ -627,8 +632,7 @@ function renderLandingData(
       count: byCategory.get(category)!.length,
     }));
   return [
-    '// Generated from connector metadata by scripts/generate-connector-docs.ts.',
-    '// Do not edit by hand.',
+    GENERATED_NOTE_TS,
     '',
     'export interface ConnectorCard {',
     '  id: string;',
@@ -659,6 +663,10 @@ interface OutFile {
   path: string;
   content: string;
   raw?: boolean;
+  // Whether the output is committed to git (default true). The website docs
+  // tree and public icons are gitignored and regenerated at build time, so
+  // they are never committed drift; --check ignores them.
+  tracked?: boolean;
 }
 
 async function formatOutput(file: OutFile): Promise<string> {
@@ -685,22 +693,26 @@ function collectOutputs(connectors: LoadedConnector[]): OutFile[] {
     out.push({
       path: join(DOCS_CONNECTORS_DIR, c.doc.category, `${c.id}.mdx`),
       content: renderMdx(c),
+      tracked: false,
     });
     out.push({
       path: join(PUBLIC_ICONS_DIR, `${c.id}.svg`),
       content: c.iconSvg,
       raw: true,
+      tracked: false,
     });
   }
   for (const [category, list] of byCategory) {
     out.push({
       path: join(DOCS_CONNECTORS_DIR, category, 'index.mdx'),
       content: renderCategoryIndex(category, list),
+      tracked: false,
     });
   }
   out.push({
     path: join(DOCS_CONNECTORS_DIR, 'index.mdx'),
-    content: renderTopIndex(connectors, byCategory),
+    content: renderTopIndex(byCategory),
+    tracked: false,
   });
   out.push({
     path: LANDING_DATA_FILE,
@@ -760,6 +772,11 @@ async function main(): Promise<void> {
         }
       }
     }
+    // --check only guards committed files; the gitignored website tree is
+    // regenerated at build time, so its absence/staleness is never drift.
+    if (check && file.tracked === false) {
+      continue;
+    }
     let existing: string | null = null;
     try {
       existing = readFileSync(file.path, 'utf8');
@@ -777,14 +794,13 @@ async function main(): Promise<void> {
     }
   }
 
-  // Prune generated files that are no longer produced (e.g. a removed connector
-  // or, here, the old flat layout). In --check mode a stale file is drift.
-  const expected = new Set(outputs.map((o) => o.path));
-  const stale = findStaleOutputs(expected);
-  for (const path of stale) {
-    if (check) {
-      drifted.push(path);
-    } else {
+  // Prune generated files that are no longer produced (e.g. a removed
+  // connector or the old flat layout). Only meaningful when writing: the
+  // managed trees (docs + icons) are gitignored, so a stale file there is a
+  // local leftover, never committed drift, and --check must not flag it.
+  if (!check) {
+    const expected = new Set(outputs.map((o) => o.path));
+    for (const path of findStaleOutputs(expected)) {
       rmSync(path);
     }
   }

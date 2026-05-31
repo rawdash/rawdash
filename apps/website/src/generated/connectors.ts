@@ -1,5 +1,4 @@
-// Generated from connector metadata by scripts/generate-connector-docs.ts.
-// Do not edit by hand.
+// This file is generated from connector metadata by scripts/generate-connector-docs.ts. Do not edit by hand.
 
 export interface ConnectorCard {
   id: string;

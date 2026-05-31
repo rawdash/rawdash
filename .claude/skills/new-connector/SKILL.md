@@ -58,7 +58,7 @@ Trigger on requests like:
    - The property-test scaffolding from `@rawdash/connector-test-utils`.
 10. **Auth setup** - do **not** invent or recommend an auth shape. Read the vendor's official docs and follow what they recommend for server-to-server access. Capture it in the connector's `doc.auth` (`summary` plus numbered `setup` steps with the exact secrets to store) — this is what renders the README/docs `Authentication` section. Do not hand-write it into the README. If the vendor supports multiple auth methods, describe the recommended one and note alternatives in the setup steps.
 11. **Run `pnpm install`** so workspace links pick up the new package.
-12. **Generate the docs** - run `pnpm docs:connectors`. This renders the new connector's `README.md`, its Cloud docs page under `apps/website/src/content/docs/docs/connectors/<id>.mdx`, and refreshes the catalog. CI runs `pnpm docs:connectors:check` and fails if these are out of date, so regenerate and commit whenever the connector's metadata changes.
+12. **Generate the docs** - run `pnpm docs:connectors`. This renders the new connector's `README.md`, its Cloud docs page under `apps/website/src/content/docs/docs/connectors/<id>.mdx`, the per-connector icon under `apps/website/public/connectors/<id>.svg`, and refreshes the catalog data. Only the `README.md` and `apps/website/src/generated/connectors.ts` are committed; the website docs tree and public icons are gitignored and regenerated at build time, so don't commit them. CI runs `pnpm docs:connectors:check` and fails if the committed outputs are out of date, so regenerate and commit those whenever the connector's metadata changes.
 
 ## Bias against asking questions
 
@@ -110,6 +110,6 @@ These shape which existing connector you should copy from. Surface them explicit
 - Use only regular hyphens (`-`) in all doc/resource/config-field strings; em-dashes (`—`) and en-dashes (`–`) fail the docs check.
 - Add `packages/connectors/<id>/icon.svg` (required, committed; the generator fails without it). Use Simple Icons (CC0) or the vendor's official mark, and set `doc.brandColor` to the brand hex.
 - Add `packages/connectors/<id>/src/example.config.ts` (a type-checked `defineConfig`; the generator inlines it).
-- Run `pnpm docs:connectors` and commit the generated `README.md` + `apps/website/src/content/docs/docs/connectors/<id>.mdx` + `apps/website/public/connectors/<id>.svg` + the updated landing data. `pnpm docs:connectors:check` must pass (it's the CI drift guard).
+- Run `pnpm docs:connectors` and commit the generated `README.md` and the updated `apps/website/src/generated/connectors.ts`. The website docs page (`<id>.mdx`) and public icon (`<id>.svg`) are gitignored and regenerated at build time, so don't commit them. `pnpm docs:connectors:check` must pass (it's the CI drift guard for the committed outputs).
 - `pnpm --filter @rawdash/connector-<id> test` should pass.
 - `grep -rn "TODO(connector)" packages/connectors/<id>` should return nothing.
