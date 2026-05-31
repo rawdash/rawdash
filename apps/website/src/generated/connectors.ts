@@ -126,7 +126,7 @@ export const connectors: ConnectorCard[] = [
       'Sync conversations, contacts, teams, and admins from Intercom for support volume, response latency, and queue-depth analytics.',
     href: '/docs/connectors/support/intercom/',
     iconPath: '/connectors/intercom.svg',
-    brandColor: '#1F8DED',
+    brandColor: '#6AFDEF',
     keywords: [
       '@rawdash/connector-intercom',
       'intercom',
