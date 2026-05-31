@@ -327,9 +327,15 @@ importers:
       '@rawdash/connector-github':
         specifier: workspace:*
         version: link:../connectors/github
+      '@rawdash/connector-google-ads':
+        specifier: workspace:*
+        version: link:../connectors/google-ads
       '@rawdash/connector-google-analytics':
         specifier: workspace:*
         version: link:../connectors/google-analytics
+      '@rawdash/connector-google-search-console':
+        specifier: workspace:*
+        version: link:../connectors/google-search-console
       '@rawdash/connector-hubspot':
         specifier: workspace:*
         version: link:../connectors/hubspot
@@ -342,6 +348,9 @@ importers:
       '@rawdash/connector-linear':
         specifier: workspace:*
         version: link:../connectors/linear
+      '@rawdash/connector-meta-ads':
+        specifier: workspace:*
+        version: link:../connectors/meta-ads
       '@rawdash/connector-mixpanel':
         specifier: workspace:*
         version: link:../connectors/mixpanel

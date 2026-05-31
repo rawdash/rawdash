@@ -15,10 +15,18 @@ import githubConnector, {
   configFields as githubConfigFields,
   doc as githubDoc,
 } from '@rawdash/connector-github';
+import googleAdsConnector, {
+  configFields as googleAdsConfigFields,
+  doc as googleAdsDoc,
+} from '@rawdash/connector-google-ads';
 import googleAnalyticsConnector, {
   configFields as googleAnalyticsConfigFields,
   doc as googleAnalyticsDoc,
 } from '@rawdash/connector-google-analytics';
+import googleSearchConsoleConnector, {
+  configFields as googleSearchConsoleConfigFields,
+  doc as googleSearchConsoleDoc,
+} from '@rawdash/connector-google-search-console';
 import hubspotConnector, {
   configFields as hubspotConfigFields,
   doc as hubspotDoc,
@@ -35,6 +43,10 @@ import linearConnector, {
   configFields as linearConfigFields,
   doc as linearDoc,
 } from '@rawdash/connector-linear';
+import metaAdsConnector, {
+  configFields as metaAdsConfigFields,
+  doc as metaAdsDoc,
+} from '@rawdash/connector-meta-ads';
 import mixpanelConnector, {
   configFields as mixpanelConfigFields,
   doc as mixpanelDoc,
@@ -94,11 +106,25 @@ export const connectorMetadata: ConnectorMetadata[] = [
     resources: githubConnector.resources,
   },
   {
+    id: googleAdsConnector.id,
+    packageName: '@rawdash/connector-google-ads',
+    doc: googleAdsDoc,
+    configFields: googleAdsConfigFields,
+    resources: googleAdsConnector.resources,
+  },
+  {
     id: googleAnalyticsConnector.id,
     packageName: '@rawdash/connector-google-analytics',
     doc: googleAnalyticsDoc,
     configFields: googleAnalyticsConfigFields,
     resources: googleAnalyticsConnector.resources,
+  },
+  {
+    id: googleSearchConsoleConnector.id,
+    packageName: '@rawdash/connector-google-search-console',
+    doc: googleSearchConsoleDoc,
+    configFields: googleSearchConsoleConfigFields,
+    resources: googleSearchConsoleConnector.resources,
   },
   {
     id: hubspotConnector.id,
@@ -127,6 +153,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: linearDoc,
     configFields: linearConfigFields,
     resources: linearConnector.resources,
+  },
+  {
+    id: metaAdsConnector.id,
+    packageName: '@rawdash/connector-meta-ads',
+    doc: metaAdsDoc,
+    configFields: metaAdsConfigFields,
+    resources: metaAdsConnector.resources,
   },
   {
     id: mixpanelConnector.id,

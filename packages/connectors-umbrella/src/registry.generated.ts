@@ -9,12 +9,18 @@ export const connectorLoaders: Record<string, () => Promise<ConnectorClass>> = {
   datadog: () => import('@rawdash/connector-datadog').then((m) => m.default),
   'github-actions': () =>
     import('@rawdash/connector-github').then((m) => m.default),
+  'google-ads': () =>
+    import('@rawdash/connector-google-ads').then((m) => m.default),
   'google-analytics': () =>
     import('@rawdash/connector-google-analytics').then((m) => m.default),
+  'google-search-console': () =>
+    import('@rawdash/connector-google-search-console').then((m) => m.default),
   hubspot: () => import('@rawdash/connector-hubspot').then((m) => m.default),
   intercom: () => import('@rawdash/connector-intercom').then((m) => m.default),
   jira: () => import('@rawdash/connector-jira').then((m) => m.default),
   linear: () => import('@rawdash/connector-linear').then((m) => m.default),
+  'meta-ads': () =>
+    import('@rawdash/connector-meta-ads').then((m) => m.default),
   mixpanel: () => import('@rawdash/connector-mixpanel').then((m) => m.default),
   posthog: () => import('@rawdash/connector-posthog').then((m) => m.default),
   salesforce: () =>
