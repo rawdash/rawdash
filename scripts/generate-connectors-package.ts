@@ -59,6 +59,13 @@ interface ConnectorModule {
   configFields?: unknown;
 }
 
+// Deterministic, locale-independent string order. `localeCompare` collation
+// varies across platforms/ICU builds (macOS vs CI Linux), which would make the
+// generated ordering drift between machines; a code-unit compare never does.
+function byCodeUnit(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 function listConnectorDirs(): string[] {
   return readdirSync(CONNECTORS_DIR, { withFileTypes: true })
     .filter((d) => d.isDirectory() && !NOT_A_CONNECTOR.has(d.name))
@@ -183,7 +190,7 @@ function renderPackageJson(connectors: LoadedConnector[]): string {
   );
   pkg.dependencies = Object.fromEntries(
     [...Object.entries(connectorDeps), ...Object.entries(kept)].sort(
-      ([a], [b]) => a.localeCompare(b),
+      ([a], [b]) => byCodeUnit(a, b),
     ),
   );
   return `${JSON.stringify(pkg, null, 2)}\n`;
@@ -201,7 +208,7 @@ async function main(): Promise<void> {
   for (const dir of dirs) {
     connectors.push(await loadConnector(dir));
   }
-  connectors.sort((a, b) => a.id.localeCompare(b.id));
+  connectors.sort((a, b) => byCodeUnit(a.id, b.id));
 
   const outputs: OutFile[] = [
     {
