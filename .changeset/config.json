@@ -10,6 +10,7 @@
       "@rawdash/sdk-nextjs",
       "@rawdash/connector-aws-cloudwatch",
       "@rawdash/connector-github",
+      "@rawdash/connector-google-ads",
       "@rawdash/connector-google-analytics",
       "@rawdash/connector-stripe",
       "@rawdash/connector-linear",

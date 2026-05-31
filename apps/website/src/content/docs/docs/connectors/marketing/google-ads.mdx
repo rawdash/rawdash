@@ -1,0 +1,140 @@
+---
+title: 'Google Ads'
+description: 'Sync Google Ads campaigns plus daily campaign, ad-group, and keyword performance (impressions, clicks, cost, conversions) via GAQL.'
+---
+
+{/* google-ads: generated from connector metadata. Do not edit. */}
+
+import { Aside, Badge } from '@astrojs/starlight/components';
+
+<p style="display:flex;align-items:center;gap:0.75rem;margin:0 0 1rem;">
+  <img
+    src="/connectors/google-ads.svg"
+    alt="Google Ads logo"
+    width="40"
+    height="40"
+    style="background:#fff;border-radius:8px;padding:6px;box-sizing:border-box;"
+  />{' '}
+  <Badge text="Marketing" variant="tip" />{' '}
+  <Badge text="@rawdash/connector-google-ads" variant="note" />
+</p>
+
+Sync Google Ads campaigns plus daily campaign, ad-group, and keyword performance (impressions, clicks, cost, conversions) via GAQL.
+
+<Aside title="Vendor">
+  Data source: [Google Ads](https://ads.google.com) · [API
+  docs](https://developers.google.com/google-ads/api/docs/start)
+</Aside>
+
+## Install
+
+```sh
+npm install @rawdash/connector-google-ads
+```
+
+## Authentication
+
+OAuth 2.0 refresh token against an account with read access to the Google Ads customer, plus a developer token from the manager account that owns API access.
+
+1. Apply for Google Ads API access from your manager account (Tools → API Center). Copy the developer token - it lives on the manager, not the child account.
+2. In Google Cloud Console, enable the Google Ads API on a project, create an OAuth 2.0 client ID, and complete the OAuth consent flow for the adwords scope to obtain a refresh token. The official walkthrough is at https://developers.google.com/google-ads/api/docs/oauth/overview.
+3. Find the Google Ads customer ID at the top of the Ads UI (e.g. 123-456-7890) and store it without dashes (e.g. 1234567890).
+4. If the OAuth credential authenticates against an MCC that owns the customer, set `loginCustomerId` to the MCC id (digits only). For a direct-access account, omit it.
+5. Store the client secret, refresh token, and developer token as secrets, then reference them as `clientSecret: secret("GADS_CLIENT_SECRET")`, `refreshToken: secret("GADS_REFRESH_TOKEN")`, and `developerToken: secret("GADS_DEVELOPER_TOKEN")`.
+
+## Configuration
+
+| Field             | Type   | Required | Description                                                                                                                                |
+| ----------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `customerId`      | string | Yes      | Google Ads customer ID for the account to sync, digits only (the dashed form 123-456-7890 with the dashes removed).                        |
+| `loginCustomerId` | string | No       | Manager (MCC) account ID, digits only. Set this when the OAuth credential authenticates against an MCC that owns the customer account.     |
+| `clientId`        | string | Yes      | OAuth 2.0 client ID from a Google Cloud project that has the Google Ads API enabled.                                                       |
+| `clientSecret`    | secret | Yes      | OAuth 2.0 client secret paired with the client ID above.                                                                                   |
+| `refreshToken`    | secret | Yes      | Google OAuth 2.0 refresh token issued for the https://www.googleapis.com/auth/adwords scope.                                               |
+| `developerToken`  | secret | Yes      | Google Ads API developer token from the manager account that owns API access (Tools → API Center).                                         |
+| `lookbackDays`    | number | No       | How many calendar days of metric history to fetch on a full sync. Defaults to 90.                                                          |
+| `resources`       | array  | No       | Which Google Ads resources to sync. Omit to sync everything; pin a subset to avoid pulling keyword-level metrics on a quota-limited token. |
+
+## Resources
+
+- **`google_ads_campaign`** _(entity)_ - Google Ads campaigns with id, name, status, bidding strategy type, and start / end dates.
+  - Endpoint: `POST /v18/customers/{customerId}/googleAds:search`
+  - `id`: Numeric Google Ads campaign id.
+  - `name`: Campaign display name.
+  - `status`: Campaign status (ENABLED, PAUSED, REMOVED, UNKNOWN, UNSPECIFIED).
+  - `biddingStrategyType`: Bidding strategy in use (e.g. MAXIMIZE_CONVERSIONS, MANUAL_CPC).
+  - `startDate`: Campaign start date (YYYY-MM-DD).
+  - `endDate`: Campaign end date (YYYY-MM-DD), if set.
+- **`google_ads_campaign_metrics`** _(metric)_ - Daily campaign performance - impressions, clicks, cost, conversions, and conversion value per (date, campaignId).
+  - Endpoint: `POST /v18/customers/{customerId}/googleAds:search`
+  - Unit: cost
+  - Granularity: day
+  - Dimensions: `date`, `campaignId`, `campaignName`, `impressions`, `clicks`, `cost`, `costMicros`, `conversions`, `conversionsValue`
+  - Sample value is `cost` (account currency units). All other fields are mirrored in attributes for filtering and ratio metrics (CPA = cost / conversions, ROAS = conversionsValue / cost).
+- **`google_ads_ad_group_metrics`** _(metric)_ - Daily ad-group performance - impressions, clicks, cost, and conversions per (date, adGroupId).
+  - Endpoint: `POST /v18/customers/{customerId}/googleAds:search`
+  - Unit: cost
+  - Granularity: day
+  - Dimensions: `date`, `adGroupId`, `adGroupName`, `campaignId`, `impressions`, `clicks`, `cost`, `costMicros`, `conversions`
+- **`google_ads_keyword_metrics`** _(metric)_ - Daily keyword performance - impressions, clicks, cost, and historical quality score per (date, criterionId).
+  - Endpoint: `POST /v18/customers/{customerId}/googleAds:search`
+  - Unit: cost
+  - Granularity: day
+  - Dimensions: `date`, `criterionId`, `keywordText`, `matchType`, `adGroupId`, `impressions`, `clicks`, `cost`, `costMicros`, `qualityScore`
+  - Driven by `keyword_view`; the cost / impression columns roll up to the criterion-day pair.
+
+## Example
+
+```ts
+import {
+  defineConfig,
+  defineDashboard,
+  defineMetric,
+  secret,
+} from '@rawdash/core';
+
+const googleAds = {
+  name: 'googleAds',
+  connectorId: 'google-ads',
+  config: {
+    customerId: '1234567890',
+    clientId: '1234567890-abcdef.apps.googleusercontent.com',
+    clientSecret: secret('GADS_CLIENT_SECRET'),
+    refreshToken: secret('GADS_REFRESH_TOKEN'),
+    developerToken: secret('GADS_DEVELOPER_TOKEN'),
+    lookbackDays: 90,
+  },
+};
+
+export default defineConfig({
+  connectors: [googleAds],
+  dashboards: {
+    paid: defineDashboard({
+      widgets: {
+        spend_30d: {
+          kind: 'timeseries',
+          title: 'Ad spend (last 30 days)',
+          window: '30d',
+          metric: defineMetric({
+            connector: googleAds,
+            shape: 'metric',
+            name: 'google_ads_campaign_metrics',
+            fn: 'sum',
+          }),
+        },
+      },
+    }),
+  },
+});
+```
+
+## Rate limits
+
+Google Ads API basic-access tokens get a 15,000 operations / day quota per developer token; the connector treats 429 (RESOURCE_EXHAUSTED) as a transient error and the host backs off.
+
+## Limitations
+
+- Cost values are stored in account currency units (cost_micros ÷ 1,000,000); the original micro-precision integer is also exposed in attributes.
+- Keyword metrics use the historical (per-day) quality score from `metrics.historical_quality_score`; criteria with no impressions on a day will report a null quality score.
+- Incremental syncs trail the last 3 days because Google Ads can attribute conversions to a click up to 3 days after the event.
+- Audience-, asset-, and recommendation-level reporting are out of scope; this connector covers campaign / ad-group / keyword performance only.
