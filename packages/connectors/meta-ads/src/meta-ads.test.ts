@@ -512,7 +512,9 @@ describe('MetaAdsConnector.sync', () => {
 
     const calls = recordCalls(fetchSpy);
     // No campaigns call, no campaign_insights call — both phases skipped
-    expect(calls.find((c) => c.url.endsWith('/campaigns'))).toBeUndefined();
+    expect(
+      calls.find((c) => new URL(c.url).pathname.endsWith('/campaigns')),
+    ).toBeUndefined();
     expect(
       calls.find((c) => c.url.includes('level=campaign&')),
     ).toBeUndefined();

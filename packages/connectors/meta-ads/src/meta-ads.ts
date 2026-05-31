@@ -99,7 +99,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Meta enforces per-app and per-ad-account budgets surfaced through the `X-Business-Use-Case-Usage` header. Sync at most every few hours per ad account; very large accounts may need a daily cadence.',
   limitations: [
     'Insights are always fetched at daily granularity. Sub-daily breakdowns are not supported.',
-    'Insights for the most recent 3 days are re-fetched on every sync because Meta keeps attributing conversions after the event date.',
+    'Insights for the most recent 30 days are re-fetched on every incremental sync because Meta keeps attributing conversions after the event date.',
     'Creative-level breakdowns (publisher_platform, placement, demographics) are intentionally out of scope to keep the metric cardinality bounded.',
   ],
 });
@@ -148,7 +148,7 @@ const PAGE_LIMIT = 100;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const DEFAULT_LOOKBACK_DAYS = 90;
 // Meta keeps attributing conversions for several days after the event; on
-// incremental syncs always re-pull at least the last week so late attribution
+// incremental syncs always re-pull the last 30 days so late attribution
 // rewrites stale rows.
 const INCREMENTAL_LOOKBACK_DAYS = 30;
 

@@ -117,7 +117,7 @@ Meta enforces per-app and per-ad-account budgets surfaced through the `X-Busines
 ## Limitations
 
 - Insights are always fetched at daily granularity. Sub-daily breakdowns are not supported.
-- Insights for the most recent 3 days are re-fetched on every sync because Meta keeps attributing conversions after the event date.
+- Insights for the most recent 30 days are re-fetched on every incremental sync because Meta keeps attributing conversions after the event date.
 - Creative-level breakdowns (publisher_platform, placement, demographics) are intentionally out of scope to keep the metric cardinality bounded.
 
 ## Links
