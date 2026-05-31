@@ -1,5 +1,15 @@
 # example-server
 
+## 0.0.20
+
+### Patch Changes
+
+- @rawdash/core@0.17.0
+- @rawdash/server@0.17.0
+- @rawdash/hono@0.17.0
+- @rawdash/connector-github@0.17.0
+- @rawdash/adapter-libsql@0.17.0
+
 ## 0.0.19
 
 ### Patch Changes

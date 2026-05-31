@@ -1,6 +1,6 @@
 {
   "name": "example-nextjs",
-  "version": "0.0.19",
+  "version": "0.0.20",
   "private": true,
   "scripts": {
     "dev": "concurrently -n server,web -c blue,green 'tsx --env-file=.env.local dev-server.mts' 'tsx --env-file=.env.local dev-web.mts'",

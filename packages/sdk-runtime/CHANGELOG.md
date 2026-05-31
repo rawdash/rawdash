@@ -1,5 +1,12 @@
 # @rawdash/sdk-runtime
 
+## 0.17.0
+
+### Patch Changes
+
+- @rawdash/core@0.17.0
+- @rawdash/sdk-client@0.17.0
+
 ## 0.16.0
 
 ### Minor Changes

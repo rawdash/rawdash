@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-mixpanel",
-  "version": "0.16.0",
+  "version": "0.17.0",
   "description": "Rawdash connector for Mixpanel — syncs event volume, funnels, retention, and DAU/WAU/MAU into the six-shape storage model via the Mixpanel Query API",
   "license": "Apache-2.0",
   "type": "module",
