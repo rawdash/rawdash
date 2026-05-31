@@ -418,7 +418,7 @@ export class LinearConnector extends BaseConnector<
     );
   }
 
-  readonly id = 'linear';
+  readonly id = id;
   override readonly credentials = linearCredentials;
 
   private buildHeaders(): Record<string, string> {

@@ -471,7 +471,7 @@ export class PostHogConnector extends BaseConnector<
     );
   }
 
-  readonly id = 'posthog';
+  readonly id = id;
   override readonly credentials = posthogCredentials;
 
   private get baseUrl(): string {

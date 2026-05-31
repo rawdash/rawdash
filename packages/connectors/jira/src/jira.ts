@@ -500,7 +500,7 @@ export class JiraConnector extends BaseConnector<
     );
   }
 
-  readonly id = 'jira';
+  readonly id = id;
   override readonly credentials = jiraCredentials;
 
   private get baseUrl(): string {

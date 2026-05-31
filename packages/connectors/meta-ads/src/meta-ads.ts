@@ -635,7 +635,7 @@ export class MetaAdsConnector extends BaseConnector<
     );
   }
 
-  readonly id = 'meta-ads';
+  readonly id = id;
   override readonly credentials = metaAdsCredentials;
 
   private buildHeaders(): Record<string, string> {

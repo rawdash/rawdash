@@ -515,7 +515,7 @@ export class SalesforceConnector extends BaseConnector<
     );
   }
 
-  readonly id = 'salesforce';
+  readonly id = id;
   override readonly credentials = salesforceCredentials;
 
   private accessToken: string | null = null;

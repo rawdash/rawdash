@@ -536,7 +536,7 @@ export class GitHubConnector extends BaseConnector<
     );
   }
 
-  readonly id = 'github-actions';
+  readonly id = id;
 
   override readonly credentials = githubCredentials;
 

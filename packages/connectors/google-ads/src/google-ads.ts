@@ -731,7 +731,7 @@ export class GoogleAdsConnector extends BaseConnector<
     );
   }
 
-  readonly id = 'google-ads';
+  readonly id = id;
   override readonly credentials = googleAdsCredentials;
 
   private cachedToken: { token: string; expiresAt: number } | null = null;

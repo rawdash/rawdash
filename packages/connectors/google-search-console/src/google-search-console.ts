@@ -548,7 +548,7 @@ export class GSCConnector extends BaseConnector<GSCSettings, GSCCredentials> {
     );
   }
 
-  readonly id = 'google-search-console';
+  readonly id = id;
   override readonly credentials = gscCredentials;
 
   private cachedToken: { token: string; expiresAt: number } | null = null;

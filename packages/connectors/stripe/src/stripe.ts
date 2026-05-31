@@ -508,7 +508,7 @@ export class StripeConnector extends BaseConnector<
     );
   }
 
-  readonly id = 'stripe';
+  readonly id = id;
   override readonly credentials = stripeCredentials;
 
   private buildHeaders(): Record<string, string> {

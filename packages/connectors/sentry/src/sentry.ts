@@ -367,7 +367,7 @@ export class SentryConnector extends BaseConnector<
     );
   }
 
-  readonly id = 'sentry';
+  readonly id = id;
   override readonly credentials = sentryCredentials;
 
   private buildHeaders(): Record<string, string> {

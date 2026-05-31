@@ -696,7 +696,7 @@ export class MixpanelConnector extends BaseConnector<
     );
   }
 
-  readonly id = 'mixpanel';
+  readonly id = id;
   override readonly credentials = mixpanelCredentials;
 
   private get apiBase(): string {

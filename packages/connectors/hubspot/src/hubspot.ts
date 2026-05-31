@@ -424,7 +424,7 @@ export class HubSpotConnector extends BaseConnector<
     );
   }
 
-  readonly id = 'hubspot';
+  readonly id = id;
   override readonly credentials = hubspotCredentials;
 
   private buildHeaders(): Record<string, string> {

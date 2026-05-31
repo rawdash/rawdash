@@ -338,7 +338,7 @@ export class VercelConnector extends BaseConnector<
     );
   }
 
-  readonly id = 'vercel';
+  readonly id = id;
   override readonly credentials = vercelCredentials;
 
   private buildHeaders(): Record<string, string> {

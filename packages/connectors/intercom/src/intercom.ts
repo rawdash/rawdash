@@ -501,7 +501,7 @@ export class IntercomConnector extends BaseConnector<
     );
   }
 
-  readonly id = 'intercom';
+  readonly id = id;
   override readonly credentials = intercomCredentials;
 
   private get baseUrl(): string {

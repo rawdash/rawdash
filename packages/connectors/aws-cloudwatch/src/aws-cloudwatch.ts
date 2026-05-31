@@ -215,7 +215,7 @@ export class CloudWatchConnector extends BaseAWSConnector<CloudWatchSettings> {
     );
   }
 
-  readonly id = 'aws-cloudwatch';
+  readonly id = id;
 
   private computeWindow(options: SyncOptions): {
     startMs: number;

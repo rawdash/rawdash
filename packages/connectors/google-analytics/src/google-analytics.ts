@@ -614,7 +614,7 @@ export class GA4Connector extends BaseConnector<GA4Settings, GA4Credentials> {
     );
   }
 
-  readonly id = 'google-analytics';
+  readonly id = id;
   override readonly credentials = ga4Credentials;
 
   private cachedToken: { token: string; expiresAt: number } | null = null;

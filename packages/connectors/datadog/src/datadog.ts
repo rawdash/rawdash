@@ -511,7 +511,7 @@ export class DatadogConnector extends BaseConnector<
     );
   }
 
-  readonly id = 'datadog';
+  readonly id = id;
   override readonly credentials = datadogCredentials;
 
   private get apiHost(): string {

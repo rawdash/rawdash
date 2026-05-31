@@ -637,7 +637,7 @@ export class AwsCostConnector extends BaseAWSConnector<AwsCostSettings> {
     );
   }
 
-  readonly id = 'aws-cost';
+  readonly id = id;
 
   private async callCostExplorer<T>(
     action: string,
