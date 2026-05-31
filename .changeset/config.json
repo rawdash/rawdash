@@ -20,6 +20,7 @@
       "@rawdash/connector-hubspot",
       "@rawdash/connector-intercom",
       "@rawdash/connector-jira",
+      "@rawdash/connector-meta-ads",
       "@rawdash/connector-mixpanel",
       "@rawdash/connector-posthog",
       "@rawdash/connector-salesforce",
