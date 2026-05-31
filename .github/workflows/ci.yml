@@ -120,6 +120,9 @@ jobs:
       - name: Verify connector docs are up-to-date
         run: pnpm docs:connectors:check
 
+      - name: Verify connectors umbrella package is up-to-date
+        run: pnpm gen:connectors-package:check
+
       - name: Lint
         run: pnpm turbo run lint --filter="${{ steps.affected.outputs.filter }}"
 

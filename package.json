@@ -19,6 +19,8 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,js,mjs,cjs,json,md,yml,yaml}\"",
     "docs:connectors": "NODE_OPTIONS=--conditions=@rawdash/source tsx scripts/generate-connector-docs.ts",
     "docs:connectors:check": "NODE_OPTIONS=--conditions=@rawdash/source tsx scripts/generate-connector-docs.ts --check",
+    "gen:connectors-package": "NODE_OPTIONS=--conditions=@rawdash/source tsx scripts/generate-connectors-package.ts",
+    "gen:connectors-package:check": "NODE_OPTIONS=--conditions=@rawdash/source tsx scripts/generate-connectors-package.ts --check",
     "changeset": "changeset",
     "version": "changeset version",
     "release": "turbo run build && changeset publish",
