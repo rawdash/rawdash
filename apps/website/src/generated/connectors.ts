@@ -397,7 +397,7 @@ export const connectorCategories: ConnectorCategory[] = [
   {
     id: 'marketing',
     label: 'Marketing',
-    count: 1,
+    count: 3,
   },
   {
     id: 'sales',
