@@ -73,20 +73,42 @@ The lower-level `defineConnector<TSettings>()` factory is available for connecto
 
 ### Package entry point
 
-Every `@rawdash/connector-*` package **must** export its connector class as the package's default export, in addition to any named exports:
+Every `@rawdash/connector-*` package **must** export its connector class as the package's default export, plus its metadata as standalone named exports — `id`, `doc`, `configFields`, `resources`, and (if the connector declares one) `cost`:
+
+```ts
+// packages/connectors/<name>/src/my-connector.ts
+export const id = 'my-connector';
+export const myResources = defineResources({ ... });
+// ...
+export class MyConnector extends BaseConnector<...> {
+  static readonly id = id; // derive the static from the standalone const
+  static readonly resources = myResources;
+  // ...
+}
+```
 
 ```ts
 // packages/connectors/<name>/src/index.ts
 import { MyConnector } from './my-connector';
 
-export { configFields, MyConnector } from './my-connector';
+export {
+  configFields,
+  doc,
+  id,
+  MyConnector,
+  myResources as resources,
+} from './my-connector';
 export type { MySettings } from './my-connector';
 export default MyConnector;
 ```
 
-This is a hard requirement, not a style preference: rawdash cloud's sync-consumer Worker can't use runtime `import()` (Cloudflare bundles the module graph statically), so it relies on a build-time codegen step that scans `@rawdash/connector-*` dependencies and emits static `import` statements. A symbol-name-agnostic default export is what makes that codegen generic — without it, each new connector would require hand-edited registry code in cloud. Named exports stay as-is for ergonomic direct consumers; only the default export needs to point at the connector class.
+Also set `"sideEffects": false` in the package's `package.json`.
 
-CI enforces this via `scripts/check-connector-publishing-prereqs.ts`, which dynamically imports each `@rawdash/connector-*` package and asserts the default export is a `BaseConnector` subclass. A connector PR that forgets `export default` will fail the **Check connector publishing prerequisites** step.
+The **default export** is a hard requirement: rawdash cloud's sync-consumer Worker can't use runtime `import()` (Cloudflare bundles the module graph statically), so it relies on a build-time codegen step that scans `@rawdash/connector-*` dependencies and emits static `import` statements. A symbol-name-agnostic default export is what makes that codegen generic.
+
+The **standalone metadata exports** (and `sideEffects: false`) exist so the `@rawdash/connectors` umbrella package can build a `/metadata` entry that imports connector metadata _by name only_, never the connector class. Because the class's `id`/`resources`/`cost` statics are read at module-eval time, importing the class to reach them would defeat tree-shaking and pull the connector's whole sync implementation into any metadata-only consumer (e.g. the cloud connector catalog). Exposing the values as standalone consts lets the class tree-shake out.
+
+CI enforces the default export via `scripts/check-connector-publishing-prereqs.ts` (the **Check connector publishing prerequisites** step), and the metadata exports via `scripts/generate-connectors-package.ts` — its `--check` mode (the **Verify connectors umbrella package is up-to-date** step) fails if a connector is missing a named `id`/`doc`/`configFields`/`resources` export.
 
 ### Schemas
 

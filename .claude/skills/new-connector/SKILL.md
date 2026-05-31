@@ -33,6 +33,7 @@ Trigger on requests like:
    - Class name, exported types, `static id`, `readonly id`.
    - File names where applicable (`src/<id>.ts`, `src/property.test.ts`).
    - The `doc` export (`defineConnectorDoc({...})`) — copy it and re-export it from `src/index.ts` like the source connector does.
+   - The standalone metadata named exports the umbrella package depends on: `export const id = '<id>'` (with the class doing `static readonly id = id`), and re-export `id`, `doc`, `configFields`, `<id>Resources as resources` (and `cost` if present) from `src/index.ts` — copy the source connector's index exactly. Keep `"sideEffects": false` in `package.json`. The metadata-only umbrella entry imports these by name, never the class.
 
    Do **not** hand-edit `README.md`. It is generated from the connector's metadata (see step 12); the copied README will be overwritten.
 5. **Strip what's vendor-specific from the copy** so the dev fills it in:
@@ -52,7 +53,7 @@ Trigger on requests like:
    - **Exception — AWS services** are not in Simple Icons; they use the AWS Architecture Icons set. Copy the icon from an existing `aws-*` connector instead. If a non-AWS vendor isn't in Simple Icons, stop and ask which source to use rather than guessing.
    - Logos are trademarks of their owners; use the unmodified mark for identification only.
 7. **Add a type-checked example** at `packages/connectors/<id>/src/example.config.ts`: a real `defineConfig(...)` importing only `@rawdash/core` and using the connector's real `connectorId` and config fields (see `packages/connectors/github/src/example.config.ts`). It lives under `src/` so the package's typecheck covers it and it can't go stale; the generator inlines it into the docs. Do not import the connector class into it (avoid unused imports).
-8. **Report cost only when it's real.** If syncing this connector at a high cadence is genuinely expensive (per-query billing, tight quotas), add `static readonly cost: ConnectorCost = {...}` to the class (`recommendedInterval`, `minInterval`, `perSync`, `warning`). The generator renders it as a callout and the cloud surfaces it next to the frequency field. Omit it for connectors where frequent syncing is cheap.
+8. **Report cost only when it's real.** If syncing this connector at a high cadence is genuinely expensive (per-query billing, tight quotas), add a standalone `export const cost: ConnectorCost = {...}` (`recommendedInterval`, `minInterval`, `perSync`, `warning`), have the class reference it via `static readonly cost = cost`, and re-export `cost` from `src/index.ts`. The generator renders it as a callout and the cloud surfaces it next to the frequency field. Omit it entirely for connectors where frequent syncing is cheap.
 9. **Keep the shared substrate calls intact** — these are the parts the dev should NOT re-derive:
    - `BaseConnector` extension, `protected fetch` / `get` / `post`.
    - `paginateChunked` orchestration.
@@ -64,6 +65,7 @@ Trigger on requests like:
 10. **Auth setup** - do **not** invent or recommend an auth shape. Read the vendor's official docs and follow what they recommend for server-to-server access. Capture it in the connector's `doc.auth` (`summary` plus numbered `setup` steps with the exact secrets to store) — this is what renders the README/docs `Authentication` section. Do not hand-write it into the README. If the vendor supports multiple auth methods, describe the recommended one and note alternatives in the setup steps.
 11. **Run `pnpm install`** so workspace links pick up the new package.
 12. **Generate the docs** - run `pnpm docs:connectors`. This renders the new connector's `README.md`, its Cloud docs page under `apps/website/src/content/docs/docs/connectors/<id>.mdx`, the per-connector icon under `apps/website/public/connectors/<id>.svg`, and refreshes the catalog data. Only the `README.md` and `apps/website/src/generated/connectors.ts` are committed; the website docs tree and public icons are gitignored and regenerated at build time, so don't commit them. CI runs `pnpm docs:connectors:check` and fails if the committed outputs are out of date, so regenerate and commit those whenever the connector's metadata changes.
+13. **Regenerate the umbrella package** - run `pnpm gen:connectors-package` so the new connector flows into `@rawdash/connectors` (its `package.json` dependency, `src/metadata.generated.ts`, and `src/registry.generated.ts`). Commit the result. CI runs `pnpm gen:connectors-package:check` and fails if it's stale, and will error loudly if the connector is missing any of the required named metadata exports (`id`/`doc`/`configFields`/`resources`).
 
 ## Bias against asking questions
 

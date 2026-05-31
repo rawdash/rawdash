@@ -135,7 +135,7 @@ const metricDataResponseSchema = z.object({
   NextToken: z.string().optional(),
 });
 
-const awsCloudwatchResources = defineResources({
+export const awsCloudwatchResources = defineResources({
   '<namespace>/<metric>': {
     shape: 'metric',
     dynamic: true,
@@ -181,17 +181,21 @@ const MAX_QUERIES_PER_CALL = 500;
 const DEFAULT_LOOKBACK_MINUTES = 180;
 const MS_PER_MINUTE = 60_000;
 
+export const id = 'aws-cloudwatch';
+
+export const cost: ConnectorCost = {
+  warning:
+    'CloudWatch GetMetricData is billed per metric requested on the paid tier; high-frequency syncs over many metrics add up.',
+};
+
 export class CloudWatchConnector extends BaseAWSConnector<CloudWatchSettings> {
-  static readonly id = 'aws-cloudwatch';
+  static readonly id = id;
 
   static readonly resources = awsCloudwatchResources;
 
   static readonly schemas = schemasFromResources(awsCloudwatchResources);
 
-  static readonly cost: ConnectorCost = {
-    warning:
-      'CloudWatch GetMetricData is billed per metric requested on the paid tier; high-frequency syncs over many metrics add up.',
-  };
+  static readonly cost = cost;
 
   static create(input: unknown, ctx?: ConnectorContext): CloudWatchConnector {
     const parsed = configFields.parse(input);
@@ -211,7 +215,7 @@ export class CloudWatchConnector extends BaseAWSConnector<CloudWatchSettings> {
     );
   }
 
-  readonly id = 'aws-cloudwatch';
+  readonly id = id;
 
   private computeWindow(options: SyncOptions): {
     startMs: number;

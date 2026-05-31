@@ -532,7 +532,7 @@ function isAwsCostCursor(value: unknown): value is AwsCostCursor {
 // Resources
 // ---------------------------------------------------------------------------
 
-const awsCostResources = defineResources({
+export const awsCostResources = defineResources({
   aws_cost_daily: {
     shape: 'metric',
     description:
@@ -599,20 +599,24 @@ const awsCostResources = defineResources({
 // AwsCostConnector
 // ---------------------------------------------------------------------------
 
+export const id = 'aws-cost';
+
+export const cost: ConnectorCost = {
+  recommendedInterval: '1 day',
+  minInterval: '1 hour',
+  perSync: '2 Cost Explorer queries (about $0.02)',
+  warning:
+    'Each AWS Cost Explorer query is billed $0.01; avoid syncing more often than necessary.',
+};
+
 export class AwsCostConnector extends BaseAWSConnector<AwsCostSettings> {
-  static readonly id = 'aws-cost';
+  static readonly id = id;
 
   static readonly resources = awsCostResources;
 
   static readonly schemas = schemasFromResources(awsCostResources);
 
-  static readonly cost: ConnectorCost = {
-    recommendedInterval: '1 day',
-    minInterval: '1 hour',
-    perSync: '2 Cost Explorer queries (about $0.02)',
-    warning:
-      'Each AWS Cost Explorer query is billed $0.01; avoid syncing more often than necessary.',
-  };
+  static readonly cost = cost;
 
   static create(input: unknown, ctx?: ConnectorContext): AwsCostConnector {
     const parsed = configFields.parse(input);
@@ -633,7 +637,7 @@ export class AwsCostConnector extends BaseAWSConnector<AwsCostSettings> {
     );
   }
 
-  readonly id = 'aws-cost';
+  readonly id = id;
 
   private async callCostExplorer<T>(
     action: string,

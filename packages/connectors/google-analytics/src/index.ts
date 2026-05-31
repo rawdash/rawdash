@@ -4,6 +4,8 @@ export {
   configFields,
   doc,
   GA4Connector,
+  googleAnalyticsResources as resources,
+  id,
   rowToMetricSample,
 } from './google-analytics';
 export type { GA4Settings } from './google-analytics';

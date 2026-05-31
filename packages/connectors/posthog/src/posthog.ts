@@ -342,7 +342,7 @@ const funnelSchema = z.object({
 // Resources
 // ---------------------------------------------------------------------------
 
-const posthogResources = defineResources({
+export const posthogResources = defineResources({
   posthog_feature_flag: {
     shape: 'entity',
     description:
@@ -443,11 +443,13 @@ const posthogResources = defineResources({
 // PostHogConnector
 // ---------------------------------------------------------------------------
 
+export const id = 'posthog';
+
 export class PostHogConnector extends BaseConnector<
   PostHogSettings,
   PostHogCredentials
 > {
-  static readonly id = 'posthog';
+  static readonly id = id;
 
   static readonly resources = posthogResources;
 
@@ -469,7 +471,7 @@ export class PostHogConnector extends BaseConnector<
     );
   }
 
-  readonly id = 'posthog';
+  readonly id = id;
   override readonly credentials = posthogCredentials;
 
   private get baseUrl(): string {

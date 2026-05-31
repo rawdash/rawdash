@@ -371,7 +371,7 @@ const issuesResponseSchema = z.object({
   isLast: z.boolean().optional(),
 });
 
-const jiraResources = defineResources({
+export const jiraResources = defineResources({
   jira_project: {
     shape: 'entity',
     description:
@@ -473,11 +473,13 @@ function formatJqlDate(iso: string): string | null {
   );
 }
 
+export const id = 'jira';
+
 export class JiraConnector extends BaseConnector<
   JiraSettings,
   JiraCredentials
 > {
-  static readonly id = 'jira';
+  static readonly id = id;
 
   static readonly resources = jiraResources;
 
@@ -498,7 +500,7 @@ export class JiraConnector extends BaseConnector<
     );
   }
 
-  readonly id = 'jira';
+  readonly id = id;
   override readonly credentials = jiraCredentials;
 
   private get baseUrl(): string {

@@ -456,7 +456,7 @@ const tokenResponseSchema = z.object({
   expires_in: z.number().int().positive().optional(),
 });
 
-const googleSearchConsoleResources = defineResources({
+export const googleSearchConsoleResources = defineResources({
   gsc_search_analytics_by_day: {
     shape: 'metric',
     description:
@@ -522,8 +522,10 @@ const googleSearchConsoleResources = defineResources({
   },
 });
 
+export const id = 'google-search-console';
+
 export class GSCConnector extends BaseConnector<GSCSettings, GSCCredentials> {
-  static readonly id = 'google-search-console';
+  static readonly id = id;
 
   static readonly resources = googleSearchConsoleResources;
 
@@ -546,7 +548,7 @@ export class GSCConnector extends BaseConnector<GSCSettings, GSCCredentials> {
     );
   }
 
-  readonly id = 'google-search-console';
+  readonly id = id;
   override readonly credentials = gscCredentials;
 
   private cachedToken: { token: string; expiresAt: number } | null = null;

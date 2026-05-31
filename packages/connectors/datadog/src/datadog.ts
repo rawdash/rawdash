@@ -423,7 +423,7 @@ const DEFAULT_INTERVAL_MS = INTERVAL_MS['1h'];
 // Resource definitions
 // ---------------------------------------------------------------------------
 
-const datadogResources = defineResources({
+export const datadogResources = defineResources({
   datadog_monitor: {
     shape: 'entity',
     description:
@@ -485,11 +485,13 @@ const datadogResources = defineResources({
 // DatadogConnector
 // ---------------------------------------------------------------------------
 
+export const id = 'datadog';
+
 export class DatadogConnector extends BaseConnector<
   DatadogSettings,
   DatadogCredentials
 > {
-  static readonly id = 'datadog';
+  static readonly id = id;
 
   static readonly resources = datadogResources;
 
@@ -509,7 +511,7 @@ export class DatadogConnector extends BaseConnector<
     );
   }
 
-  readonly id = 'datadog';
+  readonly id = id;
   override readonly credentials = datadogCredentials;
 
   private get apiHost(): string {

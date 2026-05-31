@@ -281,7 +281,7 @@ type CampaignMetricRow = z.infer<typeof campaignMetricRowSchema>;
 type AdGroupMetricRow = z.infer<typeof adGroupMetricRowSchema>;
 type KeywordMetricRow = z.infer<typeof keywordMetricRowSchema>;
 
-const googleAdsResources = defineResources({
+export const googleAdsResources = defineResources({
   [ENTITY_TYPE_CAMPAIGN]: {
     shape: 'entity',
     description:
@@ -700,11 +700,13 @@ interface SearchResponse<TRow> {
   nextPageToken?: string;
 }
 
+export const id = 'google-ads';
+
 export class GoogleAdsConnector extends BaseConnector<
   GoogleAdsSettings,
   GoogleAdsCredentials
 > {
-  static readonly id = 'google-ads';
+  static readonly id = id;
 
   static readonly resources = googleAdsResources;
 
@@ -729,7 +731,7 @@ export class GoogleAdsConnector extends BaseConnector<
     );
   }
 
-  readonly id = 'google-ads';
+  readonly id = id;
   override readonly credentials = googleAdsCredentials;
 
   private cachedToken: { token: string; expiresAt: number } | null = null;

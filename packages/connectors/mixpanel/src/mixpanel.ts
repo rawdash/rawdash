@@ -370,7 +370,7 @@ const retentionSchema = z.record(
 const METRIC_NOTES =
   'Each metric is rewritten in full per sync (idempotent replace).';
 
-const mixpanelResources = defineResources({
+export const mixpanelResources = defineResources({
   mixpanel_dau: {
     shape: 'metric',
     description:
@@ -662,11 +662,13 @@ function regionHost(region: 'us' | 'eu' | undefined): string {
 // MixpanelConnector
 // ---------------------------------------------------------------------------
 
+export const id = 'mixpanel';
+
 export class MixpanelConnector extends BaseConnector<
   MixpanelSettings,
   MixpanelCredentials
 > {
-  static readonly id = 'mixpanel';
+  static readonly id = id;
 
   static readonly resources = mixpanelResources;
 
@@ -694,7 +696,7 @@ export class MixpanelConnector extends BaseConnector<
     );
   }
 
-  readonly id = 'mixpanel';
+  readonly id = id;
   override readonly credentials = mixpanelCredentials;
 
   private get apiBase(): string {

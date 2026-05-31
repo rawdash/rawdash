@@ -355,7 +355,7 @@ const issueSchema = z.object({
   }),
 });
 
-const linearResources = defineResources({
+export const linearResources = defineResources({
   linear_team: {
     shape: 'entity',
     description: 'Workspace teams with their name and key.',
@@ -393,11 +393,13 @@ const linearResources = defineResources({
   },
 });
 
+export const id = 'linear';
+
 export class LinearConnector extends BaseConnector<
   LinearSettings,
   LinearCredentials
 > {
-  static readonly id = 'linear';
+  static readonly id = id;
 
   static readonly resources = linearResources;
 
@@ -416,7 +418,7 @@ export class LinearConnector extends BaseConnector<
     );
   }
 
-  readonly id = 'linear';
+  readonly id = id;
   override readonly credentials = linearCredentials;
 
   private buildHeaders(): Record<string, string> {

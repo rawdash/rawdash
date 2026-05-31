@@ -334,7 +334,7 @@ const campaignInsightsSchema = z.array(campaignInsightSchema);
 const adsetInsightsSchema = z.array(adsetInsightSchema);
 const adInsightsSchema = z.array(adInsightSchema);
 
-const metaAdsResources = defineResources({
+export const metaAdsResources = defineResources({
   meta_campaign: {
     shape: 'entity',
     description:
@@ -609,11 +609,13 @@ const INSIGHT_FIELDS: Record<
   ].join(','),
 };
 
+export const id = 'meta-ads';
+
 export class MetaAdsConnector extends BaseConnector<
   MetaAdsSettings,
   MetaAdsCredentials
 > {
-  static readonly id = 'meta-ads';
+  static readonly id = id;
 
   static readonly resources = metaAdsResources;
 
@@ -633,7 +635,7 @@ export class MetaAdsConnector extends BaseConnector<
     );
   }
 
-  readonly id = 'meta-ads';
+  readonly id = id;
   override readonly credentials = metaAdsCredentials;
 
   private buildHeaders(): Record<string, string> {

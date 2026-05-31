@@ -339,7 +339,7 @@ const dealsSchema = z.array(crmRecordSchema(dealProperties));
 const dealEventsSchema = z.array(dealHistoryRecordSchema);
 const campaignsSchema = z.array(campaignDetailSchema);
 
-const hubspotResources = defineResources({
+export const hubspotResources = defineResources({
   hubspot_contact: {
     shape: 'entity',
     description:
@@ -403,11 +403,13 @@ const hubspotResources = defineResources({
 // HubSpotConnector
 // ---------------------------------------------------------------------------
 
+export const id = 'hubspot';
+
 export class HubSpotConnector extends BaseConnector<
   HubSpotSettings,
   HubSpotCredentials
 > {
-  static readonly id = 'hubspot';
+  static readonly id = id;
 
   static readonly resources = hubspotResources;
 
@@ -422,7 +424,7 @@ export class HubSpotConnector extends BaseConnector<
     );
   }
 
-  readonly id = 'hubspot';
+  readonly id = id;
   override readonly credentials = hubspotCredentials;
 
   private buildHeaders(): Record<string, string> {

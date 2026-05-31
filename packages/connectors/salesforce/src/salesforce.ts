@@ -306,7 +306,7 @@ const fieldHistorySchema = z.object({
 // Resources
 // ---------------------------------------------------------------------------
 
-const salesforceResources = defineResources({
+export const salesforceResources = defineResources({
   salesforce_user: {
     shape: 'entity',
     description:
@@ -486,11 +486,13 @@ function parseDateMs(value: string | null | undefined): number | null {
 // SalesforceConnector
 // ---------------------------------------------------------------------------
 
+export const id = 'salesforce';
+
 export class SalesforceConnector extends BaseConnector<
   SalesforceSettings,
   SalesforceCredentials
 > {
-  static readonly id = 'salesforce';
+  static readonly id = id;
 
   static readonly resources = salesforceResources;
 
@@ -513,7 +515,7 @@ export class SalesforceConnector extends BaseConnector<
     );
   }
 
-  readonly id = 'salesforce';
+  readonly id = id;
   override readonly credentials = salesforceCredentials;
 
   private accessToken: string | null = null;

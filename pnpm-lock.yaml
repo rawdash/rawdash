@@ -313,6 +313,79 @@ importers:
         specifier: ^5.7.2
         version: 5.9.3
 
+  packages/connectors-umbrella:
+    dependencies:
+      '@rawdash/connector-aws-cloudwatch':
+        specifier: workspace:*
+        version: link:../connectors/aws-cloudwatch
+      '@rawdash/connector-aws-cost':
+        specifier: workspace:*
+        version: link:../connectors/aws-cost
+      '@rawdash/connector-datadog':
+        specifier: workspace:*
+        version: link:../connectors/datadog
+      '@rawdash/connector-github':
+        specifier: workspace:*
+        version: link:../connectors/github
+      '@rawdash/connector-google-ads':
+        specifier: workspace:*
+        version: link:../connectors/google-ads
+      '@rawdash/connector-google-analytics':
+        specifier: workspace:*
+        version: link:../connectors/google-analytics
+      '@rawdash/connector-google-search-console':
+        specifier: workspace:*
+        version: link:../connectors/google-search-console
+      '@rawdash/connector-hubspot':
+        specifier: workspace:*
+        version: link:../connectors/hubspot
+      '@rawdash/connector-intercom':
+        specifier: workspace:*
+        version: link:../connectors/intercom
+      '@rawdash/connector-jira':
+        specifier: workspace:*
+        version: link:../connectors/jira
+      '@rawdash/connector-linear':
+        specifier: workspace:*
+        version: link:../connectors/linear
+      '@rawdash/connector-meta-ads':
+        specifier: workspace:*
+        version: link:../connectors/meta-ads
+      '@rawdash/connector-mixpanel':
+        specifier: workspace:*
+        version: link:../connectors/mixpanel
+      '@rawdash/connector-posthog':
+        specifier: workspace:*
+        version: link:../connectors/posthog
+      '@rawdash/connector-salesforce':
+        specifier: workspace:*
+        version: link:../connectors/salesforce
+      '@rawdash/connector-sentry':
+        specifier: workspace:*
+        version: link:../connectors/sentry
+      '@rawdash/connector-stripe':
+        specifier: workspace:*
+        version: link:../connectors/stripe
+      '@rawdash/connector-vercel':
+        specifier: workspace:*
+        version: link:../connectors/vercel
+      '@rawdash/core':
+        specifier: workspace:*
+        version: link:../core
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      tsup:
+        specifier: ^8.0.0
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.9)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.3)
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.4
+        version: 4.1.4(@types/node@24.12.2)(vite@8.0.8(@types/node@24.12.2)(esbuild@0.27.7)(jiti@1.21.7)(tsx@4.21.0)(yaml@2.8.3))
+
   packages/connectors/aws-cloudwatch:
     dependencies:
       '@rawdash/core':
