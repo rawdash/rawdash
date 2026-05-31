@@ -24,6 +24,7 @@ export default defineConfig({
           items: [
             { label: 'Introduction', slug: 'docs/getting-started' },
             { label: 'Quickstart', slug: 'docs/quickstart' },
+            { label: 'Cloud Quickstart', slug: 'docs/cloud-quickstart' },
           ],
         },
         {
@@ -35,7 +36,7 @@ export default defineConfig({
         },
         {
           label: 'Connectors',
-          autogenerate: { directory: 'docs/connectors' },
+          slug: 'docs/connectors',
         },
         {
           label: 'Reference',

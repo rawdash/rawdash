@@ -96,6 +96,25 @@ export const connectors: ConnectorCard[] = [
     ],
   },
   {
+    id: 'google-ads',
+    name: 'Google Ads',
+    category: 'marketing',
+    categoryLabel: 'Marketing',
+    tagline:
+      'Sync Google Ads campaigns plus daily campaign, ad-group, and keyword performance (impressions, clicks, cost, conversions) via GAQL.',
+    href: '/docs/connectors/marketing/google-ads/',
+    iconPath: '/connectors/google-ads.svg',
+    brandColor: '#4285F4',
+    keywords: [
+      '@rawdash/connector-google-ads',
+      'google ads',
+      'google_ads_ad_group_metrics',
+      'google_ads_campaign',
+      'google_ads_campaign_metrics',
+      'google_ads_keyword_metrics',
+    ],
+  },
+  {
     id: 'google-analytics',
     name: 'Google Analytics',
     category: 'analytics',
@@ -114,6 +133,25 @@ export const connectors: ConnectorCard[] = [
       'ga4_traffic_by_day',
       'ga4_traffic_by_source',
       'google analytics',
+    ],
+  },
+  {
+    id: 'google-search-console',
+    name: 'Google Search Console',
+    category: 'marketing',
+    categoryLabel: 'Marketing',
+    tagline:
+      'Sync daily Search Console SEO metrics - clicks, impressions, CTR, and average position - by date, query, page, and country.',
+    href: '/docs/connectors/marketing/google-search-console/',
+    iconPath: '/connectors/google-search-console.svg',
+    brandColor: '#458CF5',
+    keywords: [
+      '@rawdash/connector-google-search-console',
+      'google search console',
+      'gsc_search_analytics_by_day',
+      'gsc_top_countries',
+      'gsc_top_pages',
+      'gsc_top_queries',
     ],
   },
   {
@@ -195,6 +233,25 @@ export const connectors: ConnectorCard[] = [
       'linear_issue_state_change',
       'linear_team',
       'linear_user',
+    ],
+  },
+  {
+    id: 'meta-ads',
+    name: 'Meta Ads',
+    category: 'marketing',
+    categoryLabel: 'Marketing',
+    tagline:
+      'Sync Meta (Facebook + Instagram) ad campaigns plus daily campaign, adset, and ad-level insights - spend, impressions, clicks, reach, conversions, and conversion value.',
+    href: '/docs/connectors/marketing/meta-ads/',
+    iconPath: '/connectors/meta-ads.svg',
+    brandColor: '#0866FF',
+    keywords: [
+      '@rawdash/connector-meta-ads',
+      'meta',
+      'meta_ad_insights',
+      'meta_adset_insights',
+      'meta_campaign',
+      'meta_campaign_insights',
     ],
   },
   {
@@ -336,6 +393,11 @@ export const connectorCategories: ConnectorCategory[] = [
     id: 'analytics',
     label: 'Analytics',
     count: 2,
+  },
+  {
+    id: 'marketing',
+    label: 'Marketing',
+    count: 3,
   },
   {
     id: 'sales',
