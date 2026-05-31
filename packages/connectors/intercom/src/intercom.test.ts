@@ -612,7 +612,7 @@ describe('IntercomConnector.sync', () => {
     );
 
     const call = recordCalls(fetchSpy)[0]!;
-    expect(call.url).toBe('https://api.eu.intercom.com/admins');
+    expect(call.url).toBe('https://api.eu.intercom.io/admins');
   });
 
   it('routes requests to the AU host when region is au', async () => {
@@ -625,7 +625,7 @@ describe('IntercomConnector.sync', () => {
     );
 
     const call = recordCalls(fetchSpy)[0]!;
-    expect(call.url).toBe('https://api.au.intercom.com/admins');
+    expect(call.url).toBe('https://api.au.intercom.io/admins');
   });
 
   it('sends bearer auth and the Intercom-Version header', async () => {
