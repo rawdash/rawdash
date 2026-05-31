@@ -1,0 +1,232 @@
+---
+title: Cloud Quickstart
+description: Upgrade from a local OSS setup to Rawdash Cloud — managed sync, a hosted API, and a web UI for your whole team.
+---
+
+import { Steps, Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+[Rawdash Cloud](https://cloud.rawdash.dev) runs the same engine you run locally,
+managed for you. This guide takes an existing OSS setup — a `rawdash.config.ts`
+that already works on your machine — and deploys it to the cloud. Your config
+and your dashboard components stay the same; only the data source changes.
+
+If you haven't built a local config yet, start with the
+**[Quickstart](/docs/quickstart/)** first, then come back here.
+
+## When to upgrade from OSS to cloud
+
+You already run Rawdash OSS locally and have a config that works. Upgrade to
+cloud when you want to:
+
+- **Share dashboards with teammates** instead of running a server on your laptop.
+- **Stop operating infrastructure** — no Node server to keep alive, no Turso
+  database to provision.
+- **Get a stable URL** your frontend and your team can rely on.
+
+Cloud gives you managed background sync, a hosted read API, a web UI for
+non-engineers, multi-user access, and cloud-managed storage — nothing to run
+yourself.
+
+<Steps>
+
+1. **Sign up**
+
+   Visit [cloud.rawdash.dev/signup](https://cloud.rawdash.dev/signup) and fill
+   out the waitlist form. When your invite email arrives, click the link and
+   sign in with Google or GitHub.
+
+   On first sign-in, Cloud automatically provisions your organization and a
+   per-tenant database. There's nothing to configure — no Turso credentials, no
+   storage adapter.
+
+2. **Get an API key**
+
+   In the Cloud UI, go to **Settings → API Keys → Create**. Copy the
+   `rdk_live_...` value — it's shown only once.
+
+   ```sh
+   export RAWDASH_API_KEY=rdk_live_...
+   ```
+
+   The CLI and the SDK both read this from the `RAWDASH_API_KEY` environment
+   variable.
+
+3. **Set the secrets your config references**
+
+   Locally, your config reads secrets from env vars (`GITHUB_TOKEN`,
+   `TURSO_AUTH_TOKEN`, etc.). In the cloud, secrets are managed for you — set
+   each `secret('NAME')` your config references with the CLI. Values are write-
+   only; they're never returned after being set.
+
+   ```sh
+   # Pipe a value in over stdin (nothing sensitive lands in your shell history):
+   gh auth token | npx @rawdash/cli secrets set GITHUB_TOKEN
+
+   # Or pass it as an argument:
+   npx @rawdash/cli secrets set SLACK_TOKEN xoxb-...
+
+   # Structured secrets (e.g. an AWS role) go in as JSON:
+   npx @rawdash/cli secrets set AWS_PROD_AUTH \
+     --json '{"type":"role","roleArn":"arn:aws:iam::123456789012:role/rawdash","externalId":"..."}'
+   ```
+
+   <Aside type="tip">
+     You don't set `TURSO_URL` / `TURSO_AUTH_TOKEN` in the cloud — storage is
+     cloud-managed. Drop those from your secrets list.
+   </Aside>
+
+   List what's configured at any time:
+
+   ```sh
+   npx @rawdash/cli secrets list
+   #   GITHUB_TOKEN  (last rotated: 5/31/2026, 10:00:00 AM)
+   #   AWS_PROD_AUTH  (last rotated: 5/31/2026, 10:01:00 AM)
+   ```
+
+4. **Deploy your config**
+
+   From the directory where your `rawdash.config.ts` lives, preview the changes
+   with `--dry-run`, then apply them:
+
+   ```sh
+   cd /path/to/your/repo
+
+   # Preview — validates and diffs without persisting:
+   npx @rawdash/cli deploy --dry-run
+
+   # Apply (prompts for confirmation):
+   npx @rawdash/cli deploy
+   ```
+
+   The diff shows what will change in your org:
+
+   ```text
+   Connectors:
+     + main
+   Dashboards:
+     + eng
+   ✓ Deployed
+   ```
+
+   <Aside type="tip">
+     In CI, pass `--yes` to skip the confirmation prompt. Point the CLI at a
+     non-default config location with `--config path/to/rawdash.config.ts`.
+   </Aside>
+
+5. **Trigger the initial sync and verify**
+
+   Deploying registers your connectors and dashboards; it doesn't fetch data
+   yet. Kick off the first sync, then check the results:
+
+   ```sh
+   # Trigger a sync (returns immediately; the run happens in the background):
+   curl -X POST -H "Authorization: Bearer $RAWDASH_API_KEY" \
+     https://api.rawdash.dev/sync
+   # {"queued":true}
+
+   # Give it a minute, then read your dashboard's widgets:
+   curl -H "Authorization: Bearer $RAWDASH_API_KEY" \
+     "https://api.rawdash.dev/dashboards/eng/widgets" | jq
+   ```
+
+   ```json
+   {
+     "widgets": [
+       {
+         "widgetId": "open_prs",
+         "connectorId": "github",
+         "data": { "value": 12 },
+         "cachedAt": "2026-05-31T10:00:00.000Z",
+         "syncState": "fresh"
+       }
+     ]
+   }
+   ```
+
+   Or just open the dashboard in the Cloud UI and watch the widgets render.
+
+   <Aside type="note">
+     `POST /sync` never blocks. To watch progress, poll
+     `GET /sync/state` until `status` is `succeeded` or `failed` — the SDK's
+     `ensureFresh()` helper does this for you.
+   </Aside>
+
+6. **Point your frontend at the cloud read API**
+
+   This is the same `@rawdash/sdk-client` (or `@rawdash/sdk-nextjs`) component
+   code that worked locally — only the data source changes. Swap the local
+   `baseUrl` for the cloud's hosted API and add your API key:
+
+   <Tabs>
+     <TabItem label="Generic (sdk-client)">
+       ```ts title="lib/rawdash.ts"
+       import { http } from '@rawdash/sdk-client';
+
+       export const rawdash = http({
+         baseUrl: 'https://api.rawdash.dev',
+         apiKey: process.env.RAWDASH_API_KEY,
+       });
+       ```
+     </TabItem>
+     <TabItem label="Next.js (sdk-nextjs)">
+       ```ts title="lib/rawdash.ts"
+       import { createRawdashClient, http } from '@rawdash/sdk-nextjs';
+
+       export const rawdash = createRawdashClient(
+         http({
+           baseUrl: 'https://api.rawdash.dev',
+           apiKey: process.env.RAWDASH_API_KEY,
+         }),
+       );
+       ```
+     </TabItem>
+   </Tabs>
+
+   <Aside type="caution">
+     Keep `RAWDASH_API_KEY` server-side. Read widgets from a Server Component,
+     Server Action, or your own backend route — never ship the key to the
+     browser.
+   </Aside>
+
+</Steps>
+
+## Switching the local app to use cloud
+
+The same `rawdash.config.ts` and the same dashboard components work in both
+modes. Going from local to cloud is a single change: the data source factory.
+
+```diff title="lib/rawdash.ts"
+  import { http } from '@rawdash/sdk-client';
+
+  export const rawdash = http({
+-   baseUrl: process.env.RAWDASH_URL ?? 'http://localhost:8080',
++   baseUrl: 'https://api.rawdash.dev',
++   apiKey: process.env.RAWDASH_API_KEY,
+  });
+```
+
+Everything downstream — how you call `getWidgets()`, how your components render
+— is untouched.
+
+## What changes vs OSS
+
+| | OSS (local) | Cloud |
+| --- | --- | --- |
+| **Sync** | You run `example-server` / your own Node process | Runs in the background on cloud — nothing to keep alive |
+| **Secrets** | Local env vars (`.env.local`) | Managed by the cloud, set via the CLI |
+| **Storage** | You provision Turso (or use in-memory SQLite) | Cloud-managed per-tenant database |
+| **Access** | Single machine | Multi-user, built in |
+| **API URL** | `http://localhost:8080` | `https://api.rawdash.dev` (stable, hosted) |
+
+## Source-of-truth modes
+
+By default, your org's source of truth is whatever you most recently set —
+whether that came from the CLI or the web UI. If you'd rather lock changes to
+the CLI (so the UI is read-only and git stays authoritative), switch to **git
+mode** under **Settings → Source of Truth** in the Cloud UI.
+
+## Next steps
+
+- **[API Reference](/docs/api-reference/)** — full HTTP endpoint docs for the cloud read API
+- **[Connector Author Guide](/docs/connector-guide/)** — build a custom connector for any API
+- **[MCP Setup](/docs/mcp-setup/)** — query your cloud data from Claude Code
