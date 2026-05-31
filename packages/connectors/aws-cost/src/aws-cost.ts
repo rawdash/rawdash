@@ -18,12 +18,17 @@ import {
 import {
   type ChunkedSyncCursor,
   type ConnectorContext,
+  type ConnectorCost,
+  type ConnectorDoc,
   type JSONValue,
   type MetricSample,
   type StorageHandle,
   type SyncOptions,
   type SyncResult,
   defineConfigFields,
+  defineConnectorDoc,
+  defineResources,
+  schemasFromResources,
 } from '@rawdash/core';
 import { z } from 'zod';
 
@@ -72,6 +77,36 @@ export const configFields = defineConfigFields(
       message: awsAuthRefine.message,
     }),
 );
+
+export const doc: ConnectorDoc = defineConnectorDoc({
+  displayName: 'AWS Cost Explorer',
+  category: 'finance',
+  brandColor: '#6CAE3E',
+  tagline:
+    'Track AWS spend over time and projected month-end costs, optionally broken down by service, account, tag, or cost category.',
+  vendor: {
+    name: 'Amazon Web Services',
+    apiDocs:
+      'https://docs.aws.amazon.com/aws-cost-management/latest/APIReference/API_Operations_AWS_Cost_Explorer_Service.html',
+    website: 'https://aws.amazon.com/aws-cost-management/aws-cost-explorer/',
+  },
+  auth: {
+    summary:
+      'Authenticate either with a long-lived IAM access key pair or by assuming an IAM role (Role ARN with an optional External ID). The principal needs the `ce:GetCostAndUsage` and `ce:GetCostForecast` permissions. Cost Explorer is a global service reached through its us-east-1 endpoint.',
+    setup: [
+      'In the AWS console, create an IAM user or role granting `ce:GetCostAndUsage` and `ce:GetCostForecast`.',
+      'For access-key auth, generate an access key pair and store both halves as secrets, then reference them as `accessKeyId: secret("AWS_ACCESS_KEY_ID")` and `secretAccessKey: secret("AWS_SECRET_ACCESS_KEY")`.',
+      'For role-assumption auth, set `roleArn` to the role to assume and (if configured) `externalId` to the role’s expected external ID.',
+      'Cost Explorer must be enabled for the account; the first activation can take up to 24 hours before data is queryable.',
+    ],
+  },
+  rateLimit:
+    'Cost Explorer throttling (ThrottlingException) is retried with backoff. Cost Explorer is global and always reached via ce.us-east-1.amazonaws.com.',
+  limitations: [
+    'Cost Explorer data can be revised for a couple of days after the fact, so incremental syncs refetch a short trailing window.',
+    'Forecast is unavailable for brand-new accounts (DataUnavailableException is treated as no forecast, not an error).',
+  ],
+});
 
 export interface AwsCostSettings extends BaseAWSSettings {
   granularity?: 'DAILY' | 'MONTHLY';
@@ -494,16 +529,90 @@ function isAwsCostCursor(value: unknown): value is AwsCostCursor {
 }
 
 // ---------------------------------------------------------------------------
+// Resources
+// ---------------------------------------------------------------------------
+
+const awsCostResources = defineResources({
+  aws_cost_daily: {
+    shape: 'metric',
+    description:
+      'Historical unblended AWS cost per time bucket, optionally split across the configured group-by dimensions. The current bucket is estimated and overwritten on later syncs as it finalizes.',
+    endpoint: 'POST GetCostAndUsage',
+    unit: 'USD',
+    granularity: 'daily',
+    notes:
+      'Prefer MONTHLY granularity over long windows since each Cost Explorer query is billed. Cost Explorer accepts at most two group-by dimensions per query.',
+    dimensions: [
+      {
+        name: 'granularity',
+        description: 'Bucket granularity, DAILY or MONTHLY.',
+      },
+      {
+        name: 'estimated',
+        description:
+          'Whether the bucket is still estimated rather than finalized.',
+      },
+      {
+        name: 'unit',
+        description: 'Currency unit reported by AWS, e.g. USD.',
+      },
+      {
+        name: 'service',
+        description:
+          'AWS service name, present when grouping by SERVICE (other group-by dimensions appear as linked_account, tag_<key>, or cost_category_<key>).',
+      },
+    ],
+    responses: { daily_cost: getCostAndUsageResponse },
+  },
+  aws_cost_forecast: {
+    shape: 'metric',
+    description:
+      'Projected future unblended AWS cost (mean value) with optional lower and upper prediction-interval bounds. Empty when the account has insufficient history to forecast.',
+    endpoint: 'POST GetCostForecast',
+    unit: 'USD',
+    granularity: 'daily',
+    notes:
+      'Prefer MONTHLY granularity over long windows since each Cost Explorer query is billed.',
+    dimensions: [
+      {
+        name: 'granularity',
+        description: 'Bucket granularity, DAILY or MONTHLY.',
+      },
+      {
+        name: 'unit',
+        description: 'Currency unit reported by AWS, e.g. USD.',
+      },
+      {
+        name: 'lowerBound',
+        description: 'Lower bound of the prediction interval, if provided.',
+      },
+      {
+        name: 'upperBound',
+        description: 'Upper bound of the prediction interval, if provided.',
+      },
+    ],
+    responses: { forecast: getCostForecastResponse },
+  },
+});
+
+// ---------------------------------------------------------------------------
 // AwsCostConnector
 // ---------------------------------------------------------------------------
 
 export class AwsCostConnector extends BaseAWSConnector<AwsCostSettings> {
   static readonly id = 'aws-cost';
 
-  static readonly schemas = {
-    daily_cost: getCostAndUsageResponse,
-    forecast: getCostForecastResponse,
-  } as const;
+  static readonly resources = awsCostResources;
+
+  static readonly schemas = schemasFromResources(awsCostResources);
+
+  static readonly cost: ConnectorCost = {
+    recommendedInterval: '1 day',
+    minInterval: '1 hour',
+    perSync: '2 Cost Explorer queries (about $0.02)',
+    warning:
+      'Each AWS Cost Explorer query is billed $0.01; avoid syncing more often than necessary.',
+  };
 
   static create(input: unknown, ctx?: ConnectorContext): AwsCostConnector {
     const parsed = configFields.parse(input);

@@ -1,5 +1,100 @@
 # @rawdash/connector-github
 
+## 0.16.0
+
+### Minor Changes
+
+- 022cbf1: Connectors now emit structured INFO progress logs during sync.
+
+  Adds a `ConnectorLogger` interface (`info` / `warn`) exposed on `ConnectorContext` and accessible via `this.logger` on `BaseConnector`. The default implementation writes single-line, key=value formatted records to stdout/stderr with a stable `[<scope>]` prefix.
+
+  `paginateChunked` now emits one INFO line per page fetch (`fetched page resource=… page=… items=… cursor=…`), one per resource completion (`resource done resource=… pages=… items=… duration_ms=…`), and a WARN line when a page fetch or batch write fails. `runSync` wraps each connector run in `[runner] sync started` / `[runner] sync settled status=… duration_ms=…` envelopes.
+
+  All five OSS connectors (github, sentry, linear, stripe, vercel) pass `this.logger` into `paginateChunked`, so a multi-minute sync now produces a continuous, parseable stream of progress lines instead of silence between queued and succeeded.
+
+  Operators can BYO logger by passing `loggerFactory: (scope) => ConnectorLogger` to `mountEngine`, `createSyncRouter`, `createEngine`, `triggerSync`, or `runSync` directly. The factory is invoked with `'runner'` for the runner envelopes and with each connector instance name for that connector's logger; omit it to keep the default stdout impl.
+
+- e104540: GitHub connector: extend `aggregate()` with `latest(release, field)`, richer count filters, structured INFO logs, and a new `validateCountFilter` hook.
+  - `latest(release, field)` now hits `GET /repos/O/R/releases/latest` and returns `tag_name`, `name`, `author`, or `published_at` in a single API call (previously fell back to entity-sync over `/releases?per_page=100`).
+  - Count filter translation now supports `state`, `label`, `author`, `assignee`, `milestone`, `draft`, `head`, and `base` — mapped to the matching `is:` / `label:` / `author:` etc. GitHub Search qualifiers. Unsupported operators (anything other than `eq`) and unknown fields are rejected with a descriptive error.
+  - `count(repo)` and `count(workflow_run)` are now rejected explicitly rather than silently routed to the `latest` code path.
+  - Each aggregate call emits a structured `info` log (`[github-actions] aggregate fn=count resource=pull_request query="repo:o/r is:pr is:open" value=194 via="search API"`) — one line per aggregate, matching the cadence introduced by the progress-log work.
+
+  Core: `Connector` gains an optional `validateCountFilter(resource, filter)` hook so config-time validation can reject unsupported filter combinations before the first sync. The GitHub connector implements it by re-using its runtime translation table.
+
+- 9169ceb: GitHub connector: gate N+1 reviews/statuses sub-fetches on a resource allowlist.
+
+  Adds an optional `resources?: ReadonlyArray<string>` field to `SyncOptions`. When set, the GitHub connector skips the per-PR `GET /pulls/{n}/reviews` fan-out unless `pull_request_reviews` is in the allowlist, and skips the per-deployment `GET /deployments/{id}/statuses` fan-out unless `deployment_statuses` is in the allowlist. When `resources` is unset, behavior is unchanged — both sub-resources are still fetched.
+
+  This eliminates the dominant source of wasted API calls when a dashboard only needs PR / deployment counts. Combined with the existing `since`-aware page filtering (sub-fetches already only run for survivors of the cutoff), real-world repos like `rawdash/rawdash` no longer blow past the 5-min sync budget on the example dashboard.
+
+  The runner that actually computes and passes the allowlist is wired up separately.
+
+- c27c332: Remove the connector-level `aggregate()` query fast-path; connectors are now pure resource syncers and the engine owns all query-time aggregation.
+
+  `Connector` no longer exposes `aggregate()` or `validateCountFilter()`, and the `AggregateRequest` / `AggregateValue` types, `classifyWidget`, `readAggregate`, and `writeAggregate` are removed from `@rawdash/core`. During sync the runner no longer dispatches `connector.aggregate()`, writes `__widget_aggregate` rows, or drops resources from the entity-sync allowlist — every in-scope resource is entity-synced and `resolveWidget` always evaluates the metric via `computeMetric` over synced rows.
+
+  The `github` and `hubspot` connectors drop their `aggregate()` / `validateCountFilter()` implementations. Correctness is unchanged; this only trades extra sync volume for a uniform, decoupled contract. Widget-level aggregation (`defineMetric({ fn: 'count', ... })` → `computeMetric`) and natively metric-shaped sources (CloudWatch, Cost Explorer, Google Analytics) are unaffected.
+
+### Patch Changes
+
+- 79fdd64: Connectors can now expose `count()` / `latest()` aggregate operations and the runner calls them directly instead of paginating entities for single-scalar stat widgets.
+
+  `Connector` gains an optional `aggregate(req, signal)` method. Core ships `classifyWidget(widget)` to bucket each widget into `{ via: 'aggregate' | 'entity-sync' }` — aggregate-eligible widgets are plain `stat` widgets whose `fn` is `count` or `latest` with no `window`, no `groupBy`, and (for `latest`) a `field`. `runSync` now:
+  1. Walks every widget targeting the connector, runs `connector.aggregate(...)` in parallel for the aggregate-eligible ones, and stores the scalar under an `__widget_aggregate` entity (`getEntity(AGGREGATE_ENTITY_TYPE, widgetId)`).
+  2. Drops a resource from the entity-sync allowlist only when every widget using it is aggregate-served. When the resulting allowlist is empty the entity-sync pass is skipped entirely.
+  3. `resolveWidget` reads the cached aggregate scalar first for aggregate-eligible widgets, falling back to `computeMetric` when no scalar has been written yet.
+
+  The GitHub connector implements `aggregate` against efficient REST endpoints: `/repos/X` for `repo` stars/forks/watchers, `/search/issues` (`total_count`) for `pull_request` / `issue` counts, `/repos/X/contributors?per_page=1` for the contributor count (parsed from the `Link` header), and `/repos/X/actions/runs?per_page=1` for the latest `workflow_run`. For the `example-nextjs` dashboard, a cold-start sync collapses from ~600 paginated requests to ~7 single requests.
+
+  `FilterClause` / `FilterCondition` / `FilterOperator` moved to a dedicated `filters.ts` module and are re-exported from both `config` and the package root — no source change for consumers.
+
+- a1c4c66: Extract shared connector boilerplate across six connectors. No behavior change for connector consumers; everything below is internal refactor.
+  - `@rawdash/core` gains `makeChunkedCursorGuard(phases)`, `selectActivePhases(resourceToPhase, order, enabled)`, and `BaseConnector.isResourceEnabled<R>(resource)`. These replace hand-rolled copies that had accumulated across vercel/sentry/linear/stripe/github.
+  - The internal `@rawdash/connector-shared` substrate gains `standardRateLimitPolicy({ remainingHeader, resetHeader, resetUnit, resetFallbackMs? })`, `sanitizeAllowedUrl({ url, host, pathname, protocol? })`, `parseEpoch(value, 'ms' | 's' | 'iso')`, and `connectorUserAgent(id)`. The vendor-named `githubRateLimit` / `sentryRateLimit` / `linearRateLimit` exports are gone — each connector now builds its policy from `standardRateLimitPolicy`, including vercel which previously rolled its own.
+  - Property-test fetch-mock scaffolding (`mockResponse`, `installFetchMock`, `entityStoreFor`, `eventStoreFor`, `metricStoreFor`) was duplicated byte-for-byte in every connector's `property.test.ts`; it now lives in `@rawdash/connector-test-utils`.
+
+  Net effect for downstream packages: identical behavior, ~200 fewer lines per connector, one place to fix when the substrate evolves.
+
+- a2d6e6d: Relax `issues` Zod schema to tolerate additional GitHub API fields surfaced by shape-drift detection (RAW-339).
+
+  All newly observed fields on `$[*]` and `$[*].user` are accepted as optional, and `user` allows unknown keys via `catchall`. `closed_at` is intentionally left as `iso.datetime().nullable()` even though the latest sample showed only `string` — the existing nullable shape reflects API reality for open issues. No behavioral changes to sync or aggregate paths.
+
+- d08fcfc: Extend `pull_requests` Zod schema with newly observed GitHub API fields (forward-compat shape drift). All new fields are optional to remain tolerant of partial payloads.
+- 681c49b: Extend the `workflow_runs` Zod schema to accept newly-observed GitHub API fields (`artifacts_url`, `display_title`, `event`, `head_sha`, `html_url`, `run_number`, `run_started_at`, `triggering_actor`, `url`, `workflow_id`, etc., plus top-level `total_count`). All new fields are `.optional()` so older payloads still validate. Nullable type-changes on `conclusion`, `head_branch`, and `actor` are intentionally left as-is since existing sync code handles nulls defensively.
+- e8b014a: Scope OSS sync to widget-referenced resources, not just connectors.
+
+  `computeConnectorBackfill` now returns per-resource scope (`Map<connectorName, Map<resourceName, { requiredWindowMs }>>`) so the runner knows which resources each widget actually references. **Breaking** for direct consumers of `computeConnectorBackfill`: the return shape gained an inner `Map<resourceName, ResourceBackfill>` layer where it previously held a single `ConnectorBackfill` per connector. Status widgets register their connector with an empty inner map.
+
+  `SyncOptions` gains an optional `resources?: ReadonlySet<string>` allowlist. `runSync` derives it (plus the max window across resources) from the per-resource scope and threads it into every `connector.sync` call. Connectors that don't read the option keep their current behavior.
+
+  The GitHub connector now gates its phases on the allowlist via a `PHASE_RESOURCES` map — dashboards that don't reference `deployment`, `release`, or `contributor` no longer page through `/deployments`, `/deployment_statuses`, `/releases`, or `/stats/contributors`. An empty allowlist (status-only configs) short-circuits to `done: true` so the sync run still completes for connector-health tracking without hitting upstream.
+
+- d52a6a8: Scope OSS sync to widget-driven backfill windows.
+
+  `runSync` previously called every configured connector with `mode: 'full'` and no `since`, so connectors paginated all of upstream history on every sync — blowing past the 1000-chunk safety cap on real-world repos and making the example dashboards un-syncable.
+
+  `computeConnectorBackfill` (new in `@rawdash/core`) walks `config.dashboards.*.widgets`, groups them by connector name, and computes the max window per connector. Status widgets count as references; current-state widgets with no window keep the connector in the map but leave the window undefined.
+
+  `runSync` now skips connectors with zero referencing widgets, and passes `since = now − requiredWindow − 1d buffer` whenever a window is present.
+
+  The GitHub connector honors `since` on `pull_requests` (sorted by `updated` desc and stopping at the cutoff), `deployments`, and `releases`. Sentry, Linear, Stripe, Vercel, and Google Analytics also honor `since` under `mode: 'full'` so the widget-driven window flows end-to-end. Stripe subscriptions are intentionally exempt from the `created[gte]` cutoff in full mode because subscription `updated_at` is derived from `current_period_end` and a still-active subscription created before the cutoff would otherwise be dropped.
+
+- Updated dependencies [422b711]
+- Updated dependencies [79fdd64]
+- Updated dependencies [a1c4c66]
+- Updated dependencies [074ec25]
+- Updated dependencies [022cbf1]
+- Updated dependencies [e104540]
+- Updated dependencies [9169ceb]
+- Updated dependencies [5026a5b]
+- Updated dependencies [c27c332]
+- Updated dependencies [e8b014a]
+- Updated dependencies [7060534]
+- Updated dependencies [d52a6a8]
+- Updated dependencies [d17a523]
+  - @rawdash/core@0.16.0
+
 ## 0.15.0
 
 ### Minor Changes

@@ -7,7 +7,26 @@ import type {
   ConnectorContext,
   CredentialsSchema,
 } from './connector';
+import type { ResourceDefinitions } from './resource';
 import type { SecretsResolver } from './secrets';
+
+/**
+ * Optional cost signal a connector reports about syncing. Surfaced in the
+ * generated docs as a callout and read by the cloud connector-manager to warn
+ * when a chosen sync interval is more aggressive than recommended. Use it for
+ * connectors where frequent syncs are genuinely expensive (per-query billing,
+ * tight quotas).
+ */
+export interface ConnectorCost {
+  /** Recommended sync interval, e.g. "1 day". */
+  recommendedInterval?: string;
+  /** Minimum sensible sync interval, e.g. "1 hour". */
+  minInterval?: string;
+  /** What a single sync costs upstream, e.g. "2 Cost Explorer queries (~$0.02)". */
+  perSync?: string;
+  /** One-line warning shown next to the frequency control / at the top of docs. */
+  warning?: string;
+}
 
 /**
  * Map of resource name → Zod schema describing the raw API response shape
@@ -34,6 +53,10 @@ export type ConnectorClass = {
   new (settings: never, creds?: never, ctx?: ConnectorContext): Connector;
   readonly credentials?: CredentialsSchema;
   readonly schemas: ConnectorSchemas;
+  /** Per-resource definitions (shape, docs, and response schemas). */
+  readonly resources?: ResourceDefinitions;
+  /** Optional cost / recommended-frequency signal (see {@link ConnectorCost}). */
+  readonly cost?: ConnectorCost;
 };
 
 export type ConnectorRegistry = Record<string, ConnectorClass>;

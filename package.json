@@ -17,6 +17,8 @@
     "test": "turbo run test",
     "format": "prettier --write \"**/*.{ts,tsx,js,mjs,cjs,json,md,yml,yaml}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,mjs,cjs,json,md,yml,yaml}\"",
+    "docs:connectors": "NODE_OPTIONS=--conditions=@rawdash/source tsx scripts/generate-connector-docs.ts",
+    "docs:connectors:check": "NODE_OPTIONS=--conditions=@rawdash/source tsx scripts/generate-connector-docs.ts --check",
     "changeset": "changeset",
     "version": "changeset version",
     "release": "turbo run build && changeset publish",

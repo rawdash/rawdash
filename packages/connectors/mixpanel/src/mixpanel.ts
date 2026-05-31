@@ -2,6 +2,8 @@ import { connectorUserAgent } from '@rawdash/connector-shared';
 import {
   BaseConnector,
   type ConnectorContext,
+  type ConnectorCost,
+  type ConnectorDoc,
   type CredentialsSchema,
   type JSONValue,
   type MetricSample,
@@ -9,6 +11,9 @@ import {
   type SyncOptions,
   type SyncResult,
   defineConfigFields,
+  defineConnectorDoc,
+  defineResources,
+  schemasFromResources,
 } from '@rawdash/core';
 import { z } from 'zod';
 
@@ -81,6 +86,40 @@ export const configFields = defineConfigFields(
     }),
   }),
 );
+
+export const doc: ConnectorDoc = defineConnectorDoc({
+  displayName: 'Mixpanel',
+  category: 'analytics',
+  brandColor: '#7856FF',
+  tagline:
+    'Sync Mixpanel active-user counts, per-event volume, funnel conversion, and cohort retention as metric time series.',
+  vendor: {
+    name: 'Mixpanel',
+    apiDocs: 'https://developer.mixpanel.com/reference/query-api',
+    website: 'https://mixpanel.com',
+  },
+  auth: {
+    summary:
+      'Authenticate with a Mixpanel service account (username + secret) over HTTP Basic auth, scoped to a numeric project ID.',
+    setup: [
+      'In Mixpanel, open Project settings → Service Accounts and create a service account with at least read access to the project.',
+      'Copy the generated username (e.g. `rawdash-reader.abcdef.mp-service-account`) and the secret shown once at creation.',
+      'Find the numeric project ID under Project settings → Overview and set it as `projectId`.',
+      'Store the secret and reference it from config as `secret: secret("MIXPANEL_SECRET")`, alongside the `username`.',
+      'For EU-resident projects, set `region: "eu"`.',
+    ],
+  },
+  rateLimit:
+    "Mixpanel's Query API quota is 60 queries/hour per project (default); requests are retried with backoff.",
+  limitations: [
+    'Incremental syncs refetch a 3-day overlap because Mixpanel can re-attribute late-arriving events.',
+  ],
+});
+
+export const cost: ConnectorCost = {
+  warning:
+    'Each configured event and funnel costs one or more queries per sync against Mixpanel quotas; adding many events/funnels or syncing frequently can exhaust the quota.',
+};
 
 // ---------------------------------------------------------------------------
 // Settings / credentials
@@ -328,6 +367,140 @@ const retentionSchema = z.record(
   }),
 );
 
+const METRIC_NOTES =
+  'Each metric is rewritten in full per sync (idempotent replace).';
+
+const mixpanelResources = defineResources({
+  mixpanel_dau: {
+    shape: 'metric',
+    description:
+      'Daily active users - unique-user counts for the active-user event, one sample per day.',
+    endpoint: 'GET /api/2.0/segmentation (type=unique, unit=day)',
+    unit: 'users',
+    granularity: 'day',
+    notes: METRIC_NOTES,
+    dimensions: [
+      { name: 'unit', description: 'Active-user window: always `day`.' },
+      {
+        name: 'event',
+        description: 'The event the active-user count is based on.',
+      },
+    ],
+    responses: { dau: segmentationSchema },
+  },
+  mixpanel_wau: {
+    shape: 'metric',
+    description:
+      'Weekly active users - unique-user counts for the active-user event, one sample per week.',
+    endpoint: 'GET /api/2.0/segmentation (type=unique, unit=week)',
+    unit: 'users',
+    granularity: 'week',
+    notes: METRIC_NOTES,
+    dimensions: [
+      { name: 'unit', description: 'Active-user window: always `week`.' },
+      {
+        name: 'event',
+        description: 'The event the active-user count is based on.',
+      },
+    ],
+    responses: { wau: segmentationSchema },
+  },
+  mixpanel_mau: {
+    shape: 'metric',
+    description:
+      'Monthly active users - unique-user counts for the active-user event, one sample per month.',
+    endpoint: 'GET /api/2.0/segmentation (type=unique, unit=month)',
+    unit: 'users',
+    granularity: 'month',
+    notes: METRIC_NOTES,
+    dimensions: [
+      { name: 'unit', description: 'Active-user window: always `month`.' },
+      {
+        name: 'event',
+        description: 'The event the active-user count is based on.',
+      },
+    ],
+    responses: { mau: segmentationSchema },
+  },
+  mixpanel_events_per_day: {
+    shape: 'metric',
+    description:
+      'Per-day volume for each configured event. The sample value is the total event count; unique-user count is carried as an attribute.',
+    endpoint: 'GET /api/2.0/segmentation (type=general and type=unique)',
+    unit: 'events',
+    granularity: 'day',
+    notes: METRIC_NOTES,
+    dimensions: [
+      { name: 'event', description: 'The configured event name.' },
+      {
+        name: 'count',
+        description: 'Total event count for the day (equals the value).',
+      },
+      {
+        name: 'uniqueUsers',
+        description: 'Distinct users who triggered the event that day.',
+      },
+    ],
+    responses: { events_per_day: segmentationSchema },
+  },
+  mixpanel_funnel_results: {
+    shape: 'metric',
+    description:
+      'Per-day funnel conversion. One sample per (date, step); the value is the user count reaching that step.',
+    endpoint: 'GET /api/2.0/funnels (unit=day)',
+    unit: 'users',
+    granularity: 'day',
+    notes: METRIC_NOTES,
+    dimensions: [
+      { name: 'funnelId', description: 'The configured Mixpanel funnel ID.' },
+      {
+        name: 'funnelName',
+        description: 'Optional display name from config (present when set).',
+      },
+      { name: 'step', description: 'Zero-based step index in the funnel.' },
+      {
+        name: 'stepLabel',
+        description: 'Human-readable step label or event name.',
+      },
+      { name: 'users', description: 'Users reaching this step.' },
+      {
+        name: 'conversionRate',
+        description: 'Overall conversion ratio from the first step.',
+      },
+      {
+        name: 'stepConversionRate',
+        description: 'Conversion ratio from the previous step.',
+      },
+    ],
+    responses: { funnel_results: funnelSchema },
+  },
+  mixpanel_retention: {
+    shape: 'metric',
+    description:
+      'Cohort retention for the retention event. One sample per (cohort date, period); the value is the retained user count.',
+    endpoint: 'GET /api/2.0/retention (retention_type=birth, unit=day)',
+    unit: 'users',
+    granularity: 'day',
+    notes: METRIC_NOTES,
+    dimensions: [
+      { name: 'event', description: 'The retention (born) event.' },
+      {
+        name: 'period',
+        description: 'Days since the cohort birth date (period index).',
+      },
+      {
+        name: 'cohortSize',
+        description: 'Number of users in the cohort at birth.',
+      },
+      {
+        name: 'retentionRate',
+        description: 'Retained users divided by cohort size.',
+      },
+    ],
+    responses: { retention: retentionSchema },
+  },
+});
+
 // ---------------------------------------------------------------------------
 // Sample extraction (pure, exported for unit tests)
 // ---------------------------------------------------------------------------
@@ -495,14 +668,11 @@ export class MixpanelConnector extends BaseConnector<
 > {
   static readonly id = 'mixpanel';
 
-  static readonly schemas = {
-    dau: segmentationSchema,
-    wau: segmentationSchema,
-    mau: segmentationSchema,
-    events_per_day: segmentationSchema,
-    funnel_results: funnelSchema,
-    retention: retentionSchema,
-  } as const;
+  static readonly resources = mixpanelResources;
+
+  static readonly schemas = schemasFromResources(mixpanelResources);
+
+  static readonly cost: ConnectorCost = cost;
 
   static create(input: unknown, ctx?: ConnectorContext): MixpanelConnector {
     const parsed = configFields.parse(input);

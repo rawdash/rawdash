@@ -1,99 +1,81 @@
+<!-- This file is generated from connector metadata by scripts/generate-connector-docs.ts. Do not edit by hand. -->
+
 # @rawdash/connector-linear
 
-Rawdash connector for [Linear](https://linear.app) — syncs teams, users, cycles, and issues (plus state-transition events derived from each issue's history) into the six-shape storage model.
+[![npm version](https://img.shields.io/npm/v/@rawdash/connector-linear)](https://www.npmjs.com/package/@rawdash/connector-linear)
+[![license](https://img.shields.io/npm/l/@rawdash/connector-linear)](https://github.com/rawdash/rawdash/blob/main/LICENSE)
 
-## Auth setup
+Sync teams, members, cycles, issues, and issue state-transition events from a Linear workspace.
 
-The MVP uses a Linear **Personal API Key**:
+## Install
 
-1. Sign in to Linear and open **Settings → API → Personal API keys**.
-2. Click **Create new** and give it a name like `rawdash`.
-3. Copy the key (starts with `lin_api_…`). Linear shows it only once.
+```sh
+npm install @rawdash/connector-linear
+```
 
-Personal API keys inherit the scopes of the user who created them. The connector only issues read queries, but use an account with appropriate visibility into the teams you want to sync.
+## Authentication
 
-OAuth-based auth is planned post-MVP — see the connector roadmap for details.
+A Linear Personal API Key is required. It authenticates all GraphQL requests and scopes the sync to the workspaces and teams the key can access.
+
+1. Open Linear → Settings → API → Personal API keys.
+2. Create a new personal API key.
+3. Store it as a secret and reference it from the connector config as `apiKey: secret("LINEAR_API_KEY")`.
 
 ## Configuration
 
+| Field             | Type   | Required | Description                                                                                                                                          |
+| ----------------- | ------ | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apiKey`          | secret | Yes      | Linear Personal API Key. Create one at Linear → Settings → API → Personal API keys.                                                                  |
+| `teamIds`         | array  | No       | Restrict the sync to specific Linear team IDs. Omit to sync all teams the API key can see.                                                           |
+| `resources`       | array  | No       | Which Linear resources to sync. Omit to sync all resources. The `issues` phase also emits state-transition events derived from each issue's history. |
+| `historyPerIssue` | number | No       | How many history entries to pull per issue (newest first). State transitions inside this window become events. Defaults to 25.                       |
+
+## Resources
+
+- **`linear_team`** _(entity)_ - Workspace teams with their name and key.
+  - Endpoint: `GraphQL query: teams { nodes { ... } }`
+- **`linear_user`** _(entity)_ - Workspace members, including name, email, display name, and active state.
+  - Endpoint: `GraphQL query: users { nodes { ... } }`
+- **`linear_cycle`** _(entity)_ - Team cycles with their number, dates, progress, and final scope / completed-scope figures.
+  - Endpoint: `GraphQL query: cycles { nodes { ... } }`
+- **`linear_issue`** _(entity)_ - Issues with their state, priority, assignee, team, project, cycle, labels, estimate, and lifecycle timestamps.
+  - Endpoint: `GraphQL query: issues { nodes { ... } }`
+- **`linear_issue_state_change`** _(event)_ - State-transition events derived from each issue’s history (from-state to to-state), keyed by the originating actor.
+  - Endpoint: `GraphQL query: issues { nodes { history { nodes { ... } } } }`
+  - Only history entries with a non-null fromState and toState (where they differ) become events; these append-only events accumulate across incremental syncs.
+
+## Example
+
 ```ts
-import { secret } from '@rawdash/core';
+import {
+  defineConfig,
+  defineDashboard,
+  defineMetric,
+  secret,
+} from '@rawdash/core';
 
 const linear = {
   name: 'linear',
   connectorId: 'linear',
   config: {
     apiKey: secret('LINEAR_API_KEY'),
-    // teamIds: ['team-uuid'],     // optional — restrict to one or more teams
-    // resources: ['issues'],       // optional — defaults to all four phases
-    // historyPerIssue: 25,         // optional — how many history entries to fetch per issue
   },
 };
-```
-
-Register the connector class when mounting the engine:
-
-```ts
-import { LinearConnector } from '@rawdash/connector-linear';
-import { mountEngine } from '@rawdash/hono';
-
-mountEngine(config, { connectorRegistry: { linear: LinearConnector } });
-```
-
-### Choosing resources
-
-The connector exposes four sync phases, run in order:
-
-`teams`, `users`, `cycles`, `issues`
-
-Pass any non-empty subset as `resources` to sync only those phases. The `issues` phase also emits `linear_issue_state_change` events.
-
-### Example dashboard
-
-```ts
-import { defineConfig, defineDashboard, defineMetric } from '@rawdash/core';
 
 export default defineConfig({
   connectors: [linear],
   dashboards: {
-    engineering: defineDashboard({
+    product: defineDashboard({
       widgets: {
         open_issues: {
           kind: 'stat',
-          title: 'Open issues',
+          title: 'In-progress issues',
           metric: defineMetric({
             connector: linear,
             shape: 'entity',
             entityType: 'linear_issue',
             fn: 'count',
-            filter: [
-              { field: 'stateType', op: 'in', value: ['unstarted', 'started'] },
-            ],
-          }),
-        },
-        completed_this_week: {
-          kind: 'timeseries',
-          title: 'Issues completed per day',
-          window: '7d',
-          metric: defineMetric({
-            connector: linear,
-            shape: 'event',
-            name: 'linear_issue_state_change',
-            fn: 'count',
-            window: '7d',
-            filter: [{ field: 'toStateName', op: 'eq', value: 'Done' }],
-            groupBy: { field: 'start_ts', granularity: 'day' },
-          }),
-        },
-        issues_by_priority: {
-          kind: 'distribution',
-          title: 'Issues by priority',
-          metric: defineMetric({
-            connector: linear,
-            shape: 'entity',
-            entityType: 'linear_issue',
-            fn: 'count',
-            groupBy: { field: 'priority' },
+            filter: [{ field: 'stateType', op: 'eq', value: 'started' }],
           }),
         },
       },
@@ -102,65 +84,21 @@ export default defineConfig({
 });
 ```
 
-## Data model
+## Rate limits
 
-| Storage shape | Entity/event type           | Key attributes                                                                                                                                                      |
-| ------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| entity        | `linear_team`               | name, key, createdAt                                                                                                                                                |
-| entity        | `linear_user`               | name, email, displayName, active, createdAt                                                                                                                         |
-| entity        | `linear_cycle`              | number, name, teamId, startsAt, endsAt, completedAt, progress, scope, completedScope                                                                                |
-| entity        | `linear_issue`              | identifier, title, stateId, stateName, stateType, priority, assigneeId, teamId, projectId, cycleId, labels, estimate, createdAt, completedAt, canceledAt, startedAt |
-| event         | `linear_issue_state_change` | historyId, issueId, issueIdentifier, teamId, actorId, fromStateId, fromStateName, toStateId, toStateName                                                            |
+Linear returns X-RateLimit-Requests-Remaining / X-RateLimit-Requests-Reset headers (reset in ms); requests are paged 50 at a time.
 
-Timestamps are stored as Unix epoch milliseconds. `linear_issue_state_change` events are derived from the `history(first: N)` window on each issue — only entries with a non-null `fromState` and `toState` (and where they differ) become events.
+## Limitations
 
-## Schemas
+- API key auth only (OAuth not yet supported).
+- Webhooks and roadmap/initiative resources are out of scope.
 
-`LinearConnector.schemas` declares the Zod schema for each resource's raw GraphQL node shape. Used by the cloud shape-drift pipeline to populate `connector_baselines`, and by the package's property tests.
+## Links
 
-| Resource | Represents                                              |
-| -------- | ------------------------------------------------------- |
-| `teams`  | `teams(...)` connection nodes                           |
-| `users`  | `users(...)` connection nodes                           |
-| `cycles` | `cycles(...)` connection nodes                          |
-| `issues` | `issues(...)` connection nodes (incl. nested `history`) |
+- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Linear API docs](https://developers.linear.app/docs)
+- [GitHub](https://github.com/rawdash/rawdash)
 
-## Sync behaviour
+## License
 
-- **Backfill** (`mode: 'full'`): paginates each phase via Linear's `after`/`endCursor` GraphQL connection (page size 50). Issue and event scopes are cleared at the start of their phase so deletions in Linear converge.
-- **Incremental** (`mode: 'latest'`): applies an `updatedAt > since` GraphQL filter on each connection, fetching only records that have changed since the last sync. Append-only state-transition events derived from issue history will accumulate over consecutive incremental syncs.
-- **Rate limits**: Linear sends `X-RateLimit-Requests-Remaining` / `X-RateLimit-Requests-Reset` on every response — the connector reports the parsed state back to the host via the shared rate-limit policy so the engine can budget future requests.
-- **Resumable**: every phase yields a `(phase, endCursor)` cursor — if the host aborts the sync, the next invocation picks up at the same page.
-
-## Out of scope (post-MVP)
-
-- Linear OAuth (currently API key only).
-- Webhooks for live updates (Team-tier feature).
-- Roadmap / Initiative resources (open a ticket if you need them).
-
-## Registering in the MCP server
-
-```ts
-import { LinearConnector, configFields } from '@rawdash/connector-linear';
-
-createMcpServer({
-  // ...
-  connectorFactories: [
-    {
-      id: 'linear',
-      configFields,
-      create: LinearConnector.create,
-    },
-  ],
-});
-```
-
-## Property tests
-
-Resources in this connector have fast-check property tests under `src/property.test.ts` that:
-
-1. Generate N≥50 synthetic API payloads from a Zod schema mirroring the upstream API response.
-2. Pipe them through `connector.sync()` against an `InMemoryStorage` instance.
-3. Assert universal invariants — non-empty entity ids, finite event timestamps, no `undefined` leaking into storage, no thrown errors on any valid input — plus per-resource counts.
-
-The helper lives in `@rawdash/connector-test-utils`. When adding a new resource, add a Zod schema for its payload and a test wired up via `runPropertySyncTest`.
+Apache-2.0

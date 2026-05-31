@@ -1,119 +1,121 @@
+<!-- This file is generated from connector metadata by scripts/generate-connector-docs.ts. Do not edit by hand. -->
+
 # @rawdash/connector-mixpanel
 
-Rawdash connector for [Mixpanel](https://mixpanel.com) — syncs daily/weekly/monthly active users, per-event volume, declared funnel conversion data, and cohort retention into the six-shape storage model via the [Mixpanel Query API](https://developer.mixpanel.com/reference/query-api).
+[![npm version](https://img.shields.io/npm/v/@rawdash/connector-mixpanel)](https://www.npmjs.com/package/@rawdash/connector-mixpanel)
+[![license](https://img.shields.io/npm/l/@rawdash/connector-mixpanel)](https://github.com/rawdash/rawdash/blob/main/LICENSE)
 
-## Auth setup
+Sync Mixpanel active-user counts, per-event volume, funnel conversion, and cohort retention as metric time series.
 
-The connector authenticates with a Mixpanel **service account** (recommended for server-to-server use). Service account credentials are project-scoped and survive user offboarding.
+> **Cost & frequency.** Each configured event and funnel costs one or more queries per sync against Mixpanel quotas; adding many events/funnels or syncing frequently can exhaust the quota.
 
-1. Open your Mixpanel project and navigate to **Settings → Project Settings → Service Accounts** (Mixpanel docs: [Creating a Service Account](https://developer.mixpanel.com/reference/service-accounts)).
-2. Click **Add Service Account**.
-3. Give it a descriptive name (e.g. `rawdash-reader`).
-4. Choose a role of **Consumer** (read-only is sufficient for query access).
-5. Set an expiration (a long-lived secret is fine for server use; pick a date that fits your rotation policy).
-6. Click **Create**. Mixpanel will display the **Username** and **Secret** once; copy both before closing the dialog.
-7. Store the secret in your secrets manager under (for example) `MIXPANEL_SECRET`. The username is not sensitive and can live in plain configuration.
-8. Note your **Project ID** under **Settings → Project Settings → Overview**.
+## Install
 
-The connector calls the API with HTTP Basic auth (`Authorization: Basic base64(<username>:<secret>)`) and includes `project_id=<id>` on every request, which is the contract Mixpanel requires for service-account access.
+```sh
+npm install @rawdash/connector-mixpanel
+```
+
+## Authentication
+
+Authenticate with a Mixpanel service account (username + secret) over HTTP Basic auth, scoped to a numeric project ID.
+
+1. In Mixpanel, open Project settings → Service Accounts and create a service account with at least read access to the project.
+2. Copy the generated username (e.g. `rawdash-reader.abcdef.mp-service-account`) and the secret shown once at creation.
+3. Find the numeric project ID under Project settings → Overview and set it as `projectId`.
+4. Store the secret and reference it from config as `secret: secret("MIXPANEL_SECRET")`, alongside the `username`.
+5. For EU-resident projects, set `region: "eu"`.
 
 ## Configuration
 
+| Field             | Type         | Required | Description                                                                                                                             |
+| ----------------- | ------------ | -------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `username`        | string       | Yes      | Mixpanel service account username (e.g. `rawdash-reader.abcdef.mp-service-account`). Create one at Project settings → Service Accounts. |
+| `secret`          | secret       | Yes      | Mixpanel service account secret, paired with the username via HTTP Basic auth.                                                          |
+| `projectId`       | string       | Yes      | Numeric Mixpanel project ID. Found under Project settings → Overview.                                                                   |
+| `region`          | `us` \| `eu` | No       | Mixpanel API region. Defaults to `us`.                                                                                                  |
+| `events`          | array        | No       | Event names to fetch per-day volume and unique-user counts for. Each event runs one segmentation query per sync per type.               |
+| `funnels`         | array        | No       | Mixpanel funnels to sync per-day conversion data for. Add one entry per funnel ID.                                                      |
+| `retentionEvent`  | string       | No       | Event name to use for cohort retention. When set, the connector runs a single retention query per sync.                                 |
+| `activeUserEvent` | string       | No       | Event name used for DAU/WAU/MAU unique-user counts. Defaults to the first entry in `events` when unset.                                 |
+| `lookbackDays`    | number       | No       | How many days to fetch on a full sync. Defaults to 90.                                                                                  |
+
+## Resources
+
+- **`mixpanel_dau`** _(metric)_ - Daily active users - unique-user counts for the active-user event, one sample per day.
+  - Endpoint: `GET /api/2.0/segmentation (type=unique, unit=day)`
+  - Unit: users
+  - Granularity: day
+  - Dimensions: `unit`, `event`
+  - Each metric is rewritten in full per sync (idempotent replace).
+- **`mixpanel_wau`** _(metric)_ - Weekly active users - unique-user counts for the active-user event, one sample per week.
+  - Endpoint: `GET /api/2.0/segmentation (type=unique, unit=week)`
+  - Unit: users
+  - Granularity: week
+  - Dimensions: `unit`, `event`
+  - Each metric is rewritten in full per sync (idempotent replace).
+- **`mixpanel_mau`** _(metric)_ - Monthly active users - unique-user counts for the active-user event, one sample per month.
+  - Endpoint: `GET /api/2.0/segmentation (type=unique, unit=month)`
+  - Unit: users
+  - Granularity: month
+  - Dimensions: `unit`, `event`
+  - Each metric is rewritten in full per sync (idempotent replace).
+- **`mixpanel_events_per_day`** _(metric)_ - Per-day volume for each configured event. The sample value is the total event count; unique-user count is carried as an attribute.
+  - Endpoint: `GET /api/2.0/segmentation (type=general and type=unique)`
+  - Unit: events
+  - Granularity: day
+  - Dimensions: `event`, `count`, `uniqueUsers`
+  - Each metric is rewritten in full per sync (idempotent replace).
+- **`mixpanel_funnel_results`** _(metric)_ - Per-day funnel conversion. One sample per (date, step); the value is the user count reaching that step.
+  - Endpoint: `GET /api/2.0/funnels (unit=day)`
+  - Unit: users
+  - Granularity: day
+  - Dimensions: `funnelId`, `funnelName`, `step`, `stepLabel`, `users`, `conversionRate`, `stepConversionRate`
+  - Each metric is rewritten in full per sync (idempotent replace).
+- **`mixpanel_retention`** _(metric)_ - Cohort retention for the retention event. One sample per (cohort date, period); the value is the retained user count.
+  - Endpoint: `GET /api/2.0/retention (retention_type=birth, unit=day)`
+  - Unit: users
+  - Granularity: day
+  - Dimensions: `event`, `period`, `cohortSize`, `retentionRate`
+  - Each metric is rewritten in full per sync (idempotent replace).
+
+## Example
+
 ```ts
-import { secret } from '@rawdash/core';
+import {
+  defineConfig,
+  defineDashboard,
+  defineMetric,
+  secret,
+} from '@rawdash/core';
 
 const mixpanel = {
   name: 'mixpanel',
   connectorId: 'mixpanel',
   config: {
-    projectId: '1234567',
     username: 'rawdash-reader.abcdef.mp-service-account',
     secret: secret('MIXPANEL_SECRET'),
-    region: 'us', // 'us' (default) or 'eu' for EU residency
+    projectId: '1234567',
     events: ['Signed Up', 'Purchase'],
-    funnels: [
-      { id: 42, name: 'Activation' },
-      { id: 99, name: 'Checkout' },
-    ],
-    retentionEvent: 'Signed Up',
     activeUserEvent: 'Signed Up',
-    lookbackDays: 90,
+    retentionEvent: 'Signed Up',
+    funnels: [{ id: 42, name: 'Signup to Purchase' }],
   },
 };
-```
-
-Register the connector class when mounting the engine:
-
-```ts
-import { MixpanelConnector } from '@rawdash/connector-mixpanel';
-import { mountEngine } from '@rawdash/hono';
-
-mountEngine(config, {
-  connectorRegistry: { mixpanel: MixpanelConnector },
-});
-```
-
-Then wire it into `defineConfig`:
-
-```ts
-import { defineConfig, defineDashboard, defineMetric } from '@rawdash/core';
 
 export default defineConfig({
   connectors: [mixpanel],
   dashboards: {
-    product: defineDashboard({
+    growth: defineDashboard({
       widgets: {
         dau: {
-          kind: 'stat',
-          title: 'DAU',
-          metric: defineMetric({
-            connector: mixpanel,
-            shape: 'metric',
-            name: 'mixpanel_dau',
-            field: 'value',
-            fn: 'latest',
-          }),
-        },
-        dau_trend: {
           kind: 'timeseries',
-          title: 'DAU over time',
+          title: 'Daily Active Users',
           window: '30d',
           metric: defineMetric({
             connector: mixpanel,
             shape: 'metric',
             name: 'mixpanel_dau',
-            field: 'value',
             fn: 'sum',
-            window: '30d',
-            groupBy: { field: 'ts', granularity: 'day' },
-          }),
-        },
-        signups_per_day: {
-          kind: 'timeseries',
-          title: 'Sign-ups per day',
-          window: '30d',
-          metric: defineMetric({
-            connector: mixpanel,
-            shape: 'metric',
-            name: 'mixpanel_events_per_day',
-            field: 'count',
-            fn: 'sum',
-            window: '30d',
-            filter: [{ field: 'event', op: 'eq', value: 'Signed Up' }],
-            groupBy: { field: 'ts', granularity: 'day' },
-          }),
-        },
-        events_distribution: {
-          kind: 'distribution',
-          title: 'Top events (last 30d)',
-          metric: defineMetric({
-            connector: mixpanel,
-            shape: 'metric',
-            name: 'mixpanel_events_per_day',
-            field: 'count',
-            fn: 'sum',
-            window: '30d',
-            groupBy: { field: 'event' },
           }),
         },
       },
@@ -122,61 +124,20 @@ export default defineConfig({
 });
 ```
 
-## Configuration reference
+## Rate limits
 
-| Field             | Required | Type              | Default | Notes                                                                                                                                                         |
-| ----------------- | -------- | ----------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `projectId`       | yes      | `string` (digits) | —       | Mixpanel numeric project ID.                                                                                                                                  |
-| `username`        | yes      | `string`          | —       | Service-account username.                                                                                                                                     |
-| `secret`          | yes      | `Secret`          | —       | Service-account secret. Use `secret('MIXPANEL_SECRET')`.                                                                                                      |
-| `region`          | no       | `'us' \| 'eu'`    | `'us'`  | Switches the API host between `mixpanel.com` and `eu.mixpanel.com`.                                                                                           |
-| `events`          | no       | `string[]`        | —       | Event names to fetch per-day volume + unique-user counts for. Skips the phase when empty/unset.                                                               |
-| `funnels`         | no       | `{ id, name? }[]` | —       | Mixpanel funnel IDs to track. Each entry produces daily funnel-step samples. Skips when empty/unset.                                                          |
-| `retentionEvent`  | no       | `string`          | —       | Event used for the retention cohort phase. Skips when unset.                                                                                                  |
-| `activeUserEvent` | no       | `string`          | —       | Event used for the DAU/WAU/MAU `unique`-type segmentation queries. Defaults to the first `events` entry. Both DAU/WAU/MAU phases skip when no event resolves. |
-| `lookbackDays`    | no       | `number`          | `90`    | Window in days fetched on a full sync. Incremental syncs (`mode: 'latest'`) refetch the trailing 3 days regardless.                                           |
+Mixpanel's Query API quota is 60 queries/hour per project (default); requests are retried with backoff.
 
-## Data model
+## Limitations
 
-All resources are stored as **metric samples** (`shape: 'metric'`). The `ts` field is the bucket date in Unix milliseconds. Mixpanel returns aggregated data, so the connector writes pre-aggregated metric rows — no event-stream backfill.
+- Incremental syncs refetch a 3-day overlap because Mixpanel can re-attribute late-arriving events.
 
-| Metric name               | Bucket             | `value`                 | Attributes                                                                                      |
-| ------------------------- | ------------------ | ----------------------- | ----------------------------------------------------------------------------------------------- |
-| `mixpanel_dau`            | day                | unique users that day   | `unit='day'`, `event`                                                                           |
-| `mixpanel_wau`            | week               | unique users that week  | `unit='week'`, `event`                                                                          |
-| `mixpanel_mau`            | month              | unique users that month | `unit='month'`, `event`                                                                         |
-| `mixpanel_events_per_day` | day                | total event count       | `event`, `count`, `uniqueUsers`                                                                 |
-| `mixpanel_funnel_results` | day, step          | users at the step       | `funnelId`, `funnelName?`, `step`, `stepLabel`, `users`, `conversionRate`, `stepConversionRate` |
-| `mixpanel_retention`      | cohort day, period | retained users          | `event`, `period` (days since cohort), `cohortSize`, `retentionRate`                            |
+## Links
 
-## Sync behaviour
+- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Mixpanel API docs](https://developer.mixpanel.com/reference/query-api)
+- [GitHub](https://github.com/rawdash/rawdash)
 
-- **Backfill** (`mode: 'full'`): fetches the rolling `lookbackDays` window (default 90 days) for every configured resource.
-- **Incremental** (`mode: 'latest'`): refetches the trailing 3 days for every configured resource. Mixpanel can re-attribute late-arriving events, so a small overlap keeps the metrics accurate without re-syncing the full backfill.
-- **Idempotency**: each phase writes via a single `storage.metrics(samples, { names: [<metric>] })` call, which replaces all prior samples for that metric. Re-running the sync against the same window converges on the same storage state.
-- **Resumable**: the cursor captures `(phase, dateRange)` so an interrupted sync resumes at the next phase using the originally-computed window.
-- **Resource allowlist**: `options.resources` filters which phases run. A resource not in the allowlist is skipped entirely, including its API calls.
-- **Rate limits**: Mixpanel's Query API quota is 60 queries/hour per project (default). The connector batches each event/funnel into one query and reuses the result across active-user phases where possible. 429 responses fall through to the shared HTTP client's retry-with-backoff path.
+## License
 
-## Schemas
-
-`MixpanelConnector.schemas` exposes the Zod schema for each `request()` resource — used by the cloud shape-drift pipeline to populate `connector_baselines` and by the package's property tests.
-
-| Resource              | Represents                                                                          |
-| --------------------- | ----------------------------------------------------------------------------------- |
-| `dau` / `wau` / `mau` | `GET /api/2.0/segmentation?type=unique&unit={day,week,month}` per active-user event |
-| `events_per_day`      | `GET /api/2.0/segmentation?type={general,unique}&unit=day` per configured event     |
-| `funnel_results`      | `GET /api/2.0/funnels?funnel_id=…&unit=day` per configured funnel                   |
-| `retention`           | `GET /api/2.0/retention?retention_type=birth&unit=day&born_event=…&event=…`         |
-
-## Aggregates
-
-No aggregates yet — `count` / `latest` widgets fall back to evaluating against synced storage rows. Mixpanel's Query API doesn't expose a cheaper single-scalar endpoint than the segmentation/funnel queries the connector already runs, so a future `aggregate()` implementation wouldn't materially shorten the round-trip. The metric rows the connector writes are already daily aggregates, which keeps local `count` / `latest` cheap.
-
-## Property tests
-
-Resources in this connector have fast-check property tests under `src/property.test.ts` that:
-
-1. Generate N≥50 synthetic API payloads from a Zod schema mirroring the upstream API response.
-2. Pipe them through `connector.sync()` against an `InMemoryStorage` instance.
-3. Assert universal invariants (finite timestamps, no `undefined` leaking, no thrown errors) plus per-resource cardinality (one sample per unique date, one funnel sample per `(date, step)`, one retention sample per `(cohort, period)`).
+Apache-2.0
