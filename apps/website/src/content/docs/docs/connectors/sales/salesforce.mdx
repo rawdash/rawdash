@@ -1,0 +1,166 @@
+---
+title: 'Salesforce'
+description: 'Sync opportunities, opportunity stage-change events, accounts, leads, and users from a Salesforce org for pipeline, forecast, and quota-attainment dashboards.'
+---
+
+{/* salesforce: generated from connector metadata. Do not edit. */}
+
+import { Aside, Badge } from '@astrojs/starlight/components';
+
+<p style="display:flex;align-items:center;gap:0.75rem;margin:0 0 1rem;">
+  <img
+    src="/connectors/salesforce.svg"
+    alt="Salesforce logo"
+    width="40"
+    height="40"
+    style="background:#fff;border-radius:8px;padding:6px;box-sizing:border-box;"
+  />{' '}
+  <Badge text="Sales" variant="tip" />{' '}
+  <Badge text="@rawdash/connector-salesforce" variant="note" />
+</p>
+
+Sync opportunities, opportunity stage-change events, accounts, leads, and users from a Salesforce org for pipeline, forecast, and quota-attainment dashboards.
+
+<Aside title="Vendor">
+  Data source: [Salesforce](https://www.salesforce.com) · [API
+  docs](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/)
+</Aside>
+
+## Install
+
+```sh
+npm install @rawdash/connector-salesforce
+```
+
+## Authentication
+
+OAuth 2.0 with a refresh token issued by a Salesforce Connected App. Requires the consumer key/secret, a refresh token, and the org instance URL.
+
+1. In Salesforce, go to Setup → App Manager → New Connected App and check "Enable OAuth Settings".
+2. Set the callback URL to a URL you control (e.g. https://localhost:8080/callback); it only has to be reachable when minting the initial refresh token.
+3. Under Selected OAuth Scopes add "Access and manage your data (api)" and "Perform requests on your behalf at any time (refresh_token, offline_access)".
+4. Save, then copy the Consumer Key (client ID) and Consumer Secret from the connected app detail page.
+5. Authorize via https://login.salesforce.com/services/oauth2/authorize?response_type=code&client_id=&lt;KEY>&redirect_uri=&lt;URL> and exchange the resulting code at /services/oauth2/token to obtain a refresh token and the org instance_url.
+6. Use the org instance URL from the token response (e.g. https://mycompany.my.salesforce.com), not login.salesforce.com.
+7. Store the consumer secret and refresh token as rawdash secrets and reference them as secret("SF_CLIENT_SECRET") and secret("SF_REFRESH_TOKEN").
+
+## Configuration
+
+| Field          | Type   | Required | Description                                                                                                                                                                       |
+| -------------- | ------ | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `clientId`     | string | Yes      | Consumer key (client ID) of the Salesforce Connected App used for OAuth 2.0 refresh-token exchange.                                                                               |
+| `clientSecret` | secret | Yes      | Consumer secret of the Salesforce Connected App.                                                                                                                                  |
+| `refreshToken` | secret | Yes      | OAuth 2.0 refresh token obtained from the Connected App authorization code flow. Stored as a secret.                                                                              |
+| `instanceUrl`  | string | Yes      | Salesforce instance URL, e.g. https://mycompany.my.salesforce.com. Returned alongside the refresh token from the OAuth flow; never use the generic login.salesforce.com URL here. |
+| `apiVersion`   | string | No       | Salesforce REST API version, e.g. "59.0". Defaults to 59.0; bump to pick up newer SOQL semantics.                                                                                 |
+| `resources`    | array  | No       | Which Salesforce resources to sync. Omit to sync all resources. The Connected App only needs read access for the resources listed here.                                           |
+
+## Resources
+
+- **`salesforce_user`** _(entity)_ - Salesforce users, keyed by user id, with name, email, and active state. Used to attribute opportunities, accounts, and stage changes to owners.
+  - Endpoint: `GET /services/data/v{version}/query (SOQL: FROM User)`
+  - Users are backfilled in full on every run; the table is small.
+  - `name`: Full name of the user.
+  - `email`: User email address.
+  - `isActive`: Whether the user is active.
+- **`salesforce_account`** _(entity)_ - Accounts (companies), keyed by account id, with industry, annual revenue, owner, and creation time.
+  - Endpoint: `GET /services/data/v{version}/query (SOQL: FROM Account)`
+  - Upserts by id; incremental syncs filter on LastModifiedDate.
+  - `name`: Account name.
+  - `industry`: Industry classification.
+  - `annualRevenue`: Annual revenue in the org currency.
+  - `ownerId`: User id of the account owner.
+  - `createdAt`: Account creation time (Unix ms).
+- **`salesforce_lead`** _(entity)_ - Leads, keyed by lead id, with email, status, source, and conversion time.
+  - Endpoint: `GET /services/data/v{version}/query (SOQL: FROM Lead)`
+  - Upserts by id; incremental syncs filter on LastModifiedDate.
+  - `email`: Lead email address.
+  - `status`: Lead status.
+  - `source`: Lead source (LeadSource).
+  - `convertedAt`: When the lead was converted (Unix ms), if any.
+  - `createdAt`: Lead creation time (Unix ms).
+- **`salesforce_opportunity`** _(entity)_ - Opportunities, keyed by opportunity id, with stage, amount, close date, owner, probability, forecast category, and closed/won flags.
+  - Endpoint: `GET /services/data/v{version}/query (SOQL: FROM Opportunity)`
+  - Upserts by id; incremental syncs filter on LastModifiedDate.
+  - `name`: Opportunity name.
+  - `stage`: Current StageName.
+  - `amount`: Opportunity amount in org currency.
+  - `closeDate`: Expected close date (Unix ms).
+  - `ownerId`: User id of the opportunity owner.
+  - `probability`: Win probability percentage.
+  - `forecastCategory`: Forecast category name.
+  - `isClosed`: Whether the opportunity is closed.
+  - `isWon`: Whether the opportunity is won.
+  - `createdAt`: Opportunity creation time (Unix ms).
+- **`salesforce_opportunity_stage_change`** _(event)_ - Opportunity stage transitions derived from OpportunityFieldHistory rows where Field = StageName. One event per transition, timestamped at the change CreatedDate.
+  - Endpoint: `GET /services/data/v{version}/query (SOQL: FROM OpportunityFieldHistory WHERE Field = 'StageName')`
+  - Stage-change events are immutable; their scope is only cleared on a full sync so an incremental window does not drop history outside its range.
+  - `historyId`: OpportunityFieldHistory row id.
+  - `opportunityId`: Id of the opportunity that changed stage.
+  - `fromStage`: Previous StageName (OldValue).
+  - `toStage`: New StageName (NewValue).
+  - `actorId`: User id who made the change (CreatedById).
+
+## Example
+
+```ts
+import {
+  defineConfig,
+  defineDashboard,
+  defineMetric,
+  secret,
+} from '@rawdash/core';
+
+const salesforce = {
+  name: 'salesforce',
+  connectorId: 'salesforce',
+  config: {
+    clientId: '3MVG9_consumerKey_...',
+    clientSecret: secret('SF_CLIENT_SECRET'),
+    refreshToken: secret('SF_REFRESH_TOKEN'),
+    instanceUrl: 'https://mycompany.my.salesforce.com',
+  },
+};
+
+export default defineConfig({
+  connectors: [salesforce],
+  dashboards: {
+    sales: defineDashboard({
+      widgets: {
+        open_pipeline: {
+          kind: 'stat',
+          title: 'Open pipeline value',
+          metric: defineMetric({
+            connector: salesforce,
+            shape: 'entity',
+            entityType: 'salesforce_opportunity',
+            field: 'amount',
+            fn: 'sum',
+            filter: [{ field: 'isClosed', op: 'eq', value: false }],
+          }),
+        },
+        win_rate: {
+          kind: 'stat',
+          title: 'Won opportunities',
+          metric: defineMetric({
+            connector: salesforce,
+            shape: 'entity',
+            entityType: 'salesforce_opportunity',
+            fn: 'count',
+            filter: [{ field: 'isWon', op: 'eq', value: true }],
+          }),
+        },
+      },
+    }),
+  },
+});
+```
+
+## Rate limits
+
+Salesforce caps total API calls per org per 24 hours. Responses include a Sforce-Limit-Info header (api-usage=NN/MM); size sync intervals so the daily budget is not exhausted. The shared HTTP client retries on 429 with Retry-After.
+
+## Limitations
+
+- Custom objects are out of scope for v1; only the standard objects listed above are synced.
+- Salesforce Marketing Cloud is tracked under a separate connector.

@@ -22,6 +22,7 @@
       "@rawdash/connector-jira",
       "@rawdash/connector-mixpanel",
       "@rawdash/connector-posthog",
+      "@rawdash/connector-salesforce",
       "@rawdash/adapter-libsql",
       "@rawdash/adapter-sqlite",
       "@rawdash/cli",

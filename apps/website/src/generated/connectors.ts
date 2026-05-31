@@ -240,6 +240,26 @@ export const connectors: ConnectorCard[] = [
     ],
   },
   {
+    id: 'salesforce',
+    name: 'Salesforce',
+    category: 'sales',
+    categoryLabel: 'Sales',
+    tagline:
+      'Sync opportunities, opportunity stage-change events, accounts, leads, and users from a Salesforce org for pipeline, forecast, and quota-attainment dashboards.',
+    href: '/docs/connectors/sales/salesforce/',
+    iconPath: '/connectors/salesforce.svg',
+    brandColor: '#00A1E0',
+    keywords: [
+      '@rawdash/connector-salesforce',
+      'salesforce',
+      'salesforce_account',
+      'salesforce_lead',
+      'salesforce_opportunity',
+      'salesforce_opportunity_stage_change',
+      'salesforce_user',
+    ],
+  },
+  {
     id: 'sentry',
     name: 'Sentry',
     category: 'engineering',
@@ -321,7 +341,7 @@ export const connectorCategories: ConnectorCategory[] = [
   {
     id: 'sales',
     label: 'Sales',
-    count: 1,
+    count: 2,
   },
   {
     id: 'support',
