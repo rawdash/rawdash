@@ -243,6 +243,19 @@ async function main(): Promise<void> {
     }
     if (check) {
       drifted.push(file.path);
+      const expected = (formatted ?? '').split('\n');
+      const actual = (existing ?? '').split('\n');
+      const max = Math.max(expected.length, actual.length);
+      for (let i = 0; i < max; i++) {
+        if (expected[i] !== actual[i]) {
+          console.error(
+            `\nFirst diff in ${file.path.replace(`${ROOT}/`, '')} at line ${i + 1}:\n` +
+              `  committed: ${JSON.stringify(actual[i])}\n` +
+              `  generated: ${JSON.stringify(expected[i])}`,
+          );
+          break;
+        }
+      }
     } else {
       writeFileSync(file.path, formatted);
     }
@@ -251,7 +264,7 @@ async function main(): Promise<void> {
   if (check) {
     if (drifted.length > 0) {
       console.error(
-        `@rawdash/connectors umbrella package is out of date. Run ` +
+        `\n@rawdash/connectors umbrella package is out of date. Run ` +
           `\`pnpm gen:connectors-package\` and commit the result.\nDrifted files:\n${drifted
             .map((p) => `  - ${p.replace(`${ROOT}/`, '')}`)
             .join('\n')}`,
