@@ -1,11 +1,30 @@
-<!-- This file is generated from connector metadata by scripts/generate-connector-docs.ts. Do not edit by hand. -->
+---
+title: 'Intercom'
+description: 'Sync conversations, contacts, teams, and admins from Intercom for support volume, response latency, and queue-depth analytics.'
+---
 
-# @rawdash/connector-intercom
+{/* intercom: generated from connector metadata. Do not edit. */}
 
-[![npm version](https://img.shields.io/npm/v/@rawdash/connector-intercom)](https://www.npmjs.com/package/@rawdash/connector-intercom)
-[![license](https://img.shields.io/npm/l/@rawdash/connector-intercom)](https://github.com/rawdash/rawdash/blob/main/LICENSE)
+import { Aside, Badge } from '@astrojs/starlight/components';
+
+<p style="display:flex;align-items:center;gap:0.75rem;margin:0 0 1rem;">
+  <img
+    src="/connectors/intercom.svg"
+    alt="Intercom logo"
+    width="40"
+    height="40"
+    style="background:#fff;border-radius:8px;padding:6px;box-sizing:border-box;"
+  />{' '}
+  <Badge text="Support" variant="tip" />{' '}
+  <Badge text="@rawdash/connector-intercom" variant="note" />
+</p>
 
 Sync conversations, contacts, teams, and admins from Intercom for support volume, response latency, and queue-depth analytics.
+
+<Aside title="Vendor">
+  Data source: [Intercom](https://www.intercom.com) · [API
+  docs](https://developers.intercom.com/docs/references/rest-api/api.intercom.io/)
+</Aside>
 
 ## Install
 
@@ -126,13 +145,3 @@ Intercom enforces per-app and per-workspace limits (default ~1000 requests/minut
 - Conversation message bodies and per-part transcripts are not synced.
 - Help Center articles and outbound campaigns are out of scope.
 - Full per-part state-transition history is not synced; state-change events are derived from each conversation’s statistics block.
-
-## Links
-
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
-- [Intercom API docs](https://developers.intercom.com/docs/references/rest-api/api.intercom.io/)
-- [GitHub](https://github.com/rawdash/rawdash)
-
-## License
-
-Apache-2.0

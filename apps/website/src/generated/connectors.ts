@@ -118,6 +118,26 @@ export const connectors: ConnectorCard[] = [
     ],
   },
   {
+    id: 'intercom',
+    name: 'Intercom',
+    category: 'support',
+    categoryLabel: 'Support',
+    tagline:
+      'Sync conversations, contacts, teams, and admins from Intercom for support volume, response latency, and queue-depth analytics.',
+    href: '/docs/connectors/support/intercom/',
+    iconPath: '/connectors/intercom.svg',
+    brandColor: '#1F8DED',
+    keywords: [
+      '@rawdash/connector-intercom',
+      'intercom',
+      'intercom_admin',
+      'intercom_contact',
+      'intercom_conversation',
+      'intercom_conversation_state_change',
+      'intercom_team',
+    ],
+  },
+  {
     id: 'jira',
     name: 'Jira',
     category: 'product',
@@ -280,6 +300,11 @@ export const connectorCategories: ConnectorCategory[] = [
   {
     id: 'sales',
     label: 'Sales',
+    count: 1,
+  },
+  {
+    id: 'support',
+    label: 'Support',
     count: 1,
   },
   {

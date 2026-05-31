@@ -6,14 +6,18 @@ import {
 import {
   BaseConnector,
   type ConnectorContext,
+  type ConnectorDoc,
   type CredentialsSchema,
   type JSONValue,
   type StorageHandle,
   type SyncOptions,
   type SyncResult,
   defineConfigFields,
+  defineConnectorDoc,
+  defineResources,
   makeChunkedCursorGuard,
   paginateChunked,
+  schemasFromResources,
   selectActivePhases,
 } from '@rawdash/core';
 import { z } from 'zod';
@@ -70,6 +74,41 @@ export const configFields = defineConfigFields(
       }),
   }),
 );
+
+// ---------------------------------------------------------------------------
+// Connector doc (catalog metadata)
+// ---------------------------------------------------------------------------
+
+export const doc: ConnectorDoc = defineConnectorDoc({
+  displayName: 'Intercom',
+  category: 'support',
+  brandColor: '#1F8DED',
+  tagline:
+    'Sync conversations, contacts, teams, and admins from Intercom for support volume, response latency, and queue-depth analytics.',
+  vendor: {
+    name: 'Intercom',
+    apiDocs:
+      'https://developers.intercom.com/docs/references/rest-api/api.intercom.io/',
+    website: 'https://www.intercom.com',
+  },
+  auth: {
+    summary:
+      'An Intercom access token (personal or app) with read access to conversations, contacts, teams, and admins.',
+    setup: [
+      'Open Intercom → Settings → Developers → Developer Hub and create or select an app.',
+      "On the app's Authentication tab, copy the access token.",
+      'Ensure the token has read access for the resources you intend to sync.',
+      'Store the token as a secret and reference it from config as `accessToken: secret("INTERCOM_ACCESS_TOKEN")`.',
+    ],
+  },
+  rateLimit:
+    'Intercom enforces per-app and per-workspace limits (default ~1000 requests/minute) and signals quota state via the X-RateLimit-* response headers; the shared HTTP client backs off on 429, preferring X-RateLimit-Reset.',
+  limitations: [
+    'Conversation message bodies and per-part transcripts are not synced.',
+    'Help Center articles and outbound campaigns are out of scope.',
+    'Full per-part state-transition history is not synced; state-change events are derived from each conversation’s statistics block.',
+  ],
+});
 
 // ---------------------------------------------------------------------------
 // Settings / credentials
@@ -302,6 +341,138 @@ function epochSecToMsOrZero(value: number | null | undefined): number {
 }
 
 // ---------------------------------------------------------------------------
+// Resources
+// ---------------------------------------------------------------------------
+
+const intercomResources = defineResources({
+  [ADMIN_ENTITY]: {
+    shape: 'entity',
+    description: 'Intercom teammates (admins) with seat and away state.',
+    endpoint: 'GET /admins',
+    fields: [
+      { name: 'name', description: 'Admin display name.' },
+      { name: 'email', description: 'Admin email address.' },
+      { name: 'jobTitle', description: 'Admin job title.' },
+      { name: 'awayMode', description: 'Whether away mode is enabled.' },
+      {
+        name: 'hasInboxSeat',
+        description: 'Whether the admin has an inbox seat.',
+      },
+    ],
+    responses: { admins: z.array(adminSchema) },
+  },
+  [TEAM_ENTITY]: {
+    shape: 'entity',
+    description: 'Inbox teams and their admin membership counts.',
+    endpoint: 'GET /teams',
+    fields: [
+      { name: 'name', description: 'Team name.' },
+      { name: 'adminCount', description: 'Number of admins on the team.' },
+    ],
+    responses: { teams: z.array(teamSchema) },
+  },
+  [CONTACT_ENTITY]: {
+    shape: 'entity',
+    description: 'Contacts (users and leads) with role and last-seen time.',
+    endpoint: 'POST /contacts/search',
+    fields: [
+      { name: 'role', description: 'Contact role (user or lead).' },
+      { name: 'email', description: 'Contact email address.' },
+      {
+        name: 'externalId',
+        description: 'Your external identifier for the contact.',
+      },
+      {
+        name: 'createdAt',
+        description: 'When the contact was created (Unix ms).',
+      },
+      {
+        name: 'lastSeenAt',
+        description: 'When the contact was last seen (Unix ms).',
+      },
+    ],
+    responses: { contacts: z.array(contactSchema) },
+  },
+  [CONVERSATION_ENTITY]: {
+    shape: 'entity',
+    description:
+      'Conversations with state, priority, assignment, reply-time statistics, and tags.',
+    endpoint: 'POST /conversations/search',
+    fields: [
+      {
+        name: 'state',
+        description: 'Conversation state (open, snoozed, closed).',
+      },
+      { name: 'priority', description: 'Conversation priority.' },
+      {
+        name: 'adminAssigneeId',
+        description: 'Assigned admin id (null if unassigned).',
+      },
+      {
+        name: 'teamAssigneeId',
+        description: 'Assigned team id (null if unassigned).',
+      },
+      {
+        name: 'createdAt',
+        description: 'When the conversation was created (Unix ms).',
+      },
+      {
+        name: 'firstContactReplyAt',
+        description: 'First contact reply time (Unix ms).',
+      },
+      {
+        name: 'firstAdminReplyAt',
+        description: 'First admin reply time (Unix ms).',
+      },
+      {
+        name: 'snoozedUntil',
+        description: 'Snooze expiry time (Unix ms), if snoozed.',
+      },
+      { name: 'countAssignments', description: 'Number of assignments.' },
+      { name: 'countReopens', description: 'Number of reopens.' },
+      {
+        name: 'countConversationParts',
+        description: 'Number of conversation parts.',
+      },
+      {
+        name: 'tags',
+        description: 'Flat list of tag names on the conversation.',
+      },
+    ],
+    responses: { conversations: z.array(conversationSchema) },
+  },
+  [CONVERSATION_STATE_EVENT]: {
+    shape: 'event',
+    description:
+      'State-change events (created / assigned / closed / snoozed) derived from each conversation.',
+    endpoint: 'POST /conversations/search',
+    notes:
+      'Derived from each conversation’s statistics block; the scope is cleared and rewritten on every sync.',
+    fields: [
+      {
+        name: 'conversationId',
+        description: 'The conversation the event belongs to.',
+      },
+      {
+        name: 'transition',
+        description: 'created, assigned, closed, or snoozed.',
+      },
+      { name: 'state', description: 'Conversation state at sync time.' },
+      { name: 'priority', description: 'Conversation priority at sync time.' },
+      {
+        name: 'adminAssigneeId',
+        description: 'Assigned admin id (null if unassigned).',
+      },
+      {
+        name: 'teamAssigneeId',
+        description: 'Assigned team id (null if unassigned).',
+      },
+    ],
+    responses: { conversation_events: z.array(conversationSchema) },
+  },
+});
+
+// ---------------------------------------------------------------------------
 // IntercomConnector
 // ---------------------------------------------------------------------------
 
@@ -311,13 +482,9 @@ export class IntercomConnector extends BaseConnector<
 > {
   static readonly id = 'intercom';
 
-  static readonly schemas = {
-    admins: z.array(adminSchema),
-    teams: z.array(teamSchema),
-    contacts: z.array(contactSchema),
-    conversations: z.array(conversationSchema),
-    conversation_events: z.array(conversationSchema),
-  } as const;
+  static readonly resources = intercomResources;
+
+  static readonly schemas = schemasFromResources(intercomResources);
 
   static create(input: unknown, ctx?: ConnectorContext): IntercomConnector {
     const parsed = configFields.parse(input);
