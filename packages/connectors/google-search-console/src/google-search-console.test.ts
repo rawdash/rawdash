@@ -163,6 +163,24 @@ describe('configFields', () => {
     }
   });
 
+  it('rejects an empty serviceAccountJson secret', () => {
+    const result = configFields.safeParse({
+      siteUrl: 'https://example.com/',
+      serviceAccountJson: { $secret: '' },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects an empty clientId and clientSecret in the OAuth tuple', () => {
+    const result = configFields.safeParse({
+      siteUrl: 'https://example.com/',
+      refreshToken: { $secret: 'GSC_REFRESH_TOKEN' },
+      clientId: '',
+      clientSecret: { $secret: '' },
+    });
+    expect(result.success).toBe(false);
+  });
+
   it('rejects plain string for serviceAccountJson (must be secret object)', () => {
     const result = configFields.safeParse({
       siteUrl: 'https://example.com/',
@@ -478,6 +496,46 @@ describe('GSCConnector.sync', () => {
     for (const body of gscBodies) {
       expect(body.startDate).toBe('2024-12-15');
       expect(body.endDate).toBe('2025-01-15');
+    }
+  });
+
+  it('uses the trailing incremental window for mode:latest even without since', async () => {
+    const connector = new GSCConnector(
+      { siteUrl: 'https://example.com/' },
+      {
+        serviceAccountJson: undefined,
+        refreshToken: 'rtoken' as unknown as { $secret: string },
+        clientId: 'cid',
+        clientSecret: 'csecret' as unknown as { $secret: string },
+      },
+    );
+
+    const fetchSpy = mockFetch({ access_token: 'tok', expires_in: 3600 }, {});
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const storage = makeStorage();
+    await connector.sync({ mode: 'latest' }, storage);
+
+    const gscBodies = fetchSpy.mock.calls
+      .filter((c: unknown[]) =>
+        String(c[0]).includes('searchconsole.googleapis.com'),
+      )
+      .map(
+        (c) =>
+          JSON.parse(String((c as [string, { body: string }])[1].body)) as {
+            startDate: string;
+            endDate: string;
+          },
+      );
+
+    expect(gscBodies.length).toBeGreaterThan(0);
+    // INCREMENTAL_LOOKBACK_DAYS is 3, so the window spans exactly 2 days
+    // (start inclusive through end inclusive), not the 90-day full lookback.
+    const MS_PER_DAY = 24 * 60 * 60 * 1000;
+    for (const body of gscBodies) {
+      const spanDays =
+        (Date.parse(body.endDate) - Date.parse(body.startDate)) / MS_PER_DAY;
+      expect(spanDays).toBe(2);
     }
   });
 

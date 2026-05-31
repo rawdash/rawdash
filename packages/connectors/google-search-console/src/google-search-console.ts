@@ -23,30 +23,39 @@ export const configFields = defineConfigFields(
           'Verified Search Console property. URL-prefix properties look like "https://example.com/"; Domain properties look like "sc-domain:example.com".',
         placeholder: 'https://example.com/',
       }),
-      serviceAccountJson: z.object({ $secret: z.string() }).optional().meta({
-        label: 'Service Account JSON (recommended)',
-        description:
-          'Contents of the JSON key file for a Google service account that has been added as a Search Console user (Owner or Full user) on the property. Create one at Google Cloud -> IAM & Admin -> Service Accounts.',
-        secret: true,
-      }),
-      refreshToken: z.object({ $secret: z.string() }).optional().meta({
-        label: 'OAuth Refresh Token',
-        description:
-          'Google OAuth 2.0 refresh token with webmasters.readonly scope. Required if not using serviceAccountJson.',
-        secret: true,
-      }),
-      clientId: z.string().optional().meta({
+      serviceAccountJson: z
+        .object({ $secret: z.string().trim().min(1) })
+        .optional()
+        .meta({
+          label: 'Service Account JSON (recommended)',
+          description:
+            'Contents of the JSON key file for a Google service account that has been added as a Search Console user (Owner or Full user) on the property. Create one at Google Cloud -> IAM & Admin -> Service Accounts.',
+          secret: true,
+        }),
+      refreshToken: z
+        .object({ $secret: z.string().trim().min(1) })
+        .optional()
+        .meta({
+          label: 'OAuth Refresh Token',
+          description:
+            'Google OAuth 2.0 refresh token with webmasters.readonly scope. Required if not using serviceAccountJson.',
+          secret: true,
+        }),
+      clientId: z.string().trim().min(1).optional().meta({
         label: 'OAuth Client ID',
         description:
           'OAuth 2.0 client ID from Google Cloud Console. Required when using refreshToken auth.',
         placeholder: '...apps.googleusercontent.com',
       }),
-      clientSecret: z.object({ $secret: z.string() }).optional().meta({
-        label: 'OAuth Client Secret',
-        description:
-          'OAuth 2.0 client secret from Google Cloud Console. Required when using refreshToken auth.',
-        secret: true,
-      }),
+      clientSecret: z
+        .object({ $secret: z.string().trim().min(1) })
+        .optional()
+        .meta({
+          label: 'OAuth Client Secret',
+          description:
+            'OAuth 2.0 client secret from Google Cloud Console. Required when using refreshToken auth.',
+          secret: true,
+        }),
       lookbackDays: z.number().int().positive().optional().meta({
         label: 'Lookback days (full sync)',
         description:
@@ -353,7 +362,7 @@ function getDateRange(
 ): GSCDateRange {
   const now = Date.now();
   const endDate = toGSCDate(new Date(now));
-  if (options.mode === 'latest' && options.since) {
+  if (options.mode === 'latest') {
     const startMs = now - (INCREMENTAL_LOOKBACK_DAYS - 1) * MS_PER_DAY;
     return { startDate: toGSCDate(new Date(startMs)), endDate };
   }
