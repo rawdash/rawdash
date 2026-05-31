@@ -54,6 +54,27 @@ export const connectors: ConnectorCard[] = [
     ],
   },
   {
+    id: 'datadog',
+    name: 'Datadog',
+    category: 'infrastructure',
+    categoryLabel: 'Infrastructure',
+    tagline:
+      'Sync monitor health, monitor state-change events, incidents, SLOs, and user-declared metric queries from a Datadog org.',
+    href: '/docs/connectors/infrastructure/datadog/',
+    iconPath: '/connectors/datadog.svg',
+    brandColor: '#632CA6',
+    keywords: [
+      '@rawdash/connector-datadog',
+      'datadog',
+      'datadog_incident',
+      'datadog_metric',
+      'datadog_monitor',
+      'datadog_monitor_event',
+      'datadog_slo',
+      'datadog_slo_sli',
+    ],
+  },
+  {
     id: 'github-actions',
     name: 'GitHub',
     category: 'engineering',
@@ -315,6 +336,6 @@ export const connectorCategories: ConnectorCategory[] = [
   {
     id: 'infrastructure',
     label: 'Infrastructure',
-    count: 2,
+    count: 3,
   },
 ];

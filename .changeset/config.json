@@ -9,6 +9,7 @@
       "@rawdash/hono",
       "@rawdash/sdk-nextjs",
       "@rawdash/connector-aws-cloudwatch",
+      "@rawdash/connector-datadog",
       "@rawdash/connector-github",
       "@rawdash/connector-google-analytics",
       "@rawdash/connector-stripe",
