@@ -96,6 +96,25 @@ export const connectors: ConnectorCard[] = [
     ],
   },
   {
+    id: 'google-ads',
+    name: 'Google Ads',
+    category: 'marketing',
+    categoryLabel: 'Marketing',
+    tagline:
+      'Sync Google Ads campaigns plus daily campaign, ad-group, and keyword performance (impressions, clicks, cost, conversions) via GAQL.',
+    href: '/docs/connectors/marketing/google-ads/',
+    iconPath: '/connectors/google-ads.svg',
+    brandColor: '#4285F4',
+    keywords: [
+      '@rawdash/connector-google-ads',
+      'google ads',
+      'google_ads_ad_group_metrics',
+      'google_ads_campaign',
+      'google_ads_campaign_metrics',
+      'google_ads_keyword_metrics',
+    ],
+  },
+  {
     id: 'google-analytics',
     name: 'Google Analytics',
     category: 'analytics',
@@ -214,6 +233,25 @@ export const connectors: ConnectorCard[] = [
       'linear_issue_state_change',
       'linear_team',
       'linear_user',
+    ],
+  },
+  {
+    id: 'meta-ads',
+    name: 'Meta Ads',
+    category: 'marketing',
+    categoryLabel: 'Marketing',
+    tagline:
+      'Sync Meta (Facebook + Instagram) ad campaigns plus daily campaign, adset, and ad-level insights - spend, impressions, clicks, reach, conversions, and conversion value.',
+    href: '/docs/connectors/marketing/meta-ads/',
+    iconPath: '/connectors/meta-ads.svg',
+    brandColor: '#0866FF',
+    keywords: [
+      '@rawdash/connector-meta-ads',
+      'meta',
+      'meta_ad_insights',
+      'meta_adset_insights',
+      'meta_campaign',
+      'meta_campaign_insights',
     ],
   },
   {
