@@ -82,7 +82,7 @@ export const configFields = defineConfigFields(
 export const doc: ConnectorDoc = defineConnectorDoc({
   displayName: 'Intercom',
   category: 'support',
-  brandColor: '#1F8DED',
+  brandColor: '#6AFDEF',
   tagline:
     'Sync conversations, contacts, teams, and admins from Intercom for support volume, response latency, and queue-depth analytics.',
   vendor: {
