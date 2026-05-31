@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-linear",
-  "version": "0.16.0",
+  "version": "0.17.0",
   "description": "Rawdash connector for Linear — issues, cycles, teams, and users",
   "license": "Apache-2.0",
   "type": "module",
