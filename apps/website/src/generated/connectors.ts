@@ -217,6 +217,25 @@ export const connectors: ConnectorCard[] = [
     ],
   },
   {
+    id: 'meta-ads',
+    name: 'Meta Ads',
+    category: 'marketing',
+    categoryLabel: 'Marketing',
+    tagline:
+      'Sync Meta (Facebook + Instagram) ad campaigns plus daily campaign, adset, and ad-level insights - spend, impressions, clicks, reach, conversions, and conversion value.',
+    href: '/docs/connectors/marketing/meta-ads/',
+    iconPath: '/connectors/meta-ads.svg',
+    brandColor: '#0866FF',
+    keywords: [
+      '@rawdash/connector-meta-ads',
+      'meta',
+      'meta_ad_insights',
+      'meta_adset_insights',
+      'meta_campaign',
+      'meta_campaign_insights',
+    ],
+  },
+  {
     id: 'mixpanel',
     name: 'Mixpanel',
     category: 'analytics',
