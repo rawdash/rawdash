@@ -1,0 +1,113 @@
+---
+import { connectors } from '../generated/connectors';
+
+interface Props {
+  category: string;
+}
+
+const { category } = Astro.props;
+
+const haystack = (c: (typeof connectors)[number]) =>
+  [c.name, c.tagline, c.categoryLabel, ...c.keywords].join(' ').toLowerCase();
+
+const list = connectors.filter((c) => c.category === category);
+---
+
+<div class="connector-catalog" data-connector-grid>
+  <div class="catalog-search">
+    <svg
+      class="catalog-search-icon"
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="11" cy="11" r="8"></circle>
+      <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+    </svg>
+    <input
+      type="search"
+      class="catalog-search-input"
+      placeholder="Search connectors by name, vendor, or resource…"
+      aria-label="Search connectors"
+      autocomplete="off"
+      data-catalog-input
+    />
+  </div>
+
+  <p class="catalog-count" data-catalog-count aria-live="polite"></p>
+
+  <div class="catalog-grid">
+    {
+      list.map((c) => (
+        <a
+          class="catalog-card"
+          href={c.href}
+          data-connector-card
+          data-search={haystack(c)}
+        >
+          <span class="catalog-card-icon">
+            <img src={c.iconPath} alt={`${c.name} logo`} width="28" height="28" loading="lazy" />
+          </span>
+          <span class="catalog-card-body">
+            <span class="catalog-card-head">
+              <span class="catalog-card-name">{c.name}</span>
+              <span class="catalog-card-category">{c.categoryLabel}</span>
+            </span>
+            <span class="catalog-card-tagline">{c.tagline}</span>
+          </span>
+        </a>
+      ))
+    }
+  </div>
+
+  <p class="catalog-empty" data-catalog-empty hidden>
+    No connectors match your search.
+  </p>
+</div>
+
+<script>
+  function normalize(value: string): string {
+    return value.trim().toLowerCase();
+  }
+
+  for (const root of document.querySelectorAll<HTMLElement>(
+    '[data-connector-grid]',
+  )) {
+    const input = root.querySelector<HTMLInputElement>('[data-catalog-input]');
+    const cards = [
+      ...root.querySelectorAll<HTMLAnchorElement>('[data-connector-card]'),
+    ];
+    const count = root.querySelector<HTMLElement>('[data-catalog-count]');
+    const empty = root.querySelector<HTMLElement>('[data-catalog-empty]');
+
+    const apply = () => {
+      const query = normalize(input?.value ?? '');
+      let visible = 0;
+      for (const card of cards) {
+        const show = !query || (card.dataset.search ?? '').includes(query);
+        card.hidden = !show;
+        if (show) {
+          visible += 1;
+        }
+      }
+      if (empty) {
+        empty.hidden = visible > 0;
+      }
+      if (count) {
+        count.textContent =
+          visible === cards.length
+            ? `${cards.length} ${cards.length === 1 ? 'connector' : 'connectors'}`
+            : `${visible} of ${cards.length} connectors`;
+      }
+    };
+
+    input?.addEventListener('input', apply);
+    apply();
+  }
+</script>

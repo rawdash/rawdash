@@ -35,7 +35,7 @@ export default defineConfig({
         },
         {
           label: 'Connectors',
-          autogenerate: { directory: 'docs/connectors' },
+          slug: 'docs/connectors',
         },
         {
           label: 'Reference',
