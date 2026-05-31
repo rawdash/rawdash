@@ -54,7 +54,11 @@ interface LoadedConnector {
 }
 
 interface ConnectorModule {
-  default: { readonly id: string; readonly cost?: unknown };
+  default: {
+    readonly id: string;
+    readonly resources?: unknown;
+    readonly cost?: unknown;
+  };
   doc?: unknown;
   configFields?: unknown;
 }
@@ -96,6 +100,13 @@ async function loadConnector(dir: string): Promise<LoadedConnector> {
   if (!mod.configFields) {
     throw new Error(
       `Connector "${dir}" (${pkg.name}) does not export \`configFields\`.`,
+    );
+  }
+  if (!mod.default.resources) {
+    throw new Error(
+      `Connector "${dir}" (${pkg.name}) default export has no static \`resources\`. ` +
+        `The umbrella metadata requires it; define them with defineResources() ` +
+        `and expose them as \`static resources\` on the connector class.`,
     );
   }
   return {
