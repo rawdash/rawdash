@@ -27,7 +27,7 @@ export const configFields = defineConfigFields(
       .string()
       .trim()
       .regex(
-        /^\d{8,12}$/,
+        /^\d{10}$/,
         'customerId must be the 10-digit Google Ads ID, digits only (no dashes)',
       )
       .meta({
@@ -39,7 +39,10 @@ export const configFields = defineConfigFields(
     loginCustomerId: z
       .string()
       .trim()
-      .regex(/^\d{8,12}$/, 'loginCustomerId must be digits only')
+      .regex(
+        /^\d{10}$/,
+        'loginCustomerId must be a 10-digit Google Ads ID, digits only',
+      )
       .optional()
       .meta({
         label: 'Login Customer ID (MCC)',

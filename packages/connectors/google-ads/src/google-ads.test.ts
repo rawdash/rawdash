@@ -611,6 +611,7 @@ describe('GoogleAdsConnector.sync', () => {
           },
       );
 
+    expect(apiBodies.length).toBeGreaterThan(0);
     // Resuming at keyword_metrics: every query should be the keyword query.
     for (const body of apiBodies) {
       expect(body.query).toContain('FROM keyword_view');
