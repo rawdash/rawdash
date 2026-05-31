@@ -4,6 +4,7 @@
   "description": "Rawdash connector for AWS Cost Explorer — daily/monthly cost and forecast metrics, grouped by service, account, or tag",
   "license": "Apache-2.0",
   "type": "module",
+  "sideEffects": false,
   "repository": {
     "type": "git",
     "url": "https://github.com/rawdash/rawdash.git",

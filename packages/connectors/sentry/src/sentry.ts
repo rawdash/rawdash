@@ -302,7 +302,7 @@ const errorStatsResponseSchema = z.object({
   end: z.string().optional(),
 });
 
-const sentryResources = defineResources({
+export const sentryResources = defineResources({
   sentry_issue: {
     shape: 'entity',
     description:
@@ -340,11 +340,13 @@ const sentryResources = defineResources({
   },
 });
 
+export const id = 'sentry';
+
 export class SentryConnector extends BaseConnector<
   SentrySettings,
   SentryCredentials
 > {
-  static readonly id = 'sentry';
+  static readonly id = id;
 
   static readonly resources = sentryResources;
 

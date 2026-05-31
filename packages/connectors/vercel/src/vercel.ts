@@ -276,7 +276,7 @@ const deploymentsResponseSchema = z.object({
   pagination: paginationSchema,
 });
 
-const vercelResources = defineResources({
+export const vercelResources = defineResources({
   vercel_project: {
     shape: 'entity',
     description:
@@ -312,11 +312,13 @@ const DEPLOYMENTS_PAGE_SIZE = 100;
 const DEFAULT_LOOKBACK_DAYS = 30;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
+export const id = 'vercel';
+
 export class VercelConnector extends BaseConnector<
   VercelSettings,
   VercelCredentials
 > {
-  static readonly id = 'vercel';
+  static readonly id = id;
 
   static readonly resources = vercelResources;
 

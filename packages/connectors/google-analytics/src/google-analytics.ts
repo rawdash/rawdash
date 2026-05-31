@@ -485,7 +485,7 @@ const tokenResponseSchema = z.object({
   expires_in: z.number().int().positive().optional(),
 });
 
-const googleAnalyticsResources = defineResources({
+export const googleAnalyticsResources = defineResources({
   ga4_traffic_by_day: {
     shape: 'metric',
     description:
@@ -588,8 +588,10 @@ const googleAnalyticsResources = defineResources({
   },
 });
 
+export const id = 'google-analytics';
+
 export class GA4Connector extends BaseConnector<GA4Settings, GA4Credentials> {
-  static readonly id = 'google-analytics';
+  static readonly id = id;
 
   static readonly resources = googleAnalyticsResources;
 

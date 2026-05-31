@@ -4,8 +4,10 @@ export {
   campaignToEntity,
   configFields,
   doc,
+  id,
   insightRowToMetricSample,
   MetaAdsConnector,
+  metaAdsResources as resources,
 } from './meta-ads';
 export type {
   MetaAdsResource,

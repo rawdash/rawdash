@@ -416,7 +416,7 @@ const refundSchema = z.object({
   created: z.number().int().nonnegative(),
 });
 
-const stripeResources = defineResources({
+export const stripeResources = defineResources({
   stripe_customer: {
     shape: 'entity',
     description:
@@ -487,11 +487,13 @@ const stripeResources = defineResources({
 // StripeConnector
 // ---------------------------------------------------------------------------
 
+export const id = 'stripe';
+
 export class StripeConnector extends BaseConnector<
   StripeSettings,
   StripeCredentials
 > {
-  static readonly id = 'stripe';
+  static readonly id = id;
 
   static readonly resources = stripeResources;
 

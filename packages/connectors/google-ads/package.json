@@ -4,6 +4,7 @@
   "description": "Rawdash connector for Google Ads — syncs campaigns plus daily campaign / ad-group / keyword performance metrics into the six-shape storage model",
   "license": "Apache-2.0",
   "type": "module",
+  "sideEffects": false,
   "repository": {
     "type": "git",
     "url": "https://github.com/rawdash/rawdash.git",

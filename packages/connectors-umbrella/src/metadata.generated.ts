@@ -1,207 +1,246 @@
 // This file is generated from the connector packages by scripts/generate-connectors-package.ts. Do not edit by hand.
-import awsCloudwatchConnector, {
+import {
   configFields as awsCloudwatchConfigFields,
+  cost as awsCloudwatchCost,
   doc as awsCloudwatchDoc,
+  id as awsCloudwatchId,
+  resources as awsCloudwatchResources,
 } from '@rawdash/connector-aws-cloudwatch';
-import awsCostConnector, {
+import {
   configFields as awsCostConfigFields,
+  cost as awsCostCost,
   doc as awsCostDoc,
+  id as awsCostId,
+  resources as awsCostResources,
 } from '@rawdash/connector-aws-cost';
-import datadogConnector, {
+import {
   configFields as datadogConfigFields,
   doc as datadogDoc,
+  id as datadogId,
+  resources as datadogResources,
 } from '@rawdash/connector-datadog';
-import githubConnector, {
+import {
   configFields as githubConfigFields,
   doc as githubDoc,
+  id as githubId,
+  resources as githubResources,
 } from '@rawdash/connector-github';
-import googleAdsConnector, {
+import {
   configFields as googleAdsConfigFields,
   doc as googleAdsDoc,
+  id as googleAdsId,
+  resources as googleAdsResources,
 } from '@rawdash/connector-google-ads';
-import googleAnalyticsConnector, {
+import {
   configFields as googleAnalyticsConfigFields,
   doc as googleAnalyticsDoc,
+  id as googleAnalyticsId,
+  resources as googleAnalyticsResources,
 } from '@rawdash/connector-google-analytics';
-import googleSearchConsoleConnector, {
+import {
   configFields as googleSearchConsoleConfigFields,
   doc as googleSearchConsoleDoc,
+  id as googleSearchConsoleId,
+  resources as googleSearchConsoleResources,
 } from '@rawdash/connector-google-search-console';
-import hubspotConnector, {
+import {
   configFields as hubspotConfigFields,
   doc as hubspotDoc,
+  id as hubspotId,
+  resources as hubspotResources,
 } from '@rawdash/connector-hubspot';
-import intercomConnector, {
+import {
   configFields as intercomConfigFields,
   doc as intercomDoc,
+  id as intercomId,
+  resources as intercomResources,
 } from '@rawdash/connector-intercom';
-import jiraConnector, {
+import {
   configFields as jiraConfigFields,
   doc as jiraDoc,
+  id as jiraId,
+  resources as jiraResources,
 } from '@rawdash/connector-jira';
-import linearConnector, {
+import {
   configFields as linearConfigFields,
   doc as linearDoc,
+  id as linearId,
+  resources as linearResources,
 } from '@rawdash/connector-linear';
-import metaAdsConnector, {
+import {
   configFields as metaAdsConfigFields,
   doc as metaAdsDoc,
+  id as metaAdsId,
+  resources as metaAdsResources,
 } from '@rawdash/connector-meta-ads';
-import mixpanelConnector, {
+import {
   configFields as mixpanelConfigFields,
+  cost as mixpanelCost,
   doc as mixpanelDoc,
+  id as mixpanelId,
+  resources as mixpanelResources,
 } from '@rawdash/connector-mixpanel';
-import posthogConnector, {
+import {
   configFields as posthogConfigFields,
   doc as posthogDoc,
+  id as posthogId,
+  resources as posthogResources,
 } from '@rawdash/connector-posthog';
-import salesforceConnector, {
+import {
   configFields as salesforceConfigFields,
   doc as salesforceDoc,
+  id as salesforceId,
+  resources as salesforceResources,
 } from '@rawdash/connector-salesforce';
-import sentryConnector, {
+import {
   configFields as sentryConfigFields,
   doc as sentryDoc,
+  id as sentryId,
+  resources as sentryResources,
 } from '@rawdash/connector-sentry';
-import stripeConnector, {
+import {
   configFields as stripeConfigFields,
   doc as stripeDoc,
+  id as stripeId,
+  resources as stripeResources,
 } from '@rawdash/connector-stripe';
-import vercelConnector, {
+import {
   configFields as vercelConfigFields,
   doc as vercelDoc,
+  id as vercelId,
+  resources as vercelResources,
 } from '@rawdash/connector-vercel';
 
 import type { ConnectorMetadata } from './types';
 
 export const connectorMetadata: ConnectorMetadata[] = [
   {
-    id: awsCloudwatchConnector.id,
+    id: awsCloudwatchId,
     packageName: '@rawdash/connector-aws-cloudwatch',
     doc: awsCloudwatchDoc,
     configFields: awsCloudwatchConfigFields,
-    resources: awsCloudwatchConnector.resources,
-    cost: awsCloudwatchConnector.cost,
+    resources: awsCloudwatchResources,
+    cost: awsCloudwatchCost,
   },
   {
-    id: awsCostConnector.id,
+    id: awsCostId,
     packageName: '@rawdash/connector-aws-cost',
     doc: awsCostDoc,
     configFields: awsCostConfigFields,
-    resources: awsCostConnector.resources,
-    cost: awsCostConnector.cost,
+    resources: awsCostResources,
+    cost: awsCostCost,
   },
   {
-    id: datadogConnector.id,
+    id: datadogId,
     packageName: '@rawdash/connector-datadog',
     doc: datadogDoc,
     configFields: datadogConfigFields,
-    resources: datadogConnector.resources,
+    resources: datadogResources,
   },
   {
-    id: githubConnector.id,
+    id: githubId,
     packageName: '@rawdash/connector-github',
     doc: githubDoc,
     configFields: githubConfigFields,
-    resources: githubConnector.resources,
+    resources: githubResources,
   },
   {
-    id: googleAdsConnector.id,
+    id: googleAdsId,
     packageName: '@rawdash/connector-google-ads',
     doc: googleAdsDoc,
     configFields: googleAdsConfigFields,
-    resources: googleAdsConnector.resources,
+    resources: googleAdsResources,
   },
   {
-    id: googleAnalyticsConnector.id,
+    id: googleAnalyticsId,
     packageName: '@rawdash/connector-google-analytics',
     doc: googleAnalyticsDoc,
     configFields: googleAnalyticsConfigFields,
-    resources: googleAnalyticsConnector.resources,
+    resources: googleAnalyticsResources,
   },
   {
-    id: googleSearchConsoleConnector.id,
+    id: googleSearchConsoleId,
     packageName: '@rawdash/connector-google-search-console',
     doc: googleSearchConsoleDoc,
     configFields: googleSearchConsoleConfigFields,
-    resources: googleSearchConsoleConnector.resources,
+    resources: googleSearchConsoleResources,
   },
   {
-    id: hubspotConnector.id,
+    id: hubspotId,
     packageName: '@rawdash/connector-hubspot',
     doc: hubspotDoc,
     configFields: hubspotConfigFields,
-    resources: hubspotConnector.resources,
+    resources: hubspotResources,
   },
   {
-    id: intercomConnector.id,
+    id: intercomId,
     packageName: '@rawdash/connector-intercom',
     doc: intercomDoc,
     configFields: intercomConfigFields,
-    resources: intercomConnector.resources,
+    resources: intercomResources,
   },
   {
-    id: jiraConnector.id,
+    id: jiraId,
     packageName: '@rawdash/connector-jira',
     doc: jiraDoc,
     configFields: jiraConfigFields,
-    resources: jiraConnector.resources,
+    resources: jiraResources,
   },
   {
-    id: linearConnector.id,
+    id: linearId,
     packageName: '@rawdash/connector-linear',
     doc: linearDoc,
     configFields: linearConfigFields,
-    resources: linearConnector.resources,
+    resources: linearResources,
   },
   {
-    id: metaAdsConnector.id,
+    id: metaAdsId,
     packageName: '@rawdash/connector-meta-ads',
     doc: metaAdsDoc,
     configFields: metaAdsConfigFields,
-    resources: metaAdsConnector.resources,
+    resources: metaAdsResources,
   },
   {
-    id: mixpanelConnector.id,
+    id: mixpanelId,
     packageName: '@rawdash/connector-mixpanel',
     doc: mixpanelDoc,
     configFields: mixpanelConfigFields,
-    resources: mixpanelConnector.resources,
-    cost: mixpanelConnector.cost,
+    resources: mixpanelResources,
+    cost: mixpanelCost,
   },
   {
-    id: posthogConnector.id,
+    id: posthogId,
     packageName: '@rawdash/connector-posthog',
     doc: posthogDoc,
     configFields: posthogConfigFields,
-    resources: posthogConnector.resources,
+    resources: posthogResources,
   },
   {
-    id: salesforceConnector.id,
+    id: salesforceId,
     packageName: '@rawdash/connector-salesforce',
     doc: salesforceDoc,
     configFields: salesforceConfigFields,
-    resources: salesforceConnector.resources,
+    resources: salesforceResources,
   },
   {
-    id: sentryConnector.id,
+    id: sentryId,
     packageName: '@rawdash/connector-sentry',
     doc: sentryDoc,
     configFields: sentryConfigFields,
-    resources: sentryConnector.resources,
+    resources: sentryResources,
   },
   {
-    id: stripeConnector.id,
+    id: stripeId,
     packageName: '@rawdash/connector-stripe',
     doc: stripeDoc,
     configFields: stripeConfigFields,
-    resources: stripeConnector.resources,
+    resources: stripeResources,
   },
   {
-    id: vercelConnector.id,
+    id: vercelId,
     packageName: '@rawdash/connector-vercel',
     doc: vercelDoc,
     configFields: vercelConfigFields,
-    resources: vercelConnector.resources,
+    resources: vercelResources,
   },
 ];

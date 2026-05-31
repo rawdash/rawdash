@@ -344,7 +344,7 @@ function epochSecToMsOrZero(value: number | null | undefined): number {
 // Resources
 // ---------------------------------------------------------------------------
 
-const intercomResources = defineResources({
+export const intercomResources = defineResources({
   [ADMIN_ENTITY]: {
     shape: 'entity',
     description: 'Intercom teammates (admins) with seat and away state.',
@@ -476,11 +476,13 @@ const intercomResources = defineResources({
 // IntercomConnector
 // ---------------------------------------------------------------------------
 
+export const id = 'intercom';
+
 export class IntercomConnector extends BaseConnector<
   IntercomSettings,
   IntercomCredentials
 > {
-  static readonly id = 'intercom';
+  static readonly id = id;
 
   static readonly resources = intercomResources;
 

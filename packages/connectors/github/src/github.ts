@@ -455,7 +455,7 @@ const repoStatsSchema = z.object({
   subscribers_count: z.number().int(),
 });
 
-const githubResources = defineResources({
+export const githubResources = defineResources({
   repo: {
     shape: 'entity',
     description:
@@ -515,11 +515,13 @@ const githubResources = defineResources({
   },
 });
 
+export const id = 'github-actions';
+
 export class GitHubConnector extends BaseConnector<
   GitHubSettings,
   GitHubCredentials
 > {
-  static readonly id = 'github-actions';
+  static readonly id = id;
 
   static readonly resources = githubResources;
 

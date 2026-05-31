@@ -53,14 +53,18 @@ interface LoadedConnector {
   ident: string;
 }
 
+// The umbrella's metadata entry imports only these named exports — never the
+// default connector class — so a metadata-only consumer never bundles connector
+// sync code. Each connector must therefore expose its metadata as standalone
+// named exports (`id`, `doc`, `configFields`, `resources`, and optionally
+// `cost`) rather than only as class statics.
 interface ConnectorModule {
-  default: {
-    readonly id: string;
-    readonly resources?: unknown;
-    readonly cost?: unknown;
-  };
+  default?: unknown;
+  id?: string;
   doc?: unknown;
   configFields?: unknown;
+  resources?: unknown;
+  cost?: unknown;
 }
 
 // Deterministic, locale-independent string order. `localeCompare` collation
@@ -86,60 +90,61 @@ async function loadConnector(dir: string): Promise<LoadedConnector> {
   const pkg = JSON.parse(readFileSync(pkgPath, 'utf8')) as { name: string };
   const entry = join(CONNECTORS_DIR, dir, 'src', 'index.ts');
   const mod = (await import(pathToFileURL(entry).href)) as ConnectorModule;
-  if (!mod.default?.id) {
+  if (!mod.default) {
     throw new Error(
-      `Connector "${dir}" (${pkg.name}) has no default export with a static \`id\`. ` +
+      `Connector "${dir}" (${pkg.name}) has no default export. ` +
         `Every connector must export its BaseConnector subclass as the default export.`,
     );
   }
-  if (!mod.doc) {
-    throw new Error(
-      `Connector "${dir}" (${pkg.name}) does not export a \`doc\`.`,
-    );
-  }
-  if (!mod.configFields) {
-    throw new Error(
-      `Connector "${dir}" (${pkg.name}) does not export \`configFields\`.`,
-    );
-  }
-  if (!mod.default.resources) {
-    throw new Error(
-      `Connector "${dir}" (${pkg.name}) default export has no static \`resources\`. ` +
-        `The umbrella metadata requires it; define them with defineResources() ` +
-        `and expose them as \`static resources\` on the connector class.`,
-    );
+  for (const name of ['id', 'doc', 'configFields', 'resources'] as const) {
+    if (mod[name] === undefined) {
+      throw new Error(
+        `Connector "${dir}" (${pkg.name}) does not export \`${name}\` as a named export. ` +
+          `The umbrella's metadata entry imports metadata by name (never off the ` +
+          `connector class) so a metadata-only consumer never bundles connector ` +
+          `sync code; expose \`id\`, \`doc\`, \`configFields\`, and \`resources\` ` +
+          `(and optionally \`cost\`) as named exports.`,
+      );
+    }
   }
   return {
     dir,
     packageName: pkg.name,
-    id: mod.default.id,
-    hasCost: mod.default.cost !== undefined,
+    id: mod.id as string,
+    hasCost: mod.cost !== undefined,
     ident: toIdent(dir),
   };
 }
 
 function renderMetadataModule(connectors: LoadedConnector[]): string {
   const imports = connectors
-    .map(
-      (c) =>
-        `import ${c.ident}Connector, {\n` +
-        `  configFields as ${c.ident}ConfigFields,\n` +
-        `  doc as ${c.ident}Doc,\n` +
-        `} from '${c.packageName}';`,
-    )
+    .map((c) => {
+      const specifiers = [
+        `  configFields as ${c.ident}ConfigFields,`,
+        `  doc as ${c.ident}Doc,`,
+        `  id as ${c.ident}Id,`,
+        `  resources as ${c.ident}Resources,`,
+      ];
+      if (c.hasCost) {
+        specifiers.push(`  cost as ${c.ident}Cost,`);
+      }
+      return [`import {`, ...specifiers, `} from '${c.packageName}';`].join(
+        '\n',
+      );
+    })
     .join('\n');
   const entries = connectors
     .map((c) => {
       const lines = [
         `  {`,
-        `    id: ${c.ident}Connector.id,`,
+        `    id: ${c.ident}Id,`,
         `    packageName: '${c.packageName}',`,
         `    doc: ${c.ident}Doc,`,
         `    configFields: ${c.ident}ConfigFields,`,
-        `    resources: ${c.ident}Connector.resources,`,
+        `    resources: ${c.ident}Resources,`,
       ];
       if (c.hasCost) {
-        lines.push(`    cost: ${c.ident}Connector.cost,`);
+        lines.push(`    cost: ${c.ident}Cost,`);
       }
       lines.push(`  },`);
       return lines.join('\n');

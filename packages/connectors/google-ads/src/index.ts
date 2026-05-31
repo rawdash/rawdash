@@ -8,6 +8,8 @@ export {
   doc,
   getDateRange,
   GoogleAdsConnector,
+  googleAdsResources as resources,
+  id,
   keywordMetricRowToSample,
 } from './google-ads';
 export type { GoogleAdsResource, GoogleAdsSettings } from './google-ads';
