@@ -96,6 +96,25 @@ export const connectors: ConnectorCard[] = [
     ],
   },
   {
+    id: 'google-ads',
+    name: 'Google Ads',
+    category: 'marketing',
+    categoryLabel: 'Marketing',
+    tagline:
+      'Sync Google Ads campaigns plus daily campaign, ad-group, and keyword performance (impressions, clicks, cost, conversions) via GAQL.',
+    href: '/docs/connectors/marketing/google-ads/',
+    iconPath: '/connectors/google-ads.svg',
+    brandColor: '#4285F4',
+    keywords: [
+      '@rawdash/connector-google-ads',
+      'google ads',
+      'google_ads_ad_group_metrics',
+      'google_ads_campaign',
+      'google_ads_campaign_metrics',
+      'google_ads_keyword_metrics',
+    ],
+  },
+  {
     id: 'google-analytics',
     name: 'Google Analytics',
     category: 'analytics',
@@ -336,6 +355,11 @@ export const connectorCategories: ConnectorCategory[] = [
     id: 'analytics',
     label: 'Analytics',
     count: 2,
+  },
+  {
+    id: 'marketing',
+    label: 'Marketing',
+    count: 1,
   },
   {
     id: 'sales',
