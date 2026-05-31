@@ -53,6 +53,27 @@ export const connectors: ConnectorCard[] = [
     ],
   },
   {
+    id: 'datadog',
+    name: 'Datadog',
+    category: 'infrastructure',
+    categoryLabel: 'Infrastructure',
+    tagline:
+      'Sync monitor health, monitor state-change events, incidents, SLOs, and user-declared metric queries from a Datadog org.',
+    href: '/docs/connectors/infrastructure/datadog/',
+    iconPath: '/connectors/datadog.svg',
+    brandColor: '#632CA6',
+    keywords: [
+      '@rawdash/connector-datadog',
+      'datadog',
+      'datadog_incident',
+      'datadog_metric',
+      'datadog_monitor',
+      'datadog_monitor_event',
+      'datadog_slo',
+      'datadog_slo_sli',
+    ],
+  },
+  {
     id: 'github-actions',
     name: 'GitHub',
     category: 'engineering',
@@ -114,6 +135,26 @@ export const connectors: ConnectorCard[] = [
       'hubspot_deal_stage_change',
       'hubspot_email_campaign',
       'hubspot_email_stats',
+    ],
+  },
+  {
+    id: 'intercom',
+    name: 'Intercom',
+    category: 'support',
+    categoryLabel: 'Support',
+    tagline:
+      'Sync conversations, contacts, teams, and admins from Intercom for support volume, response latency, and queue-depth analytics.',
+    href: '/docs/connectors/support/intercom/',
+    iconPath: '/connectors/intercom.svg',
+    brandColor: '#6AFDEF',
+    keywords: [
+      '@rawdash/connector-intercom',
+      'intercom',
+      'intercom_admin',
+      'intercom_contact',
+      'intercom_conversation',
+      'intercom_conversation_state_change',
+      'intercom_team',
     ],
   },
   {
@@ -198,6 +239,26 @@ export const connectors: ConnectorCard[] = [
     ],
   },
   {
+    id: 'salesforce',
+    name: 'Salesforce',
+    category: 'sales',
+    categoryLabel: 'Sales',
+    tagline:
+      'Sync opportunities, opportunity stage-change events, accounts, leads, and users from a Salesforce org for pipeline, forecast, and quota-attainment dashboards.',
+    href: '/docs/connectors/sales/salesforce/',
+    iconPath: '/connectors/salesforce.svg',
+    brandColor: '#00A1E0',
+    keywords: [
+      '@rawdash/connector-salesforce',
+      'salesforce',
+      'salesforce_account',
+      'salesforce_lead',
+      'salesforce_opportunity',
+      'salesforce_opportunity_stage_change',
+      'salesforce_user',
+    ],
+  },
+  {
     id: 'sentry',
     name: 'Sentry',
     category: 'engineering',
@@ -279,6 +340,11 @@ export const connectorCategories: ConnectorCategory[] = [
   {
     id: 'sales',
     label: 'Sales',
+    count: 2,
+  },
+  {
+    id: 'support',
+    label: 'Support',
     count: 1,
   },
   {
@@ -289,6 +355,6 @@ export const connectorCategories: ConnectorCategory[] = [
   {
     id: 'infrastructure',
     label: 'Infrastructure',
-    count: 2,
+    count: 3,
   },
 ];
