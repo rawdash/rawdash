@@ -17,6 +17,7 @@
       "@rawdash/connector-vercel",
       "@rawdash/connector-aws-cost",
       "@rawdash/connector-hubspot",
+      "@rawdash/connector-intercom",
       "@rawdash/connector-jira",
       "@rawdash/connector-mixpanel",
       "@rawdash/connector-posthog",
