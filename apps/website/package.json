@@ -3,10 +3,10 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "dev": "astro dev",
-    "build": "astro build",
+    "dev": "pnpm -w run docs:connectors && astro dev",
+    "build": "pnpm -w run docs:connectors && astro build",
     "preview": "astro preview",
-    "typecheck": "astro check"
+    "typecheck": "pnpm -w run docs:connectors && astro check"
   },
   "dependencies": {
     "@astrojs/starlight": "^0.33.0",
