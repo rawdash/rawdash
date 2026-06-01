@@ -1,13 +1,28 @@
 ---
-import { connectors, connectorCategories } from '../generated/connectors';
+import {
+  connectors,
+  connectorCategories,
+  connectorPlaceholders,
+} from '../generated/connectors';
 
 const haystack = (c: (typeof connectors)[number]) =>
   [c.name, c.tagline, c.categoryLabel, ...c.keywords].join(' ').toLowerCase();
 
-const iconsByCategory = new Map<string, typeof connectors>();
-for (const c of connectors) {
+const plannedHaystack = (c: (typeof connectorPlaceholders)[number]) =>
+  [c.name, c.tagline, c.categoryLabel, 'planned', 'requested']
+    .join(' ')
+    .toLowerCase();
+
+interface CategoryIcon {
+  iconPath: string;
+  name: string;
+}
+// Available connectors first, then planned, so a category's card leads with
+// shipped logos (and a planned-only category still shows its placeholder icons).
+const iconsByCategory = new Map<string, CategoryIcon[]>();
+for (const c of [...connectors, ...connectorPlaceholders]) {
   const list = iconsByCategory.get(c.category) ?? [];
-  list.push(c);
+  list.push({ iconPath: c.iconPath, name: c.name });
   iconsByCategory.set(c.category, list);
 }
 ---
@@ -47,6 +62,9 @@ for (const c of connectors) {
             <span class="category-card-name">{cat.label}</span>
             <span class="category-card-count">
               {cat.count} {cat.count === 1 ? 'connector' : 'connectors'}
+              {cat.planned > 0 && (
+                <span class="planned"> · {cat.planned} planned</span>
+              )}
             </span>
           </span>
           <span class="category-card-icons">
@@ -77,6 +95,27 @@ for (const c of connectors) {
             <span class="catalog-card-head">
               <span class="catalog-card-name">{c.name}</span>
               <span class="catalog-card-category">{c.categoryLabel}</span>
+            </span>
+            <span class="catalog-card-tagline">{c.tagline}</span>
+          </span>
+        </a>
+      ))
+    }
+    {
+      connectorPlaceholders.map((c) => (
+        <a
+          class="catalog-card catalog-card--planned"
+          href={c.href}
+          data-connector-card
+          data-search={plannedHaystack(c)}
+        >
+          <span class="catalog-card-icon">
+            <img src={c.iconPath} alt={`${c.name} logo`} width="28" height="28" loading="lazy" />
+          </span>
+          <span class="catalog-card-body">
+            <span class="catalog-card-head">
+              <span class="catalog-card-name">{c.name}</span>
+              <span class="catalog-card-badge">Planned</span>
             </span>
             <span class="catalog-card-tagline">{c.tagline}</span>
           </span>

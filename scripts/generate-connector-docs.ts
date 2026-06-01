@@ -1,4 +1,5 @@
 import type {
+  ConnectorCategory,
   ConnectorCost,
   ConnectorDoc,
   ResourceDefinition,
@@ -15,7 +16,10 @@ import {
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import * as prettier from 'prettier';
+import * as simpleIcons from 'simple-icons';
 import { z } from 'zod';
+
+import { connectorPlaceholders } from './connector-placeholders';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CONNECTORS_DIR = join(ROOT, 'packages', 'connectors');
@@ -59,11 +63,142 @@ interface LoadedConnector {
   iconSvg: string;
 }
 
+// A placeholder ("planned") connector, resolved into a renderable shape: a
+// concrete icon SVG (Simple Icons glyph or a monogram fallback) and a resolved
+// brand color. Mirrors the fields of LoadedConnector that the catalog, landing
+// grid, and category pages consume.
+interface LoadedPlaceholder {
+  id: string;
+  name: string;
+  category: ConnectorCategory;
+  tagline: string;
+  brandColor: string;
+  iconSvg: string;
+  requestIssue?: string;
+}
+
 interface ConfigField {
   name: string;
   type: string;
   required: boolean;
   description: string;
+}
+
+interface SimpleIcon {
+  title: string;
+  slug: string;
+  hex: string;
+  path: string;
+}
+
+// Simple Icons exports one object per icon (plus helpers). Index the icon
+// objects by slug so placeholders can resolve a brand glyph by `icon` slug.
+const ICON_BY_SLUG: Map<string, SimpleIcon> = (() => {
+  const map = new Map<string, SimpleIcon>();
+  for (const value of Object.values(simpleIcons)) {
+    const icon = value as Partial<SimpleIcon>;
+    if (
+      icon &&
+      typeof icon === 'object' &&
+      typeof icon.slug === 'string' &&
+      typeof icon.hex === 'string' &&
+      typeof icon.path === 'string'
+    ) {
+      map.set(icon.slug, icon as SimpleIcon);
+    }
+  }
+  return map;
+})();
+
+function escapeXml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// A brand glyph in the same format as the connector packages' committed
+// icon.svg: a single Simple Icons path tinted with the brand hex.
+function brandedIconSvg(name: string, path: string, hex: string): string {
+  return `<svg fill="#${hex}" role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>${escapeXml(name)}</title><path d="${path}"/></svg>`;
+}
+
+// Fallback for vendors Simple Icons does not carry (many B2B logos are absent
+// or were removed for trademark reasons): a rounded tile in the brand color
+// with the vendor's first letter, so every placeholder still has a real icon.
+function monogramIconSvg(name: string, hex: string): string {
+  const letter = escapeXml([...name][0]?.toUpperCase() ?? '?');
+  return `<svg role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>${escapeXml(name)}</title><rect width="24" height="24" rx="5" fill="${hex}"/><text x="12" y="13" text-anchor="middle" dominant-baseline="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#ffffff">${letter}</text></svg>`;
+}
+
+// Resolve the checked-in placeholder list into renderable entries, dropping any
+// that have since shipped as a real connector (matched by id or display name),
+// so a graduated placeholder disappears automatically on the next generation.
+function loadPlaceholders(
+  realIds: Set<string>,
+  realNames: Set<string>,
+): LoadedPlaceholder[] {
+  const seen = new Set<string>();
+  const graduated: string[] = [];
+  const out: LoadedPlaceholder[] = [];
+  for (const p of connectorPlaceholders) {
+    // A placeholder must not also be a shipped connector. When a connector
+    // graduates, its placeholder has to be crossed off the list; failing here
+    // (rather than silently dropping it) forces that and keeps the catalog from
+    // listing the same connector as both Available and Planned. This runs under
+    // `docs:connectors:check` in CI, so a stale placeholder fails the build.
+    if (realIds.has(p.id) || realNames.has(p.name.toLowerCase())) {
+      graduated.push(p.id);
+      continue;
+    }
+    if (seen.has(p.id)) {
+      throw new Error(`Duplicate placeholder connector id "${p.id}".`);
+    }
+    seen.add(p.id);
+    if (!(p.category in CATEGORY_LABELS)) {
+      throw new Error(
+        `Placeholder "${p.id}" has unknown category "${p.category}".`,
+      );
+    }
+    const icon = p.icon ? ICON_BY_SLUG.get(p.icon) : undefined;
+    const brandColor = p.brandColor ?? (icon ? `#${icon.hex}` : undefined);
+    if (!brandColor) {
+      throw new Error(
+        `Placeholder "${p.id}" has no Simple Icons match for slug "${p.icon}" ` +
+          `and no brandColor. Add a brandColor (used for the monogram fallback).`,
+      );
+    }
+    const iconSvg = icon
+      ? brandedIconSvg(p.name, icon.path, icon.hex)
+      : monogramIconSvg(p.name, brandColor);
+    out.push({
+      id: p.id,
+      name: p.name,
+      category: p.category,
+      tagline: p.tagline,
+      brandColor,
+      iconSvg,
+      requestIssue: p.requestIssue,
+    });
+  }
+  if (graduated.length > 0) {
+    throw new Error(
+      `These placeholders are now shipped connectors and must be removed from ` +
+        `scripts/connector-placeholders.ts (cross them off the list): ` +
+        `${graduated.join(', ')}.`,
+    );
+  }
+  out.sort((a, b) => a.name.localeCompare(b.name));
+  return out;
+}
+
+function placeholderUrl(p: LoadedPlaceholder): string {
+  return `/docs/connectors/${p.category}/${p.id}/`;
+}
+
+function requestIssueUrl(requestIssue: string): string {
+  return `https://linear.app/rawdash/issue/${requestIssue}`;
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -494,6 +629,21 @@ function groupByCategory(
   return byCategory;
 }
 
+function groupPlaceholdersByCategory(
+  placeholders: LoadedPlaceholder[],
+): Map<string, LoadedPlaceholder[]> {
+  const byCategory = new Map<string, LoadedPlaceholder[]>();
+  for (const p of placeholders) {
+    const list = byCategory.get(p.category) ?? [];
+    list.push(p);
+    byCategory.set(p.category, list);
+  }
+  for (const list of byCategory.values()) {
+    list.sort((a, b) => a.name.localeCompare(b.name));
+  }
+  return byCategory;
+}
+
 function connectorUrl(c: LoadedConnector): string {
   return `/docs/connectors/${c.doc.category}/${c.id}/`;
 }
@@ -515,6 +665,10 @@ function renderTopIndex(): string {
   parts.push('');
   parts.push(
     'Rawdash ships built-in connectors, grouped by category. Each syncs data from a third-party API into the storage engine, where your widgets query it. Search for a connector, or pick a category to browse.',
+  );
+  parts.push('');
+  parts.push(
+    "Don't see your tool? Connectors marked **Planned** are on the roadmap but not built yet - search for one and upvote it to help us prioritize.",
   );
   parts.push('');
   parts.push('<ConnectorCategoryGrid />');
@@ -547,6 +701,43 @@ function renderCategoryIndex(category: string): string {
   return parts.join('\n');
 }
 
+function renderPlaceholderMdx(p: LoadedPlaceholder): string {
+  const parts: string[] = [];
+  parts.push(
+    frontmatter({
+      title: p.name,
+      description: `${p.name} connector for Rawdash (planned).`,
+    }),
+  );
+  parts.push('');
+  parts.push(GENERATED_NOTE_MDX);
+  parts.push('');
+  parts.push("import { Aside, Badge } from '@astrojs/starlight/components';");
+  parts.push(
+    "import ConnectorUpvote from '../../../../../components/ConnectorUpvote.astro';",
+  );
+  parts.push('');
+  parts.push(
+    `<p style="display:flex;align-items:center;gap:0.75rem;margin:0 0 1rem;"><img src="/connectors/${p.id}.svg" alt="${escapeXml(p.name)} logo" width="40" height="40" style="background:#fff;border-radius:8px;padding:6px;box-sizing:border-box;" /> <Badge text="${CATEGORY_LABELS[p.category] ?? p.category}" variant="tip" /> <Badge text="Planned" variant="caution" /></p>`,
+  );
+  parts.push('');
+  parts.push(escapeMdxText(p.tagline));
+  parts.push('');
+  parts.push(
+    `<Aside type="note" title="Not built yet">There's no \`@rawdash/connector-${p.id}\` package yet. This connector is on the roadmap. Upvote below to help us prioritize it, or [build it yourself](/docs/connector-guide/) - rawdash connectors are just typed resource-syncers.</Aside>`,
+  );
+  parts.push('');
+  parts.push('## Upvote this connector');
+  parts.push('');
+  parts.push(
+    'Voting is a GitHub Discussions upvote in the "Connector Requests" category - sign in with GitHub and click upvote. The count below refreshes when the site rebuilds.',
+  );
+  parts.push('');
+  parts.push(`<ConnectorUpvote term="${p.id}" name="${escapeXml(p.name)}" />`);
+  parts.push('');
+  return parts.join('\n');
+}
+
 function connectorKeywords(c: LoadedConnector): string[] {
   const tokens = new Set<string>();
   for (const key of Object.keys(c.resources)) {
@@ -560,6 +751,7 @@ function connectorKeywords(c: LoadedConnector): string[] {
 function renderLandingData(
   connectors: LoadedConnector[],
   byCategory: Map<string, LoadedConnector[]>,
+  placeholders: LoadedPlaceholder[],
 ): string {
   const items = connectors
     .slice()
@@ -575,12 +767,34 @@ function renderLandingData(
       brandColor: c.doc.brandColor ?? null,
       keywords: connectorKeywords(c),
     }));
+  const planned = placeholders.map((p) => ({
+    id: p.id,
+    name: p.name,
+    category: p.category,
+    categoryLabel: CATEGORY_LABELS[p.category] ?? p.category,
+    tagline: p.tagline,
+    href: placeholderUrl(p),
+    iconPath: `/connectors/${p.id}.svg`,
+    brandColor: p.brandColor,
+    requestUrl: p.requestIssue ? requestIssueUrl(p.requestIssue) : null,
+  }));
+  const plannedByCategory = new Map<string, number>();
+  for (const p of placeholders) {
+    plannedByCategory.set(
+      p.category,
+      (plannedByCategory.get(p.category) ?? 0) + 1,
+    );
+  }
   const categories = Object.keys(CATEGORY_LABELS)
-    .filter((category) => byCategory.get(category)?.length)
+    .filter(
+      (category) =>
+        byCategory.get(category)?.length || plannedByCategory.get(category),
+    )
     .map((category) => ({
       id: category,
       label: CATEGORY_LABELS[category],
-      count: byCategory.get(category)!.length,
+      count: byCategory.get(category)?.length ?? 0,
+      planned: plannedByCategory.get(category) ?? 0,
     }));
   return [
     GENERATED_NOTE_TS,
@@ -597,13 +811,28 @@ function renderLandingData(
     '  keywords: string[];',
     '}',
     '',
+    'export interface ConnectorPlaceholderCard {',
+    '  id: string;',
+    '  name: string;',
+    '  category: string;',
+    '  categoryLabel: string;',
+    '  tagline: string;',
+    '  href: string;',
+    '  iconPath: string;',
+    '  brandColor: string;',
+    '  requestUrl: string | null;',
+    '}',
+    '',
     'export interface ConnectorCategory {',
     '  id: string;',
     '  label: string;',
     '  count: number;',
+    '  planned: number;',
     '}',
     '',
     `export const connectors: ConnectorCard[] = ${JSON.stringify(items, null, 2)};`,
+    '',
+    `export const connectorPlaceholders: ConnectorPlaceholderCard[] = ${JSON.stringify(planned, null, 2)};`,
     '',
     `export const connectorCategories: ConnectorCategory[] = ${JSON.stringify(categories, null, 2)};`,
     '',
@@ -630,9 +859,13 @@ async function formatOutput(file: OutFile): Promise<string> {
   return prettier.format(file.content, { ...config, parser });
 }
 
-function collectOutputs(connectors: LoadedConnector[]): OutFile[] {
+function collectOutputs(
+  connectors: LoadedConnector[],
+  placeholders: LoadedPlaceholder[],
+): OutFile[] {
   const out: OutFile[] = [];
   const byCategory = groupByCategory(connectors);
+  const placeholdersByCategory = groupPlaceholdersByCategory(placeholders);
   for (const c of connectors) {
     out.push({
       path: join(CONNECTORS_DIR, c.dir, 'README.md'),
@@ -650,7 +883,26 @@ function collectOutputs(connectors: LoadedConnector[]): OutFile[] {
       tracked: false,
     });
   }
-  for (const category of byCategory.keys()) {
+  for (const p of placeholders) {
+    out.push({
+      path: join(DOCS_CONNECTORS_DIR, p.category, `${p.id}.mdx`),
+      content: renderPlaceholderMdx(p),
+      tracked: false,
+    });
+    out.push({
+      path: join(PUBLIC_ICONS_DIR, `${p.id}.svg`),
+      content: p.iconSvg,
+      raw: true,
+      tracked: false,
+    });
+  }
+  // Union of categories that have any available connector or any placeholder,
+  // so a category with only planned connectors (e.g. Security) still gets a page.
+  const allCategories = new Set([
+    ...byCategory.keys(),
+    ...placeholdersByCategory.keys(),
+  ]);
+  for (const category of allCategories) {
     out.push({
       path: join(DOCS_CONNECTORS_DIR, category, 'index.mdx'),
       content: renderCategoryIndex(category),
@@ -664,7 +916,7 @@ function collectOutputs(connectors: LoadedConnector[]): OutFile[] {
   });
   out.push({
     path: LANDING_DATA_FILE,
-    content: renderLandingData(connectors, byCategory),
+    content: renderLandingData(connectors, byCategory, placeholders),
     tracked: false,
   });
   return out;
@@ -703,7 +955,13 @@ async function main(): Promise<void> {
   }
   connectors.sort((a, b) => a.id.localeCompare(b.id));
 
-  const outputs = collectOutputs(connectors);
+  const realIds = new Set(connectors.map((c) => c.id));
+  const realNames = new Set(
+    connectors.map((c) => c.doc.displayName.toLowerCase()),
+  );
+  const placeholders = loadPlaceholders(realIds, realNames);
+
+  const outputs = collectOutputs(connectors, placeholders);
   const drifted: string[] = [];
   const dashes: string[] = [];
   for (const file of outputs) {
@@ -769,7 +1027,7 @@ async function main(): Promise<void> {
     );
   } else {
     console.log(
-      `Generated docs for ${connectors.length} connectors (${outputs.length} files).`,
+      `Generated docs for ${connectors.length} connectors and ${placeholders.length} planned placeholders (${outputs.length} files).`,
     );
   }
 }
