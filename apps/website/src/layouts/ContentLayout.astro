@@ -1,7 +1,7 @@
 ---
 import SiteNav from '../components/site/SiteNav.astro';
 import SiteFooter from '../components/site/SiteFooter.astro';
-import { canonical } from '../lib/seo';
+import { canonical, serializeJsonLd } from '../lib/seo';
 import '../styles/landing.css';
 import '../styles/content.css';
 
@@ -50,10 +50,7 @@ const canonicalUrl = canonical(path, Astro.site);
 
     {
       jsonLd.map((block) => (
-        <script
-          type="application/ld+json"
-          set:html={JSON.stringify(block)}
-        />
+        <script type="application/ld+json" set:html={serializeJsonLd(block)} />
       ))
     }
   </head>

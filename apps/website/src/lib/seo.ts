@@ -7,6 +7,15 @@ const ORG = {
   logo: 'https://rawdash.dev/favicon.svg',
 } as const;
 
+/**
+ * Serialize a JSON-LD block for safe injection into a `<script>` tag. Escapes
+ * `<` so feed-supplied strings containing `</script>` (or `<!--`) cannot break
+ * out of the tag.
+ */
+export function serializeJsonLd(block: Record<string, unknown>): string {
+  return JSON.stringify(block).replace(/</g, '\\u003c');
+}
+
 /** Absolute canonical URL for a path, resolved against the configured site. */
 export function canonical(path: string, site: URL | undefined): string {
   const base = site ?? new URL('https://rawdash.dev');
