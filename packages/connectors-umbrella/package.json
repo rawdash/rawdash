@@ -38,6 +38,7 @@
     "@rawdash/connector-aws-cost": "workspace:*",
     "@rawdash/connector-datadog": "workspace:*",
     "@rawdash/connector-github": "workspace:*",
+    "@rawdash/connector-gitlab": "workspace:*",
     "@rawdash/connector-google-ads": "workspace:*",
     "@rawdash/connector-google-analytics": "workspace:*",
     "@rawdash/connector-google-search-console": "workspace:*",

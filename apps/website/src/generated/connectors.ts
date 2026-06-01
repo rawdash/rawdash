@@ -96,6 +96,27 @@ export const connectors: ConnectorCard[] = [
     ],
   },
   {
+    id: 'gitlab',
+    name: 'GitLab',
+    category: 'engineering',
+    categoryLabel: 'Engineering',
+    tagline:
+      'Sync projects, merge requests, pipelines, issues, and releases from GitLab.com or a self-hosted GitLab instance.',
+    href: '/docs/connectors/engineering/gitlab/',
+    iconPath: '/connectors/gitlab.svg',
+    brandColor: '#FC6D26',
+    keywords: [
+      '@rawdash/connector-gitlab',
+      'gitlab',
+      'issue',
+      'merge_request',
+      'pipeline',
+      'pipeline_event',
+      'project',
+      'release',
+    ],
+  },
+  {
     id: 'google-ads',
     name: 'Google Ads',
     category: 'marketing',
@@ -382,7 +403,7 @@ export const connectorCategories: ConnectorCategory[] = [
   {
     id: 'engineering',
     label: 'Engineering',
-    count: 2,
+    count: 3,
   },
   {
     id: 'product',
