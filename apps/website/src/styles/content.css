@@ -1,0 +1,224 @@
+/* Styles for the marketing content surface (/blog, /integrations, /compare,
+   /alternatives). Builds on the design tokens defined in landing.css. */
+
+.content-hero {
+  padding-bottom: 2rem;
+}
+
+.content-hero h1 {
+  font-size: clamp(2rem, 5vw, 3.2rem);
+}
+
+.content-section {
+  padding-top: 0;
+}
+
+.content-empty {
+  color: var(--text-dim);
+  font-size: 1rem;
+}
+
+.content-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1.25rem;
+}
+
+.content-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1.5rem;
+  background: var(--bg-card);
+  border: 1px solid var(--bg-card-border);
+  border-radius: var(--radius);
+  transition:
+    border-color 0.15s,
+    transform 0.1s;
+}
+
+.content-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+
+.content-card h2 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.content-card p {
+  font-size: 0.9rem;
+  color: var(--text-dim);
+  line-height: 1.55;
+}
+
+.content-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: auto;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+
+.content-card-tags {
+  color: var(--text-muted);
+}
+
+/* Article */
+
+.content-article {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 3.5rem 1.5rem 1rem;
+}
+
+.content-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin-bottom: 1.5rem;
+}
+
+.content-breadcrumb a {
+  color: var(--accent-light);
+}
+
+.content-breadcrumb a:hover {
+  color: var(--text);
+}
+
+.content-article-header {
+  margin-bottom: 2.5rem;
+}
+
+.content-article-header h1 {
+  font-size: clamp(1.9rem, 4.5vw, 2.8rem);
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  margin-bottom: 1rem;
+}
+
+.content-article-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.content-prose {
+  font-size: 1.05rem;
+  line-height: 1.75;
+  color: var(--text);
+}
+
+.content-prose > * + * {
+  margin-top: 1.25rem;
+}
+
+.content-prose h2 {
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  margin-top: 2.5rem;
+  margin-bottom: 1rem;
+}
+
+.content-prose h3 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+}
+
+.content-prose a {
+  color: var(--accent-light);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.content-prose a:hover {
+  color: var(--text);
+}
+
+.content-prose ul,
+.content-prose ol {
+  padding-left: 1.5rem;
+}
+
+.content-prose li + li {
+  margin-top: 0.4rem;
+}
+
+.content-prose code {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  background: var(--code-bg);
+  border: 1px solid var(--bg-card-border);
+  border-radius: 4px;
+  padding: 0.1rem 0.35rem;
+}
+
+.content-prose pre {
+  background: var(--code-bg);
+  border: 1px solid var(--bg-card-border);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.content-prose pre code {
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+.content-prose blockquote {
+  border-left: 3px solid var(--accent);
+  padding-left: 1rem;
+  color: var(--text-muted);
+}
+
+.content-prose img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius);
+}
+
+.content-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.content-prose th,
+.content-prose td {
+  border: 1px solid var(--bg-card-border);
+  padding: 0.6rem 0.85rem;
+  text-align: left;
+}
+
+.content-prose th {
+  background: var(--bg-card);
+}
+
+.content-article .cta-banner {
+  margin-top: 4rem;
+  padding: 0;
+}
+
+@media (max-width: 600px) {
+  .content-article {
+    padding: 2.5rem 1rem 1rem;
+  }
+}

@@ -1,0 +1,56 @@
+---
+import { render } from 'astro:content';
+import type { ContentEntry } from '../../lib/content';
+import CloudCta from '../site/CloudCta.astro';
+
+interface Props {
+  entry: ContentEntry;
+  /** Breadcrumb label for the section this article belongs to. */
+  sectionLabel: string;
+  /** Section base path, e.g. `/blog`. */
+  basePath: string;
+}
+
+const { entry, sectionLabel, basePath } = Astro.props;
+const { data } = entry;
+
+const { Content } = await render(entry);
+
+const date = data.publishedAt ?? data.updatedAt;
+const dateFmt = new Intl.DateTimeFormat('en-US', {
+  year: 'numeric',
+  month: 'long',
+  day: 'numeric',
+});
+---
+
+<article class="content-article">
+  <nav class="content-breadcrumb" aria-label="Breadcrumb">
+    <a href={`${basePath}/`}>{sectionLabel}</a>
+    <span aria-hidden="true">/</span>
+    <span>{data.title}</span>
+  </nav>
+
+  <header class="content-article-header">
+    <h1>{data.title}</h1>
+    <div class="content-article-meta">
+      {data.author && <span>{data.author}</span>}
+      {
+        date && (
+          <time datetime={date.toISOString()}>{dateFmt.format(date)}</time>
+        )
+      }
+    </div>
+  </header>
+
+  <div class="content-prose">
+    <Content />
+  </div>
+
+  {
+    data.cta && (
+      <CloudCta heading={data.title} body={data.metaDescription} href={data.cta.href} label={data.cta.label} />
+    )
+  }
+  {!data.cta && <CloudCta />}
+</article>
