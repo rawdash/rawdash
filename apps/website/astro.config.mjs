@@ -1,9 +1,11 @@
+import sitemap from '@astrojs/sitemap';
 import starlight from '@astrojs/starlight';
 import { defineConfig } from 'astro/config';
 
 export default defineConfig({
   site: 'https://rawdash.dev',
   integrations: [
+    sitemap(),
     starlight({
       title: 'Rawdash',
       description: 'Headless dashboard backend for any team.',

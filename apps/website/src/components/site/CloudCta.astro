@@ -1,0 +1,25 @@
+---
+interface Props {
+  heading?: string;
+  body?: string;
+  href?: string;
+  label?: string;
+}
+
+const {
+  heading = 'Try Rawdash Cloud',
+  body = 'Managed hosting, automatic syncs, and a hosted dashboard UI — no infra required.',
+  href = 'https://cloud.rawdash.dev',
+  label = 'Go to Cloud ↗',
+} = Astro.props;
+---
+
+<div class="cta-banner">
+  <div class="cta-inner">
+    <div>
+      <h2>{heading}</h2>
+      <p>{body}</p>
+    </div>
+    <a href={href} class="btn-primary">{label}</a>
+  </div>
+</div>
