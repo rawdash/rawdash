@@ -327,6 +327,9 @@ importers:
       '@rawdash/connector-aws-cost':
         specifier: workspace:*
         version: link:../connectors/aws-cost
+      '@rawdash/connector-circleci':
+        specifier: workspace:*
+        version: link:../connectors/circleci
       '@rawdash/connector-datadog':
         specifier: workspace:*
         version: link:../connectors/datadog
