@@ -55,7 +55,7 @@ const LANDING_DATA_FILE = join(
   'connectors.ts',
 );
 // Directories under packages/connectors that are not themselves connectors.
-const NOT_A_CONNECTOR = new Set(['aws-shared']);
+const NOT_A_CONNECTOR = new Set(['aws-shared', 'gcp-shared']);
 
 interface ConnectorModule {
   default: {

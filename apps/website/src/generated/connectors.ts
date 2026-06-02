@@ -136,6 +136,38 @@ export const connectors: ConnectorCard[] = [
     ],
   },
   {
+    id: 'gcp-billing',
+    name: 'Google Cloud Billing',
+    category: 'finance',
+    categoryLabel: 'Finance',
+    tagline:
+      'Track Google Cloud spend over time from the Cloud Billing -> BigQuery export, optionally broken down by service, project, SKU, or location.',
+    href: '/docs/connectors/finance/gcp-billing/',
+    iconPath: '/connectors/gcp-billing.svg',
+    brandColor: '#669DF6',
+    keywords: [
+      '@rawdash/connector-gcp-billing',
+      'gcp_cost_daily',
+      'google cloud',
+    ],
+  },
+  {
+    id: 'gcp-monitoring',
+    name: 'Google Cloud Monitoring',
+    category: 'infrastructure',
+    categoryLabel: 'Infrastructure',
+    tagline:
+      'Pull declared Cloud Monitoring metric time series (any metric type, aligner, and period) into a single metric series per query.',
+    href: '/docs/connectors/infrastructure/gcp-monitoring/',
+    iconPath: '/connectors/gcp-monitoring.svg',
+    brandColor: '#4285F4',
+    keywords: [
+      '<metrictype>',
+      '@rawdash/connector-gcp-monitoring',
+      'google cloud',
+    ],
+  },
+  {
     id: 'google-search-console',
     name: 'Google Search Console',
     category: 'marketing',
@@ -412,11 +444,11 @@ export const connectorCategories: ConnectorCategory[] = [
   {
     id: 'finance',
     label: 'Finance',
-    count: 2,
+    count: 3,
   },
   {
     id: 'infrastructure',
     label: 'Infrastructure',
-    count: 3,
+    count: 4,
   },
 ];

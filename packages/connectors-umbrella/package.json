@@ -37,6 +37,8 @@
     "@rawdash/connector-aws-cloudwatch": "workspace:*",
     "@rawdash/connector-aws-cost": "workspace:*",
     "@rawdash/connector-datadog": "workspace:*",
+    "@rawdash/connector-gcp-billing": "workspace:*",
+    "@rawdash/connector-gcp-monitoring": "workspace:*",
     "@rawdash/connector-github": "workspace:*",
     "@rawdash/connector-google-ads": "workspace:*",
     "@rawdash/connector-google-analytics": "workspace:*",

@@ -19,6 +19,8 @@
       "@rawdash/connector-sentry",
       "@rawdash/connector-vercel",
       "@rawdash/connector-aws-cost",
+      "@rawdash/connector-gcp-billing",
+      "@rawdash/connector-gcp-monitoring",
       "@rawdash/connector-hubspot",
       "@rawdash/connector-intercom",
       "@rawdash/connector-jira",

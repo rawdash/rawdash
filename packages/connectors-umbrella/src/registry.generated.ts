@@ -7,6 +7,10 @@ export const connectorLoaders: Record<string, () => Promise<ConnectorClass>> = {
   'aws-cost': () =>
     import('@rawdash/connector-aws-cost').then((m) => m.default),
   datadog: () => import('@rawdash/connector-datadog').then((m) => m.default),
+  'gcp-billing': () =>
+    import('@rawdash/connector-gcp-billing').then((m) => m.default),
+  'gcp-monitoring': () =>
+    import('@rawdash/connector-gcp-monitoring').then((m) => m.default),
   'github-actions': () =>
     import('@rawdash/connector-github').then((m) => m.default),
   'google-ads': () =>
