@@ -53,6 +53,25 @@ export const connectors: ConnectorCard[] = [
     ],
   },
   {
+    id: 'circleci',
+    name: 'CircleCI',
+    category: 'engineering',
+    categoryLabel: 'Engineering',
+    tagline:
+      'Sync CircleCI pipelines, workflows, jobs, and workflow state-transition events so build success rate and duration land on dashboards.',
+    href: '/docs/connectors/engineering/circleci/',
+    iconPath: '/connectors/circleci.svg',
+    brandColor: '#161616',
+    keywords: [
+      '@rawdash/connector-circleci',
+      'circleci',
+      'circleci_job',
+      'circleci_pipeline',
+      'circleci_pipeline_event',
+      'circleci_workflow',
+    ],
+  },
+  {
     id: 'datadog',
     name: 'Datadog',
     category: 'infrastructure',
@@ -382,7 +401,7 @@ export const connectorCategories: ConnectorCategory[] = [
   {
     id: 'engineering',
     label: 'Engineering',
-    count: 2,
+    count: 3,
   },
   {
     id: 'product',

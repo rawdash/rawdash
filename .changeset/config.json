@@ -19,6 +19,7 @@
       "@rawdash/connector-sentry",
       "@rawdash/connector-vercel",
       "@rawdash/connector-aws-cost",
+      "@rawdash/connector-circleci",
       "@rawdash/connector-hubspot",
       "@rawdash/connector-intercom",
       "@rawdash/connector-jira",
