@@ -110,6 +110,7 @@
 .category-card-icons {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 0.4rem;
 }
 .category-card-icons img {
@@ -119,6 +120,7 @@
   background: #ffffff;
   padding: 0.2rem;
   box-sizing: border-box;
+  object-fit: contain;
 }
 
 /* Connector cards (search results + per-category pages). */
