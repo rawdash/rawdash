@@ -118,7 +118,8 @@
   height: 1.75rem;
   border-radius: 0.35rem;
   background: #ffffff;
-  padding: 0.2rem;
+  border: 1px solid var(--sl-color-gray-5);
+  padding: 0.25rem;
   box-sizing: border-box;
   object-fit: contain;
 }
