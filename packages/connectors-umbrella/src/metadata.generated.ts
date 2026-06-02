@@ -147,6 +147,12 @@ import {
   id as vercelId,
   resources as vercelResources,
 } from '@rawdash/connector-vercel';
+import {
+  configFields as zendeskConfigFields,
+  doc as zendeskDoc,
+  id as zendeskId,
+  resources as zendeskResources,
+} from '@rawdash/connector-zendesk';
 
 import type { ConnectorMetadata } from './types';
 
@@ -322,5 +328,12 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: vercelDoc,
     configFields: vercelConfigFields,
     resources: vercelResources,
+  },
+  {
+    id: zendeskId,
+    packageName: '@rawdash/connector-zendesk',
+    doc: zendeskDoc,
+    configFields: zendeskConfigFields,
+    resources: zendeskResources,
   },
 ];
