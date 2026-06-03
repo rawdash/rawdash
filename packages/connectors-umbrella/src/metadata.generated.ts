@@ -106,6 +106,12 @@ import {
   resources as mixpanelResources,
 } from '@rawdash/connector-mixpanel';
 import {
+  configFields as newRelicConfigFields,
+  doc as newRelicDoc,
+  id as newRelicId,
+  resources as newRelicResources,
+} from '@rawdash/connector-new-relic';
+import {
   configFields as posthogConfigFields,
   doc as posthogDoc,
   id as posthogId,
@@ -261,6 +267,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     configFields: mixpanelConfigFields,
     resources: mixpanelResources,
     cost: mixpanelCost,
+  },
+  {
+    id: newRelicId,
+    packageName: '@rawdash/connector-new-relic',
+    doc: newRelicDoc,
+    configFields: newRelicConfigFields,
+    resources: newRelicResources,
   },
   {
     id: posthogId,

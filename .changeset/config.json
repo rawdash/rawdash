@@ -30,6 +30,7 @@
       "@rawdash/connector-mixpanel",
       "@rawdash/connector-posthog",
       "@rawdash/connector-salesforce",
+      "@rawdash/connector-new-relic",
       "@rawdash/connectors",
       "@rawdash/adapter-libsql",
       "@rawdash/adapter-sqlite",
