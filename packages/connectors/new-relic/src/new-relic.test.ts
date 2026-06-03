@@ -576,14 +576,12 @@ describe('NewRelicConnector.sync', () => {
   it('reports NerdGraph error responses as transient errors on the cursor', async () => {
     vi.stubGlobal(
       'fetch',
-      vi
-        .fn()
-        .mockResolvedValue(
-          new Response(JSON.stringify({ errors: [{ message: 'bad key' }] }), {
-            status: 200,
-            headers: { 'content-type': 'application/json' },
-          }),
-        ),
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ errors: [{ message: 'bad key' }] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      ),
     );
     const result = await makeConnector({ resources: ['alerts'] }).sync(
       { mode: 'full' },
