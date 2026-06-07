@@ -1,5 +1,41 @@
 # @rawdash/connectors
 
+## 0.19.0
+
+### Patch Changes
+
+- 6ea1c21: Rename the internal package directory `packages/connectors-umbrella` to `packages/connectors-aggregate` and update the published `description` and `repository.directory` metadata accordingly. The package name (`@rawdash/connectors`) and all exports are unchanged, so this is a non-breaking, metadata-only change for consumers.
+- Updated dependencies [895222d]
+- Updated dependencies [33d5b1c]
+- Updated dependencies [336dc03]
+- Updated dependencies [725ebcc]
+  - @rawdash/connector-circleci@0.19.0
+  - @rawdash/connector-new-relic@0.19.0
+  - @rawdash/connector-zendesk@0.19.0
+  - @rawdash/core@0.19.0
+  - @rawdash/connector-aws-cloudwatch@0.19.0
+  - @rawdash/connector-aws-cost@0.19.0
+  - @rawdash/connector-datadog@0.19.0
+  - @rawdash/connector-gcp-billing@0.19.0
+  - @rawdash/connector-gcp-monitoring@0.19.0
+  - @rawdash/connector-github@0.19.0
+  - @rawdash/connector-gitlab@0.19.0
+  - @rawdash/connector-google-ads@0.19.0
+  - @rawdash/connector-google-analytics@0.19.0
+  - @rawdash/connector-google-search-console@0.19.0
+  - @rawdash/connector-hubspot@0.19.0
+  - @rawdash/connector-intercom@0.19.0
+  - @rawdash/connector-jira@0.19.0
+  - @rawdash/connector-launchdarkly@0.19.0
+  - @rawdash/connector-linear@0.19.0
+  - @rawdash/connector-meta-ads@0.19.0
+  - @rawdash/connector-mixpanel@0.19.0
+  - @rawdash/connector-posthog@0.19.0
+  - @rawdash/connector-salesforce@0.19.0
+  - @rawdash/connector-sentry@0.19.0
+  - @rawdash/connector-stripe@0.19.0
+  - @rawdash/connector-vercel@0.19.0
+
 ## 0.18.0
 
 ### Patch Changes

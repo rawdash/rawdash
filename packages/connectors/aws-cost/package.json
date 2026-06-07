@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-aws-cost",
-  "version": "0.18.0",
+  "version": "0.19.0",
   "description": "Rawdash connector for AWS Cost Explorer — daily/monthly cost and forecast metrics, grouped by service, account, or tag",
   "license": "Apache-2.0",
   "type": "module",
