@@ -29,6 +29,8 @@ export const connectorLoaders: Record<string, () => Promise<ConnectorClass>> = {
   'meta-ads': () =>
     import('@rawdash/connector-meta-ads').then((m) => m.default),
   mixpanel: () => import('@rawdash/connector-mixpanel').then((m) => m.default),
+  'new-relic': () =>
+    import('@rawdash/connector-new-relic').then((m) => m.default),
   posthog: () => import('@rawdash/connector-posthog').then((m) => m.default),
   salesforce: () =>
     import('@rawdash/connector-salesforce').then((m) => m.default),
