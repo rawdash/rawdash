@@ -15,6 +15,7 @@
       "@rawdash/connector-google-ads",
       "@rawdash/connector-google-analytics",
       "@rawdash/connector-google-search-console",
+      "@rawdash/connector-greenhouse",
       "@rawdash/connector-stripe",
       "@rawdash/connector-linear",
       "@rawdash/connector-sentry",

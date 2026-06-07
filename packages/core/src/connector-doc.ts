@@ -25,6 +25,7 @@ export const connectorCategorySchema = z.enum([
   'finance',
   'infrastructure',
   'security',
+  'hr',
 ]);
 
 export type ConnectorCategory = z.infer<typeof connectorCategorySchema>;
