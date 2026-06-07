@@ -144,6 +144,51 @@ describe('LinearConnector.sync', () => {
     expect(result.done).toBe(true);
   });
 
+  it('uses large default page sizes, capping issues by query complexity', async () => {
+    const connector = new LinearConnector(
+      {},
+      { apiKey: 'lin_api_test' as unknown as { $secret: string } },
+    );
+
+    const { spy, calls } = mockGraphql(() => ({
+      teams: emptyConn(),
+      users: emptyConn(),
+      cycles: emptyConn(),
+      issues: emptyConn(),
+    }));
+    vi.stubGlobal('fetch', spy);
+
+    await connector.sync({ mode: 'full' }, makeStorage());
+
+    const teams = calls.find((c) => operationName(c.query) === 'Teams')!;
+    const issues = calls.find((c) => operationName(c.query) === 'Issues')!;
+    expect(teams.variables.first).toBe(250);
+    expect(issues.variables.first).toBe(150);
+    expect(issues.variables.historyFirst).toBe(8);
+  });
+
+  it('honors options.pageSize, clamped and complexity-capped', async () => {
+    const connector = new LinearConnector(
+      {},
+      { apiKey: 'lin_api_test' as unknown as { $secret: string } },
+    );
+
+    const { spy, calls } = mockGraphql(() => ({
+      teams: emptyConn(),
+      users: emptyConn(),
+      cycles: emptyConn(),
+      issues: emptyConn(),
+    }));
+    vi.stubGlobal('fetch', spy);
+
+    await connector.sync({ mode: 'full', pageSize: 1000 }, makeStorage());
+
+    const teams = calls.find((c) => operationName(c.query) === 'Teams')!;
+    const issues = calls.find((c) => operationName(c.query) === 'Issues')!;
+    expect(teams.variables.first).toBe(250);
+    expect(issues.variables.first).toBe(187);
+  });
+
   it('clears entity types and event names on full sync first page', async () => {
     const connector = new LinearConnector(
       {},
