@@ -62,6 +62,12 @@ import {
   resources as jiraResources,
 } from '@rawdash/connector-jira';
 import {
+  configFields as launchdarklyConfigFields,
+  doc as launchdarklyDoc,
+  id as launchdarklyId,
+  resources as launchdarklyResources,
+} from '@rawdash/connector-launchdarkly';
+import {
   configFields as linearConfigFields,
   doc as linearDoc,
   id as linearId,
@@ -185,6 +191,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: jiraDoc,
     configFields: jiraConfigFields,
     resources: jiraResources,
+  },
+  {
+    id: launchdarklyId,
+    packageName: '@rawdash/connector-launchdarkly',
+    doc: launchdarklyDoc,
+    configFields: launchdarklyConfigFields,
+    resources: launchdarklyResources,
   },
   {
     id: linearId,

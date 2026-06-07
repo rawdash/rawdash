@@ -216,6 +216,24 @@ export const connectors: ConnectorCard[] = [
     ],
   },
   {
+    id: 'launchdarkly',
+    name: 'LaunchDarkly',
+    category: 'engineering',
+    categoryLabel: 'Engineering',
+    tagline:
+      'Sync LaunchDarkly projects, feature flags, and audit-log events - including flag state per environment, kind, and recent rollout changes.',
+    href: '/docs/connectors/engineering/launchdarkly/',
+    iconPath: '/connectors/launchdarkly.svg',
+    brandColor: '#FFC110',
+    keywords: [
+      '@rawdash/connector-launchdarkly',
+      'launchdarkly',
+      'launchdarkly_feature_flag',
+      'launchdarkly_flag_event',
+      'launchdarkly_project',
+    ],
+  },
+  {
     id: 'linear',
     name: 'Linear',
     category: 'product',
@@ -382,7 +400,7 @@ export const connectorCategories: ConnectorCategory[] = [
   {
     id: 'engineering',
     label: 'Engineering',
-    count: 2,
+    count: 3,
   },
   {
     id: 'product',
