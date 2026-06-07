@@ -1,3 +1,8 @@
+import {
+  AuthError,
+  ClientBugError,
+  TransientError,
+} from '@rawdash/connector-shared';
 import { describe, expect, it, vi } from 'vitest';
 
 import { paginateChunked } from './paginate-chunked';
@@ -193,6 +198,110 @@ describe('paginateChunked', () => {
       { phase: 'a', page: null },
       { phase: 'a', page: 1 },
     ]);
+  });
+
+  it('re-throws an AuthError from fetchPage instead of returning it as transient', async () => {
+    const boom = new AuthError('token revoked');
+    await expect(
+      paginateChunked<Phase, number>({
+        phases,
+        cursor: undefined,
+        signal: undefined,
+        fetchPage: async () => {
+          throw boom;
+        },
+        writeBatch: async () => {},
+      }),
+    ).rejects.toBe(boom);
+  });
+
+  it('re-throws a ClientBugError from fetchPage instead of returning it as transient', async () => {
+    const boom = new ClientBugError('repo not found');
+    await expect(
+      paginateChunked<Phase, number>({
+        phases,
+        cursor: undefined,
+        signal: undefined,
+        fetchPage: async () => {
+          throw boom;
+        },
+        writeBatch: async () => {},
+      }),
+    ).rejects.toBe(boom);
+  });
+
+  it('re-throws a non-retryable error from writeBatch instead of returning it as transient', async () => {
+    const boom = new AuthError('token revoked');
+    await expect(
+      paginateChunked<Phase, number>({
+        phases,
+        cursor: undefined,
+        signal: undefined,
+        fetchPage: async () => ({ items: [1], next: null }),
+        writeBatch: async () => {
+          throw boom;
+        },
+      }),
+    ).rejects.toBe(boom);
+  });
+
+  it('still returns a resumable transient cursor for retryable HTTP errors', async () => {
+    const boom = new TransientError('upstream hiccup');
+    const result = await paginateChunked<Phase, number>({
+      phases,
+      cursor: undefined,
+      signal: undefined,
+      fetchPage: async () => {
+        throw boom;
+      },
+      writeBatch: async () => {},
+    });
+
+    expect(result).toEqual({
+      done: false,
+      cursor: { phase: 'a', page: null },
+      transientError: boom,
+    });
+  });
+
+  it('re-throws a foreign error matched by its kind discriminator, not class identity', async () => {
+    const boom = Object.assign(new Error('token revoked'), {
+      kind: 'auth' as const,
+    });
+    await expect(
+      paginateChunked<Phase, number>({
+        phases,
+        cursor: undefined,
+        signal: undefined,
+        fetchPage: async () => {
+          throw boom;
+        },
+        writeBatch: async () => {},
+      }),
+    ).rejects.toBe(boom);
+  });
+
+  it('logs the failure before re-throwing a non-retryable error', async () => {
+    const events: Array<{ level: string; event: string }> = [];
+    const logger = {
+      info: (event: string) => events.push({ level: 'info', event }),
+      warn: (event: string) => events.push({ level: 'warn', event }),
+    };
+    await expect(
+      paginateChunked<Phase, number>({
+        phases: ['a'],
+        cursor: undefined,
+        signal: undefined,
+        fetchPage: async () => {
+          throw new ClientBugError('bad request');
+        },
+        writeBatch: async () => {},
+        logger,
+      }),
+    ).rejects.toBeInstanceOf(ClientBugError);
+    expect(
+      events.some((e) => e.level === 'warn' && e.event === 'fetch page failed'),
+    ).toBe(true);
   });
 
   it('does not classify an AbortError thrown by fetchPage as a transient error', async () => {

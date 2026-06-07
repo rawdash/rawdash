@@ -1,6 +1,21 @@
-import type { ConnectorLogger } from '@rawdash/connector-shared';
+import type { ConnectorLogger, HttpErrorKind } from '@rawdash/connector-shared';
 
 import type { SyncResult } from './connector';
+
+const NON_RETRYABLE_KINDS: ReadonlySet<HttpErrorKind> = new Set([
+  'auth',
+  'client_bug',
+]);
+
+function isNonRetryableError(err: unknown): boolean {
+  if (typeof err !== 'object' || err === null) {
+    return false;
+  }
+  const kind = (err as { kind?: unknown }).kind;
+  return (
+    typeof kind === 'string' && NON_RETRYABLE_KINDS.has(kind as HttpErrorKind)
+  );
+}
 
 export interface ChunkedSyncCursor<TPhase extends string, TPage> {
   phase: TPhase;
@@ -123,6 +138,9 @@ export async function paginateChunked<TPhase extends string, TPage>(
           cursor: truncateCursor(page),
           error: err instanceof Error ? err.message : String(err),
         });
+        if (isNonRetryableError(err)) {
+          throw err;
+        }
         return {
           done: false,
           cursor: { phase, page } satisfies ChunkedSyncCursor<TPhase, TPage>,
@@ -155,6 +173,9 @@ export async function paginateChunked<TPhase extends string, TPage>(
           cursor: truncateCursor(page),
           error: err instanceof Error ? err.message : String(err),
         });
+        if (isNonRetryableError(err)) {
+          throw err;
+        }
         return {
           done: false,
           cursor: { phase, page } satisfies ChunkedSyncCursor<TPhase, TPage>,
