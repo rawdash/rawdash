@@ -38,4 +38,5 @@ export const connectorLoaders: Record<string, () => Promise<ConnectorClass>> = {
   sentry: () => import('@rawdash/connector-sentry').then((m) => m.default),
   stripe: () => import('@rawdash/connector-stripe').then((m) => m.default),
   vercel: () => import('@rawdash/connector-vercel').then((m) => m.default),
+  zendesk: () => import('@rawdash/connector-zendesk').then((m) => m.default),
 };
