@@ -96,6 +96,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   finance: 'Finance',
   infrastructure: 'Infrastructure',
   security: 'Security',
+  hr: 'HR',
 };
 
 const SHAPE_LABELS: Record<ResourceDefinition['shape'], string> = {

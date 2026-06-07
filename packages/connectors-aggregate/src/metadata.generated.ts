@@ -69,6 +69,13 @@ import {
   resources as googleSearchConsoleResources,
 } from '@rawdash/connector-google-search-console';
 import {
+  configFields as greenhouseConfigFields,
+  cost as greenhouseCost,
+  doc as greenhouseDoc,
+  id as greenhouseId,
+  resources as greenhouseResources,
+} from '@rawdash/connector-greenhouse';
+import {
   configFields as hubspotConfigFields,
   doc as hubspotDoc,
   id as hubspotId,
@@ -236,6 +243,14 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: googleSearchConsoleDoc,
     configFields: googleSearchConsoleConfigFields,
     resources: googleSearchConsoleResources,
+  },
+  {
+    id: greenhouseId,
+    packageName: '@rawdash/connector-greenhouse',
+    doc: greenhouseDoc,
+    configFields: greenhouseConfigFields,
+    resources: greenhouseResources,
+    cost: greenhouseCost,
   },
   {
     id: hubspotId,
