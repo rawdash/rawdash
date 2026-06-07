@@ -196,7 +196,7 @@ importers:
         version: 0.9.9(prettier@3.8.1)(typescript@5.9.3)
       '@rawdash/connectors':
         specifier: workspace:*
-        version: link:../../packages/connectors-umbrella
+        version: link:../../packages/connectors-aggregate
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
@@ -322,7 +322,7 @@ importers:
         specifier: ^5.7.2
         version: 5.9.3
 
-  packages/connectors-umbrella:
+  packages/connectors-aggregate:
     dependencies:
       '@rawdash/connector-aws-cloudwatch':
         specifier: workspace:*

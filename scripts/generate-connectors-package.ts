@@ -1,13 +1,13 @@
 /**
- * Generate the `@rawdash/connectors` umbrella package from the connector
+ * Generate the `@rawdash/connectors` aggregate package from the connector
  * packages in this monorepo.
  *
  * Single source of truth = the connector packages under `packages/connectors/`.
- * Adding a connector there flows into the umbrella automatically — consumers
- * depend on the one umbrella package instead of N individual ones, with no
+ * Adding a connector there flows into the aggregate automatically — consumers
+ * depend on the one aggregate package instead of N individual ones, with no
  * consumer-side changes and no version drift.
  *
- * Emits three build-time artifacts in the umbrella package:
+ * Emits three build-time artifacts in the aggregate package:
  *   - `src/metadata.generated.ts` — re-exports each connector's metadata
  *     (`id`, `doc`, `configFields`, `resources`, `cost`). This is the
  *     metadata-only surface the cloud catalog consumes; it never re-exports
@@ -33,7 +33,7 @@ import * as prettier from 'prettier';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CONNECTORS_DIR = join(ROOT, 'packages', 'connectors');
-const PKG_DIR = join(ROOT, 'packages', 'connectors-umbrella');
+const PKG_DIR = join(ROOT, 'packages', 'connectors-aggregate');
 const SRC_DIR = join(PKG_DIR, 'src');
 const PKG_JSON_PATH = join(PKG_DIR, 'package.json');
 
@@ -53,7 +53,7 @@ interface LoadedConnector {
   ident: string;
 }
 
-// The umbrella's metadata entry imports only these named exports — never the
+// The aggregate's metadata entry imports only these named exports — never the
 // default connector class — so a metadata-only consumer never bundles connector
 // sync code. Each connector must therefore expose its metadata as standalone
 // named exports (`id`, `doc`, `configFields`, `resources`, and optionally
@@ -100,7 +100,7 @@ async function loadConnector(dir: string): Promise<LoadedConnector> {
     if (mod[name] === undefined) {
       throw new Error(
         `Connector "${dir}" (${pkg.name}) does not export \`${name}\` as a named export. ` +
-          `The umbrella's metadata entry imports metadata by name (never off the ` +
+          `The aggregate's metadata entry imports metadata by name (never off the ` +
           `connector class) so a metadata-only consumer never bundles connector ` +
           `sync code; expose \`id\`, \`doc\`, \`configFields\`, and \`resources\` ` +
           `(and optionally \`cost\`) as named exports.`,
@@ -187,7 +187,7 @@ function renderRegistryModule(connectors: LoadedConnector[]): string {
   ].join('\n');
 }
 
-// Rewrite the umbrella package.json so its @rawdash/connector-* dependencies
+// Rewrite the aggregate package.json so its @rawdash/connector-* dependencies
 // exactly match the discovered connector set (lockstep, no drift). Non-connector
 // dependencies (@rawdash/core, zod) and every other field are preserved.
 function renderPackageJson(connectors: LoadedConnector[]): string {
@@ -280,7 +280,7 @@ async function main(): Promise<void> {
   if (check) {
     if (drifted.length > 0) {
       console.error(
-        `\n@rawdash/connectors umbrella package is out of date. Run ` +
+        `\n@rawdash/connectors aggregate package is out of date. Run ` +
           `\`pnpm gen:connectors-package\` and commit the result.\nDrifted files:\n${drifted
             .map((p) => `  - ${p.replace(`${ROOT}/`, '')}`)
             .join('\n')}`,
@@ -288,11 +288,11 @@ async function main(): Promise<void> {
       process.exit(1);
     }
     console.log(
-      `@rawdash/connectors umbrella package is up to date (${connectors.length} connectors).`,
+      `@rawdash/connectors aggregate package is up to date (${connectors.length} connectors).`,
     );
   } else {
     console.log(
-      `Generated @rawdash/connectors umbrella package for ${connectors.length} connectors.`,
+      `Generated @rawdash/connectors aggregate package for ${connectors.length} connectors.`,
     );
   }
 }
