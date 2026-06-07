@@ -169,8 +169,21 @@ export type PostHogResource = PostHogPhase;
 const isPostHogSyncCursor = makeChunkedCursorGuard(PHASE_ORDER);
 
 const FLAGS_PAGE_SIZE = 100;
+// PostHog's REST list endpoints accept a generous page; keep a ceiling so a
+// stray override can't request something pathological.
+const MAX_FLAGS_PAGE_SIZE = 1_000;
 const QUERY_PAGE_SIZE = 10_000;
+// Soft per-chunk wall-clock budget before yielding a resumable cursor.
+const CHUNK_BUDGET_MS = 25_000;
 const DEFAULT_LOOKBACK_DAYS = 30;
+
+function clampFlagsPageSize(requested: number | undefined): number {
+  const n = requested ?? FLAGS_PAGE_SIZE;
+  if (!Number.isFinite(n) || n < 1) {
+    return 1;
+  }
+  return Math.min(Math.floor(n), MAX_FLAGS_PAGE_SIZE);
+}
 const DEFAULT_FUNNEL_WINDOW_DAYS = 14;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -526,13 +539,14 @@ export class PostHogConnector extends BaseConnector<
 
   private async fetchFeatureFlagsPage(
     page: string | null,
+    pageSize: number,
     signal?: AbortSignal,
   ): Promise<{ items: unknown[]; next: string | null }> {
     const offset = safeOffset(page);
     const url = new URL(
       `${this.baseUrl}/api/projects/${this.settings.projectId}/feature_flags/`,
     );
-    url.searchParams.set('limit', String(FLAGS_PAGE_SIZE));
+    url.searchParams.set('limit', String(pageSize));
     url.searchParams.set('offset', String(offset));
     const res = await this.get<FeatureFlagListResponse>(url.toString(), {
       resource: 'feature_flags',
@@ -544,8 +558,8 @@ export class PostHogConnector extends BaseConnector<
     // `next` URL back into fetch(), avoiding any SSRF surface from a tampered
     // cursor while still stopping once a short page comes back.
     const next =
-      res.body.next && results.length === FLAGS_PAGE_SIZE
-        ? String(offset + FLAGS_PAGE_SIZE)
+      res.body.next && results.length === pageSize
+        ? String(offset + pageSize)
         : null;
     return { items: results, next };
   }
@@ -865,6 +879,7 @@ export class PostHogConnector extends BaseConnector<
       : undefined;
     const isFull = options.mode === 'full';
     const startDate = this.windowStartDate(options);
+    const flagsPageSize = clampFlagsPageSize(options.pageSize);
 
     const phases = selectActivePhases<PostHogResource, PostHogPhase>(
       (r) => r,
@@ -877,10 +892,12 @@ export class PostHogConnector extends BaseConnector<
       cursor,
       signal,
       logger: this.logger,
+      pipeline: true,
+      maxChunkMs: CHUNK_BUDGET_MS,
       fetchPage: async (phase, page, sig) => {
         switch (phase) {
           case 'feature_flags':
-            return this.fetchFeatureFlagsPage(page, sig);
+            return this.fetchFeatureFlagsPage(page, flagsPageSize, sig);
           case 'events_per_day':
             return this.fetchEventsPerDay(startDate, page, sig);
           case 'feature_flag_usage':

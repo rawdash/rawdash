@@ -194,6 +194,7 @@ export interface SyncOptions {
   since?: string;
   cursor?: unknown;
   resources?: ReadonlySet<string>;
+  pageSize?: number;
 }
 
 export interface SyncResult {

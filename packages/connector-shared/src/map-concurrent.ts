@@ -1,0 +1,43 @@
+/**
+ * Map over `items` running at most `concurrency` calls of `fn` in flight at
+ * once. Results are returned in the original order. The first rejection is
+ * propagated and stops further items from being started (in-flight calls are
+ * left to settle). Connector rate limits are handled per-request by the retry
+ * layer, so a small concurrency (e.g. 5) overlaps slow per-item subrequests
+ * without a token bucket.
+ */
+export async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  concurrency: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  if (items.length === 0) {
+    return results;
+  }
+  const limit = Math.max(1, Math.min(Math.floor(concurrency), items.length));
+  let next = 0;
+  let failed = false;
+
+  async function worker(): Promise<void> {
+    while (!failed) {
+      const i = next++;
+      if (i >= items.length) {
+        return;
+      }
+      try {
+        results[i] = await fn(items[i]!, i);
+      } catch (err) {
+        failed = true;
+        throw err;
+      }
+    }
+  }
+
+  const workers: Promise<void>[] = [];
+  for (let w = 0; w < limit; w++) {
+    workers.push(worker());
+  }
+  await Promise.all(workers);
+  return results;
+}

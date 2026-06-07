@@ -1,6 +1,7 @@
 import {
   type HttpResponse,
   connectorUserAgent,
+  mapWithConcurrency,
   parseEpoch,
   sanitizeAllowedUrl,
   standardRateLimitPolicy,
@@ -243,8 +244,27 @@ const SENTRY_API_HOST = 'sentry.io';
 const SENTRY_API_BASE = `https://${SENTRY_API_HOST}/api/0`;
 const DEFAULT_EVENTS_PER_ISSUE = 100;
 const DEFAULT_STATS_LOOKBACK_HOURS = 24;
+// Sentry caps list pages at 100 items.
+const MAX_PAGE_SIZE = 100;
 const ISSUES_PAGE_SIZE = 100;
 const RELEASES_PAGE_SIZE = 100;
+// How many per-issue event subrequests to run concurrently within one issues
+// page. Sentry's reactive 429 backoff keeps us within rate limits, so a small
+// fan-out overlaps the otherwise-serial nested fetches that dominate the phase.
+const EVENT_FETCH_CONCURRENCY = 5;
+// Soft per-chunk wall-clock budget before yielding a resumable cursor.
+const CHUNK_BUDGET_MS = 25_000;
+
+function clampPageSize(
+  requested: number | undefined,
+  fallback: number,
+): number {
+  const n = requested ?? fallback;
+  if (!Number.isFinite(n) || n < 1) {
+    return 1;
+  }
+  return Math.min(Math.floor(n), MAX_PAGE_SIZE);
+}
 
 // ---------------------------------------------------------------------------
 // Schemas — describe the per-resource API response shape consumed by request()
@@ -457,7 +477,10 @@ export class SentryConnector extends BaseConnector<
     const u = new URL(
       `${SENTRY_API_BASE}/organizations/${this.settings.organization}/issues/`,
     );
-    u.searchParams.set('limit', String(ISSUES_PAGE_SIZE));
+    u.searchParams.set(
+      'limit',
+      String(clampPageSize(options.pageSize, ISSUES_PAGE_SIZE)),
+    );
     u.searchParams.set('sort', 'date');
     for (const project of this.settings.projects ?? []) {
       u.searchParams.append('project', project);
@@ -468,11 +491,14 @@ export class SentryConnector extends BaseConnector<
     return u.toString();
   }
 
-  private buildInitialReleasesUrl(): string {
+  private buildInitialReleasesUrl(options: SyncOptions): string {
     const u = new URL(
       `${SENTRY_API_BASE}/organizations/${this.settings.organization}/releases/`,
     );
-    u.searchParams.set('per_page', String(RELEASES_PAGE_SIZE));
+    u.searchParams.set(
+      'per_page',
+      String(clampPageSize(options.pageSize, RELEASES_PAGE_SIZE)),
+    );
     for (const project of this.settings.projects ?? []) {
       u.searchParams.append('project', project);
     }
@@ -526,14 +552,21 @@ export class SentryConnector extends BaseConnector<
 
     const eventsByIssue = new Map<string, SentryIssueEvent[]>();
     if (this.isResourceEnabled('issue_events')) {
-      for (const issue of res.body) {
-        signal?.throwIfAborted();
-        const eventsRes = await this.fetch<SentryIssueEvent[]>(
-          this.buildIssueEventsUrl(issue.id),
-          'issue_events',
-          signal,
-        );
-        eventsByIssue.set(issue.id, eventsRes.body);
+      signal?.throwIfAborted();
+      const fetched = await mapWithConcurrency(
+        res.body,
+        EVENT_FETCH_CONCURRENCY,
+        async (issue) => {
+          const eventsRes = await this.fetch<SentryIssueEvent[]>(
+            this.buildIssueEventsUrl(issue.id),
+            'issue_events',
+            signal,
+          );
+          return [issue.id, eventsRes.body] as const;
+        },
+      );
+      for (const [issueId, events] of fetched) {
+        eventsByIssue.set(issueId, events);
       }
     }
 
@@ -545,7 +578,7 @@ export class SentryConnector extends BaseConnector<
     options: SyncOptions,
     signal: AbortSignal | undefined,
   ): Promise<{ items: SentryRelease[]; next: string | null }> {
-    const url = page ?? this.buildInitialReleasesUrl();
+    const url = page ?? this.buildInitialReleasesUrl(options);
     const res = await this.fetch<SentryRelease[]>(url, 'releases', signal);
     const nextLink = parseSentryLink(res.headers.get('link'), 'next');
     const releases = res.body;
@@ -739,6 +772,8 @@ export class SentryConnector extends BaseConnector<
       cursor,
       signal,
       logger: this.logger,
+      pipeline: true,
+      maxChunkMs: CHUNK_BUDGET_MS,
       fetchPage: async (phase, page, sig) => {
         switch (phase) {
           case 'issues':

@@ -47,8 +47,8 @@ export const configFields = defineConfigFields(
     historyPerIssue: z.number().int().positive().max(50).optional().meta({
       label: 'History entries per issue',
       description:
-        'How many history entries to pull per issue (newest first). State transitions inside this window become events. Defaults to 25.',
-      placeholder: '25',
+        'How many history entries to pull per issue (newest first). State transitions inside this window become events. Defaults to 8. Higher values pull deeper history but lower the effective issues-per-page, since Linear scores the combined query complexity.',
+      placeholder: '8',
     }),
   }),
 );
@@ -74,7 +74,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     ],
   },
   rateLimit:
-    'Linear returns X-RateLimit-Requests-Remaining / X-RateLimit-Requests-Reset headers (reset in ms); requests are paged 50 at a time.',
+    'Linear returns X-RateLimit-Requests-Remaining / X-RateLimit-Requests-Reset headers (reset in ms); flat resources are paged 250 at a time, issues up to 150 (capped by GraphQL query complexity against the nested history depth).',
   limitations: [
     'API key auth only (OAuth not yet supported).',
     'Webhooks and roadmap/initiative resources are out of scope.',
@@ -272,9 +272,47 @@ const ISSUES_QUERY = `
 // LinearConnector
 // ---------------------------------------------------------------------------
 
-const PAGE_SIZE = 50;
-const DEFAULT_HISTORY_PER_ISSUE = 25;
+// Linear's GraphQL API accepts up to 250 nodes per connection.
+const MAX_PAGE_SIZE = 250;
+// Flat, un-nested resources (teams/users/cycles) can use the largest page.
+const DEFAULT_LIST_PAGE_SIZE = 250;
+// Issues carry a nested history connection per node, so the effective page is
+// capped by ISSUE_COMPLEXITY_BUDGET below.
+const DEFAULT_ISSUE_PAGE_SIZE = 150;
+const DEFAULT_HISTORY_PER_ISSUE = 8;
+// Linear scores query complexity roughly as (issues requested) × (1 + history
+// per issue). The previous defaults (50 issues × 25 history) sat safely under
+// the limit; keeping issuePageSize × historyFirst under this budget lets larger
+// pages through without tripping Linear's complexity guard.
+const ISSUE_COMPLEXITY_BUDGET = 1500;
+// Soft per-chunk wall-clock budget: yield a resumable cursor after this long so
+// a large workspace is checkpointed across queue round-trips instead of one
+// marathon invocation.
+const CHUNK_BUDGET_MS = 25_000;
 const ENDPOINT = 'https://api.linear.app/graphql';
+
+function clampPageSize(
+  requested: number | undefined,
+  fallback: number,
+): number {
+  const n = requested ?? fallback;
+  if (!Number.isFinite(n) || n < 1) {
+    return 1;
+  }
+  return Math.min(Math.floor(n), MAX_PAGE_SIZE);
+}
+
+function issuePageSize(
+  requested: number | undefined,
+  historyFirst: number,
+): number {
+  const base = clampPageSize(requested, DEFAULT_ISSUE_PAGE_SIZE);
+  const complexityCap = Math.max(
+    1,
+    Math.floor(ISSUE_COMPLEXITY_BUDGET / Math.max(1, historyFirst)),
+  );
+  return Math.min(base, complexityCap);
+}
 
 // ---------------------------------------------------------------------------
 // Schemas — describe the per-resource GraphQL node shape consumed by request()
@@ -520,7 +558,11 @@ export class LinearConnector extends BaseConnector<
     );
     const res = await this.graphql<{ teams: Connection<LinearTeam> }>(
       TEAMS_QUERY,
-      { after: page ?? null, first: PAGE_SIZE, filter },
+      {
+        after: page ?? null,
+        first: clampPageSize(options.pageSize, DEFAULT_LIST_PAGE_SIZE),
+        filter,
+      },
       'teams',
       signal,
     );
@@ -540,7 +582,7 @@ export class LinearConnector extends BaseConnector<
       USERS_QUERY,
       {
         after: page ?? null,
-        first: PAGE_SIZE,
+        first: clampPageSize(options.pageSize, DEFAULT_LIST_PAGE_SIZE),
         filter: this.sinceFilter(options),
       },
       'users',
@@ -566,7 +608,11 @@ export class LinearConnector extends BaseConnector<
     const filter = this.mergeFilters(teamFilter, this.sinceFilter(options));
     const res = await this.graphql<{ cycles: Connection<LinearCycle> }>(
       CYCLES_QUERY,
-      { after: page ?? null, first: PAGE_SIZE, filter },
+      {
+        after: page ?? null,
+        first: clampPageSize(options.pageSize, DEFAULT_LIST_PAGE_SIZE),
+        filter,
+      },
       'cycles',
       signal,
     );
@@ -590,7 +636,12 @@ export class LinearConnector extends BaseConnector<
       this.settings.historyPerIssue ?? DEFAULT_HISTORY_PER_ISSUE;
     const res = await this.graphql<{ issues: Connection<LinearIssue> }>(
       ISSUES_QUERY,
-      { after: page ?? null, first: PAGE_SIZE, filter, historyFirst },
+      {
+        after: page ?? null,
+        first: issuePageSize(options.pageSize, historyFirst),
+        filter,
+        historyFirst,
+      },
       'issues',
       signal,
     );
@@ -766,6 +817,8 @@ export class LinearConnector extends BaseConnector<
       cursor,
       signal,
       logger: this.logger,
+      pipeline: true,
+      maxChunkMs: CHUNK_BUDGET_MS,
       fetchPage: async (phase, page, sig) => {
         switch (phase) {
           case 'teams':
