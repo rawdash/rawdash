@@ -474,7 +474,9 @@ export class KlaviyoConnector extends BaseConnector<
     if (options.since) {
       const date = new Date(options.since);
       if (Number.isFinite(date.getTime())) {
-        filters.push(`greater-than(${UPDATED_FIELD_BY_PHASE[phase]},${date.toISOString()})`);
+        filters.push(
+          `greater-than(${UPDATED_FIELD_BY_PHASE[phase]},${date.toISOString()})`,
+        );
       }
     }
     if (filters.length > 0) {
