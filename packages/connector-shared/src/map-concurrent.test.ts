@@ -8,6 +8,15 @@ describe('mapWithConcurrency', () => {
     expect(out).toEqual([10, 20, 30, 40]);
   });
 
+  it('normalizes a non-finite concurrency to 1 instead of skipping all work', async () => {
+    const out = await mapWithConcurrency(
+      [1, 2, 3],
+      Number.NaN,
+      async (n) => n * 2,
+    );
+    expect(out).toEqual([2, 4, 6]);
+  });
+
   it('returns an empty array for empty input without calling fn', async () => {
     let calls = 0;
     const out = await mapWithConcurrency([], 4, async () => {

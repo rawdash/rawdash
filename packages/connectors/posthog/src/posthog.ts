@@ -556,10 +556,13 @@ export class PostHogConnector extends BaseConnector<
     const results = res.body.results;
     // Build the next offset ourselves rather than echoing the API's absolute
     // `next` URL back into fetch(), avoiding any SSRF surface from a tampered
-    // cursor while still stopping once a short page comes back.
+    // cursor. Advance by the rows actually returned (not the requested page
+    // size) so we keep paging even when PostHog clamps the page to a smaller
+    // server-side maximum, while still stopping once a short/empty page comes
+    // back with no `next`.
     const next =
-      res.body.next && results.length === pageSize
-        ? String(offset + pageSize)
+      typeof res.body.next === 'string' && results.length > 0
+        ? String(offset + results.length)
         : null;
     return { items: results, next };
   }
