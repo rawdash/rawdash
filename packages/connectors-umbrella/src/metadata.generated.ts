@@ -26,6 +26,12 @@ import {
   resources as githubResources,
 } from '@rawdash/connector-github';
 import {
+  configFields as gitlabConfigFields,
+  doc as gitlabDoc,
+  id as gitlabId,
+  resources as gitlabResources,
+} from '@rawdash/connector-gitlab';
+import {
   configFields as googleAdsConfigFields,
   doc as googleAdsDoc,
   id as googleAdsId,
@@ -149,6 +155,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: githubDoc,
     configFields: githubConfigFields,
     resources: githubResources,
+  },
+  {
+    id: gitlabId,
+    packageName: '@rawdash/connector-gitlab',
+    doc: gitlabDoc,
+    configFields: gitlabConfigFields,
+    resources: gitlabResources,
   },
   {
     id: googleAdsId,

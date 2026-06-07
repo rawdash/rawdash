@@ -9,6 +9,7 @@ export const connectorLoaders: Record<string, () => Promise<ConnectorClass>> = {
   datadog: () => import('@rawdash/connector-datadog').then((m) => m.default),
   'github-actions': () =>
     import('@rawdash/connector-github').then((m) => m.default),
+  gitlab: () => import('@rawdash/connector-gitlab').then((m) => m.default),
   'google-ads': () =>
     import('@rawdash/connector-google-ads').then((m) => m.default),
   'google-analytics': () =>
