@@ -7,6 +7,13 @@ export interface ServiceAccountKey {
   project_id?: string;
 }
 
+const serviceAccountKeySchema = z.object({
+  client_email: z.string().min(1),
+  private_key: z.string().min(1),
+  token_uri: z.string().url().optional(),
+  project_id: z.string().optional(),
+});
+
 export interface TokenResponse {
   access_token: string;
   expires_in?: number;
@@ -64,7 +71,7 @@ async function signRS256JWT(
 export function parseServiceAccountJson(value: string): ServiceAccountKey {
   const trimmed = value.trim();
   if (trimmed.startsWith('{')) {
-    return JSON.parse(trimmed) as ServiceAccountKey;
+    return serviceAccountKeySchema.parse(JSON.parse(trimmed));
   }
   const binary = atob(trimmed);
   const bytes = new Uint8Array(binary.length);
@@ -72,7 +79,7 @@ export function parseServiceAccountJson(value: string): ServiceAccountKey {
     bytes[i] = binary.charCodeAt(i);
   }
   const decoded = new TextDecoder().decode(bytes);
-  return JSON.parse(decoded) as ServiceAccountKey;
+  return serviceAccountKeySchema.parse(JSON.parse(decoded));
 }
 
 /**

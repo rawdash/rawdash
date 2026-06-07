@@ -179,25 +179,26 @@ type GcpMonitoringCredentials = typeof gcpMonitoringCredentials;
 // Cloud Monitoring v3 response schemas
 // ---------------------------------------------------------------------------
 
-const numericString = z.string().regex(/^-?\d+(\.\d+)?([eE][+-]?\d+)?$/);
+const int64String = z.string().regex(/^-?\d+$/);
 const isoTimestamp = z.iso.datetime();
 
 const pointValue = z
   .object({
     doubleValue: z.number().optional(),
-    int64Value: numericString.optional(),
+    int64Value: int64String.optional(),
     boolValue: z.boolean().optional(),
     stringValue: z.string().optional(),
+    distributionValue: z.unknown().optional(),
   })
   .refine(
     (v) =>
       v.doubleValue !== undefined ||
       v.int64Value !== undefined ||
       v.boolValue !== undefined ||
-      v.stringValue !== undefined,
+      v.stringValue !== undefined ||
+      v.distributionValue !== undefined,
     {
-      message:
-        'point value must carry at least one of doubleValue/int64Value/boolValue/stringValue',
+      message: 'point value must carry at least one supported value field',
     },
   );
 
@@ -562,8 +563,8 @@ function extractScalarValue(v: z.infer<typeof pointValue>): number | null {
     return v.doubleValue;
   }
   if (v.int64Value !== undefined) {
-    const n = Number.parseFloat(v.int64Value);
-    return Number.isFinite(n) ? n : null;
+    const n = Number(v.int64Value);
+    return Number.isSafeInteger(n) ? n : null;
   }
   if (v.boolValue !== undefined) {
     return v.boolValue ? 1 : 0;

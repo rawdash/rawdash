@@ -31,6 +31,7 @@ import { z } from 'zod';
 // ---------------------------------------------------------------------------
 
 const BQ_IDENT_RE = /^[A-Za-z_][A-Za-z0-9_-]*$/;
+const BQ_DATASET_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const DIMENSION_VALUES = ['service', 'project', 'sku', 'location'] as const;
 type Dimension = (typeof DIMENSION_VALUES)[number];
 
@@ -49,8 +50,8 @@ export const configFields = defineConfigFields(
     bqDataset: z
       .string()
       .regex(
-        BQ_IDENT_RE,
-        'bqDataset must be a valid BigQuery dataset id (letters, digits, underscores, dashes)',
+        BQ_DATASET_RE,
+        'bqDataset must be a valid BigQuery dataset id (letters, digits, and underscores; must start with a letter or underscore)',
       )
       .meta({
         label: 'BigQuery dataset',
@@ -70,6 +71,10 @@ export const configFields = defineConfigFields(
       .max(
         3,
         'groupBy accepts at most three dimensions to keep query cardinality bounded',
+      )
+      .refine(
+        (dims) => new Set(dims).size === dims.length,
+        'groupBy values must be unique',
       )
       .optional()
       .meta({
@@ -310,8 +315,9 @@ export class GcpBillingConnector extends BaseConnector<
       query: sql,
       useLegacySql: false,
       maxResults: PAGE_SIZE,
-      // 30s synchronous wait; if BigQuery still isn't done it returns
-      // jobComplete:false and we follow the pageToken / job to drain results.
+      // 30s synchronous wait. If BigQuery still isn't done it returns
+      // jobComplete:false; sync() treats that as an error rather than
+      // silently persisting partial results.
       timeoutMs: 30_000,
     };
     if (this.settings.bqLocation !== undefined) {
@@ -372,6 +378,11 @@ export class GcpBillingConnector extends BaseConnector<
           error: err instanceof Error ? err.message : String(err),
         });
         throw err;
+      }
+      if (response.jobComplete === false) {
+        throw new Error(
+          `${this.id}: BigQuery query did not complete within the synchronous timeout (jobComplete=false). Narrow the groupBy or lookbackDays so the query finishes faster.`,
+        );
       }
       const pageSamples = buildSamplesFromBqResponse(response, groupBy);
       samples.push(...pageSamples);

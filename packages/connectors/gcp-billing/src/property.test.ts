@@ -11,34 +11,33 @@ import { GcpBillingConnector } from './gcp-billing';
 
 const CONNECTOR_ID = 'gcp-billing';
 
-const TEST_PRIVATE_KEY = `-----BEGIN PRIVATE KEY-----
-MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDFvX2hX9MZqaQz
-G0nVHkBcLG8K7AaH7SkB1tJ7w7K3M7ICX/dQOX4xs0Ja/Cn1nMSgPHWGEDsq3qDV
-SLZbX7l4PgTzaLZqYG1f0aSV52L4cmDhfP3T9TLcXY3WIuhJpsyEr2QnPzKuY7y4
-yzM4DAuD2Wg4lwOIyXX6r1L3RWAnZj1J7K0pwGcVabVhV/U3hk1cBhrJlVRz8oig
-b/SgXr5hHbA8e2zRSnZbOTHEZcVcd2dnUFG6hLwO1Tlc0n0HoEvg1AaXdz/3LhqW
-4lOX7Bys9MIgQyJZIbDvX0+xJZ0p4S9aXcHgnTw/F8RYxQyTfTdYz1cF4iVPmW0z
-J0eVQrTjAgMBAAECggEAUlqMyKt0wWWcg5L9k3CkPzhFxBxJoF6X0jvfqzPHc+I8
-sx/L6yu6vTNTQCqWBxQy+x9KX4qVe93h8DTrYdyKzKR1yYXqVxV6V5gKVtZ4iySV
-ZQEz0BexcZGu5+UmTSqLs7DZpZ4l9OmM4mxF9N1tQEKZAYjGzG1+OBHTQ7zaCv6X
-SnyHo3pjJyKAhsmkA0jYZ4rwwYZP0VzqyD3PxFcXJ8YqV5MgPV3LZGsBTb2DfDuh
-M9JLNVN/W3iwLDcWoq5xWNJL4tVw6mIQDmUSZQ1ZuvtCb/Vz4ahKaqDOJzHs7sLD
-S0YrIfWXC9Q1lLkxR5cMZRhYpr0JOzJzTKZGcjsLAQKBgQDi/eHrkXxc0KPlGtT9
-SAJ/MR7ucC5RIZSLqQYJ7yHJOyW7yk5HrG3VqK9z7qbqJh9NwwY7d8sIuvJv3Z7E
-RGqJ0+SfYDPVRcq7TZ1WkV0qGc8VxR5DSCfMrAyzqMdJyGfX+jVxlh+r6yK7TLNB
-F4HHRMTQyZuS3xCN3SP1nq3PgQKBgQDfBmqkBJBV6yLZ3DkVCi5fX1cZc/r2dDZH
-oWZSm4G6+s5lJ4rGxOLY4yMR8aNCv4n3wKyo7BAS9pkKVL5RtkdY8XYpwQEKfYS+
-W3Ks1iDk0Js9HRkVB1y0HzwSfx0M8oCwGc7Pj4q1mhqlMNG7BpJXz0nF7yBkP0Ld
-qaInZ6tOgwKBgC9wdj6pV3IhrqcZpr0PnAhmMfMZuwsKmkBy0lH7DfvgVe5J0aHQ
-LCBWdrRXBRxJYK4yYdJYBL1jR4w6c92qFu2W3yWMqOgD3SY+B+yX8m9o0c2sBl3I
-9ALzpRl8j5LVPZl7vNT0lFlcZ0jOlS8z9oP6/A5oUOcS6rRcfYUWuxKBAoGBAJTC
-fL0jr5pYAaP3Ow3KFsCQrjA0OxKnSpfm66JFRDH4hCT2KdJtFnK4z8c9jZNlMnFy
-xBYqLZJ7XdL2dQXTpKDFvU/W2N6ZRBgFG/yWiVZjsiAYsRz0w0YwRyZxnVlSP4vS
-NEcG+gAIaIaiRGw3J/sZHmh7uIZ+JN7Xz6JEKgyTAoGBANLOLJ9MNQTUKtOyA/sw
-qCEZ8sBVfQGmJWELRBNcc/zwa3z6jr/lASS2VBhsyExSAQE0LcXX9C6Pog+UEHJ4
-RmEYx5G8nFXrm0L7CCY1FdJh+1WiOyQ7Q9V9ID0+1uFmS4owmtZTPNTpd5jPTPMR
-HJC2BqGwSGRPDx9bPo8Bd6Mq
------END PRIVATE KEY-----`;
+// Generate an ephemeral PKCS8 key per test run so no private key material is
+// committed. The JWT this signs is never verified by these tests; any
+// well-formed RSA key works. Uses WebCrypto to match the connector runtime
+// (no node: imports).
+async function generateTestPrivateKeyPem(): Promise<string> {
+  const { privateKey } = await globalThis.crypto.subtle.generateKey(
+    {
+      name: 'RSASSA-PKCS1-v1_5',
+      modulusLength: 2048,
+      publicExponent: new Uint8Array([1, 0, 1]),
+      hash: 'SHA-256',
+    },
+    true,
+    ['sign', 'verify'],
+  );
+  const pkcs8 = new Uint8Array(
+    await globalThis.crypto.subtle.exportKey('pkcs8', privateKey),
+  );
+  let binary = '';
+  for (let i = 0; i < pkcs8.length; i++) {
+    binary += String.fromCharCode(pkcs8[i]!);
+  }
+  const lines = btoa(binary).match(/.{1,64}/g) ?? [];
+  return `-----BEGIN PRIVATE KEY-----\n${lines.join('\n')}\n-----END PRIVATE KEY-----`;
+}
+
+const TEST_PRIVATE_KEY = await generateTestPrivateKeyPem();
 
 const TEST_SA_JSON = JSON.stringify({
   client_email: 'sa@test.iam.gserviceaccount.com',
@@ -67,10 +66,13 @@ function makeConnector(): GcpBillingConnector {
   );
 }
 
-// Return the fuzzed BigQuery response (pageToken stripped so pagination
-// terminates after a single page). The schema fuzzer drives every field type
-// so any rows that don't include the required 'date'/'cost' fields just yield
-// zero samples — still a valid sync, still invariants-clean.
+// Return the fuzzed BigQuery response. pageToken is stripped so pagination
+// terminates after a single page, and jobComplete is pinned true: both are
+// query control-flow signals rather than data shape (a jobComplete:false
+// payload means the query timed out, which sync rejects by design). The schema
+// fuzzer drives every field type so any rows that don't include the required
+// 'date'/'cost' fields just yield zero samples — still a valid sync, still
+// invariants-clean.
 function installMock(sample: unknown): void {
   vi.stubGlobal(
     'fetch',
@@ -82,6 +84,7 @@ function installMock(sample: unknown): void {
       }
       const body = { ...(sample as Record<string, unknown>) };
       delete body['pageToken'];
+      body['jobComplete'] = true;
       return Promise.resolve(mockJsonResponse(body));
     }),
   );
