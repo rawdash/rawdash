@@ -60,6 +60,14 @@ export class ApiError extends Error {
   }
 }
 
+interface ErrorBody {
+  error?: string;
+  message?: string;
+  code?: string;
+  required?: string;
+  conflicts?: string[];
+}
+
 export async function postConfig(
   config: DashboardConfig,
   dryRun: boolean,
@@ -96,10 +104,14 @@ export async function postConfig(
     return { ok: true, diff };
   }
 
-  return buildDeployFailure(res);
+  return buildDeployFailure(res, url, endpoint);
 }
 
-async function buildDeployFailure(res: Response): Promise<DeployFailure> {
+async function buildDeployFailure(
+  res: Response,
+  baseUrl: string,
+  endpoint: string,
+): Promise<DeployFailure> {
   const { body, text } = await readErrorBody(res);
   const rawMessage = body.error ?? body.message ?? (text || res.statusText);
 
@@ -107,24 +119,62 @@ async function buildDeployFailure(res: Response): Promise<DeployFailure> {
   if (res.status === 401) {
     error = `API key invalid or revoked. Check RAWDASH_API_KEY. (${rawMessage})`;
   } else if (res.status === 403) {
-    error = `Key lacks config:write scope. Get a new key with broader scope. (${rawMessage})`;
+    error = buildForbiddenMessage(body, rawMessage, baseUrl, endpoint);
   } else if (res.status === 409) {
     error = `Org is in ui source-of-truth mode. Switch to git mode in cloud settings, or push UI changes back into your config first.`;
   } else if (res.status === 422) {
     error = `Validation failed: ${rawMessage}`;
   } else {
-    error = `Request failed (${res.status}): ${rawMessage}`;
+    error = `Request failed (${res.status}): ${rawMessage}${requestContext(res.status, baseUrl, endpoint)}`;
   }
 
   return { ok: false, error, status: res.status, conflicts: body.conflicts };
 }
 
+function buildForbiddenMessage(
+  body: ErrorBody,
+  rawMessage: string,
+  baseUrl: string,
+  endpoint: string,
+): string {
+  if (body.code === 'insufficient_scope') {
+    const scope = body.required ?? 'config:write';
+    return `Key lacks the "${scope}" scope. Get a new key with broader scope. (${rawMessage})`;
+  }
+  const code = body.code ? ` [${body.code}]` : '';
+  return `Forbidden (403): ${rawMessage}${code}${requestContext(403, baseUrl, endpoint)}`;
+}
+
+function requestContext(
+  status: number,
+  baseUrl: string,
+  endpoint: string,
+): string {
+  let context = `\n  Request URL: ${endpoint}`;
+  if ((status === 403 || status === 404) && isSluglessUrl(baseUrl)) {
+    context +=
+      `\n  RAWDASH_URL has no org slug. The hosted service expects ` +
+      `https://api.rawdash.dev/<org-slug>; a slug-less URL is rejected with 403.`;
+  }
+  return context;
+}
+
+function isSluglessUrl(baseUrl: string): boolean {
+  try {
+    const { pathname } = new URL(baseUrl);
+    return pathname === '' || pathname === '/';
+  } catch {
+    return false;
+  }
+}
+
 export async function setSecret(name: string, value: string): Promise<void> {
   const { url, apiKey } = getEnv();
+  const endpoint = `${url}/secrets`;
 
   let res: Response;
   try {
-    res = await fetch(`${url}/secrets`, {
+    res = await fetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -138,16 +188,17 @@ export async function setSecret(name: string, value: string): Promise<void> {
   }
 
   if (!res.ok) {
-    await throwApiError(res);
+    await throwApiError(res, url, endpoint);
   }
 }
 
 export async function listSecrets(): Promise<CloudSecret[]> {
   const { url, apiKey } = getEnv();
+  const endpoint = `${url}/secrets`;
 
   let res: Response;
   try {
-    res = await fetch(`${url}/secrets`, {
+    res = await fetch(endpoint, {
       headers: { Authorization: `Bearer ${apiKey ?? ''}` },
       signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
     });
@@ -156,7 +207,7 @@ export async function listSecrets(): Promise<CloudSecret[]> {
   }
 
   if (!res.ok) {
-    await throwApiError(res);
+    await throwApiError(res, url, endpoint);
   }
   const body = (await res.json()) as { secrets: CloudSecret[] };
   return body.secrets;
@@ -164,10 +215,11 @@ export async function listSecrets(): Promise<CloudSecret[]> {
 
 export async function removeSecret(name: string): Promise<void> {
   const { url, apiKey } = getEnv();
+  const endpoint = `${url}/secrets/${encodeURIComponent(name)}`;
 
   let res: Response;
   try {
-    res = await fetch(`${url}/secrets/${encodeURIComponent(name)}`, {
+    res = await fetch(endpoint, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${apiKey ?? ''}` },
       signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
@@ -177,7 +229,7 @@ export async function removeSecret(name: string): Promise<void> {
   }
 
   if (!res.ok) {
-    await throwApiError(res);
+    await throwApiError(res, url, endpoint);
   }
 }
 
@@ -191,14 +243,22 @@ function wrapFetchError(err: unknown): string {
   return `Network error: ${err instanceof Error ? err.message : String(err)}`;
 }
 
-async function throwApiError(res: Response): Promise<never> {
+async function throwApiError(
+  res: Response,
+  baseUrl: string,
+  endpoint: string,
+): Promise<never> {
   const { body, text } = await readErrorBody(res);
   const message = body.error ?? body.message ?? (text || res.statusText);
-  throw new ApiError(`API error (${res.status}): ${message}`, res.status);
+  const code = body.code ? ` [${body.code}]` : '';
+  throw new ApiError(
+    `API error (${res.status}): ${message}${code}${requestContext(res.status, baseUrl, endpoint)}`,
+    res.status,
+  );
 }
 
 async function readErrorBody(res: Response): Promise<{
-  body: { error?: string; message?: string; conflicts?: string[] };
+  body: ErrorBody;
   text: string;
 }> {
   const text = await res.text();
@@ -206,11 +266,7 @@ async function readErrorBody(res: Response): Promise<{
   if (contentType.includes('application/json')) {
     try {
       return {
-        body: JSON.parse(text) as {
-          error?: string;
-          message?: string;
-          conflicts?: string[];
-        },
+        body: JSON.parse(text) as ErrorBody,
         text,
       };
     } catch {
