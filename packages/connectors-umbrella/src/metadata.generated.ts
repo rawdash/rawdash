@@ -80,6 +80,12 @@ import {
   resources as linearResources,
 } from '@rawdash/connector-linear';
 import {
+  configFields as mailchimpConfigFields,
+  doc as mailchimpDoc,
+  id as mailchimpId,
+  resources as mailchimpResources,
+} from '@rawdash/connector-mailchimp';
+import {
   configFields as metaAdsConfigFields,
   doc as metaAdsDoc,
   id as metaAdsId,
@@ -218,6 +224,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: linearDoc,
     configFields: linearConfigFields,
     resources: linearResources,
+  },
+  {
+    id: mailchimpId,
+    packageName: '@rawdash/connector-mailchimp',
+    doc: mailchimpDoc,
+    configFields: mailchimpConfigFields,
+    resources: mailchimpResources,
   },
   {
     id: metaAdsId,

@@ -24,6 +24,7 @@
       "@rawdash/connector-intercom",
       "@rawdash/connector-jira",
       "@rawdash/connector-launchdarkly",
+      "@rawdash/connector-mailchimp",
       "@rawdash/connector-meta-ads",
       "@rawdash/connector-mixpanel",
       "@rawdash/connector-posthog",

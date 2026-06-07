@@ -22,6 +22,8 @@ export const connectorLoaders: Record<string, () => Promise<ConnectorClass>> = {
   launchdarkly: () =>
     import('@rawdash/connector-launchdarkly').then((m) => m.default),
   linear: () => import('@rawdash/connector-linear').then((m) => m.default),
+  mailchimp: () =>
+    import('@rawdash/connector-mailchimp').then((m) => m.default),
   'meta-ads': () =>
     import('@rawdash/connector-meta-ads').then((m) => m.default),
   mixpanel: () => import('@rawdash/connector-mixpanel').then((m) => m.default),

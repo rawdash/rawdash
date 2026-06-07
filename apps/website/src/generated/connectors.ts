@@ -275,6 +275,25 @@ export const connectors: ConnectorCard[] = [
     ],
   },
   {
+    id: 'mailchimp',
+    name: 'Mailchimp',
+    category: 'marketing',
+    categoryLabel: 'Marketing',
+    tagline:
+      'Sync Mailchimp campaigns, audiences (lists), automations, and per-campaign engagement stats for marketing email analytics.',
+    href: '/docs/connectors/marketing/mailchimp/',
+    iconPath: '/connectors/mailchimp.svg',
+    brandColor: '#FFE01B',
+    keywords: [
+      '@rawdash/connector-mailchimp',
+      'mailchimp',
+      'mailchimp_automation',
+      'mailchimp_campaign',
+      'mailchimp_campaign_stats',
+      'mailchimp_list',
+    ],
+  },
+  {
     id: 'meta-ads',
     name: 'Meta Ads',
     category: 'marketing',
@@ -421,7 +440,7 @@ export const connectorCategories: ConnectorCategory[] = [
   {
     id: 'engineering',
     label: 'Engineering',
-    count: 3,
+    count: 4,
   },
   {
     id: 'product',
@@ -436,7 +455,7 @@ export const connectorCategories: ConnectorCategory[] = [
   {
     id: 'marketing',
     label: 'Marketing',
-    count: 3,
+    count: 4,
   },
   {
     id: 'sales',

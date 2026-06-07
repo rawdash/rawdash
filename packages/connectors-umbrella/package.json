@@ -47,6 +47,7 @@
     "@rawdash/connector-jira": "workspace:*",
     "@rawdash/connector-launchdarkly": "workspace:*",
     "@rawdash/connector-linear": "workspace:*",
+    "@rawdash/connector-mailchimp": "workspace:*",
     "@rawdash/connector-meta-ads": "workspace:*",
     "@rawdash/connector-mixpanel": "workspace:*",
     "@rawdash/connector-posthog": "workspace:*",
