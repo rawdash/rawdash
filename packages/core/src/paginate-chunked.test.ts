@@ -264,6 +264,23 @@ describe('paginateChunked', () => {
     });
   });
 
+  it('re-throws a foreign error matched by its kind discriminator, not class identity', async () => {
+    const boom = Object.assign(new Error('token revoked'), {
+      kind: 'auth' as const,
+    });
+    await expect(
+      paginateChunked<Phase, number>({
+        phases,
+        cursor: undefined,
+        signal: undefined,
+        fetchPage: async () => {
+          throw boom;
+        },
+        writeBatch: async () => {},
+      }),
+    ).rejects.toBe(boom);
+  });
+
   it('logs the failure before re-throwing a non-retryable error', async () => {
     const events: Array<{ level: string; event: string }> = [];
     const logger = {

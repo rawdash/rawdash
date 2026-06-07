@@ -1,13 +1,20 @@
-import {
-  AuthError,
-  ClientBugError,
-  type ConnectorLogger,
-} from '@rawdash/connector-shared';
+import type { ConnectorLogger, HttpErrorKind } from '@rawdash/connector-shared';
 
 import type { SyncResult } from './connector';
 
+const NON_RETRYABLE_KINDS: ReadonlySet<HttpErrorKind> = new Set([
+  'auth',
+  'client_bug',
+]);
+
 function isNonRetryableError(err: unknown): boolean {
-  return err instanceof AuthError || err instanceof ClientBugError;
+  if (typeof err !== 'object' || err === null) {
+    return false;
+  }
+  const kind = (err as { kind?: unknown }).kind;
+  return (
+    typeof kind === 'string' && NON_RETRYABLE_KINDS.has(kind as HttpErrorKind)
+  );
 }
 
 export interface ChunkedSyncCursor<TPhase extends string, TPage> {
