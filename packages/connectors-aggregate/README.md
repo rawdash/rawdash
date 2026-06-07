@@ -3,9 +3,9 @@
 [![npm version](https://img.shields.io/npm/v/@rawdash/connectors)](https://www.npmjs.com/package/@rawdash/connectors)
 [![license](https://img.shields.io/npm/l/@rawdash/connectors)](https://github.com/rawdash/rawdash/blob/main/LICENSE)
 
-Umbrella package that aggregates every built-in Rawdash connector. Depend on
+Aggregate package that bundles every built-in Rawdash connector. Depend on
 this one package instead of listing each `@rawdash/connector-*` package
-individually — adding a connector to the monorepo flows into the umbrella
+individually — adding a connector to the monorepo flows into the aggregate
 automatically, with no consumer-side changes and no version drift.
 
 The contents are generated at build time from the connector packages by

@@ -1,13 +1,13 @@
 {
   "name": "@rawdash/connectors",
   "version": "0.18.0",
-  "description": "Umbrella package aggregating every built-in Rawdash connector. Depend on this one package instead of N individual @rawdash/connector-* packages.",
+  "description": "Aggregate package bundling every built-in Rawdash connector. Depend on this one package instead of N individual @rawdash/connector-* packages.",
   "license": "Apache-2.0",
   "type": "module",
   "repository": {
     "type": "git",
     "url": "https://github.com/rawdash/rawdash.git",
-    "directory": "packages/connectors-umbrella"
+    "directory": "packages/connectors-aggregate"
   },
   "files": [
     "dist",

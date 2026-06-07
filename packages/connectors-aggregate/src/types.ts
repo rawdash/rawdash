@@ -6,7 +6,7 @@ import type {
 import type { z } from 'zod';
 
 /**
- * Build-time metadata for a single connector, aggregated into the umbrella
+ * Build-time metadata for a single connector, aggregated into the aggregate
  * package so consumers (e.g. the cloud connector catalog) can enumerate every
  * connector without depending on each `@rawdash/connector-*` package
  * individually.
