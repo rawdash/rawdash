@@ -187,7 +187,7 @@ interface SentryStatsResponse {
   groups: Array<{
     by: Record<string, string | number>;
     totals?: Record<string, number>;
-    series: Record<string, number[]>;
+    series?: Record<string, number[]>;
   }>;
   start?: string;
   end?: string;
@@ -295,7 +295,7 @@ const errorStatsResponseSchema = z.object({
     z.object({
       by: z.record(z.string(), z.union([z.string(), z.number()])),
       totals: z.record(z.string(), z.number()).optional(),
-      series: z.record(z.string(), z.array(z.number())),
+      series: z.record(z.string(), z.array(z.number())).optional(),
     }),
   ),
   start: z.string().optional(),
@@ -698,7 +698,10 @@ export class SentryConnector extends BaseConnector<
     for (const group of stats.groups) {
       const project = group.by['project'];
       const projectKey = project !== undefined ? String(project) : 'unknown';
-      const series = group.series['sum(quantity)'] ?? [];
+      const series = group.series?.['sum(quantity)'] ?? [];
+      if (series.length === 0) {
+        continue;
+      }
       for (let i = 0; i < stats.intervals.length; i++) {
         const intervalIso = stats.intervals[i];
         const rawValue = series[i];
