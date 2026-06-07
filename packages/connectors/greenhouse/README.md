@@ -65,7 +65,7 @@ A Harvest API key with read-only access to candidates, applications, jobs, and o
   - `rejectedAt`: When the application was rejected (null if not).
   - `hiredAt`: When the application was hired (derived from last_activity_at when status=hired).
   - `lastActivityAt`: Last activity timestamp on the application (Unix ms).
-- **`greenhouse_application_event`** _(event)_ - Application lifecycle events (applied / hired / rejected) derived from each application timestamps. The scope is cleared and rewritten on every full sync.
+- **`greenhouse_application_event`** _(event)_ - Application lifecycle events (applied / hired / rejected) derived from each application timestamps. The scope is cleared and rewritten on every sync (including incremental runs).
   - Endpoint: `GET /v1/applications`
   - Derived from each application's applied_at / rejected_at / last_activity_at fields, not from a separate API call.
   - `applicationId`: Application the event belongs to.

@@ -411,7 +411,7 @@ export const greenhouseResources = defineResources({
   [APPLICATION_EVENT]: {
     shape: 'event',
     description:
-      'Application lifecycle events (applied / hired / rejected) derived from each application timestamps. The scope is cleared and rewritten on every full sync.',
+      'Application lifecycle events (applied / hired / rejected) derived from each application timestamps. The scope is cleared and rewritten on every sync (including incremental runs).',
     endpoint: 'GET /v1/applications',
     notes:
       "Derived from each application's applied_at / rejected_at / last_activity_at fields, not from a separate API call.",
@@ -595,6 +595,15 @@ export class GreenhouseConnector extends BaseConnector<
   private resolveCursor(cursor: unknown): GreenhouseSyncCursor | undefined {
     if (!isGreenhouseSyncCursor(cursor)) {
       return undefined;
+    }
+    if (cursor.phase === 'application_events') {
+      // This phase is append-only and only re-wipes its scope on the first
+      // page (page === null). Resuming from a saved mid-phase page URL would
+      // replay that page without clearing, duplicating transitions. Restart
+      // from page 1 so clearScopeOnFirstPage wipes before replaying; the phase
+      // derives from /v1/applications with no `since` filter, so a full replay
+      // stays cheap.
+      return { phase: cursor.phase, page: null };
     }
     return {
       phase: cursor.phase,
