@@ -542,6 +542,35 @@ describe('SentryConnector.sync', () => {
     expect(typed.filter((s) => s.attributes.project === 'api')).toHaveLength(3);
   });
 
+  it('tolerates stats_v2 groups missing a series (low-activity orgs)', async () => {
+    const connector = makeConnector({ resources: ['errors_per_hour'] });
+    installRouter((u) => {
+      if (u.includes('/stats_v2/')) {
+        return {
+          body: {
+            intervals: ['2024-05-01T00:00:00.000Z', '2024-05-01T01:00:00.000Z'],
+            groups: [
+              { by: { project: 'web' } },
+              {
+                by: { project: 'api' },
+                series: { 'sum(quantity)': [2, 3] },
+              },
+            ],
+          },
+        };
+      }
+      return { body: [] };
+    });
+    const storage = makeStorage();
+    await connector.sync({ mode: 'full' }, storage);
+
+    expect(storage.metrics).toHaveBeenCalledTimes(1);
+    const [samples] = storage.metrics.mock.calls[0]!;
+    const typed = samples as Array<{ attributes: Record<string, string> }>;
+    expect(typed).toHaveLength(2);
+    expect(typed.every((s) => s.attributes.project === 'api')).toBe(true);
+  });
+
   it('applies lastSeen filter in latest mode for issues', async () => {
     const connector = makeConnector({ resources: ['issues'] });
     const { calls } = installRouter(() => ({ body: [] }));
