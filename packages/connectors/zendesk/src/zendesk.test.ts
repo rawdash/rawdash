@@ -156,6 +156,18 @@ function makeStorage() {
   };
 }
 
+function expectedBasicAuth(raw: string): string {
+  if (typeof btoa === 'function') {
+    return `Basic ${btoa(raw)}`;
+  }
+  const bufferCtor = (
+    globalThis as {
+      Buffer?: { from: (s: string) => { toString: (enc: string) => string } };
+    }
+  ).Buffer;
+  return `Basic ${bufferCtor!.from(raw).toString('base64')}`;
+}
+
 const TOKEN = 'ZENDESK_TOKEN' as unknown as { $secret: string };
 
 function connector(
@@ -551,7 +563,7 @@ describe('ZendeskConnector.sync', () => {
 
     const call = recordCalls(fetchSpy)[0]!;
     expect(call.url).toContain('https://rawdash.zendesk.com/api/v2/users.json');
-    const expected = `Basic ${btoa('agent@acme.com/token:ZENDESK_TOKEN')}`;
+    const expected = expectedBasicAuth('agent@acme.com/token:ZENDESK_TOKEN');
     expect(call.headers['authorization']).toBe(expected);
     expect(call.headers['accept']).toBe('application/json');
   });
@@ -560,6 +572,10 @@ describe('ZendeskConnector.sync', () => {
 describe('ZendeskConnector.create', () => {
   afterEach(() => {
     vi.unstubAllEnvs();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it('returns the connector instance directly', () => {
@@ -571,5 +587,25 @@ describe('ZendeskConnector.create', () => {
     });
     expect(c).toBeInstanceOf(ZendeskConnector);
     expect(c.id).toBe('zendesk');
+  });
+
+  it('resolves the env-backed apiToken into the outgoing auth header', async () => {
+    vi.stubEnv('ZENDESK_TOKEN', 'test_token_fixture');
+    const fetchSpy = makeFetch(() => undefined);
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const c = ZendeskConnector.create({
+      subdomain: 'acme',
+      email: 'agent@acme.com',
+      apiToken: { $secret: 'ZENDESK_TOKEN' },
+      resources: ['users'],
+    });
+    await c.sync({ mode: 'full' }, makeStorage());
+
+    const call = recordCalls(fetchSpy)[0]!;
+    const expected = expectedBasicAuth(
+      'agent@acme.com/token:test_token_fixture',
+    );
+    expect(call.headers['authorization']).toBe(expected);
   });
 });

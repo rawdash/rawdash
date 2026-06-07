@@ -42,7 +42,7 @@ export const configFields = defineConfigFields(
           'Your Zendesk account subdomain, the "acme" in acme.zendesk.com.',
         placeholder: 'acme',
       }),
-    email: z.string().trim().min(1).meta({
+    email: z.string().trim().email().meta({
       label: 'Agent email',
       description:
         'Email address of an agent (or admin) on the Zendesk account; paired with the API token for Basic auth.',
