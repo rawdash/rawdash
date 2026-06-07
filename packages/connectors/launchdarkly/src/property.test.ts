@@ -61,7 +61,6 @@ describe('LaunchDarklyConnector property tests', () => {
       runs: 50,
       extraInvariants: [extra, docShapeExtra],
       run: async (sample, storage) => {
-        // Strip _links.next so the mocked fetch terminates after one page.
         const terminated = { ...sample, _links: undefined };
         installFetchMock(() => terminated);
         const connector = new LaunchDarklyConnector(
@@ -83,9 +82,6 @@ describe('LaunchDarklyConnector property tests', () => {
       sample: FlagsSample,
     ): InvariantViolation[] => {
       const violations: InvariantViolation[] = [];
-      // Flags are keyed by `${projectKey}:${flag.key}` and we feed a single
-      // project ('p1') below, so the expected count is the number of unique
-      // flag keys in the sample.
       const unique = new Set(sample.items.map((f) => f.key)).size;
       const written =
         entityStoreFor(storage, CONNECTOR_ID).get('launchdarkly_feature_flag')

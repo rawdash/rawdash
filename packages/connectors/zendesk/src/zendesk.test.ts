@@ -2,10 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ZendeskConnector, configFields } from './zendesk';
 
-// ---------------------------------------------------------------------------
-// configFields
-// ---------------------------------------------------------------------------
-
 describe('configFields', () => {
   it('parses a valid minimal config', () => {
     const result = configFields.safeParse({
@@ -74,10 +70,6 @@ describe('configFields', () => {
     ).toBe(false);
   });
 });
-
-// ---------------------------------------------------------------------------
-// Fetch + storage mocks
-// ---------------------------------------------------------------------------
 
 interface MockCall {
   url: string;
@@ -187,10 +179,6 @@ function connector(
   );
 }
 
-// ---------------------------------------------------------------------------
-// sync — phase orchestration
-// ---------------------------------------------------------------------------
-
 describe('ZendeskConnector.sync', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -238,7 +226,6 @@ describe('ZendeskConnector.sync', () => {
     );
     expect(clearedEvents).toContain('zendesk_ticket_state_change');
 
-    // Entity types must NOT be cleared in incremental mode.
     const entityClears = storage.entities.mock.calls.filter(
       (c) => Array.isArray(c[0]) && (c[0] as unknown[]).length === 0,
     );
@@ -422,7 +409,6 @@ describe('ZendeskConnector.sync', () => {
       (c) =>
         (c[0] as { attributes: { transition: string } }).attributes.transition,
     );
-    // 3 created + 2 solved (open ticket has no solved event).
     expect(transitions.filter((t) => t === 'created')).toHaveLength(3);
     expect(transitions.filter((t) => t === 'solved')).toHaveLength(2);
 

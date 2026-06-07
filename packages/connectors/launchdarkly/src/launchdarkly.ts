@@ -25,10 +25,6 @@ import {
 } from '@rawdash/core';
 import { z } from 'zod';
 
-// ---------------------------------------------------------------------------
-// configFields
-// ---------------------------------------------------------------------------
-
 export const configFields = defineConfigFields(
   z.object({
     apiToken: z.object({ $secret: z.string() }).meta({
@@ -107,10 +103,6 @@ const launchDarklyCredentials = {
 
 type LaunchDarklyCredentials = typeof launchDarklyCredentials;
 
-// ---------------------------------------------------------------------------
-// Rate limit + sync phases + cursor
-// ---------------------------------------------------------------------------
-
 const launchDarklyRateLimit = standardRateLimitPolicy({
   remainingHeader: 'x-ratelimit-global-remaining',
   resetHeader: 'x-ratelimit-reset',
@@ -124,10 +116,6 @@ type LaunchDarklyPhase = (typeof PHASE_ORDER)[number];
 type LaunchDarklySyncCursor = ChunkedSyncCursor<LaunchDarklyPhase, string>;
 
 const isLaunchDarklySyncCursor = makeChunkedCursorGuard(PHASE_ORDER);
-
-// ---------------------------------------------------------------------------
-// LaunchDarkly API types
-// ---------------------------------------------------------------------------
 
 interface LDLink {
   href: string;
@@ -207,10 +195,6 @@ interface LDAuditLogResponse {
   _links?: LDLinks;
   totalCount?: number;
 }
-
-// ---------------------------------------------------------------------------
-// Schemas - describe the per-resource API response shape consumed by request()
-// ---------------------------------------------------------------------------
 
 const idString = z.string().min(1);
 
@@ -386,10 +370,6 @@ export const launchdarklyResources = defineResources({
   },
 });
 
-// ---------------------------------------------------------------------------
-// LaunchDarklyConnector
-// ---------------------------------------------------------------------------
-
 const LD_API_HOST = 'app.launchdarkly.com';
 const LD_API_BASE = `https://${LD_API_HOST}`;
 const PROJECTS_PAGE_SIZE = 100;
@@ -431,11 +411,6 @@ export class LaunchDarklyConnector extends BaseConnector<
   readonly id = id;
   override readonly credentials = launchDarklyCredentials;
 
-  // Project keys discovered during the projects phase, so the feature_flags
-  // phase can fan out to each project without re-fetching. Only trusted once
-  // the projects pagination has fully completed for the current sync, so a
-  // partial (resumed mid-phase) or stale (prior sync) list never drives the
-  // feature_flags fan-out.
   private discoveredProjectKeys: string[] | null = null;
   private discoveredProjectKeysComplete = false;
 
@@ -459,10 +434,6 @@ export class LaunchDarklyConnector extends BaseConnector<
     });
   }
 
-  // -------------------------------------------------------------------------
-  // Resource enablement
-  // -------------------------------------------------------------------------
-
   private activePhases(): LaunchDarklyPhase[] {
     return selectActivePhases<LaunchDarklyResource, LaunchDarklyPhase>(
       (r) => {
@@ -480,17 +451,10 @@ export class LaunchDarklyConnector extends BaseConnector<
     );
   }
 
-  // -------------------------------------------------------------------------
-  // URL building + sanitization
-  // -------------------------------------------------------------------------
-
   private allowedPagePath(
     phase: LaunchDarklyPhase,
     page: string,
   ): string | null {
-    // `feature_flags` paginates across every configured project (one page-loop
-    // per project key), so the allowed path is whichever flag URL matches the
-    // current page. For projects/audit_log there is only one canonical path.
     switch (phase) {
       case 'projects':
         return '/api/v2/projects';
@@ -545,8 +509,6 @@ export class LaunchDarklyConnector extends BaseConnector<
     if (!href) {
       return null;
     }
-    // LaunchDarkly returns relative paths in _links.next.href; build a full
-    // URL pinned to LD_API_HOST before sanitizing.
     let abs: string;
     try {
       abs = new URL(href, LD_API_BASE).toString();
@@ -589,10 +551,6 @@ export class LaunchDarklyConnector extends BaseConnector<
     return Date.now() - days * MS_PER_DAY;
   }
 
-  // -------------------------------------------------------------------------
-  // Project enumeration for the feature_flags phase
-  // -------------------------------------------------------------------------
-
   private async resolveProjectKeysForFlags(
     signal: AbortSignal | undefined,
   ): Promise<string[]> {
@@ -605,8 +563,6 @@ export class LaunchDarklyConnector extends BaseConnector<
     ) {
       return this.discoveredProjectKeys;
     }
-    // The projects phase didn't run this tick (or only partially ran). Fetch
-    // the full list directly so feature_flags can fan out over every project.
     const keys: string[] = [];
     let nextUrl: string | null = this.buildInitialProjectsUrl();
     while (nextUrl) {
@@ -626,18 +582,12 @@ export class LaunchDarklyConnector extends BaseConnector<
     return keys;
   }
 
-  // -------------------------------------------------------------------------
-  // Fetchers
-  // -------------------------------------------------------------------------
-
   private async fetchProjectsPage(
     page: string | null,
     signal: AbortSignal | undefined,
   ): Promise<{ items: LDProject[]; next: string | null }> {
     const url = page ?? this.buildInitialProjectsUrl();
     const res = await this.fetch<LDProjectsResponse>(url, 'projects', signal);
-    // Cache the discovered project keys so feature_flags doesn't re-paginate.
-    // The first page of the phase starts a fresh, incomplete accumulation.
     if (page === null) {
       this.discoveredProjectKeys = [];
       this.discoveredProjectKeysComplete = false;
@@ -646,14 +596,11 @@ export class LaunchDarklyConnector extends BaseConnector<
       this.discoveredProjectKeys = [];
     }
     for (const p of res.body.items) {
-      // Skip duplicates if pagination returns overlapping pages.
       if (!this.discoveredProjectKeys.includes(p.key)) {
         this.discoveredProjectKeys.push(p.key);
       }
     }
     const next = this.resolveNextHref('projects', res.body._links?.next?.href);
-    // Only the final page completes the cache; until then feature_flags must
-    // not trust the partial list.
     if (next === null) {
       this.discoveredProjectKeysComplete = true;
     }
@@ -667,11 +614,6 @@ export class LaunchDarklyConnector extends BaseConnector<
     page: string | null,
     signal: AbortSignal | undefined,
   ): Promise<{ items: FlagsPageItem[]; next: string | null }> {
-    // For feature_flags pagination, we walk projects sequentially. The cursor
-    // string is either:
-    //   - null:        start of phase, start with the first project's first page
-    //   - URL of next page for the current project (LD's _links.next.href), or
-    //   - URL of the first page for the next project to switch to.
     if (page === null) {
       const projectKeys = await this.resolveProjectKeysForFlags(signal);
       if (projectKeys.length === 0) {
@@ -680,7 +622,6 @@ export class LaunchDarklyConnector extends BaseConnector<
       const firstKey = projectKeys[0]!;
       return this.fetchFlagsPageInProject(firstKey, null, projectKeys, signal);
     }
-    // Resume mid-phase: parse projectKey from the URL pathname.
     let projectKey: string | null = null;
     try {
       const u = new URL(page);
@@ -716,7 +657,6 @@ export class LaunchDarklyConnector extends BaseConnector<
         next: nextInProject,
       };
     }
-    // Advance to the next configured project, if any.
     const idx = projectKeys.indexOf(projectKey);
     const nextProject = idx >= 0 ? projectKeys[idx + 1] : undefined;
     const next =
@@ -741,8 +681,6 @@ export class LaunchDarklyConnector extends BaseConnector<
     const res = await this.fetch<LDAuditLogResponse>(url, 'audit_log', signal);
     const items = res.body.items;
     const sinceMs = this.computeAuditSinceMs(options);
-    // Audit log is newest-first. Short-circuit pagination once a page is
-    // entirely older than the sinceMs floor.
     const lastDate = items.at(-1)?.date;
     const cutoffReached =
       lastDate !== undefined && Number.isFinite(lastDate) && lastDate < sinceMs;
@@ -754,10 +692,6 @@ export class LaunchDarklyConnector extends BaseConnector<
     );
     return { items: filtered, next };
   }
-
-  // -------------------------------------------------------------------------
-  // Writers
-  // -------------------------------------------------------------------------
 
   private async writeProjects(
     storage: StorageHandle,
@@ -859,17 +793,11 @@ export class LaunchDarklyConnector extends BaseConnector<
     }
   }
 
-  // -------------------------------------------------------------------------
-  // sync
-  // -------------------------------------------------------------------------
-
   async sync(
     options: SyncOptions,
     storage: StorageHandle,
     signal?: AbortSignal,
   ): Promise<SyncResult> {
-    // Start each sync with a clean project-key cache so a prior sync's list
-    // can never drive this run's feature_flags fan-out.
     this.discoveredProjectKeys = null;
     this.discoveredProjectKeysComplete = false;
     const cursor = this.resolveCursor(options.cursor);

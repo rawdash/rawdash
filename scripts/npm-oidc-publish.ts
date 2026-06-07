@@ -1,18 +1,4 @@
 #!/usr/bin/env -S npx tsx
-
-/**
- * Publishes all non-private workspace packages that aren't yet on npm,
- * using npm OIDC trusted publishing instead of a stored NPM_TOKEN.
- *
- * pnpm doesn't implement the npm OIDC token exchange natively (pnpm/pnpm#9812),
- * so this script handles the exchange manually and then delegates to npm publish.
- *
- * Token exchange flow (per package):
- *   1. Fetch a GitHub OIDC JWT from the Actions token endpoint
- *   2. POST it to the npm registry exchange endpoint to get a short-lived publish token
- *   3. Pass that token as NODE_AUTH_TOKEN to `pnpm publish --provenance`
- *      (pnpm rewrites workspace:* deps during pack, then delegates to npm publish)
- */
 import { execFile, execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -230,13 +216,6 @@ function ensureTag(name: string, version: string): void {
   }
 }
 
-/**
- * Group packages into dependency layers. Packages in layer N depend only on
- * packages in layers < N. Within a layer, publishes are independent and safe
- * to run in parallel. Across layers, we publish strictly in order so that if
- * a dependency fails, its dependents are never published with a manifest
- * referencing a version that doesn't exist on npm.
- */
 function computeDependencyLayers(
   pkgs: WorkspacePackage[],
 ): WorkspacePackage[][] {
@@ -319,8 +298,6 @@ async function publishOne(pkg: WorkspacePackage): Promise<PublishOutcome> {
       `─── ${label} ───`,
       stdout.trim(),
       stderr.trim(),
-      // Marker that changesets/action greps for to drive `createGithubReleases`.
-      // Format must match: /New tag:\s+(@[^/]+\/[^@]+|[^/]+)@([^\s]+)/
       `New tag: ${label}`,
       `✓ Published ${label}`,
       '',
@@ -368,8 +345,6 @@ async function main(): Promise<void> {
   const alreadyPublished = publicPackages.filter((_, i) => publishedFlags[i]);
   const toPublish = publicPackages.filter((_, i) => !publishedFlags[i]);
 
-  // Backfill tags for packages that were published in a previous (partial) run
-  // so that changesets/action can still create their GitHub releases.
   for (const pkg of alreadyPublished) {
     if (!tagExists(pkg.name, pkg.version)) {
       console.log(

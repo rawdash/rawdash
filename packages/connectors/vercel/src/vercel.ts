@@ -25,10 +25,6 @@ import {
 } from '@rawdash/core';
 import { z } from 'zod';
 
-// ---------------------------------------------------------------------------
-// configFields
-// ---------------------------------------------------------------------------
-
 export const configFields = defineConfigFields(
   z.object({
     apiToken: z.object({ $secret: z.string() }).meta({
@@ -91,10 +87,6 @@ const vercelCredentials = {
 
 type VercelCredentials = typeof vercelCredentials;
 
-// ---------------------------------------------------------------------------
-// Connector documentation metadata
-// ---------------------------------------------------------------------------
-
 export const doc: ConnectorDoc = defineConnectorDoc({
   displayName: 'Vercel',
   category: 'infrastructure',
@@ -125,20 +117,11 @@ export const doc: ConnectorDoc = defineConnectorDoc({
   ],
 });
 
-// ---------------------------------------------------------------------------
-// Rate-limit policy — Vercel sends standard `X-RateLimit-*` headers, reset is
-// a Unix timestamp in seconds.
-// ---------------------------------------------------------------------------
-
 const vercelRateLimit = standardRateLimitPolicy({
   remainingHeader: 'x-ratelimit-remaining',
   resetHeader: 'x-ratelimit-reset',
   resetUnit: 's',
 });
-
-// ---------------------------------------------------------------------------
-// Sync phases + cursor
-// ---------------------------------------------------------------------------
 
 const PHASE_ORDER = ['projects', 'deployments'] as const;
 
@@ -147,10 +130,6 @@ type VercelPhase = (typeof PHASE_ORDER)[number];
 type VercelSyncCursor = ChunkedSyncCursor<VercelPhase, string>;
 
 const isVercelSyncCursor = makeChunkedCursorGuard(PHASE_ORDER);
-
-// ---------------------------------------------------------------------------
-// Vercel API types
-// ---------------------------------------------------------------------------
 
 interface VercelProject {
   id: string;
@@ -214,10 +193,6 @@ interface VercelDeploymentsResponse {
   deployments: VercelDeployment[];
   pagination: VercelPagination;
 }
-
-// ---------------------------------------------------------------------------
-// Schemas — describe the per-resource API response shape consumed by request()
-// ---------------------------------------------------------------------------
 
 const idString = z.string().min(1);
 const nonNegInt = z.number().int().nonnegative();
@@ -301,10 +276,6 @@ export const vercelResources = defineResources({
   },
 });
 
-// ---------------------------------------------------------------------------
-// VercelConnector
-// ---------------------------------------------------------------------------
-
 const VERCEL_API_HOST = 'api.vercel.com';
 const VERCEL_API_BASE = `https://${VERCEL_API_HOST}`;
 const PROJECTS_PAGE_SIZE = 100;
@@ -361,10 +332,6 @@ export class VercelConnector extends BaseConnector<
     });
   }
 
-  // -------------------------------------------------------------------------
-  // Resource enablement
-  // -------------------------------------------------------------------------
-
   private activePhases(): VercelPhase[] {
     return selectActivePhases<VercelResource, VercelPhase>(
       (r) => (r === 'projects' ? 'projects' : 'deployments'),
@@ -372,10 +339,6 @@ export class VercelConnector extends BaseConnector<
       this.settings.resources,
     );
   }
-
-  // -------------------------------------------------------------------------
-  // URL building + sanitization
-  // -------------------------------------------------------------------------
 
   private allowedPagePath(phase: VercelPhase): string {
     switch (phase) {
@@ -446,10 +409,6 @@ export class VercelConnector extends BaseConnector<
     return Date.now() - days * MS_PER_DAY;
   }
 
-  // -------------------------------------------------------------------------
-  // Fetchers
-  // -------------------------------------------------------------------------
-
   private buildNextPageUrl(
     phase: VercelPhase,
     currentUrl: string,
@@ -502,10 +461,6 @@ export class VercelConnector extends BaseConnector<
         : null;
     return { items: res.body.deployments, next };
   }
-
-  // -------------------------------------------------------------------------
-  // Writers
-  // -------------------------------------------------------------------------
 
   private async writeProjects(
     storage: StorageHandle,
@@ -603,10 +558,6 @@ export class VercelConnector extends BaseConnector<
       }
     }
   }
-
-  // -------------------------------------------------------------------------
-  // sync
-  // -------------------------------------------------------------------------
 
   async sync(
     options: SyncOptions,

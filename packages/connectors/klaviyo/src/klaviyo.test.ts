@@ -2,10 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { KlaviyoConnector, configFields } from './klaviyo';
 
-// ---------------------------------------------------------------------------
-// configFields
-// ---------------------------------------------------------------------------
-
 describe('configFields', () => {
   it('parses a valid config with only apiKey', () => {
     const result = configFields.safeParse({
@@ -63,10 +59,6 @@ describe('configFields', () => {
     expect(configFields.safeParse({}).success).toBe(false);
   });
 });
-
-// ---------------------------------------------------------------------------
-// Fetch + storage mocks
-// ---------------------------------------------------------------------------
 
 interface MockCall {
   url: string;
@@ -148,10 +140,6 @@ function connector(
     { apiKey: KEY },
   );
 }
-
-// ---------------------------------------------------------------------------
-// sync — phase orchestration
-// ---------------------------------------------------------------------------
 
 describe('KlaviyoConnector.sync', () => {
   afterEach(() => {

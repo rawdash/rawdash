@@ -2,10 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { SentryConnector, configFields } from './sentry';
 
-// ---------------------------------------------------------------------------
-// configFields
-// ---------------------------------------------------------------------------
-
 describe('configFields', () => {
   it('parses a valid config with required fields only', () => {
     const result = configFields.safeParse({
@@ -86,10 +82,6 @@ describe('configFields', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Test scaffolding
-// ---------------------------------------------------------------------------
-
 function makeStorage() {
   return {
     event: vi.fn().mockResolvedValue(undefined),
@@ -164,10 +156,6 @@ function makeConnector(
     { authToken: 'sntrys_test' as unknown as { $secret: string } },
   );
 }
-
-// ---------------------------------------------------------------------------
-// SentryConnector — sync
-// ---------------------------------------------------------------------------
 
 describe('SentryConnector.sync', () => {
   afterEach(() => {
@@ -674,7 +662,6 @@ describe('SentryConnector.sync', () => {
       },
     }));
     await connector.sync({ mode: 'full' }, makeStorage());
-    // Only one issues request — pagination must not follow a results="false" link.
     const issuesCalls = calls.filter((c) =>
       c.includes('/organizations/acme/issues/'),
     );

@@ -2,10 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { LaunchDarklyConnector, configFields } from './launchdarkly';
 
-// ---------------------------------------------------------------------------
-// configFields
-// ---------------------------------------------------------------------------
-
 describe('configFields', () => {
   it('parses a valid config with required fields only', () => {
     const result = configFields.safeParse({
@@ -61,10 +57,6 @@ describe('configFields', () => {
     expect(result.success).toBe(true);
   });
 });
-
-// ---------------------------------------------------------------------------
-// Test scaffolding
-// ---------------------------------------------------------------------------
 
 function makeStorage() {
   return {
@@ -158,10 +150,6 @@ function routeDefault(url: string): MockResponseSpec {
   }
   throw new Error(`Unexpected request URL in test router: ${url}`);
 }
-
-// ---------------------------------------------------------------------------
-// LaunchDarklyConnector — sync
-// ---------------------------------------------------------------------------
 
 describe('LaunchDarklyConnector.sync', () => {
   afterEach(() => {
@@ -518,8 +506,6 @@ describe('LaunchDarklyConnector.sync', () => {
     installRouter((u) => {
       if (u.includes('/api/v2/auditlog')) {
         auditCalls++;
-        // Returning a page that ends entirely older than `sinceMs` must stop
-        // pagination even though a _links.next.href is present.
         return {
           body: {
             items: [{ _id: 'old', date: sinceMs - 10_000 }],

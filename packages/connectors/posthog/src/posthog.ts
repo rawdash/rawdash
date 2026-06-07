@@ -17,10 +17,6 @@ import {
 } from '@rawdash/core';
 import { z } from 'zod';
 
-// ---------------------------------------------------------------------------
-// configFields
-// ---------------------------------------------------------------------------
-
 const funnelDefinition = z.object({
   name: z.string().min(1),
   steps: z.array(z.string().min(1)).min(2),
@@ -122,10 +118,6 @@ export const doc: ConnectorDoc = defineConnectorDoc({
   limitations: ['Session recordings/replays and cohorts are not synced.'],
 });
 
-// ---------------------------------------------------------------------------
-// Settings / credentials
-// ---------------------------------------------------------------------------
-
 export interface PostHogFunnel {
   name: string;
   steps: readonly string[];
@@ -149,10 +141,6 @@ const posthogCredentials = {
 } satisfies CredentialsSchema;
 
 type PostHogCredentials = typeof posthogCredentials;
-
-// ---------------------------------------------------------------------------
-// Sync phases + cursor
-// ---------------------------------------------------------------------------
 
 const PHASE_ORDER = [
   'feature_flags',
@@ -190,14 +178,8 @@ const FLAG_USAGE_METRIC = 'posthog_feature_flag_usage';
 const ACTIVE_USERS_METRIC = 'posthog_active_users';
 const FUNNEL_METRIC = 'posthog_funnel';
 
-// Series order requested in the active-users TrendsQuery; the response keeps
-// this order so the index maps back to the active-user window.
 const ACTIVE_USER_WINDOWS = ['dau', 'wau', 'mau'] as const;
 const ACTIVE_USER_MATH = ['dau', 'weekly_active', 'monthly_active'] as const;
-
-// ---------------------------------------------------------------------------
-// PostHog API types
-// ---------------------------------------------------------------------------
 
 interface FeatureFlagRecord {
   id: number;
@@ -237,10 +219,6 @@ interface FunnelResponse {
   results: FunnelStepResult[];
 }
 
-// ---------------------------------------------------------------------------
-// Value helpers
-// ---------------------------------------------------------------------------
-
 function finiteNumber(value: unknown, fallback = 0): number {
   const n = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(n) ? n : fallback;
@@ -258,8 +236,6 @@ function stringOrNull(value: unknown): string | null {
   return typeof value === 'string' ? value : null;
 }
 
-// PostHog dates from HogQL come back as 'YYYY-MM-DD' (or full timestamps).
-// Treat them as UTC midnight so re-syncing the same day is idempotent.
 function dateStringToMs(value: unknown): number | null {
   if (typeof value !== 'string') {
     return null;
@@ -274,9 +250,6 @@ function dateStringToMs(value: unknown): number | null {
   return parseEpoch(isoLike, 'iso');
 }
 
-// Filters are an opaque, deeply-nested PostHog payload. Persist a JSON snapshot
-// rather than the raw object so no `undefined` (or non-serializable value)
-// leaks into entity attributes.
 function stringifyFilters(value: unknown): string | null {
   if (value === undefined || value === null) {
     return null;
@@ -305,10 +278,6 @@ function quoteHogQLString(value: string): string {
   return `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
 }
 
-// ---------------------------------------------------------------------------
-// Schemas — describe the per-resource API response shape consumed by request()
-// ---------------------------------------------------------------------------
-
 const featureFlagSchema = z.object({
   id: z.number(),
   key: z.string().min(1),
@@ -318,7 +287,6 @@ const featureFlagSchema = z.object({
   created_at: z.string().nullish(),
 });
 
-// HogQL grouped rollups return positional rows: [day, key, count, distinct].
 const dailyCountRow = z.tuple([
   z.string(),
   z.string().nullable(),
@@ -347,10 +315,6 @@ const funnelSchema = z.object({
     }),
   ),
 });
-
-// ---------------------------------------------------------------------------
-// Resources
-// ---------------------------------------------------------------------------
 
 export const posthogResources = defineResources({
   posthog_feature_flag: {
@@ -449,10 +413,6 @@ export const posthogResources = defineResources({
   },
 });
 
-// ---------------------------------------------------------------------------
-// PostHogConnector
-// ---------------------------------------------------------------------------
-
 export const id = 'posthog';
 
 export class PostHogConnector extends BaseConnector<
@@ -496,11 +456,6 @@ export class PostHogConnector extends BaseConnector<
     };
   }
 
-  // ISO date (YYYY-MM-DD) that bounds the rollup window. Metric phases use
-  // clear-and-rewrite, so the window must always cover the full lookback or
-  // an incremental tick would wipe history and only rewrite a narrower slice.
-  // A `since` earlier than the lookback extends the window; a later `since`
-  // is ignored.
   private windowStartDate(options: SyncOptions): string {
     const lookbackDays = this.settings.lookbackDays ?? DEFAULT_LOOKBACK_DAYS;
     const now = Date.now();
@@ -530,10 +485,6 @@ export class PostHogConnector extends BaseConnector<
     ).then((res) => res.body);
   }
 
-  // -------------------------------------------------------------------------
-  // feature_flags — paginated REST list (entities)
-  // -------------------------------------------------------------------------
-
   private async fetchFeatureFlagsPage(
     page: string | null,
     pageSize: number,
@@ -551,9 +502,6 @@ export class PostHogConnector extends BaseConnector<
       signal,
     });
     const results = res.body.results;
-    // Build the next offset ourselves rather than echoing the API's absolute
-    // `next` URL back into fetch(), avoiding any SSRF surface from a tampered
-    // cursor while still stopping once a short page comes back.
     const next =
       typeof res.body.next === 'string' && results.length > 0
         ? String(offset + results.length)
@@ -580,10 +528,6 @@ export class PostHogConnector extends BaseConnector<
       });
     }
   }
-
-  // -------------------------------------------------------------------------
-  // events_per_day — HogQL grouped by (day, event)
-  // -------------------------------------------------------------------------
 
   private async fetchEventsPerDay(
     startDate: string,
@@ -638,10 +582,6 @@ export class PostHogConnector extends BaseConnector<
     }
   }
 
-  // -------------------------------------------------------------------------
-  // feature_flag_usage — HogQL over $feature_flag_called events
-  // -------------------------------------------------------------------------
-
   private async fetchFlagUsage(
     startDate: string,
     page: string | null,
@@ -691,10 +631,6 @@ export class PostHogConnector extends BaseConnector<
     }
   }
 
-  // -------------------------------------------------------------------------
-  // active_users — TrendsQuery (dau / wau / mau)
-  // -------------------------------------------------------------------------
-
   private async fetchActiveUsers(
     startDate: string,
     signal?: AbortSignal,
@@ -741,10 +677,6 @@ export class PostHogConnector extends BaseConnector<
     }
   }
 
-  // -------------------------------------------------------------------------
-  // funnels — one FunnelsQuery per declared funnel (index-paged)
-  // -------------------------------------------------------------------------
-
   private async fetchFunnelPage(
     page: string | null,
     startDate: string,
@@ -767,7 +699,6 @@ export class PostHogConnector extends BaseConnector<
       'funnels',
       signal,
     );
-    // Tag each step row with its funnel so writeBatch stays stateless.
     const items = body.results.map((step) => ({ funnel, step }));
     const next = index + 1 < funnels.length ? String(index + 1) : null;
     return { items, next };
@@ -777,8 +708,6 @@ export class PostHogConnector extends BaseConnector<
     storage: StorageHandle,
     items: Array<{ funnel: PostHogFunnel; step: FunnelStepResult }>,
   ): Promise<void> {
-    // Snapshot timestamp: funnel conversion is measured over the whole window,
-    // so stamp every step at the start of the current UTC day.
     const ts = startOfUtcDay(Date.now());
     for (const { funnel, step } of items) {
       const users = finiteNumber(step.count);
@@ -802,10 +731,6 @@ export class PostHogConnector extends BaseConnector<
     }
   }
 
-  // -------------------------------------------------------------------------
-  // Scope clearing (idempotency)
-  // -------------------------------------------------------------------------
-
   private async clearScopeOnFirstPage(
     storage: StorageHandle,
     phase: PostHogPhase,
@@ -813,7 +738,6 @@ export class PostHogConnector extends BaseConnector<
   ): Promise<void> {
     switch (phase) {
       case 'feature_flags':
-        // Entities upsert by id; only a full backfill drops stale rows.
         if (isFull) {
           await storage.entities([], { types: [FEATURE_FLAG_ENTITY] });
         }

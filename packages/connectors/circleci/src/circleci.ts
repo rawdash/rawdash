@@ -23,10 +23,6 @@ import {
 } from '@rawdash/core';
 import { z } from 'zod';
 
-// ---------------------------------------------------------------------------
-// configFields
-// ---------------------------------------------------------------------------
-
 export const configFields = defineConfigFields(
   z.object({
     apiToken: z.object({ $secret: z.string() }).meta({
@@ -99,10 +95,6 @@ const circleciCredentials = {
 
 type CircleCICredentials = typeof circleciCredentials;
 
-// ---------------------------------------------------------------------------
-// Connector documentation metadata
-// ---------------------------------------------------------------------------
-
 export const doc: ConnectorDoc = defineConnectorDoc({
   displayName: 'CircleCI',
   category: 'engineering',
@@ -133,10 +125,6 @@ export const doc: ConnectorDoc = defineConnectorDoc({
   ],
 });
 
-// ---------------------------------------------------------------------------
-// Sync phases + cursor
-// ---------------------------------------------------------------------------
-
 const PHASE_ORDER = ['pipelines'] as const;
 
 type CircleCIPhase = (typeof PHASE_ORDER)[number];
@@ -145,9 +133,6 @@ type CircleCISyncCursor = ChunkedSyncCursor<CircleCIPhase, string>;
 
 const isCircleCISyncCursor = makeChunkedCursorGuard(PHASE_ORDER);
 
-// page-cursor encoding: a JSON object {slug, token} stringified to fit the
-// string-typed `page` slot. `slug` is one of the configured projectSlugs;
-// `token` is the CircleCI next_page_token (or null when starting that slug).
 const pageCursorSchema = z.object({
   slug: z.string().min(1),
   token: z.string().nullable(),
@@ -157,10 +142,6 @@ interface CirclePageCursor {
   slug: string;
   token: string | null;
 }
-
-// ---------------------------------------------------------------------------
-// CircleCI API types
-// ---------------------------------------------------------------------------
 
 interface CircleCIPipeline {
   id: string;
@@ -231,10 +212,6 @@ interface CircleCIJobsResponse {
   items: CircleCIJob[];
   next_page_token: string | null;
 }
-
-// ---------------------------------------------------------------------------
-// Schemas
-// ---------------------------------------------------------------------------
 
 const idString = z.string().min(1);
 const isoString = z.string().min(1);
@@ -335,10 +312,6 @@ export const circleciResources = defineResources({
   },
 });
 
-// ---------------------------------------------------------------------------
-// CircleCIConnector
-// ---------------------------------------------------------------------------
-
 const CIRCLECI_API_BASE = 'https://circleci.com/api/v2';
 const DEFAULT_RESOURCES: readonly CircleCIResource[] = [
   'pipelines',
@@ -397,10 +370,6 @@ export class CircleCIConnector extends BaseConnector<
     });
   }
 
-  // -------------------------------------------------------------------------
-  // Resource enablement
-  // -------------------------------------------------------------------------
-
   private activePhases(): CircleCIPhase[] {
     return selectActivePhases<CircleCIResource, CircleCIPhase>(
       () => 'pipelines',
@@ -416,10 +385,6 @@ export class CircleCIConnector extends BaseConnector<
       this.isResourceEnabled('jobs')
     );
   }
-
-  // -------------------------------------------------------------------------
-  // Cursor + URL building
-  // -------------------------------------------------------------------------
 
   private slugSet(): Set<string> {
     return new Set(this.settings.projectSlugs);
@@ -515,10 +480,6 @@ export class CircleCIConnector extends BaseConnector<
     const days = this.settings.pipelinesLookbackDays ?? DEFAULT_LOOKBACK_DAYS;
     return Date.now() - days * MS_PER_DAY;
   }
-
-  // -------------------------------------------------------------------------
-  // Fetchers
-  // -------------------------------------------------------------------------
 
   private async fetchAllWorkflowsForPipeline(
     pipelineId: string,
@@ -621,10 +582,6 @@ export class CircleCIConnector extends BaseConnector<
 
     return { items: [batch], next };
   }
-
-  // -------------------------------------------------------------------------
-  // Writers
-  // -------------------------------------------------------------------------
 
   private async writeBatch(
     storage: StorageHandle,
@@ -742,10 +699,6 @@ export class CircleCIConnector extends BaseConnector<
       }
     }
   }
-
-  // -------------------------------------------------------------------------
-  // sync
-  // -------------------------------------------------------------------------
 
   async sync(
     options: SyncOptions,

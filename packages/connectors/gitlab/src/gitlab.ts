@@ -24,10 +24,6 @@ import {
 } from '@rawdash/core';
 import { z } from 'zod';
 
-// ---------------------------------------------------------------------------
-// configFields
-// ---------------------------------------------------------------------------
-
 const positiveInt = z.number().int().positive();
 
 export const configFields = defineConfigFields(
@@ -94,10 +90,6 @@ export const configFields = defineConfigFields(
     ),
 );
 
-// ---------------------------------------------------------------------------
-// Connector documentation metadata
-// ---------------------------------------------------------------------------
-
 export const doc: ConnectorDoc = defineConnectorDoc({
   displayName: 'GitLab',
   category: 'engineering',
@@ -128,10 +120,6 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Group project discovery walks each group with `include_subgroups=true`; very large groups may take multiple sync chunks to enumerate.',
   ],
 });
-
-// ---------------------------------------------------------------------------
-// Settings and credentials
-// ---------------------------------------------------------------------------
 
 export type GitLabResource =
   | 'project'
@@ -166,10 +154,6 @@ const gitlabRateLimit = standardRateLimitPolicy({
   resetUnit: 's',
 });
 
-// ---------------------------------------------------------------------------
-// Sync phases + cursor
-// ---------------------------------------------------------------------------
-
 const PHASE_ORDER = [
   'projects',
   'merge_requests',
@@ -184,10 +168,6 @@ type GitLabSyncCursor = ChunkedSyncCursor<GitLabPhase, string>;
 
 const isGitLabSyncCursor = makeChunkedCursorGuard(PHASE_ORDER);
 
-// Page cursor encoding: `<projectIdx>|<pageUrl?>`.
-// - null page          -> start at projectIdx=0 with no URL yet
-// - "<idx>|"           -> start of project at idx, build initial URL
-// - "<idx>|<url>"      -> continuing pagination for project at idx
 function decodePage(page: string | null): {
   idx: number;
   url: string | null;
@@ -210,10 +190,6 @@ function decodePage(page: string | null): {
 function encodePage(idx: number, url: string | null): string {
   return `${idx}|${url ?? ''}`;
 }
-
-// ---------------------------------------------------------------------------
-// GitLab API types
-// ---------------------------------------------------------------------------
 
 interface GitLabUserRef {
   id: number;
@@ -291,10 +267,6 @@ interface GitLabRelease {
   released_at: string | null;
   author?: GitLabUserRef | null;
 }
-
-// ---------------------------------------------------------------------------
-// Zod response schemas
-// ---------------------------------------------------------------------------
 
 const userRefSchema = z.object({
   id: z.number().int(),
@@ -383,10 +355,6 @@ const releaseSchema = z.object({
 
 const releasesResponseSchema = z.array(releaseSchema);
 
-// ---------------------------------------------------------------------------
-// Resource definitions
-// ---------------------------------------------------------------------------
-
 export const gitlabResources = defineResources({
   project: {
     shape: 'entity',
@@ -436,10 +404,6 @@ export const gitlabResources = defineResources({
 });
 
 export const id = 'gitlab';
-
-// ---------------------------------------------------------------------------
-// Connector class
-// ---------------------------------------------------------------------------
 
 interface ProjectBatch<T> {
   projectId: number;
@@ -588,11 +552,6 @@ export class GitLabConnector extends BaseConnector<
     return true;
   }
 
-  // -------------------------------------------------------------------------
-  // Effective project ID resolution.  Combines explicit `projectIds` with all
-  // projects under each configured `groupIds` (recursing into subgroups).
-  // -------------------------------------------------------------------------
-
   private async resolveEffectiveProjectIds(
     signal: AbortSignal | undefined,
   ): Promise<number[]> {
@@ -645,10 +604,6 @@ export class GitLabConnector extends BaseConnector<
     }
     return out;
   }
-
-  // -------------------------------------------------------------------------
-  // Per-phase fetchers
-  // -------------------------------------------------------------------------
 
   private async fetchProjectMetadata(
     projectId: number,
@@ -769,10 +724,6 @@ export class GitLabConnector extends BaseConnector<
     const next = nextIdx < projects.length ? encodePage(nextIdx, null) : null;
     return { items: [batch], next };
   }
-
-  // -------------------------------------------------------------------------
-  // Writers
-  // -------------------------------------------------------------------------
 
   private async writeProjects(
     storage: StorageHandle,
@@ -984,20 +935,12 @@ export class GitLabConnector extends BaseConnector<
     }
   }
 
-  // -------------------------------------------------------------------------
-  // Cursor resume
-  // -------------------------------------------------------------------------
-
   private resolveCursor(cursor: unknown): GitLabSyncCursor | undefined {
     if (!isGitLabSyncCursor(cursor)) {
       return undefined;
     }
     return { phase: cursor.phase, page: cursor.page };
   }
-
-  // -------------------------------------------------------------------------
-  // sync()
-  // -------------------------------------------------------------------------
 
   async sync(
     options: SyncOptions,

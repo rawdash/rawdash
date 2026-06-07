@@ -20,10 +20,6 @@ import {
 } from '@rawdash/core';
 import { z } from 'zod';
 
-// ---------------------------------------------------------------------------
-// configFields
-// ---------------------------------------------------------------------------
-
 export const configFields = defineConfigFields(
   z.object({
     clientId: z.string().min(1).meta({
@@ -120,10 +116,6 @@ export interface SalesforceSettings {
   resources?: readonly SalesforceResource[];
 }
 
-// ---------------------------------------------------------------------------
-// Credentials
-// ---------------------------------------------------------------------------
-
 const salesforceCredentials = {
   clientId: {
     description: 'Salesforce Connected App consumer key (client ID)',
@@ -140,10 +132,6 @@ const salesforceCredentials = {
 } satisfies CredentialsSchema;
 
 type SalesforceCredentials = typeof salesforceCredentials;
-
-// ---------------------------------------------------------------------------
-// Phases + cursor
-// ---------------------------------------------------------------------------
 
 const PHASE_ORDER = [
   'users',
@@ -169,10 +157,6 @@ const ENTITY_TYPE_BY_PHASE: Partial<Record<SalesforcePhase, string>> = {
 const STAGE_CHANGE_EVENT = 'salesforce_opportunity_stage_change';
 
 const DEFAULT_API_VERSION = '59.0';
-
-// ---------------------------------------------------------------------------
-// API response types
-// ---------------------------------------------------------------------------
 
 interface QueryResponse<T> {
   totalSize: number;
@@ -238,10 +222,6 @@ interface SalesforceFieldHistory {
   CreatedById: string | null;
 }
 
-// ---------------------------------------------------------------------------
-// Zod schemas
-// ---------------------------------------------------------------------------
-
 const idString = z.string().min(1);
 const isoDate = z.string().min(1);
 
@@ -301,10 +281,6 @@ const fieldHistorySchema = z.object({
   CreatedDate: isoDate,
   CreatedById: z.string().nullable(),
 });
-
-// ---------------------------------------------------------------------------
-// Resources
-// ---------------------------------------------------------------------------
 
 export const salesforceResources = defineResources({
   salesforce_user: {
@@ -416,10 +392,6 @@ export const salesforceResources = defineResources({
   },
 });
 
-// ---------------------------------------------------------------------------
-// SOQL helpers
-// ---------------------------------------------------------------------------
-
 const PHASE_SOQL: Record<SalesforcePhase, string> = {
   users: 'SELECT Id, Name, Email, IsActive FROM User',
   accounts:
@@ -440,9 +412,6 @@ const PHASE_TIMESTAMP: Record<SalesforcePhase, string> = {
   opportunity_events: 'CreatedDate',
 };
 
-// Salesforce SOQL accepts ISO 8601 date-time literals without quotes
-// (e.g. 2024-01-01T00:00:00Z). Numeric milliseconds get stripped because the
-// reference grammar specifies whole-second precision for date-time literals.
 function soqlDateLiteral(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) {
@@ -458,9 +427,6 @@ function buildPhaseSoql(
   const base = PHASE_SOQL[phase];
   const timestampField = PHASE_TIMESTAMP[phase];
   if (!timestampField || !since) {
-    // Users have no LastModifiedDate filter on a per-row basis here; full
-    // SOQL is cheap and the table is small enough that a backfill on every
-    // tick is fine.
     return timestampField
       ? `${base} ORDER BY ${timestampField} ASC`
       : `${base} ORDER BY Id ASC`;
@@ -470,10 +436,6 @@ function buildPhaseSoql(
   return `${base} ${connector} ${timestampField} >= ${literal} ORDER BY ${timestampField} ASC`;
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 function parseDateMs(value: string | null | undefined): number | null {
   if (value === null || value === undefined || value === '') {
     return null;
@@ -481,10 +443,6 @@ function parseDateMs(value: string | null | undefined): number | null {
   const ms = Date.parse(value);
   return Number.isFinite(ms) ? ms : null;
 }
-
-// ---------------------------------------------------------------------------
-// SalesforceConnector
-// ---------------------------------------------------------------------------
 
 export const id = 'salesforce';
 
@@ -577,11 +535,6 @@ export class SalesforceConnector extends BaseConnector<
     });
   }
 
-  // Salesforce returns nextRecordsUrl as a path like
-  // "/services/data/v59.0/query/01g...-2000". We pass the path back through
-  // the cursor verbatim; defensively strip the origin if the server ever
-  // returns an absolute URL so the cursor cannot exfiltrate credentials to
-  // an attacker-controlled host.
   private sanitizeNextRecordsUrl(value: string | undefined): string | null {
     if (!value) {
       return null;
@@ -608,9 +561,6 @@ export class SalesforceConnector extends BaseConnector<
   ): Promise<{ items: unknown[]; next: string | null }> {
     let path: string;
     if (page) {
-      // Resumed cursor pages may have been tampered with; re-run them through
-      // the same allowlist used for fresh nextRecordsUrl values so a forged
-      // absolute URL can never carry the bearer token to an unintended host.
       const safePage = this.sanitizeNextRecordsUrl(page);
       if (!safePage) {
         throw new Error(`Invalid Salesforce cursor page: ${page}`);
@@ -632,10 +582,6 @@ export class SalesforceConnector extends BaseConnector<
         : this.sanitizeNextRecordsUrl(res.body.nextRecordsUrl),
     };
   }
-
-  // ---------------------------------------------------------------------------
-  // Writers
-  // ---------------------------------------------------------------------------
 
   private async writeUsers(
     storage: StorageHandle,
@@ -775,8 +721,6 @@ export class SalesforceConnector extends BaseConnector<
     isFull: boolean,
   ): Promise<void> {
     if (phase === 'opportunity_events') {
-      // Stage-change events are immutable; only clear on a full sync so an
-      // incremental window doesn't drop history outside its range.
       if (isFull) {
         await storage.events([], { names: [STAGE_CHANGE_EVENT] });
       }

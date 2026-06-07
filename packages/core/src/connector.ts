@@ -22,10 +22,6 @@ export type JSONValue =
   | JSONValue[]
   | { [key: string]: JSONValue };
 
-// ---------------------------------------------------------------------------
-// Five storage shapes
-// ---------------------------------------------------------------------------
-
 export interface Event {
   name: string;
   start_ts: number;
@@ -81,10 +77,6 @@ export type Distribution =
       attributes: Record<string, JSONValue>;
     };
 
-// ---------------------------------------------------------------------------
-// Storage query types
-// ---------------------------------------------------------------------------
-
 export interface EventQuery {
   name?: string;
   start?: number;
@@ -115,10 +107,6 @@ export interface DistributionQuery {
   end?: number;
 }
 
-// ---------------------------------------------------------------------------
-// StorageHandle — write and read surface
-// ---------------------------------------------------------------------------
-
 export interface StorageHandle {
   event(e: Event): Promise<void>;
   entity(e: Entity): Promise<void>;
@@ -142,11 +130,6 @@ export interface StorageHandle {
   traverse(q: EdgeQuery): Promise<Edge[]>;
   queryDistributions(q: DistributionQuery): Promise<Distribution[]>;
 
-  // Deletes all rows in the given time-series shape whose timestamp column is
-  // strictly less than `tsUnixMs`. Only covers append-only shapes (events,
-  // metrics, distributions). Entities and edges are excluded because they hold
-  // the latest known state per primary key — deleting by age would lose live
-  // data. The right model for those shapes is "expire when source disappears."
   deleteOlderThan(
     shape: 'events' | 'metrics' | 'distributions',
     tsUnixMs: number,
@@ -161,10 +144,6 @@ export interface ConnectorHealth {
   lastError: string | null;
   syncIntervalSeconds: number;
 }
-
-// ---------------------------------------------------------------------------
-// Credentials
-// ---------------------------------------------------------------------------
 
 export interface CredentialField {
   description: string;
@@ -184,10 +163,6 @@ export type InferCredentialInput<TCreds extends CredentialsSchema> = {
     ? string | Secret
     : string | Secret | undefined;
 };
-
-// ---------------------------------------------------------------------------
-// Sync + Connector
-// ---------------------------------------------------------------------------
 
 export interface SyncOptions {
   mode: 'full' | 'latest';

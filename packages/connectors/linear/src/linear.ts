@@ -111,10 +111,6 @@ export type LinearResource = LinearPhase;
 
 const isLinearSyncCursor = makeChunkedCursorGuard(PHASE_ORDER);
 
-// ---------------------------------------------------------------------------
-// Linear GraphQL types
-// ---------------------------------------------------------------------------
-
 interface PageInfo {
   hasNextPage: boolean;
   endCursor: string | null;
@@ -198,10 +194,6 @@ interface GraphQLResponse<T> {
   errors?: GraphQLError[];
 }
 
-// ---------------------------------------------------------------------------
-// GraphQL documents
-// ---------------------------------------------------------------------------
-
 const TEAMS_QUERY = `
   query Teams($after: String, $first: Int!, $filter: TeamFilter) {
     teams(after: $after, first: $first, filter: $filter, orderBy: updatedAt) {
@@ -268,10 +260,6 @@ const ISSUES_QUERY = `
   }
 `;
 
-// ---------------------------------------------------------------------------
-// LinearConnector
-// ---------------------------------------------------------------------------
-
 const MAX_PAGE_SIZE = 250;
 const DEFAULT_LIST_PAGE_SIZE = 250;
 const DEFAULT_ISSUE_PAGE_SIZE = 150;
@@ -302,10 +290,6 @@ function issuePageSize(
   );
   return Math.min(base, complexityCap);
 }
-
-// ---------------------------------------------------------------------------
-// Schemas — describe the per-resource GraphQL node shape consumed by request()
-// ---------------------------------------------------------------------------
 
 const idString = z.string().min(1);
 
@@ -532,10 +516,6 @@ export class LinearConnector extends BaseConnector<
     return any ? merged : undefined;
   }
 
-  // ---------------------------------------------------------------------------
-  // Fetchers
-  // ---------------------------------------------------------------------------
-
   private async fetchTeamsPage(
     page: string | null,
     options: SyncOptions,
@@ -640,10 +620,6 @@ export class LinearConnector extends BaseConnector<
       next: conn.pageInfo.hasNextPage ? conn.pageInfo.endCursor : null,
     };
   }
-
-  // ---------------------------------------------------------------------------
-  // Writers
-  // ---------------------------------------------------------------------------
 
   private async writeTeams(
     storage: StorageHandle,
@@ -777,10 +753,6 @@ export class LinearConnector extends BaseConnector<
       }
     }
   }
-
-  // ---------------------------------------------------------------------------
-  // sync
-  // ---------------------------------------------------------------------------
 
   async sync(
     options: SyncOptions,

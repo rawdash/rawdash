@@ -70,10 +70,8 @@ describe('buildServiceAccountJwt', () => {
     );
     const assertion = params.get('assertion');
     expect(assertion).toBeTruthy();
-    // JWT shape: header.payload.signature - 3 dot-separated base64url segments.
     const segments = assertion!.split('.');
     expect(segments).toHaveLength(3);
-    // Payload encodes the scope - decode base64url and parse.
     const decode = (b64u: string): string =>
       atob(b64u.replace(/-/g, '+').replace(/_/g, '/'));
     const payload = JSON.parse(decode(segments[1]!)) as {

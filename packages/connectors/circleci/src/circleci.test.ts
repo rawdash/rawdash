@@ -2,10 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CircleCIConnector, configFields } from './circleci';
 
-// ---------------------------------------------------------------------------
-// configFields
-// ---------------------------------------------------------------------------
-
 describe('configFields', () => {
   it('parses a valid config with required fields', () => {
     const result = configFields.safeParse({
@@ -66,10 +62,6 @@ describe('configFields', () => {
     expect(result.success).toBe(false);
   });
 });
-
-// ---------------------------------------------------------------------------
-// Test scaffolding
-// ---------------------------------------------------------------------------
 
 function makeStorage() {
   return {
@@ -224,10 +216,6 @@ function workflowFixture(
     stopped_at: overrides.stopped_at ?? recentIso,
   };
 }
-
-// ---------------------------------------------------------------------------
-// CircleCIConnector — sync
-// ---------------------------------------------------------------------------
 
 describe('CircleCIConnector.sync', () => {
   afterEach(() => {
@@ -510,7 +498,6 @@ describe('CircleCIConnector.sync', () => {
       resources: ['pipelines'],
       pipelinesLookbackDays: 30,
     }).sync({ mode: 'full' }, makeStorage());
-    // After the first page (entirely older than cutoff), pagination stops for that slug.
     expect(pages).toBe(1);
   });
 
