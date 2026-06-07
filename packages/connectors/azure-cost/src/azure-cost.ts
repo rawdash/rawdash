@@ -303,9 +303,6 @@ function parseUsageDate(value: string | number | null): number | null {
   if (!Number.isFinite(ts)) {
     return null;
   }
-  // Date.UTC silently rolls impossible dates (month 13, Feb 30) into a
-  // different valid day; reject them via a round-trip rather than
-  // mis-attributing a cost sample to the wrong timestamp.
   const d = new Date(ts);
   if (
     d.getUTCFullYear() !== year ||

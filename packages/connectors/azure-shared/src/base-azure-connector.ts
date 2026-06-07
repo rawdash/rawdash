@@ -6,8 +6,6 @@ import {
   isTokenFresh,
 } from './auth';
 
-// Settings shared by every Azure connector: the Entra ID service-principal
-// coordinates plus the subscription the connector is scoped to.
 export interface BaseAzureSettings {
   tenantId: string;
   clientId: string;
@@ -23,8 +21,6 @@ export const azureCredentials = {
 
 export type AzureCredentials = typeof azureCredentials;
 
-// Base class for Azure connectors. Owns the Entra ID client-credentials token
-// cache so each connector only implements its own resource fetching.
 export abstract class BaseAzureConnector<
   TSettings extends BaseAzureSettings,
 > extends BaseConnector<TSettings, AzureCredentials> {

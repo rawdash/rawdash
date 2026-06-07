@@ -26,9 +26,6 @@ describe('mapArmError', () => {
       response: { status },
     });
 
-  // Duck-type on the `kind` discriminator rather than instanceof: the shared
-  // connector-shared error classes can be bundled twice across package
-  // boundaries, which would break instanceof at runtime.
   it('maps 401/403 to an auth error', () => {
     expect(mapArmError(httpError(401))).toMatchObject({ kind: 'auth' });
     expect(mapArmError(httpError(403))).toMatchObject({ kind: 'auth' });

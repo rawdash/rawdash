@@ -18,8 +18,6 @@ export function isAllowedArmUrl(value: string): boolean {
   }
 }
 
-// Re-map ARM transport errors onto the connector-shared error taxonomy so the
-// host retries (or stops retrying) appropriately.
 export function mapArmError(err: unknown): unknown {
   if (!(err instanceof Error) || !('kind' in err)) {
     return err;

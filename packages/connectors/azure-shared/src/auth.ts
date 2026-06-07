@@ -8,10 +8,7 @@ import {
 
 // Azure AD client-credentials token caching, scoped to ARM
 // (https://management.azure.com/.default). Both Monitor and Cost connectors
-// share an identical flow against the Microsoft Entra ID token endpoint, so it
-// lives here in the shared substrate. This package is private and bundled inline
-// by each connector (tsup noExternal), so sharing it does not add a runtime
-// dependency.
+// share an identical flow against the Microsoft Entra ID token endpoint.
 
 const TOKEN_HOST = 'login.microsoftonline.com';
 const ARM_SCOPE = 'https://management.azure.com/.default';
