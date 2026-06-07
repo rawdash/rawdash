@@ -432,8 +432,12 @@ export class LaunchDarklyConnector extends BaseConnector<
   override readonly credentials = launchDarklyCredentials;
 
   // Project keys discovered during the projects phase, so the feature_flags
-  // phase can fan out to each project without re-fetching.
+  // phase can fan out to each project without re-fetching. Only trusted once
+  // the projects pagination has fully completed for the current sync, so a
+  // partial (resumed mid-phase) or stale (prior sync) list never drives the
+  // feature_flags fan-out.
   private discoveredProjectKeys: string[] | null = null;
+  private discoveredProjectKeysComplete = false;
 
   private buildHeaders(): Record<string, string> {
     return {
@@ -595,11 +599,14 @@ export class LaunchDarklyConnector extends BaseConnector<
     if (this.settings.projects && this.settings.projects.length > 0) {
       return [...this.settings.projects];
     }
-    if (this.discoveredProjectKeys !== null) {
+    if (
+      this.discoveredProjectKeysComplete &&
+      this.discoveredProjectKeys !== null
+    ) {
       return this.discoveredProjectKeys;
     }
-    // The projects phase didn't run this tick (or hasn't yet). Fetch them
-    // directly so feature_flags can fan out.
+    // The projects phase didn't run this tick (or only partially ran). Fetch
+    // the full list directly so feature_flags can fan out over every project.
     const keys: string[] = [];
     let nextUrl: string | null = this.buildInitialProjectsUrl();
     while (nextUrl) {
@@ -615,6 +622,7 @@ export class LaunchDarklyConnector extends BaseConnector<
       nextUrl = this.resolveNextHref('projects', res.body._links?.next?.href);
     }
     this.discoveredProjectKeys = keys;
+    this.discoveredProjectKeysComplete = true;
     return keys;
   }
 
@@ -629,6 +637,11 @@ export class LaunchDarklyConnector extends BaseConnector<
     const url = page ?? this.buildInitialProjectsUrl();
     const res = await this.fetch<LDProjectsResponse>(url, 'projects', signal);
     // Cache the discovered project keys so feature_flags doesn't re-paginate.
+    // The first page of the phase starts a fresh, incomplete accumulation.
+    if (page === null) {
+      this.discoveredProjectKeys = [];
+      this.discoveredProjectKeysComplete = false;
+    }
     if (this.discoveredProjectKeys === null) {
       this.discoveredProjectKeys = [];
     }
@@ -638,9 +651,15 @@ export class LaunchDarklyConnector extends BaseConnector<
         this.discoveredProjectKeys.push(p.key);
       }
     }
+    const next = this.resolveNextHref('projects', res.body._links?.next?.href);
+    // Only the final page completes the cache; until then feature_flags must
+    // not trust the partial list.
+    if (next === null) {
+      this.discoveredProjectKeysComplete = true;
+    }
     return {
       items: res.body.items,
-      next: this.resolveNextHref('projects', res.body._links?.next?.href),
+      next,
     };
   }
 
@@ -849,6 +868,10 @@ export class LaunchDarklyConnector extends BaseConnector<
     storage: StorageHandle,
     signal?: AbortSignal,
   ): Promise<SyncResult> {
+    // Start each sync with a clean project-key cache so a prior sync's list
+    // can never drive this run's feature_flags fan-out.
+    this.discoveredProjectKeys = null;
+    this.discoveredProjectKeysComplete = false;
     const cursor = this.resolveCursor(options.cursor);
     const isFull = options.mode === 'full';
     const phases = this.activePhases();

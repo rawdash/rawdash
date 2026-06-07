@@ -156,7 +156,7 @@ function routeDefault(url: string): MockResponseSpec {
   if (url.includes('/api/v2/auditlog')) {
     return emptyAuditBody();
   }
-  return { body: {} };
+  throw new Error(`Unexpected request URL in test router: ${url}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -568,14 +568,24 @@ describe('LaunchDarklyConnector.sync', () => {
 describe('LaunchDarklyConnector.create', () => {
   afterEach(() => {
     vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
   });
 
-  it('returns a connector instance bound to the parsed config', () => {
+  it('returns a connector instance bound to the parsed config', async () => {
     vi.stubEnv('LD_TEST_TOKEN', 'api-fixture');
+    const { spy } = installRouter(routeDefault);
     const connector = LaunchDarklyConnector.create({
       apiToken: { $secret: 'LD_TEST_TOKEN' },
+      resources: ['projects'],
     });
     expect(connector).toBeInstanceOf(LaunchDarklyConnector);
     expect(connector.id).toBe('launchdarkly');
+
+    await connector.sync({ mode: 'full' }, makeStorage());
+    expect(spy.mock.calls.length).toBeGreaterThan(0);
+    for (const call of spy.mock.calls) {
+      const headers = call[1].headers as Record<string, string>;
+      expect(headers.authorization).toBe('api-fixture');
+    }
   });
 });
