@@ -76,25 +76,8 @@ export interface ChunkedSyncOptions<TPhase extends string, TPage> {
     page: TPage | null,
   ) => Promise<void>;
   logger?: ConnectorLogger;
-  /**
-   * Soft wall-clock budget for a single chunk. When set, the loop yields a
-   * resumable cursor once this many milliseconds have elapsed since the chunk
-   * started — even if the host hasn't aborted — so a long phase is checkpointed
-   * across several queue round-trips instead of one marathon invocation.
-   */
   maxChunkMs?: number;
-  /**
-   * Overlap the fetch of the next page with the write of the current one. The
-   * next `fetchPage` is started before `writeBatch` is awaited, so network
-   * latency and storage latency run concurrently. Exactly one fetch and one
-   * write are ever in flight at a time, so connector rate limits and write
-   * ordering are preserved. Safe for both cursor- and offset-paginated
-   * connectors; on an abort or transient failure the resume cursor may point
-   * one page earlier than the sequential path, which only re-fetches an
-   * already-written (idempotent) page.
-   */
   pipeline?: boolean;
-  /** Injectable clock, primarily for tests. Defaults to `Date.now`. */
   now?: () => number;
 }
 
@@ -135,9 +118,6 @@ export async function paginateChunked<TPhase extends string, TPage>(
   const startIdx = hasKnownResumePhase ? resumeIdx : 0;
   const chunkStart = now();
 
-  // The resume cursor to hand back when the chunk time-budget is reached after
-  // finishing a page: the next page of this phase, or the start of the next
-  // phase, or null when the whole sync is done (so we never yield needlessly).
   const resumeAfter = (
     i: number,
     phase: TPhase,
@@ -323,8 +303,6 @@ async function runPipelined<TPhase extends string, TPage>(
         cursor: truncateCursor(page),
         next: truncateCursor(next),
       });
-      // Start the next fetch before awaiting the write so network and storage
-      // latency overlap. Exactly one fetch is ever in flight.
       const prefetch = next !== null ? fetchPage(phase, next, signal) : null;
       try {
         await writeBatch(phase, items, page);

@@ -169,11 +169,8 @@ export type PostHogResource = PostHogPhase;
 const isPostHogSyncCursor = makeChunkedCursorGuard(PHASE_ORDER);
 
 const FLAGS_PAGE_SIZE = 100;
-// PostHog's REST list endpoints accept a generous page; keep a ceiling so a
-// stray override can't request something pathological.
 const MAX_FLAGS_PAGE_SIZE = 1_000;
 const QUERY_PAGE_SIZE = 10_000;
-// Soft per-chunk wall-clock budget before yielding a resumable cursor.
 const CHUNK_BUDGET_MS = 25_000;
 const DEFAULT_LOOKBACK_DAYS = 30;
 
@@ -556,10 +553,7 @@ export class PostHogConnector extends BaseConnector<
     const results = res.body.results;
     // Build the next offset ourselves rather than echoing the API's absolute
     // `next` URL back into fetch(), avoiding any SSRF surface from a tampered
-    // cursor. Advance by the rows actually returned (not the requested page
-    // size) so we keep paging even when PostHog clamps the page to a smaller
-    // server-side maximum, while still stopping once a short/empty page comes
-    // back with no `next`.
+    // cursor while still stopping once a short page comes back.
     const next =
       typeof res.body.next === 'string' && results.length > 0
         ? String(offset + results.length)

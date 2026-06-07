@@ -244,15 +244,10 @@ const SENTRY_API_HOST = 'sentry.io';
 const SENTRY_API_BASE = `https://${SENTRY_API_HOST}/api/0`;
 const DEFAULT_EVENTS_PER_ISSUE = 100;
 const DEFAULT_STATS_LOOKBACK_HOURS = 24;
-// Sentry caps list pages at 100 items.
 const MAX_PAGE_SIZE = 100;
 const ISSUES_PAGE_SIZE = 100;
 const RELEASES_PAGE_SIZE = 100;
-// How many per-issue event subrequests to run concurrently within one issues
-// page. Sentry's reactive 429 backoff keeps us within rate limits, so a small
-// fan-out overlaps the otherwise-serial nested fetches that dominate the phase.
 const EVENT_FETCH_CONCURRENCY = 5;
-// Soft per-chunk wall-clock budget before yielding a resumable cursor.
 const CHUNK_BUDGET_MS = 25_000;
 
 function clampPageSize(

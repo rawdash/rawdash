@@ -1,11 +1,3 @@
-/**
- * Map over `items` running at most `concurrency` calls of `fn` in flight at
- * once. Results are returned in the original order. The first rejection is
- * propagated and stops further items from being started (in-flight calls are
- * left to settle). Connector rate limits are handled per-request by the retry
- * layer, so a small concurrency (e.g. 5) overlaps slow per-item subrequests
- * without a token bucket.
- */
 export async function mapWithConcurrency<T, R>(
   items: readonly T[],
   concurrency: number,

@@ -163,7 +163,6 @@ describe('LinearConnector.sync', () => {
     const teams = calls.find((c) => operationName(c.query) === 'Teams')!;
     const issues = calls.find((c) => operationName(c.query) === 'Issues')!;
     expect(teams.variables.first).toBe(250);
-    // default issue page size 150 stays under the complexity budget (150 × 8 = 1200)
     expect(issues.variables.first).toBe(150);
     expect(issues.variables.historyFirst).toBe(8);
   });
@@ -186,9 +185,7 @@ describe('LinearConnector.sync', () => {
 
     const teams = calls.find((c) => operationName(c.query) === 'Teams')!;
     const issues = calls.find((c) => operationName(c.query) === 'Issues')!;
-    // clamped to Linear's 250 max
     expect(teams.variables.first).toBe(250);
-    // capped by complexity: floor(1500 / 8) = 187
     expect(issues.variables.first).toBe(187);
   });
 

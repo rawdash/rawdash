@@ -272,22 +272,11 @@ const ISSUES_QUERY = `
 // LinearConnector
 // ---------------------------------------------------------------------------
 
-// Linear's GraphQL API accepts up to 250 nodes per connection.
 const MAX_PAGE_SIZE = 250;
-// Flat, un-nested resources (teams/users/cycles) can use the largest page.
 const DEFAULT_LIST_PAGE_SIZE = 250;
-// Issues carry a nested history connection per node, so the effective page is
-// capped by ISSUE_COMPLEXITY_BUDGET below.
 const DEFAULT_ISSUE_PAGE_SIZE = 150;
 const DEFAULT_HISTORY_PER_ISSUE = 8;
-// Linear scores query complexity roughly as (issues requested) × (1 + history
-// per issue). The previous defaults (50 issues × 25 history) sat safely under
-// the limit; keeping issuePageSize × historyFirst under this budget lets larger
-// pages through without tripping Linear's complexity guard.
 const ISSUE_COMPLEXITY_BUDGET = 1500;
-// Soft per-chunk wall-clock budget: yield a resumable cursor after this long so
-// a large workspace is checkpointed across queue round-trips instead of one
-// marathon invocation.
 const CHUNK_BUDGET_MS = 25_000;
 const ENDPOINT = 'https://api.linear.app/graphql';
 
