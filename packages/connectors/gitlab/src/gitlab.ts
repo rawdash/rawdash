@@ -629,7 +629,7 @@ export class GitLabConnector extends BaseConnector<
     const out: GitLabProject[] = [];
     const baseUrl = `${this.apiBase()}/groups/${groupId}/projects`;
     let url: string | null =
-      `${baseUrl}?per_page=${PAGE_SIZE}&include_subgroups=true&simple=true&archived=false`;
+      `${baseUrl}?per_page=${PAGE_SIZE}&include_subgroups=true&archived=false`;
     const expectedPath = `/api/v4/groups/${groupId}/projects`;
     while (url !== null) {
       const res = await this.fetch<GitLabProject[]>(
@@ -716,6 +716,8 @@ export class GitLabConnector extends BaseConnector<
         }
         break;
       case 'releases':
+        u.searchParams.set('order_by', 'released_at');
+        u.searchParams.set('sort', 'desc');
         break;
     }
     return u.toString();
@@ -806,8 +808,9 @@ export class GitLabConnector extends BaseConnector<
     storage: StorageHandle,
     items: unknown[],
     page: string | null,
+    options: SyncOptions,
   ): Promise<void> {
-    if (page === null) {
+    if (page === null && !options.since) {
       await storage.entities([], { types: ['merge_request'] });
     }
     const batches = items as ProjectBatch<GitLabMergeRequest>[];
@@ -851,7 +854,7 @@ export class GitLabConnector extends BaseConnector<
       'pipeline_event',
       options.resources,
     );
-    if (page === null) {
+    if (page === null && !options.since) {
       if (pipelineAllowed) {
         await storage.entities([], { types: ['pipeline'] });
       }
@@ -916,8 +919,9 @@ export class GitLabConnector extends BaseConnector<
     storage: StorageHandle,
     items: unknown[],
     page: string | null,
+    options: SyncOptions,
   ): Promise<void> {
-    if (page === null) {
+    if (page === null && !options.since) {
       await storage.entities([], { types: ['issue'] });
     }
     const batches = items as ProjectBatch<GitLabIssue>[];
@@ -950,8 +954,9 @@ export class GitLabConnector extends BaseConnector<
     storage: StorageHandle,
     items: unknown[],
     page: string | null,
+    options: SyncOptions,
   ): Promise<void> {
-    if (page === null) {
+    if (page === null && !options.since) {
       await storage.entities([], { types: ['release'] });
     }
     const batches = items as ProjectBatch<GitLabRelease>[];
@@ -1049,13 +1054,13 @@ export class GitLabConnector extends BaseConnector<
           case 'projects':
             return this.writeProjects(storage, items, page);
           case 'merge_requests':
-            return this.writeMergeRequests(storage, items, page);
+            return this.writeMergeRequests(storage, items, page, options);
           case 'pipelines':
             return this.writePipelines(storage, items, page, options);
           case 'issues':
-            return this.writeIssues(storage, items, page);
+            return this.writeIssues(storage, items, page, options);
           case 'releases':
-            return this.writeReleases(storage, items, page);
+            return this.writeReleases(storage, items, page, options);
         }
       },
     });

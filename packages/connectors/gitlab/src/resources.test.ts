@@ -188,4 +188,54 @@ describe('GitLabConnector — resource allowlist', () => {
     const stored = await handle.queryEntities({ type: 'project' });
     expect(stored.map((e) => e.id).sort()).toEqual(['101', '102']);
   });
+
+  it('does not wipe existing entities on an incremental sync', async () => {
+    const issue = {
+      id: 1,
+      iid: 1,
+      title: 'old issue',
+      state: 'opened',
+      labels: [],
+      web_url: 'https://gitlab.example.com/group/demo/-/issues/1',
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-02T00:00:00Z',
+    };
+    fetchSpy.mockImplementation((url: string | URL) => {
+      const u = typeof url === 'string' ? url : url.toString();
+      if (u.match(/\/projects\/\d+\/issues/)) {
+        if (u.includes('updated_after')) {
+          return Promise.resolve(mockJson([]));
+        }
+        return Promise.resolve(mockJson([issue]));
+      }
+      return Promise.resolve(mockJson([]));
+    });
+
+    const connector = new GitLabConnector(
+      { host: 'gitlab.example.com', projectIds: [42] },
+      { apiToken: 'glpat-test' },
+    );
+    const storage = new InMemoryStorage();
+    const handle = storage.getStorageHandle('gitlab');
+
+    await connector.sync(
+      { mode: 'full', resources: new Set(['issue']) },
+      handle,
+    );
+    expect(
+      (await handle.queryEntities({ type: 'issue' })).map((e) => e.id),
+    ).toEqual(['42:1']);
+
+    await connector.sync(
+      {
+        mode: 'latest',
+        since: '2026-05-01T00:00:00Z',
+        resources: new Set(['issue']),
+      },
+      handle,
+    );
+
+    const stored = await handle.queryEntities({ type: 'issue' });
+    expect(stored.map((e) => e.id)).toEqual(['42:1']);
+  });
 });
