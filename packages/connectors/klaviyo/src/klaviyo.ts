@@ -472,9 +472,9 @@ export class KlaviyoConnector extends BaseConnector<
       filters.push(`equals(messages.channel,'${this.settings.channel}')`);
     }
     if (options.since) {
-      const iso = new Date(options.since).toISOString();
-      if (Number.isFinite(Date.parse(iso))) {
-        filters.push(`greater-than(${UPDATED_FIELD_BY_PHASE[phase]},${iso})`);
+      const date = new Date(options.since);
+      if (Number.isFinite(date.getTime())) {
+        filters.push(`greater-than(${UPDATED_FIELD_BY_PHASE[phase]},${date.toISOString()})`);
       }
     }
     if (filters.length > 0) {

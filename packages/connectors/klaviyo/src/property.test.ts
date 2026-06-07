@@ -1,7 +1,6 @@
 import {
   type InvariantViolation,
   assertConnectorResourceShapes,
-  connectorResourceShapeViolations,
   entityStoreFor,
   installFetchMock,
   runPropertySyncTest,
@@ -19,16 +18,6 @@ type ListsSample = z.infer<typeof KlaviyoConnector.schemas.lists>;
 type SegmentsSample = z.infer<typeof KlaviyoConnector.schemas.segments>;
 type CampaignsSample = z.infer<typeof KlaviyoConnector.schemas.campaigns>;
 type FlowsSample = z.infer<typeof KlaviyoConnector.schemas.flows>;
-
-const docShapeExtra = (
-  storage: InMemoryStorage,
-  connectorId: string,
-): InvariantViolation[] =>
-  connectorResourceShapeViolations(
-    KlaviyoConnector.resources,
-    storage,
-    connectorId,
-  );
 
 function uniqueEntityInvariant(
   entityType: string,
@@ -236,9 +225,5 @@ describe('KlaviyoConnector property tests', () => {
       storage,
       CONNECTOR_ID,
     );
-
-    // Touch docShapeExtra so the import isn't dead — it's also a valid extra
-    // invariant for any per-resource property test that wants it.
-    void docShapeExtra;
   });
 });
