@@ -36,6 +36,7 @@
   "dependencies": {
     "@rawdash/connector-aws-cloudwatch": "workspace:*",
     "@rawdash/connector-aws-cost": "workspace:*",
+    "@rawdash/connector-circleci": "workspace:*",
     "@rawdash/connector-datadog": "workspace:*",
     "@rawdash/connector-gcp-billing": "workspace:*",
     "@rawdash/connector-gcp-monitoring": "workspace:*",

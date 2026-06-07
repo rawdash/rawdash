@@ -20,6 +20,7 @@
       "@rawdash/connector-sentry",
       "@rawdash/connector-vercel",
       "@rawdash/connector-aws-cost",
+      "@rawdash/connector-circleci",
       "@rawdash/connector-gcp-billing",
       "@rawdash/connector-gcp-monitoring",
       "@rawdash/connector-hubspot",

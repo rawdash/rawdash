@@ -14,6 +14,12 @@ import {
   resources as awsCostResources,
 } from '@rawdash/connector-aws-cost';
 import {
+  configFields as circleciConfigFields,
+  doc as circleciDoc,
+  id as circleciId,
+  resources as circleciResources,
+} from '@rawdash/connector-circleci';
+import {
   configFields as datadogConfigFields,
   doc as datadogDoc,
   id as datadogId,
@@ -160,6 +166,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     configFields: awsCostConfigFields,
     resources: awsCostResources,
     cost: awsCostCost,
+  },
+  {
+    id: circleciId,
+    packageName: '@rawdash/connector-circleci',
+    doc: circleciDoc,
+    configFields: circleciConfigFields,
+    resources: circleciResources,
   },
   {
     id: datadogId,
