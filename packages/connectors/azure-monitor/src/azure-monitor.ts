@@ -132,7 +132,23 @@ export const configFields = defineConfigFields(
         path: ['metricQueries'],
         message: 'Each metric query id must be unique',
       },
-    ),
+    )
+    .superRefine((cfg, ctx) => {
+      const expected = cfg.subscriptionId.toLowerCase();
+      cfg.metricQueries.forEach((query, index) => {
+        const subscription = query.resourceUri
+          .match(/^\/subscriptions\/([^/]+)\//)?.[1]
+          ?.toLowerCase();
+        if (subscription !== expected) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['metricQueries', index, 'resourceUri'],
+            message:
+              'resourceUri must live inside the configured subscriptionId',
+          });
+        }
+      });
+    }),
 );
 
 export const doc: ConnectorDoc = defineConnectorDoc({
@@ -732,10 +748,10 @@ export class AzureMonitorConnector extends BaseConnector<
     options: SyncOptions,
     storage: StorageHandle,
     signal?: AbortSignal,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const queries = this.settings.metricQueries;
     if (queries.length === 0) {
-      return;
+      return true;
     }
     const lookback = this.settings.lookbackMinutes ?? DEFAULT_LOOKBACK_MINUTES;
     const timespan = computeMetricsTimespan(options, lookback);
@@ -748,7 +764,7 @@ export class AzureMonitorConnector extends BaseConnector<
 
     for (const query of queries) {
       if (signal?.aborted) {
-        return;
+        return false;
       }
       const url = this.buildMetricsUrl(query, timespan);
       const res = await this.armGet<MetricsResponseBody>(
@@ -774,6 +790,7 @@ export class AzureMonitorConnector extends BaseConnector<
       items: samples.length,
       duration_ms: Date.now() - phaseStart,
     });
+    return true;
   }
 
   // -------------------------------------------------------------------------
@@ -789,14 +806,14 @@ export class AzureMonitorConnector extends BaseConnector<
   private async syncAlerts(
     storage: StorageHandle,
     signal?: AbortSignal,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const phaseStart = Date.now();
     let url: string | undefined = this.alertsUrl();
     const collected: Entity[] = [];
     let pages = 0;
     while (url !== undefined) {
       if (signal?.aborted) {
-        return;
+        return false;
       }
       const res: HttpResponse<AlertsResponseBody> =
         await this.armGet<AlertsResponseBody>(url, 'alerts', signal);
@@ -819,6 +836,7 @@ export class AzureMonitorConnector extends BaseConnector<
       items: collected.length,
       duration_ms: Date.now() - phaseStart,
     });
+    return true;
   }
 
   // -------------------------------------------------------------------------
@@ -843,10 +861,12 @@ export class AzureMonitorConnector extends BaseConnector<
       if (signal?.aborted) {
         return { done: false };
       }
-      if (resource === 'metric_queries') {
-        await this.syncMetricQueries(options, storage, signal);
-      } else {
-        await this.syncAlerts(storage, signal);
+      const completed =
+        resource === 'metric_queries'
+          ? await this.syncMetricQueries(options, storage, signal)
+          : await this.syncAlerts(storage, signal);
+      if (!completed) {
+        return { done: false };
       }
     }
     return { done: true };

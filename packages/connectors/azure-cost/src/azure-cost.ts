@@ -3,6 +3,7 @@ import {
   type HttpResponse,
   RateLimitError,
   TransientError,
+  UpstreamBugError,
   connectorUserAgent,
 } from '@rawdash/connector-shared';
 import {
@@ -595,11 +596,13 @@ export class AzureCostConnector extends BaseConnector<
         items: chunk.length,
       });
       const next = res.body.properties?.nextLink;
-      if (
-        typeof next === 'string' &&
-        next.length > 0 &&
-        isAllowedArmUrl(next)
-      ) {
+      if (typeof next === 'string' && next.length > 0) {
+        if (!isAllowedArmUrl(next)) {
+          throw new UpstreamBugError(
+            `Azure Cost nextLink rejected by ARM host allowlist: ${next}`,
+            res,
+          );
+        }
         url = next;
         // Cost Management's nextLink is a continuation token URL; the request
         // body is empty on subsequent calls.

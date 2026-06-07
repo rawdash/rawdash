@@ -542,7 +542,9 @@ describe('AzureCostConnector.sync', () => {
     });
     vi.stubGlobal('fetch', fetchSpy);
 
-    await connector().sync({ mode: 'full' }, makeStorage());
+    await expect(
+      connector().sync({ mode: 'full' }, makeStorage()),
+    ).rejects.toThrow(/rejected by ARM host allowlist/);
     expect(page).toBe(1);
   });
 
