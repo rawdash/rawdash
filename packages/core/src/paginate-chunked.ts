@@ -1,6 +1,14 @@
-import type { ConnectorLogger } from '@rawdash/connector-shared';
+import {
+  AuthError,
+  ClientBugError,
+  type ConnectorLogger,
+} from '@rawdash/connector-shared';
 
 import type { SyncResult } from './connector';
+
+function isNonRetryableError(err: unknown): boolean {
+  return err instanceof AuthError || err instanceof ClientBugError;
+}
 
 export interface ChunkedSyncCursor<TPhase extends string, TPage> {
   phase: TPhase;
@@ -123,6 +131,9 @@ export async function paginateChunked<TPhase extends string, TPage>(
           cursor: truncateCursor(page),
           error: err instanceof Error ? err.message : String(err),
         });
+        if (isNonRetryableError(err)) {
+          throw err;
+        }
         return {
           done: false,
           cursor: { phase, page } satisfies ChunkedSyncCursor<TPhase, TPage>,
@@ -155,6 +166,9 @@ export async function paginateChunked<TPhase extends string, TPage>(
           cursor: truncateCursor(page),
           error: err instanceof Error ? err.message : String(err),
         });
+        if (isNonRetryableError(err)) {
+          throw err;
+        }
         return {
           done: false,
           cursor: { phase, page } satisfies ChunkedSyncCursor<TPhase, TPage>,
