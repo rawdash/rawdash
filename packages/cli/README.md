@@ -56,6 +56,10 @@ The CLI expects the following environment variables:
 | `RAWDASH_API_KEY` | Yes (for deploy/secrets) | API key for the rawdash server                   |
 | `RAWDASH_URL`     | No                       | Server base URL (defaults to the hosted service) |
 
+When pointing at the hosted service, `RAWDASH_URL` must include your org slug,
+e.g. `https://api.rawdash.dev/<org-slug>`. A slug-less base URL is rejected with
+a `403`, even with a fully-scoped key.
+
 ## Links
 
 - [rawdash docs](https://rawdash.dev)
