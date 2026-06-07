@@ -54,6 +54,7 @@
     "@rawdash/connector-posthog": "workspace:*",
     "@rawdash/connector-salesforce": "workspace:*",
     "@rawdash/connector-sentry": "workspace:*",
+    "@rawdash/connector-statuspage": "workspace:*",
     "@rawdash/connector-stripe": "workspace:*",
     "@rawdash/connector-vercel": "workspace:*",
     "@rawdash/core": "workspace:*",
