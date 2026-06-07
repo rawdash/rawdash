@@ -89,6 +89,94 @@ describe('postConfig()', () => {
     expect(result.error).toContain('API key invalid');
   });
 
+  it('shows the scope message only for a 403 with code insufficient_scope', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 403,
+      statusText: 'Forbidden',
+      headers: new Headers({ 'content-type': 'application/json' }),
+      text: async () =>
+        JSON.stringify({
+          error: 'missing scope',
+          code: 'insufficient_scope',
+          required: 'config:write',
+        }),
+    } as Response);
+
+    const result = await postConfig({ connectors: [], dashboards: {} }, true);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.status).toBe(403);
+    expect(result.error).toContain('config:write');
+    expect(result.error).toContain('scope');
+  });
+
+  it('surfaces the server message and URL for a non-scope 403', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 403,
+      statusText: 'Forbidden',
+      headers: new Headers({ 'content-type': 'application/json' }),
+      text: async () =>
+        JSON.stringify({ error: 'unknown org', code: 'org_not_found' }),
+    } as Response);
+
+    const result = await postConfig({ connectors: [], dashboards: {} }, true);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.status).toBe(403);
+    expect(result.error).not.toContain('config:write');
+    expect(result.error).toContain('unknown org');
+    expect(result.error).toContain('org_not_found');
+    expect(result.error).toContain('https://api.example.test/config');
+  });
+
+  it('hints about a missing org slug on a slug-less 403', async () => {
+    process.env['RAWDASH_URL'] = 'https://api.rawdash.dev';
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 403,
+      statusText: 'Forbidden',
+      headers: new Headers({ 'content-type': 'application/json' }),
+      text: async () => JSON.stringify({ error: 'forbidden' }),
+    } as Response);
+
+    const result = await postConfig({ connectors: [], dashboards: {} }, true);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error).toContain('org slug');
+  });
+
+  it('does not hint about a slug when the URL already has one', async () => {
+    process.env['RAWDASH_URL'] = 'https://api.rawdash.dev/my-org';
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 403,
+      statusText: 'Forbidden',
+      headers: new Headers({ 'content-type': 'application/json' }),
+      text: async () =>
+        JSON.stringify({ error: 'forbidden', code: 'insufficient_role' }),
+    } as Response);
+
+    const result = await postConfig({ connectors: [], dashboards: {} }, true);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      return;
+    }
+    expect(result.error).not.toContain('org slug');
+    expect(result.error).toContain('insufficient_role');
+  });
+
   it('returns DeployFailure on network error', async () => {
     globalThis.fetch = vi
       .fn()
