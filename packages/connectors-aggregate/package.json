@@ -48,6 +48,7 @@
     "@rawdash/connector-hubspot": "workspace:*",
     "@rawdash/connector-intercom": "workspace:*",
     "@rawdash/connector-jira": "workspace:*",
+    "@rawdash/connector-klaviyo": "workspace:*",
     "@rawdash/connector-launchdarkly": "workspace:*",
     "@rawdash/connector-linear": "workspace:*",
     "@rawdash/connector-meta-ads": "workspace:*",

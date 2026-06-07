@@ -87,6 +87,12 @@ import {
   resources as jiraResources,
 } from '@rawdash/connector-jira';
 import {
+  configFields as klaviyoConfigFields,
+  doc as klaviyoDoc,
+  id as klaviyoId,
+  resources as klaviyoResources,
+} from '@rawdash/connector-klaviyo';
+import {
   configFields as launchdarklyConfigFields,
   doc as launchdarklyDoc,
   id as launchdarklyId,
@@ -257,6 +263,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: jiraDoc,
     configFields: jiraConfigFields,
     resources: jiraResources,
+  },
+  {
+    id: klaviyoId,
+    packageName: '@rawdash/connector-klaviyo',
+    doc: klaviyoDoc,
+    configFields: klaviyoConfigFields,
+    resources: klaviyoResources,
   },
   {
     id: launchdarklyId,
