@@ -1,5 +1,18 @@
 # example-nextjs
 
+## 0.0.21
+
+### Patch Changes
+
+- Updated dependencies [621b32f]
+- Updated dependencies [c33b2ef]
+  - @rawdash/connector-github@0.18.0
+  - @rawdash/core@0.18.0
+  - @rawdash/server@0.18.0
+  - @rawdash/hono@0.18.0
+  - @rawdash/sdk-nextjs@0.18.0
+  - @rawdash/adapter-sqlite@0.18.0
+
 ## 0.0.20
 
 ### Patch Changes
