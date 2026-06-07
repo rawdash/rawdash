@@ -1,5 +1,38 @@
 # @rawdash/connectors
 
+## 0.18.0
+
+### Patch Changes
+
+- Updated dependencies [ed81ad7]
+- Updated dependencies [825868d]
+- Updated dependencies [f469ba3]
+- Updated dependencies [621b32f]
+- Updated dependencies [c33b2ef]
+  - @rawdash/connector-gitlab@0.18.0
+  - @rawdash/connector-gcp-monitoring@0.18.0
+  - @rawdash/connector-gcp-billing@0.18.0
+  - @rawdash/connector-launchdarkly@0.18.0
+  - @rawdash/connector-github@0.18.0
+  - @rawdash/core@0.18.0
+  - @rawdash/connector-aws-cloudwatch@0.18.0
+  - @rawdash/connector-datadog@0.18.0
+  - @rawdash/connector-google-ads@0.18.0
+  - @rawdash/connector-google-analytics@0.18.0
+  - @rawdash/connector-google-search-console@0.18.0
+  - @rawdash/connector-stripe@0.18.0
+  - @rawdash/connector-linear@0.18.0
+  - @rawdash/connector-sentry@0.18.0
+  - @rawdash/connector-vercel@0.18.0
+  - @rawdash/connector-aws-cost@0.18.0
+  - @rawdash/connector-hubspot@0.18.0
+  - @rawdash/connector-intercom@0.18.0
+  - @rawdash/connector-jira@0.18.0
+  - @rawdash/connector-meta-ads@0.18.0
+  - @rawdash/connector-mixpanel@0.18.0
+  - @rawdash/connector-posthog@0.18.0
+  - @rawdash/connector-salesforce@0.18.0
+
 ## 0.17.0
 
 ### Minor Changes

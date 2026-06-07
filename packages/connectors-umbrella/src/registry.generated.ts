@@ -8,8 +8,13 @@ export const connectorLoaders: Record<string, () => Promise<ConnectorClass>> = {
     import('@rawdash/connector-aws-cost').then((m) => m.default),
   circleci: () => import('@rawdash/connector-circleci').then((m) => m.default),
   datadog: () => import('@rawdash/connector-datadog').then((m) => m.default),
+  'gcp-billing': () =>
+    import('@rawdash/connector-gcp-billing').then((m) => m.default),
+  'gcp-monitoring': () =>
+    import('@rawdash/connector-gcp-monitoring').then((m) => m.default),
   'github-actions': () =>
     import('@rawdash/connector-github').then((m) => m.default),
+  gitlab: () => import('@rawdash/connector-gitlab').then((m) => m.default),
   'google-ads': () =>
     import('@rawdash/connector-google-ads').then((m) => m.default),
   'google-analytics': () =>
@@ -19,6 +24,8 @@ export const connectorLoaders: Record<string, () => Promise<ConnectorClass>> = {
   hubspot: () => import('@rawdash/connector-hubspot').then((m) => m.default),
   intercom: () => import('@rawdash/connector-intercom').then((m) => m.default),
   jira: () => import('@rawdash/connector-jira').then((m) => m.default),
+  launchdarkly: () =>
+    import('@rawdash/connector-launchdarkly').then((m) => m.default),
   linear: () => import('@rawdash/connector-linear').then((m) => m.default),
   'meta-ads': () =>
     import('@rawdash/connector-meta-ads').then((m) => m.default),

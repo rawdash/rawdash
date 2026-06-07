@@ -5,7 +5,7 @@
   --sl-color-white: #ffffff;
   --sl-color-gray-1: #f0edff;
   --sl-color-gray-2: #c0b4f5;
-  --sl-color-gray-3: #6b60a0;
+  --sl-color-gray-3: #8c81c2;
   --sl-color-gray-4: #3a2b6a;
   --sl-color-gray-5: #211448;
   --sl-color-gray-6: #130b2e;
@@ -110,15 +110,29 @@
 .category-card-icons {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 0.4rem;
 }
-.category-card-icons img {
+.category-card-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 1.75rem;
   height: 1.75rem;
+  padding: 0.25rem;
+  box-sizing: border-box;
   border-radius: 0.35rem;
   background: #ffffff;
-  padding: 0.2rem;
-  box-sizing: border-box;
+  border: 1px solid var(--sl-color-gray-5);
+  flex: none;
+}
+.category-card-icon img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
 }
 
 /* Connector cards (search results + per-category pages). */

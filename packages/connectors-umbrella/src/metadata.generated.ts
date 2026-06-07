@@ -26,11 +26,30 @@ import {
   resources as datadogResources,
 } from '@rawdash/connector-datadog';
 import {
+  configFields as gcpBillingConfigFields,
+  cost as gcpBillingCost,
+  doc as gcpBillingDoc,
+  id as gcpBillingId,
+  resources as gcpBillingResources,
+} from '@rawdash/connector-gcp-billing';
+import {
+  configFields as gcpMonitoringConfigFields,
+  doc as gcpMonitoringDoc,
+  id as gcpMonitoringId,
+  resources as gcpMonitoringResources,
+} from '@rawdash/connector-gcp-monitoring';
+import {
   configFields as githubConfigFields,
   doc as githubDoc,
   id as githubId,
   resources as githubResources,
 } from '@rawdash/connector-github';
+import {
+  configFields as gitlabConfigFields,
+  doc as gitlabDoc,
+  id as gitlabId,
+  resources as gitlabResources,
+} from '@rawdash/connector-gitlab';
 import {
   configFields as googleAdsConfigFields,
   doc as googleAdsDoc,
@@ -67,6 +86,12 @@ import {
   id as jiraId,
   resources as jiraResources,
 } from '@rawdash/connector-jira';
+import {
+  configFields as launchdarklyConfigFields,
+  doc as launchdarklyDoc,
+  id as launchdarklyId,
+  resources as launchdarklyResources,
+} from '@rawdash/connector-launchdarkly';
 import {
   configFields as linearConfigFields,
   doc as linearDoc,
@@ -151,11 +176,33 @@ export const connectorMetadata: ConnectorMetadata[] = [
     resources: datadogResources,
   },
   {
+    id: gcpBillingId,
+    packageName: '@rawdash/connector-gcp-billing',
+    doc: gcpBillingDoc,
+    configFields: gcpBillingConfigFields,
+    resources: gcpBillingResources,
+    cost: gcpBillingCost,
+  },
+  {
+    id: gcpMonitoringId,
+    packageName: '@rawdash/connector-gcp-monitoring',
+    doc: gcpMonitoringDoc,
+    configFields: gcpMonitoringConfigFields,
+    resources: gcpMonitoringResources,
+  },
+  {
     id: githubId,
     packageName: '@rawdash/connector-github',
     doc: githubDoc,
     configFields: githubConfigFields,
     resources: githubResources,
+  },
+  {
+    id: gitlabId,
+    packageName: '@rawdash/connector-gitlab',
+    doc: gitlabDoc,
+    configFields: gitlabConfigFields,
+    resources: gitlabResources,
   },
   {
     id: googleAdsId,
@@ -198,6 +245,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: jiraDoc,
     configFields: jiraConfigFields,
     resources: jiraResources,
+  },
+  {
+    id: launchdarklyId,
+    packageName: '@rawdash/connector-launchdarkly',
+    doc: launchdarklyDoc,
+    configFields: launchdarklyConfigFields,
+    resources: launchdarklyResources,
   },
   {
     id: linearId,

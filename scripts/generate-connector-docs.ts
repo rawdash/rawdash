@@ -55,7 +55,7 @@ const LANDING_DATA_FILE = join(
   'connectors.ts',
 );
 // Directories under packages/connectors that are not themselves connectors.
-const NOT_A_CONNECTOR = new Set(['aws-shared']);
+const NOT_A_CONNECTOR = new Set(['aws-shared', 'gcp-shared']);
 
 interface ConnectorModule {
   default: {
@@ -648,8 +648,8 @@ interface OutFile {
   content: string;
   raw?: boolean;
   // Whether the output is committed to git (default true). The website docs
-  // tree and public icons are gitignored and regenerated at build time, so
-  // they are never committed drift; --check ignores them.
+  // tree, public icons, and landing data are gitignored and regenerated at
+  // build time, so they are never committed drift; --check ignores them.
   tracked?: boolean;
 }
 
@@ -701,6 +701,7 @@ function collectOutputs(connectors: LoadedConnector[]): OutFile[] {
   out.push({
     path: LANDING_DATA_FILE,
     content: renderLandingData(connectors, byCategory),
+    tracked: false,
   });
   return out;
 }

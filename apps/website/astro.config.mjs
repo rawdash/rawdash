@@ -10,7 +10,8 @@ export default defineConfig({
       title: 'Rawdash',
       description: 'Headless dashboard backend for any team.',
       logo: {
-        src: './src/assets/logo.svg',
+        light: './src/assets/logo.svg',
+        dark: './src/assets/logo-dark.svg',
         replacesTitle: true,
       },
       social: [

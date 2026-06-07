@@ -51,13 +51,9 @@ for (const c of connectors) {
           </span>
           <span class="category-card-icons">
             {(iconsByCategory.get(cat.id) ?? []).slice(0, 8).map((c) => (
-              <img
-                src={c.iconPath}
-                alt={`${c.name} logo`}
-                width="24"
-                height="24"
-                loading="lazy"
-              />
+              <span class="category-card-icon">
+                <img src={c.iconPath} alt={`${c.name} logo`} loading="lazy" />
+              </span>
             ))}
           </span>
         </a>

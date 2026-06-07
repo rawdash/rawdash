@@ -40,6 +40,7 @@ Thumbs.db
 .vercel
 
 # Generated connector docs (regenerated at build time by scripts/generate-connector-docs.ts).
-# Per-package READMEs and apps/website/src/generated/connectors.ts stay tracked.
+# Per-package READMEs stay tracked.
 apps/website/src/content/docs/docs/connectors/
 apps/website/public/connectors/
+apps/website/src/generated/
