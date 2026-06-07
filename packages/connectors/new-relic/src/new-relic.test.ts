@@ -478,6 +478,61 @@ describe('NewRelicConnector.sync', () => {
     expect(query).toContain('openedAt > 1714521600000');
   });
 
+  it('keyset-paginates incidents when a page hits the NRQL row limit', async () => {
+    const INCIDENTS_NRQL_LIMIT = 5000;
+    const sinceMs = 1_700_000_000_000;
+    const since = new Date(sinceMs).toISOString();
+    const fullPage = Array.from({ length: INCIDENTS_NRQL_LIMIT }, (_, i) => ({
+      incidentId: `inc_${i}`,
+      openedAt: sinceMs + 1 + i,
+      closedAt: null,
+    }));
+    const lastOpenedAt = fullPage[fullPage.length - 1]!.openedAt;
+    const { calls } = installGraphqlRouter((op, call) => {
+      if (op === 'RunNrql') {
+        const query = call.variables.query as string;
+        const results = query.includes(`openedAt > ${lastOpenedAt}`)
+          ? [
+              {
+                incidentId: 'inc_last',
+                openedAt: lastOpenedAt + 1,
+                closedAt: null,
+              },
+            ]
+          : fullPage;
+        return {
+          actor: {
+            account: {
+              nrql: { results, metadata: { facets: null, timeWindow: null } },
+            },
+          },
+        };
+      }
+      return emptyData();
+    });
+    const storage = makeStorage();
+    await makeConnector({ resources: ['alert_violations'] }).sync(
+      { mode: 'latest', since },
+      storage,
+    );
+
+    const nrqlCalls = calls.filter(
+      (c) => operationName(c.parsed.query) === 'RunNrql',
+    );
+    expect(nrqlCalls).toHaveLength(2);
+    expect(nrqlCalls[0]!.parsed.variables.query).toContain(
+      'ORDER BY openedAt ASC',
+    );
+    expect(nrqlCalls[1]!.parsed.variables.query).toContain(
+      `openedAt > ${lastOpenedAt}`,
+    );
+
+    const events = storage.event.mock.calls
+      .map((c) => c[0] as { name: string })
+      .filter((e) => e.name === 'newrelic_alert_violation');
+    expect(events).toHaveLength(INCIDENTS_NRQL_LIMIT + 1);
+  });
+
   it('runs each declared NRQL query and writes metric samples', async () => {
     const connector = makeConnector({
       resources: ['nrql_queries'],

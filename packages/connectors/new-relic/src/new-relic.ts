@@ -509,20 +509,33 @@ export class NewRelicConnector extends BaseConnector<
 
   private async fetchIncidents(
     options: SyncOptions,
+    page: string | null,
     signal: AbortSignal | undefined,
   ): Promise<{ items: Array<Record<string, JSONValue>>; next: string | null }> {
     const sinceMs = options.since ? parseEpoch(options.since, 'iso') : null;
     const lookbackHours =
       this.settings.incidentsLookbackHours ?? DEFAULT_INCIDENTS_LOOKBACK_HOURS;
     const fromMs = sinceMs ?? Date.now() - lookbackHours * 60 * 60 * 1000;
-    const nrql = `SELECT incidentId, conditionFamilyId, policyName, conditionName, openedAt, closedAt, durationSeconds, priority, title, state, entityGuid FROM NrAiIncident WHERE openedAt > ${fromMs} LIMIT ${INCIDENTS_NRQL_LIMIT}`;
+    const floorMs = page !== null ? Number(page) : fromMs;
+    const nrql = `SELECT incidentId, conditionFamilyId, policyName, conditionName, openedAt, closedAt, durationSeconds, priority, title, state, entityGuid FROM NrAiIncident WHERE openedAt > ${floorMs} ORDER BY openedAt ASC LIMIT ${INCIDENTS_NRQL_LIMIT}`;
     const res = await this.graphql<NrqlResponse>(
       NRQL_QUERY,
       { accountId: this.settings.accountId, query: nrql },
       'incidents',
       signal,
     );
-    return { items: res.body.data!.actor.account.nrql.results, next: null };
+    const results = res.body.data!.actor.account.nrql.results;
+    if (results.length < INCIDENTS_NRQL_LIMIT) {
+      return { items: results, next: null };
+    }
+    const lastOpenedAt = results[results.length - 1]?.openedAt;
+    const next =
+      typeof lastOpenedAt === 'number' &&
+      Number.isFinite(lastOpenedAt) &&
+      lastOpenedAt > floorMs
+        ? String(lastOpenedAt)
+        : null;
+    return { items: results, next };
   }
 
   private async fetchMetrics(
@@ -794,7 +807,7 @@ export class NewRelicConnector extends BaseConnector<
           case 'alert_conditions':
             return this.fetchAlertConditionsPage(page, sig);
           case 'incidents':
-            return this.fetchIncidents(options, sig);
+            return this.fetchIncidents(options, page, sig);
           case 'metrics':
             return this.fetchMetrics(options, sig);
         }
