@@ -313,8 +313,25 @@ function parseUsageDate(value: string | number | null): number | null {
   if (!m) {
     return null;
   }
-  const ts = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-  return Number.isFinite(ts) ? ts : null;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  const ts = Date.UTC(year, month - 1, day);
+  if (!Number.isFinite(ts)) {
+    return null;
+  }
+  // Date.UTC silently rolls impossible dates (month 13, Feb 30) into a
+  // different valid day; reject them via a round-trip rather than
+  // mis-attributing a cost sample to the wrong timestamp.
+  const d = new Date(ts);
+  if (
+    d.getUTCFullYear() !== year ||
+    d.getUTCMonth() !== month - 1 ||
+    d.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  return ts;
 }
 
 interface ColumnLookup {
@@ -582,6 +599,7 @@ export class AzureCostConnector extends BaseConnector<
 
     let url = this.queryUrl();
     let body: Record<string, unknown> | undefined = payload;
+    const seenNextLinks = new Set<string>();
     while (true) {
       if (signal?.aborted) {
         return { done: false };
@@ -603,6 +621,13 @@ export class AzureCostConnector extends BaseConnector<
             res,
           );
         }
+        if (seenNextLinks.has(next)) {
+          throw new UpstreamBugError(
+            `Azure Cost pagination cycle detected for nextLink: ${next}`,
+            res,
+          );
+        }
+        seenNextLinks.add(next);
         url = next;
         // Cost Management's nextLink is a continuation token URL; the request
         // body is empty on subsequent calls.

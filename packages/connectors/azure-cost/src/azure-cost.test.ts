@@ -208,6 +208,29 @@ describe('buildCostSamples', () => {
     expect(samples[0]!.value).toBe(11);
   });
 
+  it('drops rows with an impossible calendar UsageDate', () => {
+    const samples = buildCostSamples(
+      {
+        properties: {
+          columns: [
+            { name: 'Cost' },
+            { name: 'UsageDate' },
+            { name: 'Currency' },
+          ],
+          rows: [
+            [10, 20250230, 'USD'],
+            [11, 20251301, 'USD'],
+            [12, 20250601, 'USD'],
+          ],
+        },
+      },
+      undefined,
+    );
+    expect(samples).toHaveLength(1);
+    expect(samples[0]!.value).toBe(12);
+    expect(samples[0]!.ts).toBe(Date.UTC(2025, 5, 1));
+  });
+
   it('returns an empty array when properties is missing', () => {
     const samples = buildCostSamples({}, undefined);
     expect(samples).toEqual([]);
@@ -546,6 +569,37 @@ describe('AzureCostConnector.sync', () => {
       connector().sync({ mode: 'full' }, makeStorage()),
     ).rejects.toThrow(/rejected by ARM host allowlist/);
     expect(page).toBe(1);
+  });
+
+  it('fails loudly when nextLink repeats (pagination cycle)', async () => {
+    let page = 0;
+    const cyclicNextLink =
+      'https://management.azure.com/subscriptions/sub-1/providers/Microsoft.CostManagement/query?api-version=2024-08-01&$skiptoken=loop';
+    const fetchSpy = makeFetch(({ url }) => {
+      if (!url.includes(COST_URL_FRAGMENT)) {
+        return undefined;
+      }
+      page += 1;
+      return {
+        body: {
+          properties: {
+            nextLink: cyclicNextLink,
+            columns: [
+              { name: 'Cost' },
+              { name: 'UsageDate' },
+              { name: 'Currency' },
+            ],
+            rows: [[1, 20250601, 'USD']],
+          },
+        },
+      };
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await expect(
+      connector().sync({ mode: 'full' }, makeStorage()),
+    ).rejects.toThrow(/pagination cycle detected/);
+    expect(page).toBe(2);
   });
 
   it('skips the sync when options.resources excludes azure_cost_daily', async () => {
