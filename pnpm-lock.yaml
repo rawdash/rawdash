@@ -515,6 +515,9 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
+      '@rawdash/connector-azure-shared':
+        specifier: workspace:*
+        version: link:../azure-shared
       '@rawdash/connector-shared':
         specifier: workspace:*
         version: link:../../connector-shared
@@ -543,6 +546,9 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
+      '@rawdash/connector-azure-shared':
+        specifier: workspace:*
+        version: link:../azure-shared
       '@rawdash/connector-shared':
         specifier: workspace:*
         version: link:../../connector-shared
@@ -552,6 +558,28 @@ importers:
       fast-check:
         specifier: ^4.8.0
         version: 4.8.0
+      tsup:
+        specifier: ^8.0.0
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.9)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.3)
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.4
+        version: 4.1.4(@types/node@24.12.2)(vite@8.0.8(@types/node@24.12.2)(esbuild@0.27.7)(jiti@1.21.7)(tsx@4.21.0)(yaml@2.8.3))
+
+  packages/connectors/azure-shared:
+    dependencies:
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@rawdash/connector-shared':
+        specifier: workspace:*
+        version: link:../../connector-shared
+      '@rawdash/core':
+        specifier: workspace:*
+        version: link:../../core
       tsup:
         specifier: ^8.0.0
         version: 8.5.1(jiti@1.21.7)(postcss@8.5.9)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.3)

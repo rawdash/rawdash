@@ -33,6 +33,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@rawdash/connector-azure-shared": "workspace:*",
     "@rawdash/connector-shared": "workspace:*",
     "@rawdash/connector-test-utils": "workspace:*",
     "fast-check": "^4.8.0",

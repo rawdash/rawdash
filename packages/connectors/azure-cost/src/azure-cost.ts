@@ -1,17 +1,19 @@
 import {
-  AuthError,
+  ARM_HOST,
+  BaseAzureConnector,
+  type BaseAzureSettings,
+  isAllowedArmUrl,
+  mapArmError,
+} from '@rawdash/connector-azure-shared';
+import {
   type HttpResponse,
-  RateLimitError,
-  TransientError,
   UpstreamBugError,
   connectorUserAgent,
 } from '@rawdash/connector-shared';
 import {
-  BaseConnector,
   type ConnectorContext,
   type ConnectorCost,
   type ConnectorDoc,
-  type CredentialsSchema,
   type JSONValue,
   type MetricSample,
   type StorageHandle,
@@ -23,12 +25,6 @@ import {
   schemasFromResources,
 } from '@rawdash/core';
 import { z } from 'zod';
-
-import {
-  type TokenCacheEntry,
-  fetchArmAccessToken,
-  isTokenFresh,
-} from './auth';
 
 // ---------------------------------------------------------------------------
 // configFields
@@ -144,22 +140,10 @@ export const doc: ConnectorDoc = defineConnectorDoc({
 // Types
 // ---------------------------------------------------------------------------
 
-export interface AzureCostSettings {
-  tenantId: string;
-  clientId: string;
-  subscriptionId: string;
+export interface AzureCostSettings extends BaseAzureSettings {
   groupBy?: readonly string[];
   lookbackDays?: number;
 }
-
-const azureCostCredentials = {
-  clientSecret: {
-    description: 'Azure AD app-registration client secret',
-    auth: 'required' as const,
-  },
-} satisfies CredentialsSchema;
-
-type AzureCostCredentials = typeof azureCostCredentials;
 
 // ---------------------------------------------------------------------------
 // API response schemas
@@ -238,7 +222,6 @@ export const azureCostResources = defineResources({
 // Constants
 // ---------------------------------------------------------------------------
 
-const ARM_HOST = 'https://management.azure.com';
 const COST_API_VERSION = '2024-08-01';
 const DEFAULT_BACKFILL_DAYS = 90;
 const INCREMENTAL_LOOKBACK_DAYS = 3;
@@ -438,39 +421,6 @@ export function buildCostSamples(
 }
 
 // ---------------------------------------------------------------------------
-// Error mapping
-// ---------------------------------------------------------------------------
-
-function mapArmError(err: unknown): unknown {
-  if (!(err instanceof Error) || !('kind' in err)) {
-    return err;
-  }
-  const httpErr = err as Error & { response?: HttpResponse };
-  const status = httpErr.response?.status ?? 0;
-  if (status === 401 || status === 403) {
-    return new AuthError(httpErr.message, httpErr.response);
-  }
-  if (status === 429) {
-    return new RateLimitError(httpErr.message, httpErr.response);
-  }
-  if (status >= 500) {
-    return new TransientError(httpErr.message, httpErr.response);
-  }
-  return err;
-}
-
-// nextLink can be a fully-qualified URL Azure hands back; sanitize before reuse
-// so a corrupted cursor cannot exfiltrate the bearer token to an attacker host.
-function isAllowedArmUrl(value: string): boolean {
-  try {
-    const u = new URL(value);
-    return u.protocol === 'https:' && u.host === 'management.azure.com';
-  } catch {
-    return false;
-  }
-}
-
-// ---------------------------------------------------------------------------
 // AzureCostConnector
 // ---------------------------------------------------------------------------
 
@@ -483,10 +433,7 @@ export const cost: ConnectorCost = {
     'Azure Cost Management queries are throttled aggressively per subscription; avoid syncing more often than necessary.',
 };
 
-export class AzureCostConnector extends BaseConnector<
-  AzureCostSettings,
-  AzureCostCredentials
-> {
+export class AzureCostConnector extends BaseAzureConnector<AzureCostSettings> {
   static readonly id = id;
 
   static readonly resources = azureCostResources;
@@ -511,25 +458,6 @@ export class AzureCostConnector extends BaseConnector<
   }
 
   readonly id = id;
-  override readonly credentials = azureCostCredentials;
-
-  private tokenCache: TokenCacheEntry | null = null;
-
-  private async getAccessToken(signal?: AbortSignal): Promise<string> {
-    if (isTokenFresh(this.tokenCache)) {
-      return this.tokenCache!.token;
-    }
-    this.tokenCache = await fetchArmAccessToken(
-      {
-        tenantId: this.settings.tenantId,
-        clientId: this.settings.clientId,
-        clientSecret: this.creds.clientSecret,
-        connectorId: this.id,
-      },
-      signal,
-    );
-    return this.tokenCache.token;
-  }
 
   private queryUrl(): string {
     const params = new URLSearchParams();

@@ -1,16 +1,18 @@
 import {
-  AuthError,
+  ARM_HOST,
+  BaseAzureConnector,
+  type BaseAzureSettings,
+  isAllowedArmUrl,
+  mapArmError,
+} from '@rawdash/connector-azure-shared';
+import {
   type HttpResponse,
-  RateLimitError,
-  TransientError,
   connectorUserAgent,
   parseEpoch,
 } from '@rawdash/connector-shared';
 import {
-  BaseConnector,
   type ConnectorContext,
   type ConnectorDoc,
-  type CredentialsSchema,
   type Entity,
   type JSONValue,
   type MetricSample,
@@ -23,12 +25,6 @@ import {
   schemasFromResources,
 } from '@rawdash/core';
 import { z } from 'zod';
-
-import {
-  type TokenCacheEntry,
-  fetchArmAccessToken,
-  isTokenFresh,
-} from './auth';
 
 // ---------------------------------------------------------------------------
 // configFields
@@ -198,23 +194,11 @@ export interface AzureMonitorMetricQuery {
 
 export type AzureMonitorResource = 'metric_queries' | 'alerts';
 
-export interface AzureMonitorSettings {
-  tenantId: string;
-  clientId: string;
-  subscriptionId: string;
+export interface AzureMonitorSettings extends BaseAzureSettings {
   metricQueries: readonly AzureMonitorMetricQuery[];
   resources?: readonly AzureMonitorResource[];
   lookbackMinutes?: number;
 }
-
-const azureMonitorCredentials = {
-  clientSecret: {
-    description: 'Azure AD app-registration client secret',
-    auth: 'required' as const,
-  },
-} satisfies CredentialsSchema;
-
-type AzureMonitorCredentials = typeof azureMonitorCredentials;
 
 // ---------------------------------------------------------------------------
 // API response schemas
@@ -470,7 +454,6 @@ export const azureMonitorResources = defineResources({
 // Constants
 // ---------------------------------------------------------------------------
 
-const ARM_HOST = 'https://management.azure.com';
 const METRICS_API_VERSION = '2024-02-01';
 const ALERTS_API_VERSION = '2019-05-05-preview';
 const DEFAULT_LOOKBACK_MINUTES = 180;
@@ -629,37 +612,12 @@ export function buildAlertEntities(body: AlertsResponseBody): Entity[] {
 }
 
 // ---------------------------------------------------------------------------
-// Error mapping
-// ---------------------------------------------------------------------------
-
-function mapArmError(err: unknown): unknown {
-  if (!(err instanceof Error) || !('kind' in err)) {
-    return err;
-  }
-  const httpErr = err as Error & { response?: HttpResponse };
-  const status = httpErr.response?.status ?? 0;
-  if (status === 401 || status === 403) {
-    return new AuthError(httpErr.message, httpErr.response);
-  }
-  if (status === 429) {
-    return new RateLimitError(httpErr.message, httpErr.response);
-  }
-  if (status >= 500) {
-    return new TransientError(httpErr.message, httpErr.response);
-  }
-  return err;
-}
-
-// ---------------------------------------------------------------------------
 // AzureMonitorConnector
 // ---------------------------------------------------------------------------
 
 export const id = 'azure-monitor';
 
-export class AzureMonitorConnector extends BaseConnector<
-  AzureMonitorSettings,
-  AzureMonitorCredentials
-> {
+export class AzureMonitorConnector extends BaseAzureConnector<AzureMonitorSettings> {
   static readonly id = id;
 
   static readonly resources = azureMonitorResources;
@@ -683,26 +641,6 @@ export class AzureMonitorConnector extends BaseConnector<
   }
 
   readonly id = id;
-  override readonly credentials = azureMonitorCredentials;
-
-  private tokenCache: TokenCacheEntry | null = null;
-
-  private async getAccessToken(signal?: AbortSignal): Promise<string> {
-    if (isTokenFresh(this.tokenCache)) {
-      return this.tokenCache!.token;
-    }
-    this.tokenCache = await fetchArmAccessToken(
-      {
-        tenantId: this.settings.tenantId,
-        clientId: this.settings.clientId,
-        clientSecret: this.creds.clientSecret,
-        connectorId: this.id,
-      },
-      signal,
-    );
-    return this.tokenCache.token;
-  }
-
   private async armGet<T>(
     url: string,
     resource: string,
@@ -870,16 +808,5 @@ export class AzureMonitorConnector extends BaseConnector<
       }
     }
     return { done: true };
-  }
-}
-
-// nextLink can be a fully-qualified URL Azure hands back; sanitize before reuse
-// so a corrupted cursor cannot exfiltrate the bearer token to an attacker host.
-function isAllowedArmUrl(value: string): boolean {
-  try {
-    const u = new URL(value);
-    return u.protocol === 'https:' && u.host === 'management.azure.com';
-  } catch {
-    return false;
   }
 }

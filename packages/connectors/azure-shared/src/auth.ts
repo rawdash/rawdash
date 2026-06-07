@@ -8,9 +8,10 @@ import {
 
 // Azure AD client-credentials token caching, scoped to ARM
 // (https://management.azure.com/.default). Both Monitor and Cost connectors
-// share an identical flow against the Microsoft Entra ID token endpoint, so the
-// helper is co-located in each package (rather than a shared sub-package, which
-// would force consumers to install a second runtime dependency).
+// share an identical flow against the Microsoft Entra ID token endpoint, so it
+// lives here in the shared substrate. This package is private and bundled inline
+// by each connector (tsup noExternal), so sharing it does not add a runtime
+// dependency.
 
 const TOKEN_HOST = 'login.microsoftonline.com';
 const ARM_SCOPE = 'https://management.azure.com/.default';
@@ -87,6 +88,8 @@ function classifyTokenError(err: unknown): unknown {
   }
   const httpErr = err as Error & { response?: HttpResponse };
   const status = httpErr.response?.status ?? 0;
+  // Entra ID returns 400 for invalid_client / invalid_grant; treat all auth
+  // failures as AuthError so the host stops retrying on a broken secret.
   if (status === 400 || status === 401 || status === 403) {
     return new AuthError(httpErr.message, httpErr.response);
   }
