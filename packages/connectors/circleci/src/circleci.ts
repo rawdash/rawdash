@@ -36,11 +36,17 @@ export const configFields = defineConfigFields(
       placeholder: 'circleci_token',
       secret: true,
     }),
-    projectSlugs: z.array(z.string().min(1)).nonempty().meta({
-      label: 'Project slugs',
-      description:
-        "CircleCI project slugs to sync, e.g. 'gh/my-org/my-repo' or 'circleci/<orgId>/<projectId>'.",
-    }),
+    projectSlugs: z
+      .array(z.string().min(1))
+      .nonempty()
+      .refine((slugs) => new Set(slugs).size === slugs.length, {
+        error: 'Project slugs must be unique.',
+      })
+      .meta({
+        label: 'Project slugs',
+        description:
+          "CircleCI project slugs to sync, e.g. 'gh/my-org/my-repo' or 'circleci/<orgId>/<projectId>'.",
+      }),
     branch: z.string().min(1).optional().meta({
       label: 'Branch (optional)',
       description:
@@ -334,6 +340,11 @@ export const circleciResources = defineResources({
 // ---------------------------------------------------------------------------
 
 const CIRCLECI_API_BASE = 'https://circleci.com/api/v2';
+const DEFAULT_RESOURCES: readonly CircleCIResource[] = [
+  'pipelines',
+  'workflows',
+  'pipeline_events',
+];
 const DEFAULT_LOOKBACK_DAYS = 30;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -355,7 +366,7 @@ export class CircleCIConnector extends BaseConnector<
       {
         projectSlugs: parsed.projectSlugs,
         branch: parsed.branch,
-        resources: parsed.resources,
+        resources: parsed.resources ?? DEFAULT_RESOURCES,
         pipelinesLookbackDays: parsed.pipelinesLookbackDays,
       },
       { apiToken: parsed.apiToken },

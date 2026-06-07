@@ -49,6 +49,14 @@ describe('configFields', () => {
     expect(result.success).toBe(true);
   });
 
+  it('rejects duplicate projectSlugs', () => {
+    const result = configFields.safeParse({
+      apiToken: { $secret: 'CIRCLECI_API_TOKEN' },
+      projectSlugs: ['gh/my-org/my-repo', 'gh/my-org/my-repo'],
+    });
+    expect(result.success).toBe(false);
+  });
+
   it('rejects pipelinesLookbackDays above 365', () => {
     const result = configFields.safeParse({
       apiToken: { $secret: 'CIRCLECI_API_TOKEN' },
@@ -224,6 +232,7 @@ function workflowFixture(
 describe('CircleCIConnector.sync', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
   });
 
   it('returns done:true when every endpoint returns empty', async () => {
@@ -380,6 +389,32 @@ describe('CircleCIConnector.sync', () => {
     expect(jobs).toHaveLength(1);
     expect(jobs[0]!.id).toBe('jid-1');
     expect(jobs[0]!.attributes.durationMs).toBe(45_000);
+  });
+
+  it('leaves jobs disabled by default when resources is omitted', async () => {
+    const pipeline = pipelineFixture('pid-1');
+    const workflow = workflowFixture('wid-1', 'pid-1');
+    const { calls } = installRouter((u) => {
+      if (u.includes('/pipeline/pid-1/workflow')) {
+        return { body: { items: [workflow], next_page_token: null } };
+      }
+      return { body: { items: [pipeline], next_page_token: null } };
+    });
+    const storage = makeStorage();
+    vi.stubEnv('CIRCLECI_API_TOKEN', 'ccitest');
+    await CircleCIConnector.create({
+      apiToken: { $secret: 'CIRCLECI_API_TOKEN' },
+      projectSlugs: ['gh/my-org/my-repo'],
+    }).sync({ mode: 'full' }, storage);
+
+    expect(calls.some((c) => c.includes('/job'))).toBe(false);
+    const writtenTypes = storage.entity.mock.calls.map(
+      (c) => (c[0] as { type: string }).type,
+    );
+    expect(writtenTypes).toContain('circleci_pipeline');
+    expect(writtenTypes).toContain('circleci_workflow');
+    expect(writtenTypes).not.toContain('circleci_job');
+    expect(storage.event.mock.calls.length).toBeGreaterThan(0);
   });
 
   it('passes Circle-Token header on every request', async () => {
