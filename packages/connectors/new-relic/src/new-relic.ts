@@ -367,7 +367,7 @@ export const newRelicResources = defineResources({
     description:
       'AI alert violation events. Each row from the NrAiIncident event type becomes one event with openedAt / closedAt and the underlying condition / policy metadata.',
     endpoint:
-      'GraphQL nrql() against `SELECT ... FROM NrAiIncident WHERE openedAt > ...`',
+      'GraphQL nrql() against SELECT ... FROM NrAiIncident WHERE openedAt > ...',
     notes:
       'Append-only across syncs; the connector filters NrAiIncident by `openedAt` against `options.since` (or the configured lookback) to avoid re-emitting old incidents.',
     responses: { incidents: nrqlResultSchema },
