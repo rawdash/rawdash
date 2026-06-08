@@ -55,7 +55,7 @@ export function softwareApplicationJsonLd(
   };
 }
 
-interface FaqItem {
+export interface FaqItem {
   question: string;
   answer: string;
 }

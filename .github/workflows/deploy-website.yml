@@ -48,6 +48,7 @@ jobs:
         run: pnpm --filter website build
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PUBLIC_GA4_ID: ${{ vars.PUBLIC_GA4_ID }}
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/pages-action@f0a1cd58cd66095dee69bfa18fa5efd1dde93bca # v1.5.0
