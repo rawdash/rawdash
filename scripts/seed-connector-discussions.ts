@@ -136,11 +136,11 @@ async function main(): Promise<void> {
       await new Promise((resolve) => setTimeout(resolve, 2000));
     }
     const data = await gql<{
-      createDiscussion: { discussion: { url: string } };
+      createDiscussion: { discussion: { id: string; url: string } };
     }>(
       `mutation ($repositoryId: ID!, $categoryId: ID!, $title: String!, $body: String!) {
         createDiscussion(input: { repositoryId: $repositoryId, categoryId: $categoryId, title: $title, body: $body }) {
-          discussion { url }
+          discussion { id url }
         }
       }`,
       {
@@ -149,6 +149,14 @@ async function main(): Promise<void> {
         title: p.id,
         body: discussionBody(p),
       },
+    );
+    await gql(
+      `mutation ($subjectId: ID!) {
+        removeUpvote(input: { subjectId: $subjectId }) {
+          subject { ... on Discussion { upvoteCount } }
+        }
+      }`,
+      { subjectId: data.createDiscussion.discussion.id },
     );
     created += 1;
     console.log(
