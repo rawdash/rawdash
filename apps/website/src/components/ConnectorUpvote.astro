@@ -1,19 +1,11 @@
 ---
-// Upvote control for a planned ("placeholder") connector. Uses GitHub
-// Discussions' native upvote: each connector maps to a discussion in the
-// "Connector Requests" category (title = connector id), and we show its live
-// `upvoteCount` plus a link to upvote on GitHub. Counts are read at build time
-// (see ../lib/connector-upvotes.ts); with no discussion yet (or no build token)
-// it degrades to a plain "Upvote on GitHub" link. See RAW-361.
 import {
   getConnectorUpvotes,
   discussionsCategoryUrl,
 } from '../lib/connector-upvotes';
 
 interface Props {
-  /** Stable connector id; the title of the backing discussion. */
   term: string;
-  /** Display name, for the button label. */
   name: string;
 }
 

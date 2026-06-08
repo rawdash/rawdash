@@ -1,22 +1,3 @@
-/**
- * Close "Connector Requests" GitHub Discussions for connectors that have
- * graduated from placeholder to shipped (RAW-361).
- *
- * Placeholder connectors are upvoted via a GitHub Discussion per connector in
- * the "Connector Requests" category, whose title is the connector id. When a
- * connector ships, it is removed from `scripts/connector-placeholders.ts`; the
- * merge-to-main workflow passes the removed ids here, and we close the matching
- * discussion as RESOLVED with a comment linking to the new connector's docs.
- *
- * Usage:
- *   tsx scripts/close-connector-discussions.ts <id> [<id> ...]
- *
- * Env:
- *   GITHUB_TOKEN     - token with `discussions: write` on the repo (required)
- *   GITHUB_REPOSITORY - "owner/name" (defaults to rawdash/rawdash)
- *   DISCUSSION_CATEGORY - category name (defaults to "Connector Requests")
- *   DRY_RUN          - if "1", log actions without mutating
- */
 const TOKEN = process.env.GITHUB_TOKEN;
 const REPO = process.env.GITHUB_REPOSITORY ?? 'rawdash/rawdash';
 const CATEGORY = process.env.DISCUSSION_CATEGORY ?? 'Connector Requests';
@@ -64,8 +45,6 @@ interface DiscussionNode {
   category: { name: string };
 }
 
-// The seed script titles each discussion exactly with the connector id. Find an
-// open discussion in the target category by exact title match.
 async function findDiscussion(id: string): Promise<DiscussionNode | null> {
   const data = await gql<{
     search: { nodes: DiscussionNode[] };
@@ -122,8 +101,6 @@ async function closeDiscussion(d: DiscussionNode, id: string): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  // The workflow passes ids as a single space-separated argument (quoted to
-  // avoid shell injection), so split on whitespace as well as across argv.
   const ids = process.argv
     .slice(2)
     .flatMap((arg) => arg.split(/\s+/))

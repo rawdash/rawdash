@@ -63,10 +63,6 @@ interface LoadedConnector {
   iconSvg: string;
 }
 
-// A placeholder ("planned") connector, resolved into a renderable shape: a
-// concrete icon SVG (Simple Icons glyph or a monogram fallback) and a resolved
-// brand color. Mirrors the fields of LoadedConnector that the catalog, landing
-// grid, and category pages consume.
 interface LoadedPlaceholder {
   id: string;
   name: string;
@@ -91,8 +87,6 @@ interface SimpleIcon {
   path: string;
 }
 
-// Simple Icons exports one object per icon (plus helpers). Index the icon
-// objects by slug so placeholders can resolve a brand glyph by `icon` slug.
 const ICON_BY_SLUG: Map<string, SimpleIcon> = (() => {
   const map = new Map<string, SimpleIcon>();
   for (const value of Object.values(simpleIcons)) {
@@ -118,23 +112,15 @@ function escapeXml(s: string): string {
     .replace(/"/g, '&quot;');
 }
 
-// A brand glyph in the same format as the connector packages' committed
-// icon.svg: a single Simple Icons path tinted with the brand hex.
 function brandedIconSvg(name: string, path: string, hex: string): string {
   return `<svg fill="#${hex}" role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>${escapeXml(name)}</title><path d="${path}"/></svg>`;
 }
 
-// Fallback for vendors Simple Icons does not carry (many B2B logos are absent
-// or were removed for trademark reasons): a rounded tile in the brand color
-// with the vendor's first letter, so every placeholder still has a real icon.
 function monogramIconSvg(name: string, hex: string): string {
   const letter = escapeXml([...name][0]?.toUpperCase() ?? '?');
   return `<svg role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>${escapeXml(name)}</title><rect width="24" height="24" rx="5" fill="${hex}"/><text x="12" y="13" text-anchor="middle" dominant-baseline="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#ffffff">${letter}</text></svg>`;
 }
 
-// Resolve the checked-in placeholder list into renderable entries, dropping any
-// that have since shipped as a real connector (matched by id or display name),
-// so a graduated placeholder disappears automatically on the next generation.
 function loadPlaceholders(
   realIds: Set<string>,
   realNames: Set<string>,
@@ -143,11 +129,6 @@ function loadPlaceholders(
   const graduated: string[] = [];
   const out: LoadedPlaceholder[] = [];
   for (const p of connectorPlaceholders) {
-    // A placeholder must not also be a shipped connector. When a connector
-    // graduates, its placeholder has to be crossed off the list; failing here
-    // (rather than silently dropping it) forces that and keeps the catalog from
-    // listing the same connector as both Available and Planned. This runs under
-    // `docs:connectors:check` in CI, so a stale placeholder fails the build.
     if (realIds.has(p.id) || realNames.has(p.name.toLowerCase())) {
       graduated.push(p.id);
       continue;
@@ -896,8 +877,6 @@ function collectOutputs(
       tracked: false,
     });
   }
-  // Union of categories that have any available connector or any placeholder,
-  // so a category with only planned connectors (e.g. Security) still gets a page.
   const allCategories = new Set([
     ...byCategory.keys(),
     ...placeholdersByCategory.keys(),

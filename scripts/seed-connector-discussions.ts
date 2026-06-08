@@ -1,22 +1,3 @@
-/**
- * Seed one GitHub Discussion per planned connector so every placeholder page
- * has a backing discussion (and a live upvote count) from day one (RAW-361).
- *
- * Each discussion is created in the "Connector Requests" category with its
- * title set to the connector id — the stable key the website upvote loader
- * (apps/website/src/lib/connector-upvotes.ts) and the auto-close workflow both
- * match on. Idempotent: a connector that already has a discussion is skipped, so
- * this is safe to re-run after adding new placeholders.
- *
- * Usage:
- *   GITHUB_TOKEN=... tsx scripts/seed-connector-discussions.ts
- *
- * Env:
- *   GITHUB_TOKEN        - token with `discussions: write` on the repo (required)
- *   GITHUB_REPOSITORY   - "owner/name" (defaults to rawdash/rawdash)
- *   DISCUSSION_CATEGORY - category name (defaults to "Connector Requests")
- *   DRY_RUN             - if "1", log what would be created without mutating
- */
 import { connectorPlaceholders } from './connector-placeholders';
 
 const TOKEN = process.env.GITHUB_TOKEN;
@@ -151,8 +132,6 @@ async function main(): Promise<void> {
       console.log(`[dry-run] would create discussion "${p.id}" (${p.name}).`);
       continue;
     }
-    // GitHub applies a secondary "submitted too quickly" rate limit to content
-    // creation; pause between mutations to stay under it.
     if (created > 0) {
       await new Promise((resolve) => setTimeout(resolve, 2000));
     }

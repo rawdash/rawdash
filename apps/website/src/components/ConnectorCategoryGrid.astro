@@ -17,8 +17,6 @@ interface CategoryIcon {
   iconPath: string;
   name: string;
 }
-// Available connectors first, then planned, so a category's card leads with
-// shipped logos (and a planned-only category still shows its placeholder icons).
 const iconsByCategory = new Map<string, CategoryIcon[]>();
 for (const c of [...connectors, ...connectorPlaceholders]) {
   const list = iconsByCategory.get(c.category) ?? [];

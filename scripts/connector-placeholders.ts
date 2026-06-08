@@ -1,49 +1,12 @@
 import type { ConnectorCategory } from '@rawdash/core';
 
-/**
- * Placeholder ("planned" / "requested") connectors.
- *
- * These are connectors rawdash does not ship yet. They are surfaced in the
- * docs catalog, per-category pages, and landing grid with a distinct
- * "Planned / Requested" status and an upvote control, so visitors can see the
- * roadmap and signal demand. See RAW-361.
- *
- * Unlike real connectors, placeholders are NOT packages — there is no code,
- * config, or resources to derive from. This checked-in list is the only source
- * of truth, and it feeds the same generator (scripts/generate-connector-docs.ts)
- * that renders the real connectors.
- *
- * Entries must not overlap with shipped connectors: the generator fails (and
- * `docs:connectors:check` goes red in CI) if a placeholder's `id` or display
- * name already exists as a real connector. When a connector graduates to a
- * package, remove its entry here.
- *
- * Icons: `icon` is a Simple Icons slug (https://simpleicons.org). The generator
- * synthesizes a brand-colored SVG from it. When Simple Icons has no entry for a
- * vendor (many B2B SaaS logos are absent or were removed for trademark
- * reasons), omit `icon` and provide `brandColor`; the generator renders a
- * monogram fallback (first letter on the brand color).
- */
 export interface ConnectorPlaceholder {
-  /**
-   * Stable slug. Doubles as the URL segment, icon filename, and the title of
-   * the backing "Connector Requests" GitHub Discussion used for upvoting.
-   */
   id: string;
-  /** Display name. */
   name: string;
-  /** Catalog category (must be one of core's ConnectorCategory values). */
   category: ConnectorCategory;
-  /** One-line description of what the connector would sync. */
   tagline: string;
-  /** Simple Icons slug. Omit when Simple Icons has no icon for the vendor. */
   icon?: string;
-  /**
-   * Brand accent color (hex). Optional when `icon` resolves (the icon's own
-   * color is used); required when there is no `icon` (used for the monogram).
-   */
   brandColor?: string;
-  /** Linear backlog issue tracking the build, e.g. "RAW-191". */
   requestIssue?: string;
 }
 
