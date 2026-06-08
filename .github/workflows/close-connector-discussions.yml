@@ -29,15 +29,17 @@ jobs:
         run: |
           before="${{ github.event.before }}"
           after="${{ github.sha }}"
-          # First push to a fresh branch has an all-zero "before"; nothing to diff.
           if [ -z "$before" ] || [ "$before" = "0000000000000000000000000000000000000000" ]; then
             echo "ids=" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          # Removed `id: '<value>'` lines in the placeholder list = graduated connectors.
-          ids=$(git diff "$before" "$after" -- scripts/connector-placeholders.ts \
-            | grep -E '^-\s*id:' \
-            | sed -E "s/.*id:\s*'([^']+)'.*/\1/" \
+          extract() {
+            git show "$1":scripts/connector-placeholders.ts 2>/dev/null \
+              | grep -E "^[[:space:]]*id:" \
+              | sed -E "s/.*id:[[:space:]]*'([^']+)'.*/\1/" \
+              | sort -u
+          }
+          ids=$(comm -23 <(extract "$before") <(extract "$after") \
             | tr '\n' ' ' \
             | sed -E 's/ +$//')
           echo "ids=$ids" >> "$GITHUB_OUTPUT"
