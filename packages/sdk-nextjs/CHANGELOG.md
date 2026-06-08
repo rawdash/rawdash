@@ -1,5 +1,13 @@
 # @rawdash/nextjs
 
+## 0.21.1
+
+### Patch Changes
+
+- @rawdash/core@0.21.1
+- @rawdash/sdk-client@0.21.1
+- @rawdash/sdk-runtime@0.21.1
+
 ## 0.21.0
 
 ### Patch Changes
