@@ -1,0 +1,76 @@
+---
+import {
+  getConnectorUpvotes,
+  discussionsCategoryUrl,
+} from '../lib/connector-upvotes';
+
+interface Props {
+  term: string;
+  name: string;
+}
+
+const { term, name } = Astro.props;
+const info = (await getConnectorUpvotes()).get(term) ?? null;
+const href = info?.url ?? discussionsCategoryUrl();
+---
+
+<div class="connector-upvote">
+  <a
+    class="connector-upvote-btn"
+    href={href}
+    target="_blank"
+    rel="noopener noreferrer"
+  >
+    <span class="connector-upvote-arrow" aria-hidden="true">▲</span>
+    {
+      info && (
+        <span class="connector-upvote-count">{info.count.toLocaleString()}</span>
+      )
+    }
+    <span class="connector-upvote-label">Upvote {name} on GitHub</span>
+  </a>
+  <p class="connector-upvote-hint">
+    Voting is a GitHub Discussion upvote — sign in with GitHub and click upvote.
+    The count refreshes when the site rebuilds.
+  </p>
+</div>
+
+<style>
+  .connector-upvote {
+    margin-top: 1rem;
+  }
+  .connector-upvote-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.6rem 1rem;
+    text-decoration: none;
+    color: var(--sl-color-white);
+    background: var(--sl-color-gray-6);
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0.6rem;
+    transition:
+      border-color 0.15s ease,
+      transform 0.15s ease;
+  }
+  .connector-upvote-btn:hover {
+    border-color: var(--sl-color-accent);
+    transform: translateY(-1px);
+  }
+  .connector-upvote-arrow {
+    color: var(--sl-color-accent);
+    font-size: 0.9em;
+  }
+  .connector-upvote-count {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .connector-upvote-label {
+    font-weight: 600;
+  }
+  .connector-upvote-hint {
+    margin: 0.6rem 0 0;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-3);
+  }
+</style>

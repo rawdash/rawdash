@@ -314,6 +314,14 @@ nav {
   border-color: var(--accent);
 }
 
+.connector-card.planned {
+  border-style: dashed;
+}
+
+.connector-card.planned:hover {
+  border-color: var(--text-dim);
+}
+
 .connector-icon {
   width: 40px;
   height: 40px;
