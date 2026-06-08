@@ -264,6 +264,15 @@ const issueEventResponseSchema = z.array(
     platform: z.string().nullable().optional(),
     groupID: z.string().optional(),
     environment: z.string().nullable().optional(),
+    crashFile: z.unknown().nullable().optional(),
+    culprit: z.string().optional(),
+    'event.type': z.string().optional(),
+    location: z.string().optional(),
+    metadata: z.unknown().optional(),
+    projectID: z.string().optional(),
+    tags: z.unknown().optional(),
+    title: z.string().optional(),
+    user: z.unknown().optional(),
   }),
 );
 
