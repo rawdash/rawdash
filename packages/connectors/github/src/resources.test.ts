@@ -3,9 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { GitHubConnector } from './github';
 
-const REPO_ID = '868501336';
-const OWNER = 'Smirk-Health';
-const REPO = 'monorepo';
+const REPO_ID = '123456789';
+const OWNER = 'acme-corp';
+const REPO = 'my-app';
 
 function numericIdUrl(resource: string, page: number): string {
   return `https://api.github.com/repositories/${REPO_ID}/${resource}?per_page=100&page=${page}`;
