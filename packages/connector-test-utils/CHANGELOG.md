@@ -1,5 +1,13 @@
 # @rawdash/connector-test-utils
 
+## 0.0.8
+
+### Patch Changes
+
+- Updated dependencies [c796c09]
+- Updated dependencies [37f1083]
+  - @rawdash/core@0.21.0
+
 ## 0.0.7
 
 ### Patch Changes

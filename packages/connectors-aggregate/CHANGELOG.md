@@ -1,5 +1,47 @@
 # @rawdash/connectors
 
+## 0.21.0
+
+### Patch Changes
+
+- Updated dependencies [c796c09]
+- Updated dependencies [37f1083]
+- Updated dependencies [32d0d2c]
+  - @rawdash/core@0.21.0
+  - @rawdash/connector-github@0.21.0
+  - @rawdash/connector-netlify@0.21.0
+  - @rawdash/connector-aws-cloudwatch@0.21.0
+  - @rawdash/connector-aws-cost@0.21.0
+  - @rawdash/connector-azure-cost@0.21.0
+  - @rawdash/connector-azure-monitor@0.21.0
+  - @rawdash/connector-bitbucket@0.21.0
+  - @rawdash/connector-circleci@0.21.0
+  - @rawdash/connector-datadog@0.21.0
+  - @rawdash/connector-gcp-billing@0.21.0
+  - @rawdash/connector-gcp-monitoring@0.21.0
+  - @rawdash/connector-gitlab@0.21.0
+  - @rawdash/connector-google-ads@0.21.0
+  - @rawdash/connector-google-analytics@0.21.0
+  - @rawdash/connector-google-search-console@0.21.0
+  - @rawdash/connector-greenhouse@0.21.0
+  - @rawdash/connector-hubspot@0.21.0
+  - @rawdash/connector-intercom@0.21.0
+  - @rawdash/connector-jira@0.21.0
+  - @rawdash/connector-klaviyo@0.21.0
+  - @rawdash/connector-launchdarkly@0.21.0
+  - @rawdash/connector-linear@0.21.0
+  - @rawdash/connector-mailchimp@0.21.0
+  - @rawdash/connector-meta-ads@0.21.0
+  - @rawdash/connector-mixpanel@0.21.0
+  - @rawdash/connector-new-relic@0.21.0
+  - @rawdash/connector-posthog@0.21.0
+  - @rawdash/connector-salesforce@0.21.0
+  - @rawdash/connector-sentry@0.21.0
+  - @rawdash/connector-statuspage@0.21.0
+  - @rawdash/connector-stripe@0.21.0
+  - @rawdash/connector-vercel@0.21.0
+  - @rawdash/connector-zendesk@0.21.0
+
 ## 0.20.0
 
 ### Minor Changes
