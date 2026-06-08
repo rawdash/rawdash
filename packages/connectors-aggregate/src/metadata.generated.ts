@@ -174,6 +174,12 @@ import {
   resources as sentryResources,
 } from '@rawdash/connector-sentry';
 import {
+  configFields as statuspageConfigFields,
+  doc as statuspageDoc,
+  id as statuspageId,
+  resources as statuspageResources,
+} from '@rawdash/connector-statuspage';
+import {
   configFields as stripeConfigFields,
   doc as stripeDoc,
   id as stripeId,
@@ -396,6 +402,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: sentryDoc,
     configFields: sentryConfigFields,
     resources: sentryResources,
+  },
+  {
+    id: statuspageId,
+    packageName: '@rawdash/connector-statuspage',
+    doc: statuspageDoc,
+    configFields: statuspageConfigFields,
+    resources: statuspageResources,
   },
   {
     id: stripeId,
