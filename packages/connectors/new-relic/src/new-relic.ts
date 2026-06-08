@@ -23,10 +23,6 @@ import {
 } from '@rawdash/core';
 import { z } from 'zod';
 
-// ---------------------------------------------------------------------------
-// configFields
-// ---------------------------------------------------------------------------
-
 const nrqlQuerySchema = z.object({
   name: z
     .string()
@@ -149,10 +145,6 @@ const newRelicCredentials = {
 
 type NewRelicCredentials = typeof newRelicCredentials;
 
-// ---------------------------------------------------------------------------
-// Sync phases + cursor
-// ---------------------------------------------------------------------------
-
 const PHASE_ORDER = ['alert_conditions', 'incidents', 'metrics'] as const;
 
 type NewRelicPhase = (typeof PHASE_ORDER)[number];
@@ -160,10 +152,6 @@ type NewRelicPhase = (typeof PHASE_ORDER)[number];
 type NewRelicSyncCursor = ChunkedSyncCursor<NewRelicPhase, string>;
 
 const isNewRelicSyncCursor = makeChunkedCursorGuard(PHASE_ORDER);
-
-// ---------------------------------------------------------------------------
-// API types — NerdGraph response shapes the request() pipe validates against
-// ---------------------------------------------------------------------------
 
 interface NrqlConditionNode {
   id: string;
@@ -227,10 +215,6 @@ interface GraphQLResponse<T> {
   errors?: GraphQLError[];
 }
 
-// ---------------------------------------------------------------------------
-// GraphQL documents
-// ---------------------------------------------------------------------------
-
 const ALERT_CONDITIONS_QUERY = `
   query AlertConditions($accountId: Int!, $cursor: String) {
     actor {
@@ -275,17 +259,7 @@ const NRQL_QUERY = `
   }
 `;
 
-// ---------------------------------------------------------------------------
-// Schemas — raw response shapes per resource
-// ---------------------------------------------------------------------------
-
 const idString = z.string().min(1);
-// NRQL result-row cells in practice are scalars (string | number | boolean | null)
-// or, for the `facet` column, an array of those scalars. The connector still
-// types these as JSONValue (which is recursive) so it can pass rows through to
-// storage attributes — but the property-test schema deliberately flattens to a
-// non-recursive shape because zodToArbitrary cannot drive recursive z.lazy()
-// schemas.
 const nrqlScalarSchema = z.union([
   z.string(),
   z.number(),
@@ -328,10 +302,6 @@ const nrqlResultSchema = z.object({
     .optional(),
 });
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
 const DEFAULT_REGION: 'US' | 'EU' = 'US';
 const DEFAULT_INCIDENTS_LOOKBACK_HOURS = 168;
 const DEFAULT_METRICS_LOOKBACK_HOURS = 24;
@@ -348,10 +318,6 @@ const TIMESTAMP_FIELDS = new Set([
   'closedAt',
 ]);
 const FACET_FIELDS = new Set(['facet']);
-
-// ---------------------------------------------------------------------------
-// Resource definitions
-// ---------------------------------------------------------------------------
 
 export const newRelicResources = defineResources({
   newrelic_alert_condition: {
@@ -390,10 +356,6 @@ export const newRelicResources = defineResources({
     responses: { nrql_queries: nrqlResultSchema },
   },
 });
-
-// ---------------------------------------------------------------------------
-// NewRelicConnector
-// ---------------------------------------------------------------------------
 
 export const id = 'new-relic';
 
@@ -465,10 +427,6 @@ export class NewRelicConnector extends BaseConnector<
     return res;
   }
 
-  // -------------------------------------------------------------------------
-  // Resource enablement
-  // -------------------------------------------------------------------------
-
   private activePhases(): NewRelicPhase[] {
     return selectActivePhases<NewRelicResource, NewRelicPhase>(
       (r) => {
@@ -485,10 +443,6 @@ export class NewRelicConnector extends BaseConnector<
       this.settings.resources,
     );
   }
-
-  // -------------------------------------------------------------------------
-  // Fetchers
-  // -------------------------------------------------------------------------
 
   private async fetchAlertConditionsPage(
     page: string | null,
@@ -585,10 +539,6 @@ export class NewRelicConnector extends BaseConnector<
     }
     return `${query} SINCE ${fallbackHours} hours ago`;
   }
-
-  // -------------------------------------------------------------------------
-  // Writers
-  // -------------------------------------------------------------------------
 
   private async writeAlertConditions(
     storage: StorageHandle,
@@ -732,7 +682,6 @@ export class NewRelicConnector extends BaseConnector<
     }
     const timestamp = row.timestamp;
     if (typeof timestamp === 'number' && Number.isFinite(timestamp)) {
-      // NRQL `timestamp` is always epoch ms.
       return parseEpoch(timestamp, 'ms');
     }
     const endMs = result.metadata?.timeWindow?.end;
@@ -779,10 +728,6 @@ export class NewRelicConnector extends BaseConnector<
     }
     return '*';
   }
-
-  // -------------------------------------------------------------------------
-  // sync
-  // -------------------------------------------------------------------------
 
   async sync(
     options: SyncOptions,

@@ -6,6 +6,10 @@ export const connectorLoaders: Record<string, () => Promise<ConnectorClass>> = {
     import('@rawdash/connector-aws-cloudwatch').then((m) => m.default),
   'aws-cost': () =>
     import('@rawdash/connector-aws-cost').then((m) => m.default),
+  'azure-cost': () =>
+    import('@rawdash/connector-azure-cost').then((m) => m.default),
+  'azure-monitor': () =>
+    import('@rawdash/connector-azure-monitor').then((m) => m.default),
   bitbucket: () =>
     import('@rawdash/connector-bitbucket').then((m) => m.default),
   circleci: () => import('@rawdash/connector-circleci').then((m) => m.default),

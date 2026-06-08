@@ -17,10 +17,6 @@ import {
 } from '@rawdash/core';
 import { z } from 'zod';
 
-// ---------------------------------------------------------------------------
-// configFields / doc
-// ---------------------------------------------------------------------------
-
 export const configFields = defineConfigFields(
   z.object({
     customerId: z
@@ -130,10 +126,6 @@ export const doc: ConnectorDoc = defineConnectorDoc({
   ],
 });
 
-// ---------------------------------------------------------------------------
-// Settings / credentials
-// ---------------------------------------------------------------------------
-
 export interface GoogleAdsSettings {
   customerId: string;
   loginCustomerId?: string;
@@ -161,10 +153,6 @@ const googleAdsCredentials = {
 } satisfies CredentialsSchema;
 
 type GoogleAdsCredentials = typeof googleAdsCredentials;
-
-// ---------------------------------------------------------------------------
-// Sync phases + cursor
-// ---------------------------------------------------------------------------
 
 const PHASE_ORDER = [
   'campaigns',
@@ -195,14 +183,6 @@ const METRIC_NAME: Record<GoogleAdsPhase, string> = {
   keyword_metrics: 'google_ads_keyword_metrics',
 };
 
-// ---------------------------------------------------------------------------
-// Google Ads API response shapes (GAQL search)
-// ---------------------------------------------------------------------------
-
-// INT64 fields come back as JSON strings; everything else may be string|number
-// depending on the field. We coerce in the writers. Empty strings aren't a
-// valid representation of any numeric value upstream, so the schema rejects
-// them - that also keeps fast-check from generating zero-length entity ids.
 const int64String = z.union([z.string().min(1), z.number()]);
 
 const segmentsSchema = z.object({
@@ -419,10 +399,6 @@ export const googleAdsResources = defineResources({
   },
 });
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 function toDateString(date: Date): string {
   const y = date.getUTCFullYear();
   const m = String(date.getUTCMonth() + 1).padStart(2, '0');
@@ -433,9 +409,6 @@ function toDateString(date: Date): string {
 const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
 function dateStringToMs(yyyyMmDd: string): number {
-  // Reject anything that doesn't match YYYY-MM-DD so a surprise upstream
-  // value (e.g. an empty string or a malformed date) doesn't write NaN into
-  // entity.updated_at / metric.ts.
   const m = DATE_RE.exec(yyyyMmDd);
   if (!m) {
     return 0;
@@ -494,11 +467,6 @@ function coerceIntOrNull(value: unknown): number | null {
 function microsToUnits(micros: unknown): number {
   return coerceInt(micros) / MICROS_PER_UNIT;
 }
-
-// ---------------------------------------------------------------------------
-// GAQL queries - one per phase. Date ranges are interpolated, not parameterised
-// (GAQL has no bind variables); range bounds are server-side string literals.
-// ---------------------------------------------------------------------------
 
 function campaignsQuery(): string {
   return [
@@ -575,10 +543,6 @@ function queryForPhase(phase: GoogleAdsPhase, range: DateRange): string {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Row → storage write helpers
-// ---------------------------------------------------------------------------
-
 export function campaignToEntity(row: CampaignRow): {
   type: string;
   id: string;
@@ -586,10 +550,6 @@ export function campaignToEntity(row: CampaignRow): {
   updated_at: number;
 } {
   const c = row.campaign;
-  // Campaign upstream has no updated_at field. Use the start_date as a stable
-  // freshness signal so re-syncs of the same row don't churn updated_at; for
-  // campaigns with no start_date (rare), fall back to 0 which still makes the
-  // upsert idempotent.
   const startMs = c.startDate ? dateStringToMs(c.startDate) : 0;
   return {
     type: ENTITY_TYPE_CAMPAIGN,
@@ -686,10 +646,6 @@ export function keywordMetricRowToSample(row: KeywordMetricRow): {
   };
 }
 
-// ---------------------------------------------------------------------------
-// GoogleAdsConnector
-// ---------------------------------------------------------------------------
-
 interface TokenResponse {
   access_token: string;
   expires_in?: number;
@@ -754,8 +710,6 @@ export class GoogleAdsConnector extends BaseConnector<
     const expiresIn = res.body.expires_in ?? 3600;
     return {
       token: res.body.access_token,
-      // Refresh 60s before expiry so a long-running phase doesn't 401 on the
-      // boundary.
       expiresAt: Date.now() + (expiresIn - 60) * 1000,
     };
   }
@@ -856,16 +810,11 @@ export class GoogleAdsConnector extends BaseConnector<
     isFull: boolean,
   ): Promise<void> {
     if (phase === 'campaigns') {
-      // Entities upsert by id, so only a full backfill needs to drop stale
-      // rows; incremental ticks just overwrite the records they touch.
       if (isFull) {
         await storage.entities([], { types: [ENTITY_TYPE_CAMPAIGN] });
       }
       return;
     }
-    // Metric phases always rewrite the requested date window - clearing by
-    // name keeps writes idempotent across runs and prevents partial-page
-    // failures from leaving orphaned samples.
     await storage.metrics([], { names: [METRIC_NAME[phase]] });
   }
 

@@ -27,10 +27,6 @@ import {
 } from '@rawdash/core';
 import { z } from 'zod';
 
-// ---------------------------------------------------------------------------
-// configFields
-// ---------------------------------------------------------------------------
-
 export const configFields = defineConfigFields(
   z.object({
     apiKey: z.object({ $secret: z.string() }).meta({
@@ -59,10 +55,6 @@ export const configFields = defineConfigFields(
       }),
   }),
 );
-
-// ---------------------------------------------------------------------------
-// Connector doc (catalog metadata)
-// ---------------------------------------------------------------------------
 
 export const doc: ConnectorDoc = defineConnectorDoc({
   displayName: 'Greenhouse',
@@ -93,20 +85,12 @@ export const doc: ConnectorDoc = defineConnectorDoc({
   ],
 });
 
-// ---------------------------------------------------------------------------
-// Cost
-// ---------------------------------------------------------------------------
-
 export const cost: ConnectorCost = {
   recommendedInterval: '1 hour',
   minInterval: '15 minutes',
   warning:
     'Greenhouse Harvest is rate-limited to 50 requests / 10 seconds per key; on large hiring funnels the full backfill spans many pages, so syncing more often than the recommended interval can starve other integrations on the same key.',
 };
-
-// ---------------------------------------------------------------------------
-// Settings / credentials
-// ---------------------------------------------------------------------------
 
 export interface GreenhouseSettings {
   resources?: readonly GreenhouseResource[];
@@ -120,10 +104,6 @@ const greenhouseCredentials = {
 } satisfies CredentialsSchema;
 
 type GreenhouseCredentials = typeof greenhouseCredentials;
-
-// ---------------------------------------------------------------------------
-// Sync phases + cursor
-// ---------------------------------------------------------------------------
 
 const PHASE_ORDER = [
   'jobs',
@@ -151,23 +131,15 @@ const APPLICATION_ENTITY = 'greenhouse_application';
 const OFFER_ENTITY = 'greenhouse_offer';
 const APPLICATION_EVENT = 'greenhouse_application_event';
 
-// Greenhouse exposes remaining quota in X-RateLimit-Remaining; reset is in
-// X-RateLimit-Reset (Unix seconds).
 const greenhouseRateLimit = standardRateLimitPolicy({
   remainingHeader: 'x-ratelimit-remaining',
   resetHeader: 'x-ratelimit-reset',
   resetUnit: 's',
 });
 
-// Each user-facing resource maps 1:1 to a sync phase; the type alias keeps the
-// two surfaces aligned at compile time.
 function resourceToPhase(resource: GreenhouseResource): GreenhousePhase {
   return resource;
 }
-
-// ---------------------------------------------------------------------------
-// API response types
-// ---------------------------------------------------------------------------
 
 interface JobRecord {
   id: number;
@@ -219,7 +191,6 @@ interface ApplicationRecord {
   last_activity_at?: string | null;
   source?: ApplicationSourceRef | null;
   jobs?: Array<{ id?: number | null; name?: string | null }> | null;
-  // Greenhouse omits hired_at; callers infer it from status + last_activity_at.
 }
 
 interface OfferRecord {
@@ -233,10 +204,6 @@ interface OfferRecord {
   resolved_at?: string | null;
   starts_at?: string | null;
 }
-
-// ---------------------------------------------------------------------------
-// Schemas — describe the per-resource API response shape consumed by request()
-// ---------------------------------------------------------------------------
 
 const jobSchema = z.object({
   id: z.number().int(),
@@ -301,10 +268,6 @@ const offerSchema = z.object({
   resolved_at: z.string().nullish(),
   starts_at: z.string().nullish(),
 });
-
-// ---------------------------------------------------------------------------
-// Resources
-// ---------------------------------------------------------------------------
 
 export const greenhouseResources = defineResources({
   [JOB_ENTITY]: {
@@ -461,10 +424,6 @@ export const greenhouseResources = defineResources({
   },
 });
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 function isoToMs(value: string | null | undefined): number | null {
   if (!value) {
     return null;
@@ -508,14 +467,8 @@ function hiredAtMs(app: ApplicationRecord): number | null {
   if (app.status !== 'hired') {
     return null;
   }
-  // Greenhouse omits hired_at on /applications; last_activity_at is the
-  // canonical proxy for the transition timestamp when status === 'hired'.
   return isoToMs(app.last_activity_at);
 }
-
-// ---------------------------------------------------------------------------
-// GreenhouseConnector
-// ---------------------------------------------------------------------------
 
 export const id = 'greenhouse';
 
@@ -544,8 +497,6 @@ export class GreenhouseConnector extends BaseConnector<
   override readonly credentials = greenhouseCredentials;
 
   private buildHeaders(): Record<string, string> {
-    // Greenhouse Harvest uses HTTP Basic with the API key as username and an
-    // empty password.
     const basic = btoa(`${this.creds.apiKey}:`);
     return {
       Authorization: `Basic ${basic}`,
@@ -597,12 +548,6 @@ export class GreenhouseConnector extends BaseConnector<
       return undefined;
     }
     if (cursor.phase === 'application_events') {
-      // This phase is append-only and only re-wipes its scope on the first
-      // page (page === null). Resuming from a saved mid-phase page URL would
-      // replay that page without clearing, duplicating transitions. Restart
-      // from page 1 so clearScopeOnFirstPage wipes before replaying; the phase
-      // derives from /v1/applications with no `since` filter, so a full replay
-      // stays cheap.
       return { phase: cursor.phase, page: null };
     }
     return {
@@ -611,27 +556,17 @@ export class GreenhouseConnector extends BaseConnector<
     };
   }
 
-  // Build the initial-page URL for a phase. Subsequent pages come from the
-  // Link header, validated through sanitizeAllowedUrl above.
   private buildInitialUrl(
     phase: GreenhousePhase,
     options: SyncOptions,
   ): string {
     const url = new URL(`${API_BASE}${this.allowedPagePath(phase)}`);
     url.searchParams.set('per_page', String(PER_PAGE));
-    // application_events derives its rows from /v1/applications without a
-    // since filter so the scope-clear + rewrite stays whole on every sync.
     if (phase !== 'application_events' && options.since) {
-      // jobs / candidates / applications / offers all support updated_after
-      // as the canonical incremental filter on the Harvest API.
       url.searchParams.set('updated_after', options.since);
     }
     return url.toString();
   }
-
-  // -------------------------------------------------------------------------
-  // Page fetchers
-  // -------------------------------------------------------------------------
 
   private async fetchPhasePage(
     phase: GreenhousePhase,
@@ -644,16 +579,9 @@ export class GreenhouseConnector extends BaseConnector<
     const url = page ?? this.buildInitialUrl(phase, options);
     const res = await this.apiGet<unknown[]>(url, resource, signal);
     const rawNext = parseLinkHeader(res.headers.get('link'))['next'] ?? null;
-    // Sanitize the upstream-supplied next URL so a crafted Link header can't
-    // exfiltrate the Basic-auth header to an attacker-controlled host on the
-    // next page fetch.
     const next = this.sanitizePageUrl(phase, rawNext);
     return { items: res.body ?? [], next };
   }
-
-  // -------------------------------------------------------------------------
-  // Writers
-  // -------------------------------------------------------------------------
 
   private async writeJobs(
     storage: StorageHandle,
@@ -809,23 +737,16 @@ export class GreenhouseConnector extends BaseConnector<
     }
   }
 
-  // -------------------------------------------------------------------------
-  // Scope clearing
-  // -------------------------------------------------------------------------
-
   private async clearScopeOnFirstPage(
     storage: StorageHandle,
     phase: GreenhousePhase,
     isFull: boolean,
   ): Promise<void> {
     if (phase === 'application_events') {
-      // Events can't be upserted by key, so we wipe and rewrite on every sync.
       await storage.events([], { names: [APPLICATION_EVENT] });
       return;
     }
     if (!isFull) {
-      // Entity phases upsert by id, so incremental ticks just overwrite the
-      // records they touch.
       return;
     }
     const entityType = ENTITY_TYPE_BY_PHASE[phase];

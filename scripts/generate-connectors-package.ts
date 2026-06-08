@@ -1,31 +1,3 @@
-/**
- * Generate the `@rawdash/connectors` aggregate package from the connector
- * packages in this monorepo.
- *
- * Single source of truth = the connector packages under `packages/connectors/`.
- * Adding a connector there flows into the aggregate automatically — consumers
- * depend on the one aggregate package instead of N individual ones, with no
- * consumer-side changes and no version drift.
- *
- * Emits three build-time artifacts in the aggregate package:
- *   - `src/metadata.generated.ts` — re-exports each connector's metadata
- *     (`id`, `doc`, `configFields`, `resources`, `cost`). This is the
- *     metadata-only surface the cloud catalog consumes; it never re-exports
- *     sync logic, and combined with `sideEffects:false` the connector class
- *     bodies tree-shake out of a metadata-only bundle.
- *   - `src/registry.generated.ts` — a map of connector id → lazy
- *     `() => import('@rawdash/connector-*')` loader, preserving the
- *     per-connector lazy-load boundary for sync consumers.
- *   - `package.json` `dependencies` — the `@rawdash/connector-*` set, kept in
- *     lockstep with the discovered connectors.
- *
- * Run with the source condition so workspace packages resolve to their TS
- * source (no prior build needed):
- *   NODE_OPTIONS=--conditions=@rawdash/source tsx scripts/generate-connectors-package.ts
- *
- * Pass --check to fail (non-zero exit) if regenerating would change any file —
- * this is the CI drift guard.
- */
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -37,8 +9,7 @@ const PKG_DIR = join(ROOT, 'packages', 'connectors-aggregate');
 const SRC_DIR = join(PKG_DIR, 'src');
 const PKG_JSON_PATH = join(PKG_DIR, 'package.json');
 
-// Directories under packages/connectors that are not themselves connectors.
-const NOT_A_CONNECTOR = new Set(['aws-shared', 'gcp-shared']);
+const NOT_A_CONNECTOR = new Set(['aws-shared', 'gcp-shared', 'azure-shared']);
 
 const GENERATED_MESSAGE =
   'This file is generated from the connector packages by scripts/generate-connectors-package.ts. Do not edit by hand.';
@@ -49,15 +20,9 @@ interface LoadedConnector {
   packageName: string;
   id: string;
   hasCost: boolean;
-  /** camelCase identifier prefix used for generated import bindings. */
   ident: string;
 }
 
-// The aggregate's metadata entry imports only these named exports — never the
-// default connector class — so a metadata-only consumer never bundles connector
-// sync code. Each connector must therefore expose its metadata as standalone
-// named exports (`id`, `doc`, `configFields`, `resources`, and optionally
-// `cost`) rather than only as class statics.
 interface ConnectorModule {
   default?: unknown;
   id?: string;
@@ -67,9 +32,6 @@ interface ConnectorModule {
   cost?: unknown;
 }
 
-// Deterministic, locale-independent string order. `localeCompare` collation
-// varies across platforms/ICU builds (macOS vs CI Linux), which would make the
-// generated ordering drift between machines; a code-unit compare never does.
 function byCodeUnit(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
@@ -187,9 +149,6 @@ function renderRegistryModule(connectors: LoadedConnector[]): string {
   ].join('\n');
 }
 
-// Rewrite the aggregate package.json so its @rawdash/connector-* dependencies
-// exactly match the discovered connector set (lockstep, no drift). Non-connector
-// dependencies (@rawdash/core, zod) and every other field are preserved.
 function renderPackageJson(connectors: LoadedConnector[]): string {
   const pkg = JSON.parse(readFileSync(PKG_JSON_PATH, 'utf8')) as {
     dependencies?: Record<string, string>;

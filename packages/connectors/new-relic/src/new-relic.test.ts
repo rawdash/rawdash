@@ -2,10 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { NewRelicConnector, configFields } from './new-relic';
 
-// ---------------------------------------------------------------------------
-// configFields
-// ---------------------------------------------------------------------------
-
 describe('configFields', () => {
   it('parses a valid config with required fields only', () => {
     const result = configFields.safeParse({
@@ -99,10 +95,6 @@ describe('configFields', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Test scaffolding
-// ---------------------------------------------------------------------------
-
 function makeStorage() {
   return {
     event: vi.fn().mockResolvedValue(undefined),
@@ -195,10 +187,6 @@ function makeConnector(
     { apiKey: 'nrak_test' as unknown as { $secret: string } },
   );
 }
-
-// ---------------------------------------------------------------------------
-// NewRelicConnector.sync
-// ---------------------------------------------------------------------------
 
 describe('NewRelicConnector.sync', () => {
   afterEach(() => {
@@ -621,7 +609,6 @@ describe('NewRelicConnector.sync', () => {
       { mode: 'full' },
       makeStorage(),
     );
-    // Only the empty-result NRQL setup may fire, but the metrics phase shouldn't issue any RunNrql calls.
     const nrqlCalls = calls.filter(
       (c) => operationName(c.parsed.query) === 'RunNrql',
     );

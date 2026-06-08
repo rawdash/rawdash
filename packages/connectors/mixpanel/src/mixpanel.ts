@@ -17,10 +17,6 @@ import {
 } from '@rawdash/core';
 import { z } from 'zod';
 
-// ---------------------------------------------------------------------------
-// Config
-// ---------------------------------------------------------------------------
-
 const funnelSpec = z.object({
   id: z.union([z.string().min(1), z.number().int().positive()]).meta({
     label: 'Funnel ID',
@@ -121,10 +117,6 @@ export const cost: ConnectorCost = {
     'Each configured event and funnel costs one or more queries per sync against Mixpanel quotas; adding many events/funnels or syncing frequently can exhaust the quota.',
 };
 
-// ---------------------------------------------------------------------------
-// Settings / credentials
-// ---------------------------------------------------------------------------
-
 export interface MixpanelFunnelSpec {
   id: string | number;
   name?: string;
@@ -152,10 +144,6 @@ const mixpanelCredentials = {
 } satisfies CredentialsSchema;
 
 type MixpanelCredentials = typeof mixpanelCredentials;
-
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
 
 const DEFAULT_LOOKBACK_DAYS = 90;
 const INCREMENTAL_LOOKBACK_DAYS = 3;
@@ -187,10 +175,6 @@ const PHASE_UNIT: Record<'dau' | 'wau' | 'mau', 'day' | 'week' | 'month'> = {
   wau: 'week',
   mau: 'month',
 };
-
-// ---------------------------------------------------------------------------
-// Cursor + helpers
-// ---------------------------------------------------------------------------
 
 interface MixpanelDateRange {
   from: string;
@@ -273,11 +257,6 @@ export function getDateRange(
   };
 }
 
-// ---------------------------------------------------------------------------
-// Mixpanel response shapes (permissive — wire format is JSON, validated by
-// the per-resource Zod schemas below before sample extraction)
-// ---------------------------------------------------------------------------
-
 export interface SegmentationResponse {
   legend_size?: number;
   data: {
@@ -316,10 +295,6 @@ export interface RetentionCohort {
 }
 
 export type RetentionResponse = Record<string, RetentionCohort>;
-
-// ---------------------------------------------------------------------------
-// Zod schemas — describe each resource's wire shape
-// ---------------------------------------------------------------------------
 
 const dateString = z.string().regex(DATE_RE);
 const finiteNumber = z.number();
@@ -501,10 +476,6 @@ export const mixpanelResources = defineResources({
   },
 });
 
-// ---------------------------------------------------------------------------
-// Sample extraction (pure, exported for unit tests)
-// ---------------------------------------------------------------------------
-
 export function buildActiveUserSamples(
   response: SegmentationResponse,
   metricName: string,
@@ -513,9 +484,6 @@ export function buildActiveUserSamples(
 ): MetricSample[] {
   const samples: MetricSample[] = [];
   const seriesByEvent = response.data.values;
-  // Mixpanel returns values keyed by the queried event name; merge across keys
-  // so a single sample per date is emitted regardless of how many event keys
-  // appear in the response.
   const dateTotals = new Map<string, number>();
   for (const eventValues of Object.values(seriesByEvent)) {
     for (const [date, value] of Object.entries(eventValues)) {
@@ -634,10 +602,6 @@ export function buildRetentionSamples(
   return samples;
 }
 
-// ---------------------------------------------------------------------------
-// Auth helper
-// ---------------------------------------------------------------------------
-
 function encodeBasicAuth(username: string, secret: string): string {
   const raw = `${username}:${secret}`;
   if (typeof btoa === 'function') {
@@ -657,10 +621,6 @@ function encodeBasicAuth(username: string, secret: string): string {
 function regionHost(region: 'us' | 'eu' | undefined): string {
   return region === 'eu' ? 'eu.mixpanel.com' : 'mixpanel.com';
 }
-
-// ---------------------------------------------------------------------------
-// MixpanelConnector
-// ---------------------------------------------------------------------------
 
 export const id = 'mixpanel';
 
@@ -790,7 +750,6 @@ export class MixpanelConnector extends BaseConnector<
     const metricName = METRIC_NAMES[phase];
     const event = this.resolveActiveUserEvent();
     if (event === undefined) {
-      // No configured event to base active-user counts on; clear and skip.
       await storage.metrics([], { names: [metricName] });
       return;
     }
@@ -908,8 +867,6 @@ export class MixpanelConnector extends BaseConnector<
     const cursor = isMixpanelSyncCursor(options.cursor)
       ? options.cursor
       : undefined;
-    // Restore the originally-computed window on resume so phases stay aligned
-    // across midnight rollovers and lookbackDays changes between runs.
     const dateRange = cursor?.dateRange ?? getDateRange(options, lookbackDays);
 
     const resumeIdx = cursor ? PHASE_ORDER.indexOf(cursor.phase) : -1;

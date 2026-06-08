@@ -26,10 +26,6 @@ import {
 } from '@rawdash/core';
 import { z } from 'zod';
 
-// ---------------------------------------------------------------------------
-// Config
-// ---------------------------------------------------------------------------
-
 const BQ_IDENT_RE = /^[A-Za-z_][A-Za-z0-9_-]*$/;
 const BQ_DATASET_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const DIMENSION_VALUES = ['service', 'project', 'sku', 'location'] as const;
@@ -124,10 +120,6 @@ export const doc: ConnectorDoc = defineConnectorDoc({
   ],
 });
 
-// ---------------------------------------------------------------------------
-// Constants / settings
-// ---------------------------------------------------------------------------
-
 const BQ_API_BASE = 'https://bigquery.googleapis.com/bigquery/v2';
 const BQ_SCOPE = 'https://www.googleapis.com/auth/bigquery.readonly';
 const COST_METRIC_NAME = 'gcp_cost_daily';
@@ -154,10 +146,6 @@ const gcpBillingCredentials = {
 
 type GcpBillingCredentials = typeof gcpBillingCredentials;
 
-// ---------------------------------------------------------------------------
-// BigQuery API response schemas
-// ---------------------------------------------------------------------------
-
 const bqQueryResponseSchema = z.object({
   jobComplete: z.boolean().optional(),
   schema: z
@@ -181,10 +169,6 @@ const bqQueryResponseSchema = z.object({
     })
     .optional(),
 });
-
-// ---------------------------------------------------------------------------
-// Resources
-// ---------------------------------------------------------------------------
 
 export const gcpBillingResources = defineResources({
   [COST_METRIC_NAME]: {
@@ -235,10 +219,6 @@ export const cost: ConnectorCost = {
   warning:
     'Each BigQuery query is billed against the bqProject. Prefer once-a-day syncs and a focused groupBy.',
 };
-
-// ---------------------------------------------------------------------------
-// GcpBillingConnector
-// ---------------------------------------------------------------------------
 
 export class GcpBillingConnector extends BaseConnector<
   GcpBillingSettings,
@@ -315,9 +295,6 @@ export class GcpBillingConnector extends BaseConnector<
       query: sql,
       useLegacySql: false,
       maxResults: PAGE_SIZE,
-      // 30s synchronous wait. If BigQuery still isn't done it returns
-      // jobComplete:false; sync() treats that as an error rather than
-      // silently persisting partial results.
       timeoutMs: 30_000,
     };
     if (this.settings.bqLocation !== undefined) {
@@ -410,10 +387,6 @@ export class GcpBillingConnector extends BaseConnector<
   }
 }
 
-// ---------------------------------------------------------------------------
-// Pure helpers - exported for unit testing
-// ---------------------------------------------------------------------------
-
 interface CostWindow {
   startDate: string;
   endDate: string;
@@ -433,9 +406,6 @@ export function buildBillingSql(args: {
   startDate: string;
   endDate: string;
 }): string {
-  // bqProject/bqDataset are validated by configFields against a strict
-  // identifier regex; the date literals come from getCostWindow which formats
-  // them as YYYY-MM-DD. Both are safe to interpolate.
   const dims = args.groupBy.map((d) => DIM_TO_SELECT[d]);
   const selectCols = ['DATE(usage_start_time) AS date']
     .concat(dims.map((d) => `${d.select} AS ${d.alias}`))
@@ -470,8 +440,6 @@ export function getCostWindow(
   lookbackDays: number,
   now: number = Date.now(),
 ): CostWindow {
-  // End is exclusive; tomorrow 00:00 UTC so today's partial spend is included
-  // and overwritten on the next sync as more usage rolls in.
   const endMs = startOfUtcDay(now) + MS_PER_DAY;
   let days = lookbackDays;
   if (options.mode === 'latest') {
@@ -551,8 +519,6 @@ function readCell(
 }
 
 function parseBqDateOrEpoch(value: string): number | null {
-  // BigQuery's DATE type renders as 'YYYY-MM-DD'; widening to a full ISO
-  // timestamp also works in case a future query selects a TIMESTAMP column.
   const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   if (dateMatch) {
     return Date.UTC(

@@ -6,17 +6,12 @@ export type ContentEntry = CollectionEntry<'content'>;
 
 export interface SectionMeta {
   pageType: ContentPageType;
-  /** URL prefix, no trailing slash. */
   basePath: string;
-  /** Listing-page H1. */
   title: string;
-  /** Listing-page meta description / dek. */
   description: string;
-  /** Eyebrow label above the listing title. */
   label: string;
 }
 
-/** Static metadata for each content section, keyed by route segment. */
 export const SECTIONS = {
   blog: {
     pageType: 'blog',
@@ -57,7 +52,6 @@ function publishedTime(entry: ContentEntry): number {
   return date ? date.getTime() : 0;
 }
 
-/** Published entries for one section, newest first. */
 export async function getSectionEntries(
   pageType: ContentPageType,
 ): Promise<ContentEntry[]> {
@@ -68,7 +62,6 @@ export async function getSectionEntries(
   return entries.sort((a, b) => publishedTime(b) - publishedTime(a));
 }
 
-/** The slug segment used in the URL for an entry (drops the `pageType/` prefix). */
 export function entrySlug(entry: ContentEntry): string {
   return entry.data.slug;
 }

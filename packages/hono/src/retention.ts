@@ -10,13 +10,6 @@ import { Hono } from 'hono';
 import type { HonoRouterOptions } from './shared';
 import { applyBefore, makeEngineContext, mapError } from './shared';
 
-/**
- * `POST /retain` — runs the retention policy once. Coalesces concurrent
- * calls so multiple requests during an in-flight run share the same
- * promise.
- *
- * Mount at `/retention`.
- */
 export function createRetentionRouter(opts: HonoRouterOptions): Hono {
   const app = new Hono();
   applyBefore(app, opts.before);
@@ -48,14 +41,6 @@ export interface RetentionLoopOptions {
   intervalMs?: number;
 }
 
-/**
- * Start a background loop that periodically runs the retention policy.
- * Returns a `stop()` function that clears the interval.
- *
- * Only useful on long-lived runtimes (Node, Bun, Deno). In serverless
- * runtimes (Workers, Lambda) use the platform's native scheduler
- * (Cron Triggers, CloudWatch Events) to call `POST /retention/retain`.
- */
 export function startRetentionLoop(opts: RetentionLoopOptions): () => void {
   let stopped = false;
   let inFlight: Promise<void> | null = null;
@@ -86,8 +71,6 @@ export function startRetentionLoop(opts: RetentionLoopOptions): () => void {
       if (!config.retention || !hasPruningPolicy(config.retention)) {
         return;
       }
-      // Re-check `stopped` after the async getConfig in case stop()
-      // was called while we were awaiting it.
       if (stopped) {
         return;
       }
@@ -98,9 +81,6 @@ export function startRetentionLoop(opts: RetentionLoopOptions): () => void {
       const created = setInterval(() => {
         void tick();
       }, intervalMs);
-      // Race with stop(): if stop() ran between the check above and
-      // setInterval, clear it immediately rather than leaving a
-      // lingering timer behind.
       if (stopped) {
         clearInterval(created);
       } else {

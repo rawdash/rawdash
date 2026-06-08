@@ -10,10 +10,6 @@ import {
   getDateRange,
 } from './mixpanel';
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 function makeStorage() {
   return {
     event: vi.fn().mockResolvedValue(undefined),
@@ -97,10 +93,6 @@ function makeConnector(overrides: {
   );
 }
 
-// ---------------------------------------------------------------------------
-// configFields
-// ---------------------------------------------------------------------------
-
 describe('configFields', () => {
   it('parses a minimal config (no events / funnels)', () => {
     const result = configFields.safeParse({
@@ -153,10 +145,6 @@ describe('configFields', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// getDateRange
-// ---------------------------------------------------------------------------
-
 describe('getDateRange', () => {
   const now = Date.UTC(2025, 0, 31);
 
@@ -182,13 +170,9 @@ describe('getDateRange', () => {
       (Date.parse(`${r.to}T00:00:00Z`) - Date.parse(`${r.from}T00:00:00Z`)) /
         86_400_000,
     );
-    expect(days).toBe(13); // 14 days inclusive
+    expect(days).toBe(13);
   });
 });
-
-// ---------------------------------------------------------------------------
-// Sample builders
-// ---------------------------------------------------------------------------
 
 describe('buildActiveUserSamples', () => {
   it('emits one sample per date', () => {
@@ -280,10 +264,6 @@ describe('buildRetentionSamples', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// MixpanelConnector.sync
-// ---------------------------------------------------------------------------
-
 describe('MixpanelConnector.sync', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -294,8 +274,6 @@ describe('MixpanelConnector.sync', () => {
     const storage = makeStorage();
     const result = await makeConnector({}).sync({ mode: 'full' }, storage);
     expect(result.done).toBe(true);
-    // Every phase still calls storage.metrics (even with [] payload) so stale
-    // rows are wiped on re-sync.
     expect(storage.metrics).toHaveBeenCalled();
   });
 
@@ -306,7 +284,6 @@ describe('MixpanelConnector.sync', () => {
     vi.stubGlobal('fetch', mockFetch({ segmentation: segSpy }));
     const storage = makeStorage();
     await makeConnector({}).sync({ mode: 'full' }, storage);
-    // Active-user phases (dau/wau/mau) make zero API calls when no event is set.
     expect(segSpy).not.toHaveBeenCalled();
   });
 
@@ -436,9 +413,6 @@ describe('MixpanelConnector.sync', () => {
       },
       storage,
     );
-    // Only retention requests should fire (dau/wau/mau are skipped because no
-    // activeUserEvent is set, but more importantly because resume starts at
-    // 'retention').
     const calls = fetchSpy.mock.calls.map((c: unknown[]) => String(c[0]));
     const retentionCalls = calls.filter((u: string) =>
       u.includes('/retention'),
@@ -470,10 +444,6 @@ describe('MixpanelConnector.sync', () => {
     expect(calls.every((u: string) => !u.includes('/retention'))).toBe(true);
   });
 });
-
-// ---------------------------------------------------------------------------
-// MixpanelConnector.create
-// ---------------------------------------------------------------------------
 
 describe('MixpanelConnector.create', () => {
   afterEach(() => {

@@ -22,10 +22,6 @@ import {
 } from '@rawdash/core';
 import { z } from 'zod';
 
-// ---------------------------------------------------------------------------
-// configFields
-// ---------------------------------------------------------------------------
-
 export const configFields = defineConfigFields(
   z.object({
     subdomain: z
@@ -75,10 +71,6 @@ export const configFields = defineConfigFields(
   }),
 );
 
-// ---------------------------------------------------------------------------
-// Connector doc (catalog metadata)
-// ---------------------------------------------------------------------------
-
 export const doc: ConnectorDoc = defineConnectorDoc({
   displayName: 'Zendesk',
   category: 'support',
@@ -110,10 +102,6 @@ export const doc: ConnectorDoc = defineConnectorDoc({
   ],
 });
 
-// ---------------------------------------------------------------------------
-// Settings / credentials
-// ---------------------------------------------------------------------------
-
 export interface ZendeskSettings {
   subdomain: string;
   resources?: readonly ZendeskResource[];
@@ -131,10 +119,6 @@ const zendeskCredentials = {
 } satisfies CredentialsSchema;
 
 type ZendeskCredentials = typeof zendeskCredentials;
-
-// ---------------------------------------------------------------------------
-// Sync phases + cursor
-// ---------------------------------------------------------------------------
 
 const PHASE_ORDER = [
   'users',
@@ -158,10 +142,6 @@ const GROUP_ENTITY = 'zendesk_group';
 const TICKET_ENTITY = 'zendesk_ticket';
 const TICKET_STATE_EVENT = 'zendesk_ticket_state_change';
 const SATISFACTION_RATING_ENTITY = 'zendesk_satisfaction_rating';
-
-// ---------------------------------------------------------------------------
-// API response types
-// ---------------------------------------------------------------------------
 
 interface UserRecord {
   id: number;
@@ -237,10 +217,6 @@ interface SatisfactionRatingListResponse {
   meta?: { has_more?: boolean | null; after_cursor?: string | null } | null;
 }
 
-// ---------------------------------------------------------------------------
-// Schemas — describe the per-resource API response shape consumed by request()
-// ---------------------------------------------------------------------------
-
 const idNumber = z.number();
 const isoString = z.string();
 
@@ -296,10 +272,6 @@ const satisfactionRatingSchema = z.object({
   updated_at: isoString.nullish(),
 });
 
-// ---------------------------------------------------------------------------
-// Value helpers
-// ---------------------------------------------------------------------------
-
 function numericIdOrNull(value: number | null | undefined): string | null {
   if (value === null || value === undefined) {
     return null;
@@ -322,10 +294,6 @@ function viaChannel(ticket: TicketRecord): string | null {
 function csatScore(ticket: TicketRecord): string | null {
   return ticket.satisfaction_rating?.score ?? null;
 }
-
-// ---------------------------------------------------------------------------
-// Resources
-// ---------------------------------------------------------------------------
 
 export const zendeskResources = defineResources({
   [USER_ENTITY]: {
@@ -484,10 +452,6 @@ export const zendeskResources = defineResources({
   },
 });
 
-// ---------------------------------------------------------------------------
-// ZendeskConnector
-// ---------------------------------------------------------------------------
-
 export const id = 'zendesk';
 
 export class ZendeskConnector extends BaseConnector<
@@ -542,10 +506,6 @@ export class ZendeskConnector extends BaseConnector<
     });
   }
 
-  // -------------------------------------------------------------------------
-  // users — GET /api/v2/users.json (cursor pagination)
-  // -------------------------------------------------------------------------
-
   private buildUserListUrl(cursor: string | null): string {
     const params = new URLSearchParams({ 'page[size]': String(PAGE_SIZE) });
     if (cursor) {
@@ -593,10 +553,6 @@ export class ZendeskConnector extends BaseConnector<
     }
   }
 
-  // -------------------------------------------------------------------------
-  // groups — GET /api/v2/groups.json (cursor pagination)
-  // -------------------------------------------------------------------------
-
   private buildGroupListUrl(cursor: string | null): string {
     const params = new URLSearchParams({ 'page[size]': String(PAGE_SIZE) });
     if (cursor) {
@@ -641,10 +597,6 @@ export class ZendeskConnector extends BaseConnector<
     }
   }
 
-  // -------------------------------------------------------------------------
-  // tickets — GET /api/v2/incremental/tickets/cursor.json (cursor pagination)
-  // -------------------------------------------------------------------------
-
   private buildIncrementalTicketsUrl(
     cursor: string | null,
     options: SyncOptions,
@@ -666,10 +618,6 @@ export class ZendeskConnector extends BaseConnector<
     options: SyncOptions,
     signal?: AbortSignal,
   ): Promise<{ items: unknown[]; next: string | null }> {
-    // ticket_events clears and rewrites its whole scope on every sync (events
-    // can't be upserted by key), so even on incremental ticks it must scan from
-    // the beginning — otherwise a `since` filter would drop historical events
-    // for tickets untouched in this window.
     const fetchOptions =
       resource === 'ticket_events' ? { ...options, since: undefined } : options;
     const res = await this.apiGet<IncrementalTicketsResponse>(
@@ -712,10 +660,6 @@ export class ZendeskConnector extends BaseConnector<
     }
   }
 
-  // -------------------------------------------------------------------------
-  // ticket_events — derived from the same /incremental/tickets payload
-  // -------------------------------------------------------------------------
-
   private async writeTicketEvents(
     storage: StorageHandle,
     items: TicketRecord[],
@@ -740,10 +684,6 @@ export class ZendeskConnector extends BaseConnector<
         });
       }
 
-      // Zendesk doesn't return a solved_at timestamp directly on the ticket;
-      // when the ticket is in a terminal state (solved or closed), we mirror
-      // updated_at as the solved transition. Imperfect but the best signal
-      // available without per-ticket audit_events.
       if (
         (ticket.status === 'solved' || ticket.status === 'closed') &&
         ticket.updated_at
@@ -760,10 +700,6 @@ export class ZendeskConnector extends BaseConnector<
       }
     }
   }
-
-  // -------------------------------------------------------------------------
-  // satisfaction_ratings — GET /api/v2/satisfaction_ratings.json
-  // -------------------------------------------------------------------------
 
   private buildSatisfactionRatingsUrl(
     cursor: string | null,
@@ -822,24 +758,16 @@ export class ZendeskConnector extends BaseConnector<
     }
   }
 
-  // -------------------------------------------------------------------------
-  // Scope clearing (idempotency)
-  // -------------------------------------------------------------------------
-
   private async clearScopeOnFirstPage(
     storage: StorageHandle,
     phase: ZendeskPhase,
     isFull: boolean,
   ): Promise<void> {
     if (phase === 'ticket_events') {
-      // Events can't be upserted by key, so wipe the scope and rewrite from
-      // the freshly fetched ticket timestamps on every sync.
       await storage.events([], { names: [TICKET_STATE_EVENT] });
       return;
     }
     if (!isFull) {
-      // Entity phases upsert by id, so incremental ticks just overwrite the
-      // records they touch.
       return;
     }
     const entityType = ENTITY_TYPE_BY_PHASE[phase];
@@ -919,10 +847,6 @@ export class ZendeskConnector extends BaseConnector<
   }
 }
 
-// ---------------------------------------------------------------------------
-// Helpers (module-scoped)
-// ---------------------------------------------------------------------------
-
 const ENTITY_TYPE_BY_PHASE: Partial<Record<ZendeskPhase, string>> = {
   users: USER_ENTITY,
   groups: GROUP_ENTITY,
@@ -930,9 +854,6 @@ const ENTITY_TYPE_BY_PHASE: Partial<Record<ZendeskPhase, string>> = {
   satisfaction_ratings: SATISFACTION_RATING_ENTITY,
 };
 
-// Zendesk's incremental endpoints take start_time in Unix seconds, while
-// SyncOptions.since is an ISO timestamp. Returns null when no incremental
-// window applies.
 function sinceUnixSec(options: SyncOptions): number | null {
   if (!options.since) {
     return null;
@@ -944,9 +865,6 @@ function sinceUnixSec(options: SyncOptions): number | null {
   return Math.floor(ms / 1000);
 }
 
-// Cloudflare Workers and Node both expose btoa, but Node only did so from 16+
-// onward. Fall back to Buffer if btoa is missing so we don't crash on older
-// runtimes the host might be embedded in.
 function encodeBasicAuth(username: string, secret: string): string {
   const raw = `${username}:${secret}`;
   if (typeof btoa === 'function') {

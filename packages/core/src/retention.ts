@@ -5,10 +5,6 @@ import type {
   StorageHandle,
 } from './connector';
 
-// ---------------------------------------------------------------------------
-// RetentionConfig
-// ---------------------------------------------------------------------------
-
 export interface RetentionConfig {
   maxAge?: number;
   maxSize?: number;
@@ -16,27 +12,11 @@ export interface RetentionConfig {
   intervalMs?: number;
 }
 
-// ---------------------------------------------------------------------------
-// RetentionDeletionPlan — rows eligible for deletion across time-series shapes
-// ---------------------------------------------------------------------------
-
 export interface RetentionDeletionPlan {
   events: Event[];
   metrics: MetricSample[];
   distributions: Distribution[];
 }
-
-// ---------------------------------------------------------------------------
-// selectForDeletion — pure computation
-//
-// Receives rows pre-sorted newest-first (descending by timestamp).
-// Returns the subset that should be deleted given the policy.
-//
-// Rules applied in order:
-//   1. Rows beyond maxSize are candidates.
-//   2. Rows older than maxAge milliseconds are candidates.
-//   3. Rows within the newest `floor` positions are always kept (overrides 1 & 2).
-// ---------------------------------------------------------------------------
 
 export function selectForDeletion<T>(
   rows: T[],
@@ -68,14 +48,6 @@ export function selectForDeletion<T>(
 
   return toDelete;
 }
-
-// ---------------------------------------------------------------------------
-// computeRetention — async, queries the handle and returns deletion candidates
-//
-// Only covers time-series shapes (events, metrics, distributions) since those
-// grow unboundedly via append. Entities and edges are upsert-keyed and do not
-// accumulate the same way.
-// ---------------------------------------------------------------------------
 
 export async function computeRetention(
   handle: StorageHandle,

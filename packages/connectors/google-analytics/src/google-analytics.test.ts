@@ -6,10 +6,6 @@ import {
   rowToMetricSample,
 } from './google-analytics';
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 function makeStorage() {
   return {
     event: vi.fn().mockResolvedValue(undefined),
@@ -55,7 +51,6 @@ function mockFetch(
   return vi.fn().mockImplementation((url: string, init: RequestInit) => {
     const urlStr = String(url);
 
-    // Token endpoint
     if (urlStr.includes('oauth2.googleapis.com/token')) {
       return Promise.resolve({
         ok: true,
@@ -66,7 +61,6 @@ function mockFetch(
       } as Response);
     }
 
-    // GA4 runReport endpoint
     if (urlStr.includes('analyticsdata.googleapis.com')) {
       const body = init.body
         ? (JSON.parse(String(init.body)) as {
@@ -105,10 +99,6 @@ function mockFetch(
     } as Response);
   });
 }
-
-// ---------------------------------------------------------------------------
-// configFields
-// ---------------------------------------------------------------------------
 
 describe('configFields', () => {
   it('parses a config with propertyId and serviceAccountJson', () => {
@@ -156,10 +146,6 @@ describe('configFields', () => {
     expect(result.success).toBe(false);
   });
 });
-
-// ---------------------------------------------------------------------------
-// rowToMetricSample
-// ---------------------------------------------------------------------------
 
 describe('rowToMetricSample', () => {
   it('converts a traffic_by_day row correctly', () => {
@@ -209,10 +195,6 @@ describe('rowToMetricSample', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// GA4Connector.sync
-// ---------------------------------------------------------------------------
-
 describe('GA4Connector.sync', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -260,8 +242,6 @@ describe('GA4Connector.sync', () => {
     const storage = makeStorage();
     await connector.sync({ mode: 'full' }, storage);
 
-    // Each phase writes via a single atomic storage.metrics(samples, {names})
-    // call. With no rows returned, the call still happens and acts as a clear.
     const clearedNames = storage.metrics.mock.calls.map(
       (c) => (c[1] as { names: string[] }).names[0],
     );
@@ -346,15 +326,12 @@ describe('GA4Connector.sync', () => {
       storage,
     );
 
-    // Only GA4 calls should be for phases from 'geo' onwards
     const ga4Calls = fetchSpy.mock.calls.filter((c: unknown[]) =>
       String(c[0]).includes('analyticsdata.googleapis.com'),
     );
 
-    // There should be at least one call (for geo phase)
     expect(ga4Calls.length).toBeGreaterThan(0);
 
-    // The body of the first GA4 call should have country dimension (geo phase)
     const firstGa4Body = JSON.parse(
       String((ga4Calls[0] as [string, { body: string }])[1].body),
     ) as {
@@ -441,8 +418,6 @@ describe('GA4Connector.sync', () => {
     vi.stubGlobal('fetch', fetchSpy);
 
     const storage = makeStorage();
-    // Resume at phase 'events' (index 3) — phases 'events', 'conversions',
-    // and 'geo' should all use the cursor's dateRange, not a recomputed one.
     await connector.sync(
       {
         mode: 'full',
@@ -483,9 +458,6 @@ describe('GA4Connector.sync', () => {
       },
     );
 
-    // Two pages worth of rows for traffic_by_day. fetchPage must drain both
-    // before writeBatch runs so a mid-phase storage failure cannot leave
-    // partial rows behind on retry.
     const responses = [
       {
         rows: [
@@ -635,8 +607,6 @@ describe('GA4Connector.sync', () => {
       },
     );
 
-    // Build a full ROWS_PER_PAGE-sized first page (no rowCount), then a short
-    // second page so the loop terminates via the partial-page heuristic.
     const fullPage: Array<{
       dimensionValues: Array<{ value: string }>;
       metricValues: Array<{ value: string }>;
@@ -645,7 +615,6 @@ describe('GA4Connector.sync', () => {
       fullPage.push(makeReportRow(['20250101'], ['1', '0', '0', '0', '0']));
     }
     const responses = [
-      // No rowCount → forces short-page heuristic
       {
         rows: fullPage,
         dimensionHeaders: [{ name: 'date' }],
@@ -705,10 +674,6 @@ describe('GA4Connector.sync', () => {
     expect((trafficWrites[0]![0] as Array<unknown>).length).toBe(10001);
   });
 });
-
-// ---------------------------------------------------------------------------
-// GA4Connector.create
-// ---------------------------------------------------------------------------
 
 describe('GA4Connector.create', () => {
   afterEach(() => {

@@ -1,22 +1,4 @@
 import type { DataSource } from '@rawdash/core';
-
-/**
- * A configured Rawdash client for use in Next.js Server Components and Server
- * Actions.
- *
- * Wrap a `DataSource` (from `@rawdash/core`) with Next.js-specific
- * behaviour: `triggerSync` waits for the sync to complete, then calls
- * `revalidateTag` so Server Components re-fetch widget data.
- *
- * ```ts
- * // lib/rawdash.ts
- * import { createRawdashClient, http } from '@rawdash/sdk-nextjs';
- *
- * export const rawdash = createRawdashClient(
- *   http({ baseUrl: process.env.RAWDASH_URL! }),
- * );
- * ```
- */
 import { isSyncActive } from '@rawdash/core';
 import { http as clientHttp } from '@rawdash/sdk-client';
 import type { HttpOptions } from '@rawdash/sdk-client';
@@ -46,13 +28,6 @@ type NextFetchInit = RequestInit & {
   };
 };
 
-/**
- * Next.js-aware variant of `http` from `@rawdash/sdk-client`.
- *
- * Identical to `http` but wraps the underlying fetch so that widget requests
- * are tagged with the `'rawdash'` cache tag, enabling `revalidateTag`-based
- * invalidation from Server Actions.
- */
 export function http(opts: HttpOptions): DataSource {
   const taggedFetch: typeof globalThis.fetch = (input, init) => {
     return globalThis.fetch(

@@ -1,43 +1,4 @@
 #!/usr/bin/env -S npx tsx
-
-/**
- * Verifies that any new public workspace package added in this PR is set up
- * correctly for the OIDC publish workflow on main. Runs four layers:
- *
- *   1. `.changeset/config.json` `fixed[0]` membership: every public workspace
- *      package must appear in `fixed`, and `fixed` must not reference any
- *      package that no longer exists.
- *   2. npm existence: for each public package that is new in this PR vs the
- *      base ref, `npm view <name>` must succeed (a v0.0.x placeholder must have
- *      been published manually so npm's OIDC exchange has something to mint a
- *      token against).
- *   3. OIDC exchange dry-run: for each new public package, exchange a GitHub
- *      Actions OIDC token at npm's exchange endpoint and discard the result. A
- *      4xx means the Trusted Publisher entry on npmjs.com is missing or
- *      misconfigured. npm allows only one Trusted Publisher entry per package,
- *      so this dry-run is only authoritative when run inside the trusted
- *      publish workflow itself; from any other context (`ci.yml`, fork PRs,
- *      local runs) the exchange would be rejected by design, and the check is
- *      skipped with a warning instead.
- *
- *   4. connector-shared bundling discipline: every `@rawdash/connector-*`
- *      (other than `@rawdash/connector-shared` itself) must declare
- *      `@rawdash/connector-shared` only in `devDependencies` (never
- *      `dependencies` or `peerDependencies`), and must list it in `noExternal`
- *      in `tsup.config.ts`. For packages new in the PR we additionally run
- *      `pnpm pack` and assert the published tarball's `package.json` has no
- *      `@rawdash/connector-shared` entry under `dependencies` — proving the
- *      shared substrate was actually inlined.
- *
- *   5. default-export discipline: every `@rawdash/connector-*` (other than
- *      `@rawdash/connector-shared`) must export its connector class as the
- *      module's default export, and that class must extend `BaseConnector`
- *      from `@rawdash/core`. Cloud's sync-consumer Worker depends on this
- *      via build-time codegen — without a `BaseConnector`-derived default
- *      export, cloud breaks at compile time.
- *
- * See §1, §7, and §9 of docs/authoring-a-connector.md for the underlying rules.
- */
 import { execFileSync, execSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
@@ -50,10 +11,6 @@ const SHARED_PKG = '@rawdash/connector-shared';
 const SOURCE_CONDITION = '@rawdash/source';
 const SOURCE_CONDITION_FLAG = `--conditions=${SOURCE_CONDITION}`;
 
-// Re-exec with --conditions=@rawdash/source so the layer-5 dynamic import of
-// each connector's src/index.ts can resolve sibling workspace packages
-// (@rawdash/core, @rawdash/connector-shared) through their "@rawdash/source"
-// export condition without requiring a prior build.
 if (!(process.env['NODE_OPTIONS'] ?? '').includes(SOURCE_CONDITION_FLAG)) {
   const nextOpts = [process.env['NODE_OPTIONS'], SOURCE_CONDITION_FLAG]
     .filter(Boolean)
@@ -201,13 +158,10 @@ function detectNewPublicPackages(
         { cwd: REPO_ROOT, stdio: ['pipe', 'pipe', 'pipe'] },
       ).toString();
       const parsed = JSON.parse(baseJson) as PackageManifest;
-      // Existed at base and was already public — not new. A private→public
-      // flip counts as new since the package has never been published.
       if (parsed.private) {
         newPackages.push(pkg);
       }
     } catch {
-      // package.json wasn't in the base ref at all — it's new
       newPackages.push(pkg);
     }
   }
@@ -488,7 +442,6 @@ function checkConnectorSharedDiscipline(
       continue;
     }
     const tsup = readFileSync(tsupPath, 'utf8');
-    // Cheap textual check — keeps the script free of a TS parser dependency.
     const hasNoExternal =
       /noExternal\s*:\s*\[[^\]]*['"]@rawdash\/connector-shared['"][^\]]*\]/s.test(
         tsup,
@@ -658,26 +611,18 @@ async function main(): Promise<void> {
   const allPackages = listWorkspacePackages();
   const publicPackages = allPackages.filter((p) => !p.private && p.name);
 
-  // Layer 1
   checkFixedMembership(publicPackages);
 
-  // Layer 4: connector-shared discipline (cheap, no network)
   checkConnectorSharedDiscipline(publicPackages);
 
-  // Layer 5: default-export discipline for every connector package
   await checkConnectorDefaultExports(publicPackages);
 
-  // Layers 2, 3, and the Layer 4 tarball assertion only need to run when new
-  // packages were added.
   const newPackages = detectNewPublicPackages(publicPackages);
   if (newPackages && newPackages.length > 0) {
     console.log(
       `Detected ${newPackages.length} new public package(s): ` +
         newPackages.map((p) => p.name).join(', '),
     );
-    // Layer 3 only makes sense for packages that exist on npm — running the
-    // OIDC exchange against a missing package produces a second 4xx with the
-    // wrong remediation hint.
     const existingOnNpm = checkNpmExistence(newPackages);
     await checkOidcExchange(existingOnNpm);
     const newConnectors = newPackages.filter(isConnectorPackage);

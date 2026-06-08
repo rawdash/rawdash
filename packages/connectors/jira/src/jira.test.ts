@@ -2,10 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { JiraConnector, configFields } from './jira';
 
-// ---------------------------------------------------------------------------
-// configFields
-// ---------------------------------------------------------------------------
-
 describe('configFields', () => {
   it('parses a valid config', () => {
     const result = configFields.safeParse({
@@ -58,10 +54,6 @@ describe('configFields', () => {
     expect(result.success).toBe(false);
   });
 });
-
-// ---------------------------------------------------------------------------
-// Test scaffolding
-// ---------------------------------------------------------------------------
 
 function makeStorage() {
   return {
@@ -140,10 +132,6 @@ function urlsFor(spy: ReturnType<typeof vi.fn>): string[] {
 function makeConnector(settings: Record<string, unknown> = {}): JiraConnector {
   return new JiraConnector({ host: 'acme.atlassian.net', ...settings }, CREDS);
 }
-
-// ---------------------------------------------------------------------------
-// JiraConnector — sync
-// ---------------------------------------------------------------------------
 
 describe('JiraConnector.sync', () => {
   afterEach(() => {

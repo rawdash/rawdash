@@ -23,10 +23,6 @@ import {
 } from '@rawdash/core';
 import { z } from 'zod';
 
-// ---------------------------------------------------------------------------
-// configFields
-// ---------------------------------------------------------------------------
-
 export const configFields = defineConfigFields(
   z.object({
     apiKey: z.object({ $secret: z.string() }).meta({
@@ -68,10 +64,6 @@ export const configFields = defineConfigFields(
   }),
 );
 
-// ---------------------------------------------------------------------------
-// Connector doc (catalog metadata)
-// ---------------------------------------------------------------------------
-
 export const doc: ConnectorDoc = defineConnectorDoc({
   displayName: 'Klaviyo',
   category: 'marketing',
@@ -101,10 +93,6 @@ export const doc: ConnectorDoc = defineConnectorDoc({
   ],
 });
 
-// ---------------------------------------------------------------------------
-// Settings / credentials
-// ---------------------------------------------------------------------------
-
 export type KlaviyoChannel = 'email' | 'sms' | 'mobile_push';
 
 export interface KlaviyoSettings {
@@ -121,10 +109,6 @@ const klaviyoCredentials = {
 } satisfies CredentialsSchema;
 
 type KlaviyoCredentials = typeof klaviyoCredentials;
-
-// ---------------------------------------------------------------------------
-// Sync phases + cursor
-// ---------------------------------------------------------------------------
 
 const PHASE_ORDER = ['lists', 'segments', 'campaigns', 'flows'] as const;
 
@@ -152,18 +136,12 @@ const ENTITY_TYPE_BY_PHASE: Record<KlaviyoPhase, string> = {
   flows: FLOW_ENTITY,
 };
 
-// Klaviyo's `updated` (lists/segments/flows) and `updated_at` (campaigns)
-// filter fields differ per endpoint.
 const UPDATED_FIELD_BY_PHASE: Record<KlaviyoPhase, string> = {
   lists: 'updated',
   segments: 'updated',
   campaigns: 'updated_at',
   flows: 'updated',
 };
-
-// ---------------------------------------------------------------------------
-// API response types (JSON:API)
-// ---------------------------------------------------------------------------
 
 interface JsonApiResource<TAttrs> {
   type: string;
@@ -212,10 +190,6 @@ interface FlowAttributes {
   created?: string | null;
   updated?: string | null;
 }
-
-// ---------------------------------------------------------------------------
-// Schemas
-// ---------------------------------------------------------------------------
 
 const idString = z.string().min(1);
 
@@ -276,10 +250,6 @@ const flowsResponseSchema = jsonApiList(
     updated: z.string().nullish(),
   }),
 );
-
-// ---------------------------------------------------------------------------
-// Resources
-// ---------------------------------------------------------------------------
 
 export const klaviyoResources = defineResources({
   [LIST_ENTITY]: {
@@ -372,10 +342,6 @@ export const klaviyoResources = defineResources({
   },
 });
 
-// ---------------------------------------------------------------------------
-// KlaviyoConnector
-// ---------------------------------------------------------------------------
-
 export const id = 'klaviyo';
 
 export class KlaviyoConnector extends BaseConnector<
@@ -424,10 +390,6 @@ export class KlaviyoConnector extends BaseConnector<
       signal,
     });
   }
-
-  // -------------------------------------------------------------------------
-  // URL building + sanitization
-  // -------------------------------------------------------------------------
 
   private allowedPagePath(phase: KlaviyoPhase): string {
     switch (phase) {
@@ -485,10 +447,6 @@ export class KlaviyoConnector extends BaseConnector<
     return u.toString();
   }
 
-  // -------------------------------------------------------------------------
-  // Fetchers
-  // -------------------------------------------------------------------------
-
   private async fetchPhasePage<TAttrs>(
     phase: KlaviyoPhase,
     page: string | null,
@@ -504,10 +462,6 @@ export class KlaviyoConnector extends BaseConnector<
     const next = nextRaw ? this.sanitizePageUrl(phase, nextRaw) : null;
     return { items: res.body.data ?? [], next };
   }
-
-  // -------------------------------------------------------------------------
-  // Writers
-  // -------------------------------------------------------------------------
 
   private async writeLists(
     storage: StorageHandle,

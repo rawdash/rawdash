@@ -22,10 +22,6 @@ import {
 } from '@rawdash/core';
 import { z } from 'zod';
 
-// ---------------------------------------------------------------------------
-// configFields
-// ---------------------------------------------------------------------------
-
 export const configFields = defineConfigFields(
   z.object({
     email: z.string().min(1).meta({
@@ -141,19 +137,11 @@ const jiraCredentials = {
 
 type JiraCredentials = typeof jiraCredentials;
 
-// ---------------------------------------------------------------------------
-// Sync phases + cursor
-// ---------------------------------------------------------------------------
-
 const PHASE_ORDER = ['projects', 'users', 'sprints', 'issues'] as const;
 
 type JiraPhase = (typeof PHASE_ORDER)[number];
 
 const isJiraSyncCursor = makeChunkedCursorGuard(PHASE_ORDER);
-
-// ---------------------------------------------------------------------------
-// Jira API types
-// ---------------------------------------------------------------------------
 
 interface JiraAccountRef {
   accountId: string;
@@ -269,10 +257,6 @@ interface JiraAgilePage<T> {
   startAt: number;
   maxResults: number;
 }
-
-// ---------------------------------------------------------------------------
-// Schemas — describe the per-resource API response shape consumed by request()
-// ---------------------------------------------------------------------------
 
 const idString = z.string().min(1);
 const nonNegInt = z.number().int().nonnegative();
@@ -412,10 +396,6 @@ export const jiraResources = defineResources({
   },
 });
 
-// ---------------------------------------------------------------------------
-// JiraConnector
-// ---------------------------------------------------------------------------
-
 const PROJECTS_PAGE_SIZE = 50;
 const USERS_PAGE_SIZE = 50;
 const BOARDS_PAGE_SIZE = 50;
@@ -539,10 +519,6 @@ export class JiraConnector extends BaseConnector<
     });
   }
 
-  // -------------------------------------------------------------------------
-  // Resource enablement
-  // -------------------------------------------------------------------------
-
   private activePhases(): JiraPhase[] {
     return selectActivePhases<JiraResource, JiraPhase>(
       (r) => {
@@ -562,10 +538,6 @@ export class JiraConnector extends BaseConnector<
       this.settings.resources,
     );
   }
-
-  // -------------------------------------------------------------------------
-  // JQL
-  // -------------------------------------------------------------------------
 
   private buildJql(options: SyncOptions): string {
     const clauses: string[] = [];
@@ -587,10 +559,6 @@ export class JiraConnector extends BaseConnector<
       ? `${where} ORDER BY updated ASC`
       : 'ORDER BY updated ASC';
   }
-
-  // -------------------------------------------------------------------------
-  // Fetchers
-  // -------------------------------------------------------------------------
 
   private async fetchProjectsPage(
     page: string | null,
@@ -720,10 +688,6 @@ export class JiraConnector extends BaseConnector<
     const next = res.body.isLast === true || token === null ? null : token;
     return { items: res.body.issues, next };
   }
-
-  // -------------------------------------------------------------------------
-  // Writers
-  // -------------------------------------------------------------------------
 
   private async writeProjects(
     storage: StorageHandle,
@@ -877,10 +841,6 @@ export class JiraConnector extends BaseConnector<
       }
     }
   }
-
-  // -------------------------------------------------------------------------
-  // sync
-  // -------------------------------------------------------------------------
 
   async sync(
     options: SyncOptions,

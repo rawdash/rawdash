@@ -2,10 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { SalesforceConnector, configFields } from './salesforce';
 
-// ---------------------------------------------------------------------------
-// configFields
-// ---------------------------------------------------------------------------
-
 describe('configFields', () => {
   it('parses a valid full config', () => {
     const result = configFields.safeParse({
@@ -71,10 +67,6 @@ describe('configFields', () => {
     expect(result.success).toBe(false);
   });
 });
-
-// ---------------------------------------------------------------------------
-// Fetch + storage mocks
-// ---------------------------------------------------------------------------
 
 interface MockCall {
   url: string;
@@ -174,10 +166,6 @@ function connector(
     },
   );
 }
-
-// ---------------------------------------------------------------------------
-// sync — happy path
-// ---------------------------------------------------------------------------
 
 describe('SalesforceConnector.sync', () => {
   afterEach(() => {
@@ -602,10 +590,6 @@ describe('SalesforceConnector.sync', () => {
     ).toBe(true);
   });
 });
-
-// ---------------------------------------------------------------------------
-// static create
-// ---------------------------------------------------------------------------
 
 describe('SalesforceConnector.create', () => {
   afterEach(() => {

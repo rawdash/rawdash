@@ -31,8 +31,6 @@ function makeConnector(): AwsCostConnector {
   );
 }
 
-// Return the fuzzed payload for every Cost Explorer call, with any pagination
-// token stripped so daily_cost pagination terminates after a single page.
 function installMock(sample: unknown): void {
   vi.stubGlobal(
     'fetch',

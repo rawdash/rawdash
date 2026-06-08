@@ -1,13 +1,7 @@
-// AWS Signature Version 4 signing, implemented against the Web Crypto API so
-// the connector carries no AWS SDK dependency. See
-// https://docs.aws.amazon.com/general/latest/gr/sigv4_signing.html.
-
 const encoder = new TextEncoder();
 
 const ALGORITHM = 'AWS4-HMAC-SHA256';
 
-// Encode to a fresh ArrayBuffer-backed view so the result is a valid
-// `BufferSource` for the Web Crypto APIs under TypeScript's generic typing.
 function u8(data: string): Uint8Array<ArrayBuffer> {
   return new Uint8Array(encoder.encode(data));
 }
@@ -54,7 +48,6 @@ export interface AmzDate {
   dateStamp: string;
 }
 
-// "2015-08-30T12:36:00.000Z" -> { amzDate: "20150830T123600Z", dateStamp: "20150830" }
 export function formatAmzDate(date: Date): AmzDate {
   const amzDate = date.toISOString().replace(/[:-]|\.\d{3}/g, '');
   return { amzDate, dateStamp: amzDate.slice(0, 8) };
@@ -75,9 +68,6 @@ export interface SignParams {
   dateStamp: string;
 }
 
-// Returns the value for the `Authorization` header. The `headers` map must
-// contain every header that is part of the signature (at minimum `host` and
-// `x-amz-date`); extra unsigned headers sent on the wire are allowed.
 export async function createAuthorizationHeader(
   params: SignParams,
 ): Promise<string> {

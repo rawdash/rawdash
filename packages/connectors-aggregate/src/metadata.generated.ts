@@ -14,6 +14,19 @@ import {
   resources as awsCostResources,
 } from '@rawdash/connector-aws-cost';
 import {
+  configFields as azureCostConfigFields,
+  cost as azureCostCost,
+  doc as azureCostDoc,
+  id as azureCostId,
+  resources as azureCostResources,
+} from '@rawdash/connector-azure-cost';
+import {
+  configFields as azureMonitorConfigFields,
+  doc as azureMonitorDoc,
+  id as azureMonitorId,
+  resources as azureMonitorResources,
+} from '@rawdash/connector-azure-monitor';
+import {
   configFields as bitbucketConfigFields,
   doc as bitbucketDoc,
   id as bitbucketId,
@@ -191,6 +204,21 @@ export const connectorMetadata: ConnectorMetadata[] = [
     configFields: awsCostConfigFields,
     resources: awsCostResources,
     cost: awsCostCost,
+  },
+  {
+    id: azureCostId,
+    packageName: '@rawdash/connector-azure-cost',
+    doc: azureCostDoc,
+    configFields: azureCostConfigFields,
+    resources: azureCostResources,
+    cost: azureCostCost,
+  },
+  {
+    id: azureMonitorId,
+    packageName: '@rawdash/connector-azure-monitor',
+    doc: azureMonitorDoc,
+    configFields: azureMonitorConfigFields,
+    resources: azureMonitorResources,
   },
   {
     id: bitbucketId,

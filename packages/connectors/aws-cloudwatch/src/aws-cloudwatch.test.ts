@@ -154,7 +154,6 @@ describe('CloudWatchConnector sync (static credentials)', () => {
     const net = metrics.filter((m) => m.name === 'AWS/EC2/NetworkIn');
     expect(net.map((m) => m.value)).toEqual([1024]);
 
-    // One signed POST to the regional CloudWatch endpoint.
     expect(spy).toHaveBeenCalledTimes(1);
     const [url, init] = spy.mock.calls[0]!;
     expect(url).toBe('https://monitoring.us-east-1.amazonaws.com/');

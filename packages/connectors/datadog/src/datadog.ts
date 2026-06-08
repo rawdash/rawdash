@@ -26,10 +26,6 @@ import {
 } from '@rawdash/core';
 import { z } from 'zod';
 
-// ---------------------------------------------------------------------------
-// configFields
-// ---------------------------------------------------------------------------
-
 const metricQuerySchema = z.object({
   name: z
     .string()
@@ -171,15 +167,6 @@ const datadogCredentials = {
 
 type DatadogCredentials = typeof datadogCredentials;
 
-// ---------------------------------------------------------------------------
-// Sync phases + cursor
-// ---------------------------------------------------------------------------
-
-// Datadog exposes `X-RateLimit-Remaining` / `X-RateLimit-Reset` on the v2
-// endpoints (Reset is seconds-until). We treat reset as a relative-seconds
-// value; standardRateLimitPolicy with `resetUnit: 's'` and the right header
-// names parses it as the "remaining" budget — close enough for the host
-// scheduler to back off on near-empty windows.
 const datadogRateLimit = standardRateLimitPolicy({
   remainingHeader: 'x-ratelimit-remaining',
   resetHeader: 'x-ratelimit-reset',
@@ -193,10 +180,6 @@ type DatadogPhase = (typeof PHASE_ORDER)[number];
 type DatadogSyncCursor = ChunkedSyncCursor<DatadogPhase, string>;
 
 const isDatadogSyncCursor = makeChunkedCursorGuard(PHASE_ORDER);
-
-// ---------------------------------------------------------------------------
-// Datadog API types
-// ---------------------------------------------------------------------------
 
 type DatadogMonitorStatus = 'OK' | 'Alert' | 'Warn' | 'No Data' | 'Ignored';
 
@@ -297,10 +280,6 @@ interface MetricsBatchItem {
   response: DatadogTimeseriesResponse;
 }
 
-// ---------------------------------------------------------------------------
-// Schemas — describe the per-resource API response shape consumed by request()
-// ---------------------------------------------------------------------------
-
 const idString = z.string().min(1);
 
 const monitorSchema = z.object({
@@ -400,10 +379,6 @@ const timeseriesResponseSchema = z.object({
   }),
 });
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
 const DEFAULT_SITE = 'datadoghq.com';
 const MONITORS_PAGE_SIZE = 100;
 const INCIDENTS_PAGE_SIZE = 50;
@@ -418,10 +393,6 @@ const INTERVAL_MS: Record<
   '1d': 24 * 60 * 60 * 1000,
 };
 const DEFAULT_INTERVAL_MS = INTERVAL_MS['1h'];
-
-// ---------------------------------------------------------------------------
-// Resource definitions
-// ---------------------------------------------------------------------------
 
 export const datadogResources = defineResources({
   datadog_monitor: {
@@ -480,10 +451,6 @@ export const datadogResources = defineResources({
     responses: { metric_queries: timeseriesResponseSchema },
   },
 });
-
-// ---------------------------------------------------------------------------
-// DatadogConnector
-// ---------------------------------------------------------------------------
 
 export const id = 'datadog';
 
@@ -561,10 +528,6 @@ export class DatadogConnector extends BaseConnector<
     });
   }
 
-  // -------------------------------------------------------------------------
-  // Resource enablement
-  // -------------------------------------------------------------------------
-
   private activePhases(): DatadogPhase[] {
     return selectActivePhases<DatadogResource, DatadogPhase>(
       (r) => {
@@ -584,10 +547,6 @@ export class DatadogConnector extends BaseConnector<
       this.settings.resources,
     );
   }
-
-  // -------------------------------------------------------------------------
-  // URL building + sanitization
-  // -------------------------------------------------------------------------
 
   private allowedPagePath(phase: DatadogPhase): string {
     switch (phase) {
@@ -667,10 +626,6 @@ export class DatadogConnector extends BaseConnector<
   private buildMetricsUrl(): string {
     return `${this.apiBase}/api/v2/query/timeseries`;
   }
-
-  // -------------------------------------------------------------------------
-  // Fetchers
-  // -------------------------------------------------------------------------
 
   private async fetchMonitorsPage(
     page: string | null,
@@ -800,10 +755,6 @@ export class DatadogConnector extends BaseConnector<
     return { items, next: null };
   }
 
-  // -------------------------------------------------------------------------
-  // Writers
-  // -------------------------------------------------------------------------
-
   private async writeMonitorsBatch(
     storage: StorageHandle,
     items: MonitorsBatchItem[],
@@ -878,9 +829,6 @@ export class DatadogConnector extends BaseConnector<
           updated_at: updatedMs,
         });
       } else if (writeEvents) {
-        // We still upsert to keep the comparison baseline fresh even when the
-        // host hasn't asked for the monitor entity itself — the next sync's
-        // monitor_event diff depends on a stored prior state.
         await storage.entity({
           type: 'datadog_monitor',
           id: String(m.id),
@@ -1064,10 +1012,6 @@ export class DatadogConnector extends BaseConnector<
     }
   }
 
-  // -------------------------------------------------------------------------
-  // sync
-  // -------------------------------------------------------------------------
-
   async sync(
     options: SyncOptions,
     storage: StorageHandle,
@@ -1101,10 +1045,6 @@ export class DatadogConnector extends BaseConnector<
               if (this.isResourceEnabled('monitor_events')) {
                 await storage.events([], { names: ['datadog_monitor_event'] });
               }
-              // Monitor entities are intentionally NOT cleared on a full
-              // sync — `writeMonitorsBatch` reads the prior status off the
-              // existing entity to derive monitor_events. Wiping it here
-              // would forget every state we'd seen on the previous run.
               break;
             case 'incidents':
               await storage.entities([], { types: ['datadog_incident'] });

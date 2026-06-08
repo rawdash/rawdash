@@ -66,9 +66,6 @@ describe('DatadogConnector property tests', () => {
       runs: 25,
       extraInvariants: [extra],
       run: async (sample, storage) => {
-        // Clamp metadata so the connector terminates pagination after a single
-        // page — installFetchMock returns the same body for every call, so any
-        // sample with `page + 1 < page_count` would loop forever.
         const single: MonitorsSample = {
           ...sample,
           metadata: {
@@ -122,7 +119,6 @@ describe('DatadogConnector property tests', () => {
       runs: 25,
       extraInvariants: [extra],
       run: async (sample, storage) => {
-        // Clamp pagination meta so the connector stops after one page.
         const single: IncidentsSample = {
           ...sample,
           meta: { pagination: { next_offset: null } },
