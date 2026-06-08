@@ -1,5 +1,14 @@
 # @rawdash/connector-netlify
 
+## 0.21.0
+
+### Patch Changes
+
+- 32d0d2c: Fix the deploys sync emitting duplicate `netlify_deploy_event` rows for a single unique deploy id. Deploy entities collapse to one row per `(site, deploy id)` via last-write-wins, but events were appended unconditionally inside the loop, so a page containing duplicate deploy ids produced multiple events. Events are now deduped by `(site, deploy id)` (last occurrence wins) to match entity semantics.
+- Updated dependencies [c796c09]
+- Updated dependencies [37f1083]
+  - @rawdash/core@0.21.0
+
 ## 0.20.0
 
 ### Minor Changes

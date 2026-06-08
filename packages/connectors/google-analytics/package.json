@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-google-analytics",
-  "version": "0.20.0",
+  "version": "0.21.0",
   "description": "Rawdash connector for Google Analytics 4 — syncs traffic, sources, pages, events, conversions, and geo data into the six-shape storage model",
   "license": "Apache-2.0",
   "type": "module",
