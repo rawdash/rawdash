@@ -1,5 +1,63 @@
 # @rawdash/connectors
 
+## 0.20.0
+
+### Minor Changes
+
+- 20c6db4: Add `@rawdash/connector-netlify` - syncs Netlify sites and deploys into the six-shape storage model: `netlify_site` and `netlify_deploy` as entities, plus `netlify_deploy_event` per deploy spanning created->published. Authenticates with a Netlify personal access token (Bearer). The deploys phase iterates each site (configured via `siteIds` or discovered from `GET /sites`), paginating per-site via the standard Link header. Netlify has no server-side date filter on the deploys endpoint, so `deploysLookbackDays` (when set) is applied client-side and short-circuits pagination once a full page is older than the cutoff.
+
+### Patch Changes
+
+- fc7e0d0: Remove non-essential code comments (section dividers, section labels, and explanatory comments) across the codebase. No behavior change; published output is unaffected.
+- Updated dependencies [92e7f62]
+- Updated dependencies [b7fbbdc]
+- Updated dependencies [8a6c1e7]
+- Updated dependencies [20c6db4]
+- Updated dependencies [d4be1b2]
+- Updated dependencies [055d978]
+- Updated dependencies [66d2e20]
+- Updated dependencies [ec274eb]
+- Updated dependencies [66d2e20]
+- Updated dependencies [66d2e20]
+- Updated dependencies [66d2e20]
+- Updated dependencies [4f0f30f]
+- Updated dependencies [fc7e0d0]
+- Updated dependencies [2c11cc2]
+  - @rawdash/connector-azure-monitor@0.20.0
+  - @rawdash/connector-azure-cost@0.20.0
+  - @rawdash/connector-bitbucket@0.20.0
+  - @rawdash/connector-klaviyo@0.20.0
+  - @rawdash/connector-netlify@0.20.0
+  - @rawdash/connector-statuspage@0.20.0
+  - @rawdash/connector-greenhouse@0.20.0
+  - @rawdash/core@0.20.0
+  - @rawdash/connector-linear@0.20.0
+  - @rawdash/connector-mailchimp@0.20.0
+  - @rawdash/connector-posthog@0.20.0
+  - @rawdash/connector-sentry@0.20.0
+  - @rawdash/connector-gitlab@0.20.0
+  - @rawdash/connector-aws-cloudwatch@0.20.0
+  - @rawdash/connector-aws-cost@0.20.0
+  - @rawdash/connector-circleci@0.20.0
+  - @rawdash/connector-datadog@0.20.0
+  - @rawdash/connector-gcp-billing@0.20.0
+  - @rawdash/connector-gcp-monitoring@0.20.0
+  - @rawdash/connector-google-ads@0.20.0
+  - @rawdash/connector-google-analytics@0.20.0
+  - @rawdash/connector-google-search-console@0.20.0
+  - @rawdash/connector-hubspot@0.20.0
+  - @rawdash/connector-intercom@0.20.0
+  - @rawdash/connector-jira@0.20.0
+  - @rawdash/connector-launchdarkly@0.20.0
+  - @rawdash/connector-meta-ads@0.20.0
+  - @rawdash/connector-mixpanel@0.20.0
+  - @rawdash/connector-new-relic@0.20.0
+  - @rawdash/connector-salesforce@0.20.0
+  - @rawdash/connector-stripe@0.20.0
+  - @rawdash/connector-vercel@0.20.0
+  - @rawdash/connector-zendesk@0.20.0
+  - @rawdash/connector-github@0.20.0
+
 ## 0.19.0
 
 ### Patch Changes

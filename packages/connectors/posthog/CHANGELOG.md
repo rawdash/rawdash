@@ -1,5 +1,16 @@
 # @rawdash/connector-posthog
 
+## 0.20.0
+
+### Patch Changes
+
+- 66d2e20: Accelerate PostHog syncs. Pagination now pipelines page fetches with storage writes and yields a resumable cursor on a soft 25s per-chunk budget. The feature-flags page size honours the new `SyncOptions.pageSize` (clamped to a safe ceiling).
+- fc7e0d0: Remove non-essential code comments (section dividers, section labels, and explanatory comments) across the codebase. No behavior change; published output is unaffected.
+- Updated dependencies [055d978]
+- Updated dependencies [66d2e20]
+- Updated dependencies [fc7e0d0]
+  - @rawdash/core@0.20.0
+
 ## 0.19.0
 
 ### Patch Changes

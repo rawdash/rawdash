@@ -1,5 +1,18 @@
 # example-server
 
+## 0.0.23
+
+### Patch Changes
+
+- Updated dependencies [055d978]
+- Updated dependencies [66d2e20]
+- Updated dependencies [fc7e0d0]
+  - @rawdash/core@0.20.0
+  - @rawdash/hono@0.20.0
+  - @rawdash/server@0.20.0
+  - @rawdash/adapter-libsql@0.20.0
+  - @rawdash/connector-github@0.20.0
+
 ## 0.0.22
 
 ### Patch Changes

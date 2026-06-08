@@ -1,5 +1,11 @@
 # @rawdash/connector-shared
 
+## 0.3.1
+
+### Patch Changes
+
+- 66d2e20: Add `mapWithConcurrency(items, concurrency, fn)`, a bounded-parallelism helper that maps over items with at most N calls in flight, preserves input order, and propagates the first rejection (halting new work). Useful for overlapping the slow per-item subrequests some connectors make within a single page.
+
 ## 0.3.0
 
 ### Minor Changes
