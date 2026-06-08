@@ -14,6 +14,12 @@ import {
   resources as awsCostResources,
 } from '@rawdash/connector-aws-cost';
 import {
+  configFields as bitbucketConfigFields,
+  doc as bitbucketDoc,
+  id as bitbucketId,
+  resources as bitbucketResources,
+} from '@rawdash/connector-bitbucket';
+import {
   configFields as circleciConfigFields,
   doc as circleciDoc,
   id as circleciId,
@@ -185,6 +191,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     configFields: awsCostConfigFields,
     resources: awsCostResources,
     cost: awsCostCost,
+  },
+  {
+    id: bitbucketId,
+    packageName: '@rawdash/connector-bitbucket',
+    doc: bitbucketDoc,
+    configFields: bitbucketConfigFields,
+    resources: bitbucketResources,
   },
   {
     id: circleciId,
