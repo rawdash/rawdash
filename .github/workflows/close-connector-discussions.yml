@@ -35,8 +35,8 @@ jobs:
           fi
           extract() {
             git show "$1":scripts/connector-placeholders.ts 2>/dev/null \
-              | grep -E "^\s*id:" \
-              | sed -E "s/.*id:\s*'([^']+)'.*/\1/" \
+              | grep -E "^[[:space:]]*id:" \
+              | sed -E "s/.*id:[[:space:]]*'([^']+)'.*/\1/" \
               | sort -u
           }
           ids=$(comm -23 <(extract "$before") <(extract "$after") \
