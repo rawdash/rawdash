@@ -27,6 +27,12 @@ import {
   resources as azureMonitorResources,
 } from '@rawdash/connector-azure-monitor';
 import {
+  configFields as bitbucketConfigFields,
+  doc as bitbucketDoc,
+  id as bitbucketId,
+  resources as bitbucketResources,
+} from '@rawdash/connector-bitbucket';
+import {
   configFields as circleciConfigFields,
   doc as circleciDoc,
   id as circleciId,
@@ -231,6 +237,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: azureMonitorDoc,
     configFields: azureMonitorConfigFields,
     resources: azureMonitorResources,
+  },
+  {
+    id: bitbucketId,
+    packageName: '@rawdash/connector-bitbucket',
+    doc: bitbucketDoc,
+    configFields: bitbucketConfigFields,
+    resources: bitbucketResources,
   },
   {
     id: circleciId,

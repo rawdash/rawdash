@@ -13,6 +13,7 @@
       "@rawdash/connector-azure-monitor",
       "@rawdash/connector-datadog",
       "@rawdash/connector-github",
+      "@rawdash/connector-bitbucket",
       "@rawdash/connector-gitlab",
       "@rawdash/connector-google-ads",
       "@rawdash/connector-google-analytics",
