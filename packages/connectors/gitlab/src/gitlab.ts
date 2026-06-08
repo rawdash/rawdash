@@ -10,6 +10,7 @@ import {
   type ConnectorContext,
   type ConnectorDoc,
   type CredentialsSchema,
+  type Event,
   type FetchPageResult,
   type StorageHandle,
   type SyncOptions,
@@ -814,6 +815,7 @@ export class GitLabConnector extends BaseConnector<
       }
     }
     const batches = items as ProjectBatch<GitLabPipeline>[];
+    const eventsById = new Map<string, Event>();
     for (const batch of batches) {
       for (const pipeline of batch.items) {
         const createdMs = new Date(pipeline.created_at).getTime();
@@ -847,7 +849,7 @@ export class GitLabConnector extends BaseConnector<
           });
         }
         if (eventAllowed) {
-          await storage.event({
+          eventsById.set(`${batch.projectId}:${pipeline.id}`, {
             name: 'pipeline_event',
             start_ts: createdMs,
             end_ts: finishedMs ?? updatedMs,
@@ -863,6 +865,9 @@ export class GitLabConnector extends BaseConnector<
           });
         }
       }
+    }
+    for (const event of eventsById.values()) {
+      await storage.event(event);
     }
   }
 
