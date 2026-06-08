@@ -1,5 +1,17 @@
 # @rawdash/connector-sentry
 
+## 0.20.0
+
+### Patch Changes
+
+- 66d2e20: Accelerate Sentry syncs. The per-issue event subrequests within an issues page — previously fetched one at a time and the dominant cost of the issues phase — now run with bounded concurrency (5 at a time). List page sizes honour the new `SyncOptions.pageSize` (clamped to Sentry's 100 max), and pagination pipelines page fetches with storage writes and yields a resumable cursor on a soft 25s per-chunk budget.
+- fc7e0d0: Remove non-essential code comments (section dividers, section labels, and explanatory comments) across the codebase. No behavior change; published output is unaffected.
+- 2c11cc2: Fix the `error_stats` resource crashing with `Cannot read properties of undefined (reading 'sum(quantity)')` when Sentry's `stats_v2` response contains a group without a populated `series` (common for low-activity orgs). The `series` field is now optional in both the response schema and TypeScript type, and `writeErrorStats` guards the access and skips groups with no series instead of throwing — so the crash no longer stalls the entire Sentry sync cursor and lets `issues` + `releases` land.
+- Updated dependencies [055d978]
+- Updated dependencies [66d2e20]
+- Updated dependencies [fc7e0d0]
+  - @rawdash/core@0.20.0
+
 ## 0.19.0
 
 ### Patch Changes

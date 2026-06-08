@@ -1,5 +1,14 @@
 # @rawdash/cli
 
+## 0.20.0
+
+### Patch Changes
+
+- Updated dependencies [055d978]
+- Updated dependencies [66d2e20]
+- Updated dependencies [fc7e0d0]
+  - @rawdash/core@0.20.0
+
 ## 0.19.0
 
 ### Patch Changes
