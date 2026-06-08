@@ -54,6 +54,7 @@
     "@rawdash/connector-linear": "workspace:*",
     "@rawdash/connector-meta-ads": "workspace:*",
     "@rawdash/connector-mixpanel": "workspace:*",
+    "@rawdash/connector-netlify": "workspace:*",
     "@rawdash/connector-new-relic": "workspace:*",
     "@rawdash/connector-posthog": "workspace:*",
     "@rawdash/connector-salesforce": "workspace:*",
