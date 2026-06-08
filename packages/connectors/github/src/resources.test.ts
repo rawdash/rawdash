@@ -166,16 +166,21 @@ describe('GitHubConnector — numeric repo ID cursor resume', () => {
           mockJsonWithLink({ workflow_runs: [run] }, next),
         );
       }
-      if (u.includes('/pulls'))
-        {return Promise.resolve(mockJsonWithLink([], null));}
-      if (u.includes('/issues'))
-        {return Promise.resolve(mockJsonWithLink([], null));}
-      if (u.includes('/deployments'))
-        {return Promise.resolve(mockJsonWithLink([], null));}
-      if (u.includes('/releases'))
-        {return Promise.resolve(mockJsonWithLink([], null));}
-      if (u.includes('/stats/contributors'))
-        {return Promise.resolve(mockJsonWithLink([], null));}
+      if (u.includes('/pulls')) {
+        return Promise.resolve(mockJsonWithLink([], null));
+      }
+      if (u.includes('/issues')) {
+        return Promise.resolve(mockJsonWithLink([], null));
+      }
+      if (u.includes('/deployments')) {
+        return Promise.resolve(mockJsonWithLink([], null));
+      }
+      if (u.includes('/releases')) {
+        return Promise.resolve(mockJsonWithLink([], null));
+      }
+      if (u.includes('/stats/contributors')) {
+        return Promise.resolve(mockJsonWithLink([], null));
+      }
       return Promise.resolve(
         mockJsonWithLink(
           { stargazers_count: 0, forks_count: 0, subscribers_count: 0 },
