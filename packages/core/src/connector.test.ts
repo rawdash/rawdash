@@ -5,6 +5,7 @@ import {
   type StorageHandle,
   type SyncOptions,
   type SyncResult,
+  resolveBackfillCutoff,
 } from './connector';
 import { EnvSecretsResolver, type SecretsResolver, secret } from './secrets';
 
@@ -90,5 +91,61 @@ describe('BaseConnector secrets resolution', () => {
       );
       expect(conn.getResolvedToken()).toBe('from-env-2');
     });
+  });
+});
+
+describe('resolveBackfillCutoff', () => {
+  const now = Date.parse('2026-06-08T00:00:00Z');
+  const day = 86_400_000;
+
+  it('returns null when neither since nor window is set', () => {
+    expect(resolveBackfillCutoff({}, 'workflow_run', now)).toBeNull();
+  });
+
+  it('returns the window cutoff when only a window is set', () => {
+    expect(
+      resolveBackfillCutoff(
+        { requiredWindowMs: { workflow_run: 7 * day } },
+        'workflow_run',
+        now,
+      ),
+    ).toBe(now - 7 * day);
+  });
+
+  it('returns null for a resource without a configured window', () => {
+    expect(
+      resolveBackfillCutoff(
+        { requiredWindowMs: { workflow_run: 7 * day } },
+        'pull_request',
+        now,
+      ),
+    ).toBeNull();
+  });
+
+  it('returns the since cutoff when only since is set', () => {
+    const since = '2026-06-01T00:00:00Z';
+    expect(resolveBackfillCutoff({ since }, 'workflow_run', now)).toBe(
+      Date.parse(since),
+    );
+  });
+
+  it('returns the more recent of since and the window cutoff', () => {
+    const since = '2026-05-01T00:00:00Z';
+    expect(
+      resolveBackfillCutoff(
+        { since, requiredWindowMs: { workflow_run: 7 * day } },
+        'workflow_run',
+        now,
+      ),
+    ).toBe(now - 7 * day);
+
+    const recentSince = '2026-06-07T00:00:00Z';
+    expect(
+      resolveBackfillCutoff(
+        { since: recentSince, requiredWindowMs: { workflow_run: 7 * day } },
+        'workflow_run',
+        now,
+      ),
+    ).toBe(Date.parse(recentSince));
   });
 });

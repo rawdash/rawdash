@@ -170,6 +170,24 @@ export interface SyncOptions {
   cursor?: unknown;
   resources?: ReadonlySet<string>;
   pageSize?: number;
+  requiredWindowMs?: Record<string, number>;
+}
+
+export function resolveBackfillCutoff(
+  options: Pick<SyncOptions, 'since' | 'requiredWindowMs'>,
+  resource: string,
+  now: number,
+): number | null {
+  const sinceMs = options.since ? new Date(options.since).getTime() : null;
+  const windowMs = options.requiredWindowMs?.[resource];
+  const windowCutoff = windowMs !== undefined ? now - windowMs : null;
+  if (sinceMs === null) {
+    return windowCutoff;
+  }
+  if (windowCutoff === null) {
+    return sinceMs;
+  }
+  return Math.max(sinceMs, windowCutoff);
 }
 
 export interface SyncResult {
