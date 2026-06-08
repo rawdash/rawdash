@@ -23,7 +23,11 @@ export type {
   SyncResult,
 } from './connector';
 
-export { BaseConnector, defineConnector } from './connector';
+export {
+  BaseConnector,
+  defineConnector,
+  resolveBackfillCutoff,
+} from './connector';
 
 export {
   createDefaultConnectorLogger,
