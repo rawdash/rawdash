@@ -12,10 +12,6 @@ import { GcpMonitoringConnector } from './gcp-monitoring';
 const CONNECTOR_ID = 'gcp-monitoring';
 const METRIC_TYPE = 'compute.googleapis.com/instance/cpu/utilization';
 
-// Generate an ephemeral PKCS8 key per test run so no private key material is
-// committed. The JWT this signs is never verified by these tests; any
-// well-formed RSA key works. Uses WebCrypto to match the connector runtime
-// (no node: imports).
 async function generateTestPrivateKeyPem(): Promise<string> {
   const { privateKey } = await globalThis.crypto.subtle.generateKey(
     {
@@ -73,9 +69,6 @@ function makeConnector(): GcpMonitoringConnector {
   );
 }
 
-// Return the fuzzed time_series payload (with nextPageToken stripped so
-// pagination terminates), but force every series under the configured query's
-// metric type so connector.sync can match by name without filtering.
 function installMock(sample: unknown): void {
   vi.stubGlobal(
     'fetch',

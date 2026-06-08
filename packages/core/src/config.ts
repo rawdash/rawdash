@@ -5,10 +5,6 @@ import type { WidgetKind } from './widget-schemas';
 
 export type { FilterClause, FilterCondition, FilterOperator };
 
-// ---------------------------------------------------------------------------
-// Aggregation functions
-// ---------------------------------------------------------------------------
-
 export type AggFn =
   | 'count'
   | 'sum'
@@ -18,24 +14,12 @@ export type AggFn =
   | 'latest'
   | 'first';
 
-// ---------------------------------------------------------------------------
-// Shape
-// ---------------------------------------------------------------------------
-
 export type Shape = 'event' | 'entity' | 'metric' | 'edge' | 'distribution';
-
-// ---------------------------------------------------------------------------
-// GroupBy
-// ---------------------------------------------------------------------------
 
 export interface GroupBy {
   field: string;
   granularity: 'hour' | 'day' | 'week' | 'month';
 }
-
-// ---------------------------------------------------------------------------
-// Metric
-// ---------------------------------------------------------------------------
 
 export interface Metric {
   connector: { name: string };
@@ -60,10 +44,6 @@ export interface ComputedMetric {
   readonly filter?: FilterClause[];
   readonly groupBy?: GroupBy;
 }
-
-// ---------------------------------------------------------------------------
-// Widget definition
-// ---------------------------------------------------------------------------
 
 export interface StatWidget {
   kind: 'stat';
@@ -102,10 +82,6 @@ export type Widget =
 
 export type { WidgetKind };
 
-// ---------------------------------------------------------------------------
-// Dashboard config
-// ---------------------------------------------------------------------------
-
 export interface ConfiguredConnector {
   name: string;
   connectorId: string;
@@ -124,10 +100,6 @@ export interface DashboardConfig {
   dashboards: Record<string, Dashboard>;
   retention?: RetentionConfig;
 }
-
-// ---------------------------------------------------------------------------
-// defineDashboard
-// ---------------------------------------------------------------------------
 
 const VALID_WIDGET_KINDS = new Set<string>(Object.keys(widgetSchemas));
 
@@ -151,10 +123,6 @@ export function defineDashboard(options: {
   return { widgets: options.widgets };
 }
 
-// ---------------------------------------------------------------------------
-// defineMetric
-// ---------------------------------------------------------------------------
-
 export function defineMetric(options: Metric): ComputedMetric {
   return {
     connectorId: options.connector.name,
@@ -168,10 +136,6 @@ export function defineMetric(options: Metric): ComputedMetric {
     groupBy: options.groupBy,
   };
 }
-
-// ---------------------------------------------------------------------------
-// defineConfig
-// ---------------------------------------------------------------------------
 
 const VALID_SHAPES = new Set<string>([
   'event',

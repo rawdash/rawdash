@@ -98,9 +98,6 @@ describe('GoogleAdsConnector property tests', () => {
       if (url.includes('oauth2.googleapis.com/token')) {
         return { access_token: 'tok', expires_in: 3600 };
       }
-      // Default: empty result. Specific phases are exercised by the property
-      // tests above; the call here just verifies a full multi-phase sweep
-      // doesn't write any undeclared resources.
       return { results: [] };
     });
 
@@ -120,7 +117,6 @@ describe('GoogleAdsConnector property tests', () => {
       storage,
       CONNECTOR_ID,
     );
-    // The all-empty sweep should not write any undeclared resources.
     expect(
       connectorResourceShapeViolations(
         GoogleAdsConnector.resources,

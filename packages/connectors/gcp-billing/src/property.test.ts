@@ -11,10 +11,6 @@ import { GcpBillingConnector } from './gcp-billing';
 
 const CONNECTOR_ID = 'gcp-billing';
 
-// Generate an ephemeral PKCS8 key per test run so no private key material is
-// committed. The JWT this signs is never verified by these tests; any
-// well-formed RSA key works. Uses WebCrypto to match the connector runtime
-// (no node: imports).
 async function generateTestPrivateKeyPem(): Promise<string> {
   const { privateKey } = await globalThis.crypto.subtle.generateKey(
     {
@@ -66,13 +62,6 @@ function makeConnector(): GcpBillingConnector {
   );
 }
 
-// Return the fuzzed BigQuery response. pageToken is stripped so pagination
-// terminates after a single page, and jobComplete is pinned true: both are
-// query control-flow signals rather than data shape (a jobComplete:false
-// payload means the query timed out, which sync rejects by design). The schema
-// fuzzer drives every field type so any rows that don't include the required
-// 'date'/'cost' fields just yield zero samples — still a valid sync, still
-// invariants-clean.
 function installMock(sample: unknown): void {
   vi.stubGlobal(
     'fetch',

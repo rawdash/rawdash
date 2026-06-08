@@ -383,9 +383,7 @@ describe('LibsqlStorage — isolation + sync state', () => {
 
   it('markSyncRunning rejects non-queued states', async () => {
     const { storage: s } = makeStorage();
-    // idle → running is rejected
     expect(await s.markSyncRunning()).toBe(false);
-    // succeeded → running is rejected
     await s.markSyncQueued();
     await s.markSyncRunning();
     await s.markSyncSucceeded();

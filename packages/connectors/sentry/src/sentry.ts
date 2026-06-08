@@ -1,6 +1,7 @@
 import {
   type HttpResponse,
   connectorUserAgent,
+  mapWithConcurrency,
   parseEpoch,
   sanitizeAllowedUrl,
   standardRateLimitPolicy,
@@ -23,10 +24,6 @@ import {
   selectActivePhases,
 } from '@rawdash/core';
 import { z } from 'zod';
-
-// ---------------------------------------------------------------------------
-// configFields
-// ---------------------------------------------------------------------------
 
 export const configFields = defineConfigFields(
   z.object({
@@ -123,10 +120,6 @@ const sentryCredentials = {
 
 type SentryCredentials = typeof sentryCredentials;
 
-// ---------------------------------------------------------------------------
-// Sync phases + cursor
-// ---------------------------------------------------------------------------
-
 const sentryRateLimit = standardRateLimitPolicy({
   remainingHeader: 'x-sentry-rate-limit-remaining',
   resetHeader: 'x-sentry-rate-limit-reset',
@@ -140,10 +133,6 @@ type SentryPhase = (typeof PHASE_ORDER)[number];
 type SentrySyncCursor = ChunkedSyncCursor<SentryPhase, string>;
 
 const isSentrySyncCursor = makeChunkedCursorGuard(PHASE_ORDER);
-
-// ---------------------------------------------------------------------------
-// Sentry API types
-// ---------------------------------------------------------------------------
 
 interface SentryProjectRef {
   id?: string | number;
@@ -187,7 +176,7 @@ interface SentryStatsResponse {
   groups: Array<{
     by: Record<string, string | number>;
     totals?: Record<string, number>;
-    series: Record<string, number[]>;
+    series?: Record<string, number[]>;
   }>;
   start?: string;
   end?: string;
@@ -197,13 +186,6 @@ interface IssuesPageItem {
   issues: SentryIssue[];
   eventsByIssue: Map<string, SentryIssueEvent[]>;
 }
-
-// ---------------------------------------------------------------------------
-// Link header parsing — Sentry uses Web Linking RFC 5988 plus `results="..."`
-// to indicate whether a given direction has more pages. parseLinkHeader from
-// connector-shared captures the URL but not the `results` flag, so we parse
-// the raw header here.
-// ---------------------------------------------------------------------------
 
 interface SentryLink {
   url: string;
@@ -235,20 +217,26 @@ function parseSentryLink(
   return null;
 }
 
-// ---------------------------------------------------------------------------
-// SentryConnector
-// ---------------------------------------------------------------------------
-
 const SENTRY_API_HOST = 'sentry.io';
 const SENTRY_API_BASE = `https://${SENTRY_API_HOST}/api/0`;
 const DEFAULT_EVENTS_PER_ISSUE = 100;
 const DEFAULT_STATS_LOOKBACK_HOURS = 24;
+const MAX_PAGE_SIZE = 100;
 const ISSUES_PAGE_SIZE = 100;
 const RELEASES_PAGE_SIZE = 100;
+const EVENT_FETCH_CONCURRENCY = 5;
+const CHUNK_BUDGET_MS = 25_000;
 
-// ---------------------------------------------------------------------------
-// Schemas — describe the per-resource API response shape consumed by request()
-// ---------------------------------------------------------------------------
+function clampPageSize(
+  requested: number | undefined,
+  fallback: number,
+): number {
+  const n = requested ?? fallback;
+  if (!Number.isFinite(n) || n < 1) {
+    return 1;
+  }
+  return Math.min(Math.floor(n), MAX_PAGE_SIZE);
+}
 
 const idString = z.string().min(1);
 
@@ -295,7 +283,7 @@ const errorStatsResponseSchema = z.object({
     z.object({
       by: z.record(z.string(), z.union([z.string(), z.number()])),
       totals: z.record(z.string(), z.number()).optional(),
-      series: z.record(z.string(), z.array(z.number())),
+      series: z.record(z.string(), z.array(z.number())).optional(),
     }),
   ),
   start: z.string().optional(),
@@ -390,10 +378,6 @@ export class SentryConnector extends BaseConnector<
     });
   }
 
-  // -------------------------------------------------------------------------
-  // Resource enablement
-  // -------------------------------------------------------------------------
-
   private activePhases(): SentryPhase[] {
     return selectActivePhases<SentryResource, SentryPhase>(
       (r) => {
@@ -411,10 +395,6 @@ export class SentryConnector extends BaseConnector<
       this.settings.resources,
     );
   }
-
-  // -------------------------------------------------------------------------
-  // URL building + sanitization
-  // -------------------------------------------------------------------------
 
   private allowedPagePath(phase: SentryPhase): string | null {
     const org = this.settings.organization;
@@ -457,7 +437,10 @@ export class SentryConnector extends BaseConnector<
     const u = new URL(
       `${SENTRY_API_BASE}/organizations/${this.settings.organization}/issues/`,
     );
-    u.searchParams.set('limit', String(ISSUES_PAGE_SIZE));
+    u.searchParams.set(
+      'limit',
+      String(clampPageSize(options.pageSize, ISSUES_PAGE_SIZE)),
+    );
     u.searchParams.set('sort', 'date');
     for (const project of this.settings.projects ?? []) {
       u.searchParams.append('project', project);
@@ -468,11 +451,14 @@ export class SentryConnector extends BaseConnector<
     return u.toString();
   }
 
-  private buildInitialReleasesUrl(): string {
+  private buildInitialReleasesUrl(options: SyncOptions): string {
     const u = new URL(
       `${SENTRY_API_BASE}/organizations/${this.settings.organization}/releases/`,
     );
-    u.searchParams.set('per_page', String(RELEASES_PAGE_SIZE));
+    u.searchParams.set(
+      'per_page',
+      String(clampPageSize(options.pageSize, RELEASES_PAGE_SIZE)),
+    );
     for (const project of this.settings.projects ?? []) {
       u.searchParams.append('project', project);
     }
@@ -506,10 +492,6 @@ export class SentryConnector extends BaseConnector<
     return u.toString();
   }
 
-  // -------------------------------------------------------------------------
-  // Fetchers
-  // -------------------------------------------------------------------------
-
   private async fetchIssuesPage(
     page: string | null,
     options: SyncOptions,
@@ -526,14 +508,21 @@ export class SentryConnector extends BaseConnector<
 
     const eventsByIssue = new Map<string, SentryIssueEvent[]>();
     if (this.isResourceEnabled('issue_events')) {
-      for (const issue of res.body) {
-        signal?.throwIfAborted();
-        const eventsRes = await this.fetch<SentryIssueEvent[]>(
-          this.buildIssueEventsUrl(issue.id),
-          'issue_events',
-          signal,
-        );
-        eventsByIssue.set(issue.id, eventsRes.body);
+      signal?.throwIfAborted();
+      const fetched = await mapWithConcurrency(
+        res.body,
+        EVENT_FETCH_CONCURRENCY,
+        async (issue) => {
+          const eventsRes = await this.fetch<SentryIssueEvent[]>(
+            this.buildIssueEventsUrl(issue.id),
+            'issue_events',
+            signal,
+          );
+          return [issue.id, eventsRes.body] as const;
+        },
+      );
+      for (const [issueId, events] of fetched) {
+        eventsByIssue.set(issueId, events);
       }
     }
 
@@ -545,7 +534,7 @@ export class SentryConnector extends BaseConnector<
     options: SyncOptions,
     signal: AbortSignal | undefined,
   ): Promise<{ items: SentryRelease[]; next: string | null }> {
-    const url = page ?? this.buildInitialReleasesUrl();
+    const url = page ?? this.buildInitialReleasesUrl(options);
     const res = await this.fetch<SentryRelease[]>(url, 'releases', signal);
     const nextLink = parseSentryLink(res.headers.get('link'), 'next');
     const releases = res.body;
@@ -583,10 +572,6 @@ export class SentryConnector extends BaseConnector<
     );
     return { items: [res.body], next: null };
   }
-
-  // -------------------------------------------------------------------------
-  // Writers
-  // -------------------------------------------------------------------------
 
   private async writeIssuesPage(
     storage: StorageHandle,
@@ -698,7 +683,10 @@ export class SentryConnector extends BaseConnector<
     for (const group of stats.groups) {
       const project = group.by['project'];
       const projectKey = project !== undefined ? String(project) : 'unknown';
-      const series = group.series['sum(quantity)'] ?? [];
+      const series = group.series?.['sum(quantity)'] ?? [];
+      if (series.length === 0) {
+        continue;
+      }
       for (let i = 0; i < stats.intervals.length; i++) {
         const intervalIso = stats.intervals[i];
         const rawValue = series[i];
@@ -721,10 +709,6 @@ export class SentryConnector extends BaseConnector<
     await storage.metrics(samples, { names: ['sentry_errors_per_hour'] });
   }
 
-  // -------------------------------------------------------------------------
-  // sync
-  // -------------------------------------------------------------------------
-
   async sync(
     options: SyncOptions,
     storage: StorageHandle,
@@ -739,6 +723,8 @@ export class SentryConnector extends BaseConnector<
       cursor,
       signal,
       logger: this.logger,
+      pipeline: true,
+      maxChunkMs: CHUNK_BUDGET_MS,
       fetchPage: async (phase, page, sig) => {
         switch (phase) {
           case 'issues':

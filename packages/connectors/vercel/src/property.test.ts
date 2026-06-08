@@ -58,8 +58,6 @@ describe('VercelConnector property tests', () => {
       runs: 50,
       extraInvariants: [extra, docShapeExtra],
       run: async (sample, storage) => {
-        // Force pagination to terminate after one page so the mocked fetch
-        // doesn't loop forever — the connector follows `pagination.next`.
         const terminated = {
           ...sample,
           pagination: { ...sample.pagination, next: null },

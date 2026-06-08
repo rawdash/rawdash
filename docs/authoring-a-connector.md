@@ -106,9 +106,9 @@ Also set `"sideEffects": false` in the package's `package.json`.
 
 The **default export** is a hard requirement: rawdash cloud's sync-consumer Worker can't use runtime `import()` (Cloudflare bundles the module graph statically), so it relies on a build-time codegen step that scans `@rawdash/connector-*` dependencies and emits static `import` statements. A symbol-name-agnostic default export is what makes that codegen generic.
 
-The **standalone metadata exports** (and `sideEffects: false`) exist so the `@rawdash/connectors` umbrella package can build a `/metadata` entry that imports connector metadata _by name only_, never the connector class. Because the class's `id`/`resources`/`cost` statics are read at module-eval time, importing the class to reach them would defeat tree-shaking and pull the connector's whole sync implementation into any metadata-only consumer (e.g. the cloud connector catalog). Exposing the values as standalone consts lets the class tree-shake out.
+The **standalone metadata exports** (and `sideEffects: false`) exist so the `@rawdash/connectors` aggregate package can build a `/metadata` entry that imports connector metadata _by name only_, never the connector class. Because the class's `id`/`resources`/`cost` statics are read at module-eval time, importing the class to reach them would defeat tree-shaking and pull the connector's whole sync implementation into any metadata-only consumer (e.g. the cloud connector catalog). Exposing the values as standalone consts lets the class tree-shake out.
 
-CI enforces the default export via `scripts/check-connector-publishing-prereqs.ts` (the **Check connector publishing prerequisites** step), and the metadata exports via `scripts/generate-connectors-package.ts` — its `--check` mode (the **Verify connectors umbrella package is up-to-date** step) fails if a connector is missing a named `id`/`doc`/`configFields`/`resources` export.
+CI enforces the default export via `scripts/check-connector-publishing-prereqs.ts` (the **Check connector publishing prerequisites** step), and the metadata exports via `scripts/generate-connectors-package.ts` — its `--check` mode (the **Verify connectors aggregate package is up-to-date** step) fails if a connector is missing a named `id`/`doc`/`configFields`/`resources` export.
 
 ### Schemas
 

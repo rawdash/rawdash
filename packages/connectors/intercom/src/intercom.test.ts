@@ -2,10 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { IntercomConnector, configFields } from './intercom';
 
-// ---------------------------------------------------------------------------
-// configFields
-// ---------------------------------------------------------------------------
-
 describe('configFields', () => {
   it('parses a valid config with only accessToken', () => {
     const result = configFields.safeParse({
@@ -65,10 +61,6 @@ describe('configFields', () => {
     expect(configFields.safeParse({}).success).toBe(false);
   });
 });
-
-// ---------------------------------------------------------------------------
-// Fetch + storage mocks
-// ---------------------------------------------------------------------------
 
 interface MockCall {
   url: string;
@@ -166,10 +158,6 @@ function connector(
   );
 }
 
-// ---------------------------------------------------------------------------
-// sync — phase orchestration
-// ---------------------------------------------------------------------------
-
 describe('IntercomConnector.sync', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -217,7 +205,6 @@ describe('IntercomConnector.sync', () => {
     );
     expect(clearedEvents).toContain('intercom_conversation_state_change');
 
-    // Entity types must NOT be cleared in incremental mode.
     const entityClears = storage.entities.mock.calls.filter(
       (c) => Array.isArray(c[0]) && (c[0] as unknown[]).length === 0,
     );

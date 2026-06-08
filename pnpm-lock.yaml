@@ -196,7 +196,7 @@ importers:
         version: 0.9.9(prettier@3.8.1)(typescript@5.9.3)
       '@rawdash/connectors':
         specifier: workspace:*
-        version: link:../../packages/connectors-umbrella
+        version: link:../../packages/connectors-aggregate
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
@@ -322,7 +322,7 @@ importers:
         specifier: ^5.7.2
         version: 5.9.3
 
-  packages/connectors-umbrella:
+  packages/connectors-aggregate:
     dependencies:
       '@rawdash/connector-aws-cloudwatch':
         specifier: workspace:*
@@ -330,6 +330,15 @@ importers:
       '@rawdash/connector-aws-cost':
         specifier: workspace:*
         version: link:../connectors/aws-cost
+      '@rawdash/connector-azure-cost':
+        specifier: workspace:*
+        version: link:../connectors/azure-cost
+      '@rawdash/connector-azure-monitor':
+        specifier: workspace:*
+        version: link:../connectors/azure-monitor
+      '@rawdash/connector-circleci':
+        specifier: workspace:*
+        version: link:../connectors/circleci
       '@rawdash/connector-datadog':
         specifier: workspace:*
         version: link:../connectors/datadog
@@ -354,6 +363,9 @@ importers:
       '@rawdash/connector-google-search-console':
         specifier: workspace:*
         version: link:../connectors/google-search-console
+      '@rawdash/connector-greenhouse':
+        specifier: workspace:*
+        version: link:../connectors/greenhouse
       '@rawdash/connector-hubspot':
         specifier: workspace:*
         version: link:../connectors/hubspot
@@ -363,6 +375,9 @@ importers:
       '@rawdash/connector-jira':
         specifier: workspace:*
         version: link:../connectors/jira
+      '@rawdash/connector-klaviyo':
+        specifier: workspace:*
+        version: link:../connectors/klaviyo
       '@rawdash/connector-launchdarkly':
         specifier: workspace:*
         version: link:../connectors/launchdarkly
@@ -375,6 +390,9 @@ importers:
       '@rawdash/connector-mixpanel':
         specifier: workspace:*
         version: link:../connectors/mixpanel
+      '@rawdash/connector-new-relic':
+        specifier: workspace:*
+        version: link:../connectors/new-relic
       '@rawdash/connector-posthog':
         specifier: workspace:*
         version: link:../connectors/posthog
@@ -393,6 +411,9 @@ importers:
       '@rawdash/connector-vercel':
         specifier: workspace:*
         version: link:../connectors/vercel
+      '@rawdash/connector-zendesk':
+        specifier: workspace:*
+        version: link:../connectors/zendesk
       '@rawdash/core':
         specifier: workspace:*
         version: link:../core
@@ -484,6 +505,118 @@ importers:
       '@rawdash/core':
         specifier: workspace:*
         version: link:../../core
+      tsup:
+        specifier: ^8.0.0
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.9)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.3)
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.4
+        version: 4.1.4(@types/node@24.12.2)(vite@8.0.8(@types/node@24.12.2)(esbuild@0.27.7)(jiti@1.21.7)(tsx@4.21.0)(yaml@2.8.3))
+
+  packages/connectors/azure-cost:
+    dependencies:
+      '@rawdash/core':
+        specifier: workspace:*
+        version: link:../../core
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@rawdash/connector-azure-shared':
+        specifier: workspace:*
+        version: link:../azure-shared
+      '@rawdash/connector-shared':
+        specifier: workspace:*
+        version: link:../../connector-shared
+      '@rawdash/connector-test-utils':
+        specifier: workspace:*
+        version: link:../../connector-test-utils
+      fast-check:
+        specifier: ^4.8.0
+        version: 4.8.0
+      tsup:
+        specifier: ^8.0.0
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.9)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.3)
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.4
+        version: 4.1.4(@types/node@24.12.2)(vite@8.0.8(@types/node@24.12.2)(esbuild@0.27.7)(jiti@1.21.7)(tsx@4.21.0)(yaml@2.8.3))
+
+  packages/connectors/azure-monitor:
+    dependencies:
+      '@rawdash/core':
+        specifier: workspace:*
+        version: link:../../core
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@rawdash/connector-azure-shared':
+        specifier: workspace:*
+        version: link:../azure-shared
+      '@rawdash/connector-shared':
+        specifier: workspace:*
+        version: link:../../connector-shared
+      '@rawdash/connector-test-utils':
+        specifier: workspace:*
+        version: link:../../connector-test-utils
+      fast-check:
+        specifier: ^4.8.0
+        version: 4.8.0
+      tsup:
+        specifier: ^8.0.0
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.9)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.3)
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.4
+        version: 4.1.4(@types/node@24.12.2)(vite@8.0.8(@types/node@24.12.2)(esbuild@0.27.7)(jiti@1.21.7)(tsx@4.21.0)(yaml@2.8.3))
+
+  packages/connectors/azure-shared:
+    dependencies:
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@rawdash/connector-shared':
+        specifier: workspace:*
+        version: link:../../connector-shared
+      '@rawdash/core':
+        specifier: workspace:*
+        version: link:../../core
+      tsup:
+        specifier: ^8.0.0
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.9)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.3)
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.4
+        version: 4.1.4(@types/node@24.12.2)(vite@8.0.8(@types/node@24.12.2)(esbuild@0.27.7)(jiti@1.21.7)(tsx@4.21.0)(yaml@2.8.3))
+
+  packages/connectors/circleci:
+    dependencies:
+      '@rawdash/core':
+        specifier: workspace:*
+        version: link:../../core
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@rawdash/connector-shared':
+        specifier: workspace:*
+        version: link:../../connector-shared
+      '@rawdash/connector-test-utils':
+        specifier: workspace:*
+        version: link:../../connector-test-utils
+      fast-check:
+        specifier: ^4.8.0
+        version: 4.8.0
       tsup:
         specifier: ^8.0.0
         version: 8.5.1(jiti@1.21.7)(postcss@8.5.9)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.3)
@@ -746,6 +879,34 @@ importers:
         specifier: ^4.1.4
         version: 4.1.4(@types/node@24.12.2)(vite@8.0.8(@types/node@24.12.2)(esbuild@0.27.7)(jiti@1.21.7)(tsx@4.21.0)(yaml@2.8.3))
 
+  packages/connectors/greenhouse:
+    dependencies:
+      '@rawdash/core':
+        specifier: workspace:*
+        version: link:../../core
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@rawdash/connector-shared':
+        specifier: workspace:*
+        version: link:../../connector-shared
+      '@rawdash/connector-test-utils':
+        specifier: workspace:*
+        version: link:../../connector-test-utils
+      fast-check:
+        specifier: ^4.8.0
+        version: 4.8.0
+      tsup:
+        specifier: ^8.0.0
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.9)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.3)
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.4
+        version: 4.1.4(@types/node@24.12.2)(vite@8.0.8(@types/node@24.12.2)(esbuild@0.27.7)(jiti@1.21.7)(tsx@4.21.0)(yaml@2.8.3))
+
   packages/connectors/hubspot:
     dependencies:
       '@rawdash/core':
@@ -803,6 +964,34 @@ importers:
         version: 4.1.4(@types/node@24.12.2)(vite@8.0.8(@types/node@24.12.2)(esbuild@0.27.7)(jiti@1.21.7)(tsx@4.21.0)(yaml@2.8.3))
 
   packages/connectors/jira:
+    dependencies:
+      '@rawdash/core':
+        specifier: workspace:*
+        version: link:../../core
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@rawdash/connector-shared':
+        specifier: workspace:*
+        version: link:../../connector-shared
+      '@rawdash/connector-test-utils':
+        specifier: workspace:*
+        version: link:../../connector-test-utils
+      fast-check:
+        specifier: ^4.8.0
+        version: 4.8.0
+      tsup:
+        specifier: ^8.0.0
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.9)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.3)
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.4
+        version: 4.1.4(@types/node@24.12.2)(vite@8.0.8(@types/node@24.12.2)(esbuild@0.27.7)(jiti@1.21.7)(tsx@4.21.0)(yaml@2.8.3))
+
+  packages/connectors/klaviyo:
     dependencies:
       '@rawdash/core':
         specifier: workspace:*
@@ -915,6 +1104,34 @@ importers:
         version: 4.1.4(@types/node@24.12.2)(vite@8.0.8(@types/node@24.12.2)(esbuild@0.27.7)(jiti@1.21.7)(tsx@4.21.0)(yaml@2.8.3))
 
   packages/connectors/mixpanel:
+    dependencies:
+      '@rawdash/core':
+        specifier: workspace:*
+        version: link:../../core
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@rawdash/connector-shared':
+        specifier: workspace:*
+        version: link:../../connector-shared
+      '@rawdash/connector-test-utils':
+        specifier: workspace:*
+        version: link:../../connector-test-utils
+      fast-check:
+        specifier: ^4.8.0
+        version: 4.8.0
+      tsup:
+        specifier: ^8.0.0
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.9)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.3)
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.4
+        version: 4.1.4(@types/node@24.12.2)(vite@8.0.8(@types/node@24.12.2)(esbuild@0.27.7)(jiti@1.21.7)(tsx@4.21.0)(yaml@2.8.3))
+
+  packages/connectors/new-relic:
     dependencies:
       '@rawdash/core':
         specifier: workspace:*
@@ -1083,6 +1300,34 @@ importers:
         version: 4.1.4(@types/node@24.12.2)(vite@8.0.8(@types/node@24.12.2)(esbuild@0.27.7)(jiti@1.21.7)(tsx@4.21.0)(yaml@2.8.3))
 
   packages/connectors/vercel:
+    dependencies:
+      '@rawdash/core':
+        specifier: workspace:*
+        version: link:../../core
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@rawdash/connector-shared':
+        specifier: workspace:*
+        version: link:../../connector-shared
+      '@rawdash/connector-test-utils':
+        specifier: workspace:*
+        version: link:../../connector-test-utils
+      fast-check:
+        specifier: ^4.8.0
+        version: 4.8.0
+      tsup:
+        specifier: ^8.0.0
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.9)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.8.3)
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.4
+        version: 4.1.4(@types/node@24.12.2)(vite@8.0.8(@types/node@24.12.2)(esbuild@0.27.7)(jiti@1.21.7)(tsx@4.21.0)(yaml@2.8.3))
+
+  packages/connectors/zendesk:
     dependencies:
       '@rawdash/core':
         specifier: workspace:*

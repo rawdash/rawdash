@@ -25,10 +25,6 @@ import {
 } from '@rawdash/core';
 import { z } from 'zod';
 
-// ---------------------------------------------------------------------------
-// Config
-// ---------------------------------------------------------------------------
-
 const metricQuerySchema = z.object({
   id: z
     .string()
@@ -148,10 +144,6 @@ export const doc: ConnectorDoc = defineConnectorDoc({
   ],
 });
 
-// ---------------------------------------------------------------------------
-// Settings / credentials
-// ---------------------------------------------------------------------------
-
 export interface GcpMonitoringMetricQuery {
   id: string;
   metricType: string;
@@ -174,10 +166,6 @@ const gcpMonitoringCredentials = {
 } satisfies CredentialsSchema;
 
 type GcpMonitoringCredentials = typeof gcpMonitoringCredentials;
-
-// ---------------------------------------------------------------------------
-// Cloud Monitoring v3 response schemas
-// ---------------------------------------------------------------------------
 
 const int64String = z.string().regex(/^-?\d+$/);
 const isoTimestamp = z.iso.datetime();
@@ -231,10 +219,6 @@ const listTimeSeriesResponseSchema = z.object({
   nextPageToken: z.string().optional(),
 });
 
-// ---------------------------------------------------------------------------
-// Resources
-// ---------------------------------------------------------------------------
-
 export const gcpMonitoringResources = defineResources({
   '<metricType>': {
     shape: 'metric',
@@ -274,10 +258,6 @@ export const gcpMonitoringResources = defineResources({
   },
 });
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
 const MONITORING_API_BASE = 'https://monitoring.googleapis.com/v3';
 const MONITORING_SCOPE = 'https://www.googleapis.com/auth/monitoring.read';
 const PAGE_SIZE = 1000;
@@ -285,10 +265,6 @@ const DEFAULT_LOOKBACK_MINUTES = 180;
 const MS_PER_MINUTE = 60_000;
 
 export const id = 'gcp-monitoring';
-
-// ---------------------------------------------------------------------------
-// GcpMonitoringConnector
-// ---------------------------------------------------------------------------
 
 export class GcpMonitoringConnector extends BaseConnector<
   GcpMonitoringSettings,
@@ -514,10 +490,6 @@ export class GcpMonitoringConnector extends BaseConnector<
   }
 }
 
-// ---------------------------------------------------------------------------
-// Helpers (exported for tests)
-// ---------------------------------------------------------------------------
-
 export function parseDurationSeconds(duration: string): number | null {
   const m = /^(\d+)s$/.exec(duration);
   if (!m) {
@@ -569,8 +541,5 @@ function extractScalarValue(v: z.infer<typeof pointValue>): number | null {
   if (v.boolValue !== undefined) {
     return v.boolValue ? 1 : 0;
   }
-  // stringValue and distributionValue are not scalar; drop them silently. The
-  // resource doc calls this out explicitly so users know to pick an aligner
-  // that reduces distributions (e.g. ALIGN_PERCENTILE_99) when needed.
   return null;
 }

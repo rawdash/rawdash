@@ -1,31 +1,3 @@
-/**
- * Generate the `@rawdash/connectors` umbrella package from the connector
- * packages in this monorepo.
- *
- * Single source of truth = the connector packages under `packages/connectors/`.
- * Adding a connector there flows into the umbrella automatically — consumers
- * depend on the one umbrella package instead of N individual ones, with no
- * consumer-side changes and no version drift.
- *
- * Emits three build-time artifacts in the umbrella package:
- *   - `src/metadata.generated.ts` — re-exports each connector's metadata
- *     (`id`, `doc`, `configFields`, `resources`, `cost`). This is the
- *     metadata-only surface the cloud catalog consumes; it never re-exports
- *     sync logic, and combined with `sideEffects:false` the connector class
- *     bodies tree-shake out of a metadata-only bundle.
- *   - `src/registry.generated.ts` — a map of connector id → lazy
- *     `() => import('@rawdash/connector-*')` loader, preserving the
- *     per-connector lazy-load boundary for sync consumers.
- *   - `package.json` `dependencies` — the `@rawdash/connector-*` set, kept in
- *     lockstep with the discovered connectors.
- *
- * Run with the source condition so workspace packages resolve to their TS
- * source (no prior build needed):
- *   NODE_OPTIONS=--conditions=@rawdash/source tsx scripts/generate-connectors-package.ts
- *
- * Pass --check to fail (non-zero exit) if regenerating would change any file —
- * this is the CI drift guard.
- */
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -33,12 +5,11 @@ import * as prettier from 'prettier';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CONNECTORS_DIR = join(ROOT, 'packages', 'connectors');
-const PKG_DIR = join(ROOT, 'packages', 'connectors-umbrella');
+const PKG_DIR = join(ROOT, 'packages', 'connectors-aggregate');
 const SRC_DIR = join(PKG_DIR, 'src');
 const PKG_JSON_PATH = join(PKG_DIR, 'package.json');
 
-// Directories under packages/connectors that are not themselves connectors.
-const NOT_A_CONNECTOR = new Set(['aws-shared', 'gcp-shared']);
+const NOT_A_CONNECTOR = new Set(['aws-shared', 'gcp-shared', 'azure-shared']);
 
 const GENERATED_MESSAGE =
   'This file is generated from the connector packages by scripts/generate-connectors-package.ts. Do not edit by hand.';
@@ -49,15 +20,9 @@ interface LoadedConnector {
   packageName: string;
   id: string;
   hasCost: boolean;
-  /** camelCase identifier prefix used for generated import bindings. */
   ident: string;
 }
 
-// The umbrella's metadata entry imports only these named exports — never the
-// default connector class — so a metadata-only consumer never bundles connector
-// sync code. Each connector must therefore expose its metadata as standalone
-// named exports (`id`, `doc`, `configFields`, `resources`, and optionally
-// `cost`) rather than only as class statics.
 interface ConnectorModule {
   default?: unknown;
   id?: string;
@@ -67,9 +32,6 @@ interface ConnectorModule {
   cost?: unknown;
 }
 
-// Deterministic, locale-independent string order. `localeCompare` collation
-// varies across platforms/ICU builds (macOS vs CI Linux), which would make the
-// generated ordering drift between machines; a code-unit compare never does.
 function byCodeUnit(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
@@ -100,7 +62,7 @@ async function loadConnector(dir: string): Promise<LoadedConnector> {
     if (mod[name] === undefined) {
       throw new Error(
         `Connector "${dir}" (${pkg.name}) does not export \`${name}\` as a named export. ` +
-          `The umbrella's metadata entry imports metadata by name (never off the ` +
+          `The aggregate's metadata entry imports metadata by name (never off the ` +
           `connector class) so a metadata-only consumer never bundles connector ` +
           `sync code; expose \`id\`, \`doc\`, \`configFields\`, and \`resources\` ` +
           `(and optionally \`cost\`) as named exports.`,
@@ -187,9 +149,6 @@ function renderRegistryModule(connectors: LoadedConnector[]): string {
   ].join('\n');
 }
 
-// Rewrite the umbrella package.json so its @rawdash/connector-* dependencies
-// exactly match the discovered connector set (lockstep, no drift). Non-connector
-// dependencies (@rawdash/core, zod) and every other field are preserved.
 function renderPackageJson(connectors: LoadedConnector[]): string {
   const pkg = JSON.parse(readFileSync(PKG_JSON_PATH, 'utf8')) as {
     dependencies?: Record<string, string>;
@@ -280,7 +239,7 @@ async function main(): Promise<void> {
   if (check) {
     if (drifted.length > 0) {
       console.error(
-        `\n@rawdash/connectors umbrella package is out of date. Run ` +
+        `\n@rawdash/connectors aggregate package is out of date. Run ` +
           `\`pnpm gen:connectors-package\` and commit the result.\nDrifted files:\n${drifted
             .map((p) => `  - ${p.replace(`${ROOT}/`, '')}`)
             .join('\n')}`,
@@ -288,11 +247,11 @@ async function main(): Promise<void> {
       process.exit(1);
     }
     console.log(
-      `@rawdash/connectors umbrella package is up to date (${connectors.length} connectors).`,
+      `@rawdash/connectors aggregate package is up to date (${connectors.length} connectors).`,
     );
   } else {
     console.log(
-      `Generated @rawdash/connectors umbrella package for ${connectors.length} connectors.`,
+      `Generated @rawdash/connectors aggregate package for ${connectors.length} connectors.`,
     );
   }
 }

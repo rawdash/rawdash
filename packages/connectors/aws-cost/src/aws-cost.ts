@@ -32,13 +32,6 @@ import {
 } from '@rawdash/core';
 import { z } from 'zod';
 
-// ---------------------------------------------------------------------------
-// Config
-// ---------------------------------------------------------------------------
-//
-// Cost Explorer is a global service reached through its us-east-1 endpoint, so
-// `region` is hardcoded rather than exposed in the connector config.
-
 const { region: _region, ...awsAuthWithoutRegion } = awsAuthConfigShape;
 
 export const configFields = defineConfigFields(
@@ -114,10 +107,6 @@ export interface AwsCostSettings extends BaseAWSSettings {
   lookbackDays?: number;
 }
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
 const AWS_REGION = 'us-east-1';
 const CE_HOST = 'ce.us-east-1.amazonaws.com';
 const CE_URL = `https://${CE_HOST}/`;
@@ -134,10 +123,6 @@ const MS_PER_DAY = 86_400_000;
 
 const PHASE_ORDER = ['daily_cost', 'forecast'] as const;
 type AwsCostPhase = (typeof PHASE_ORDER)[number];
-
-// ---------------------------------------------------------------------------
-// Schemas — describe the per-resource API response shape consumed by request()
-// ---------------------------------------------------------------------------
 
 const amountString = z.string().regex(/^-?\d+(\.\d+)?$/);
 const ceDateString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -176,12 +161,6 @@ const getCostForecastResponse = z.object({
     .optional(),
 });
 
-// ---------------------------------------------------------------------------
-// Runtime response shapes (intentionally permissive — the wire format is
-// `application/x-amz-json-1.1` which the shared client returns as a string,
-// so these are parsed defensively rather than trusted)
-// ---------------------------------------------------------------------------
-
 interface CostMetricAmount {
   Amount?: string;
   Unit?: string;
@@ -209,14 +188,6 @@ interface GetCostForecastBody {
   Total?: CostMetricAmount;
   ForecastResultsByTime?: ForecastResult[];
 }
-
-// ---------------------------------------------------------------------------
-// Error mapping — Cost Explorer signals failures via the JSON `__type` field;
-// translate them into the shared error contract the runner understands.
-// Detection is structural (`.kind` + `.response`) rather than `instanceof`,
-// because the shared error classes are bundled per-package — an `instanceof`
-// check against this package's copy would miss errors thrown by core's copy.
-// ---------------------------------------------------------------------------
 
 interface HttpErrorLike {
   message: string;
@@ -285,10 +256,6 @@ function isDataUnavailable(err: unknown): boolean {
     /DataUnavailable/i.test(extractAwsErrorType(httpError))
   );
 }
-
-// ---------------------------------------------------------------------------
-// Pure helpers — exported for unit testing
-// ---------------------------------------------------------------------------
 
 function parseAmount(value: string | undefined): number {
   if (value === undefined) {
@@ -462,9 +429,6 @@ export function getCostWindow(
   }
 
   if (granularity === 'MONTHLY') {
-    // Derive month delta from calendar months so the bucket containing `since`
-    // is included, instead of rounding days/30 which under-fetches at month
-    // boundaries (e.g. since=2026-04-30, now=2026-05-27 needs 2 months, not 1).
     let months: number;
     if (options.mode === 'latest') {
       months = 1;
@@ -485,8 +449,6 @@ export function getCostWindow(
     };
   }
 
-  // End is exclusive; tomorrow 00:00 UTC so the current (estimated) day is
-  // included and overwritten on the next sync as it finalizes.
   const end = startOfUtcDay(now) + MS_PER_DAY;
   return { start: toDateStr(end - days * MS_PER_DAY), end: toDateStr(end) };
 }
@@ -527,10 +489,6 @@ function isAwsCostCursor(value: unknown): value is AwsCostCursor {
   }
   return typeof p.start === 'string' && typeof p.end === 'string';
 }
-
-// ---------------------------------------------------------------------------
-// Resources
-// ---------------------------------------------------------------------------
 
 export const awsCostResources = defineResources({
   aws_cost_daily: {
@@ -594,10 +552,6 @@ export const awsCostResources = defineResources({
     responses: { forecast: getCostForecastResponse },
   },
 });
-
-// ---------------------------------------------------------------------------
-// AwsCostConnector
-// ---------------------------------------------------------------------------
 
 export const id = 'aws-cost';
 
@@ -769,8 +723,6 @@ export class AwsCostConnector extends BaseAWSConnector<AwsCostSettings> {
         signal,
       );
     } catch (err) {
-      // A brand-new or low-volume account has no history to forecast from;
-      // treat that as "no forecast" rather than failing the whole sync.
       if (isDataUnavailable(err)) {
         await storage.metrics([], { names: [FORECAST_METRIC_NAME] });
         return;

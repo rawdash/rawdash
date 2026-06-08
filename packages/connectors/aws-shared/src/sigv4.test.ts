@@ -26,8 +26,6 @@ describe('formatAmzDate', () => {
 });
 
 describe('createAuthorizationHeader', () => {
-  // AWS SigV4 test suite, `get-vanilla` case:
-  // https://docs.aws.amazon.com/general/latest/gr/signature-v4-test-suite.html
   it('reproduces the published get-vanilla signature', async () => {
     const emptyHash = await sha256Hex('');
     const authorization = await createAuthorizationHeader({

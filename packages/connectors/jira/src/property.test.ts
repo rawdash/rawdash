@@ -109,7 +109,6 @@ describe('JiraConnector property tests', () => {
       runs: 50,
       extraInvariants: [extra, docShapeExtra],
       run: async (sample, storage) => {
-        // The /users/search payload is a plain array; <50 items terminates.
         installFetchMock(() => sample);
         await makeConnector(['users']).sync(
           { mode: 'full' },

@@ -17,10 +17,6 @@ import {
 } from '@rawdash/core';
 import { z } from 'zod';
 
-// ---------------------------------------------------------------------------
-// configFields
-// ---------------------------------------------------------------------------
-
 const funnelDefinition = z.object({
   name: z.string().min(1),
   steps: z.array(z.string().min(1)).min(2),
@@ -122,10 +118,6 @@ export const doc: ConnectorDoc = defineConnectorDoc({
   limitations: ['Session recordings/replays and cohorts are not synced.'],
 });
 
-// ---------------------------------------------------------------------------
-// Settings / credentials
-// ---------------------------------------------------------------------------
-
 export interface PostHogFunnel {
   name: string;
   steps: readonly string[];
@@ -150,10 +142,6 @@ const posthogCredentials = {
 
 type PostHogCredentials = typeof posthogCredentials;
 
-// ---------------------------------------------------------------------------
-// Sync phases + cursor
-// ---------------------------------------------------------------------------
-
 const PHASE_ORDER = [
   'feature_flags',
   'events_per_day',
@@ -169,8 +157,18 @@ export type PostHogResource = PostHogPhase;
 const isPostHogSyncCursor = makeChunkedCursorGuard(PHASE_ORDER);
 
 const FLAGS_PAGE_SIZE = 100;
+const MAX_FLAGS_PAGE_SIZE = 1_000;
 const QUERY_PAGE_SIZE = 10_000;
+const CHUNK_BUDGET_MS = 25_000;
 const DEFAULT_LOOKBACK_DAYS = 30;
+
+function clampFlagsPageSize(requested: number | undefined): number {
+  const n = requested ?? FLAGS_PAGE_SIZE;
+  if (!Number.isFinite(n) || n < 1) {
+    return 1;
+  }
+  return Math.min(Math.floor(n), MAX_FLAGS_PAGE_SIZE);
+}
 const DEFAULT_FUNNEL_WINDOW_DAYS = 14;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -180,14 +178,8 @@ const FLAG_USAGE_METRIC = 'posthog_feature_flag_usage';
 const ACTIVE_USERS_METRIC = 'posthog_active_users';
 const FUNNEL_METRIC = 'posthog_funnel';
 
-// Series order requested in the active-users TrendsQuery; the response keeps
-// this order so the index maps back to the active-user window.
 const ACTIVE_USER_WINDOWS = ['dau', 'wau', 'mau'] as const;
 const ACTIVE_USER_MATH = ['dau', 'weekly_active', 'monthly_active'] as const;
-
-// ---------------------------------------------------------------------------
-// PostHog API types
-// ---------------------------------------------------------------------------
 
 interface FeatureFlagRecord {
   id: number;
@@ -227,10 +219,6 @@ interface FunnelResponse {
   results: FunnelStepResult[];
 }
 
-// ---------------------------------------------------------------------------
-// Value helpers
-// ---------------------------------------------------------------------------
-
 function finiteNumber(value: unknown, fallback = 0): number {
   const n = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(n) ? n : fallback;
@@ -248,8 +236,6 @@ function stringOrNull(value: unknown): string | null {
   return typeof value === 'string' ? value : null;
 }
 
-// PostHog dates from HogQL come back as 'YYYY-MM-DD' (or full timestamps).
-// Treat them as UTC midnight so re-syncing the same day is idempotent.
 function dateStringToMs(value: unknown): number | null {
   if (typeof value !== 'string') {
     return null;
@@ -264,9 +250,6 @@ function dateStringToMs(value: unknown): number | null {
   return parseEpoch(isoLike, 'iso');
 }
 
-// Filters are an opaque, deeply-nested PostHog payload. Persist a JSON snapshot
-// rather than the raw object so no `undefined` (or non-serializable value)
-// leaks into entity attributes.
 function stringifyFilters(value: unknown): string | null {
   if (value === undefined || value === null) {
     return null;
@@ -295,10 +278,6 @@ function quoteHogQLString(value: string): string {
   return `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
 }
 
-// ---------------------------------------------------------------------------
-// Schemas — describe the per-resource API response shape consumed by request()
-// ---------------------------------------------------------------------------
-
 const featureFlagSchema = z.object({
   id: z.number(),
   key: z.string().min(1),
@@ -308,7 +287,6 @@ const featureFlagSchema = z.object({
   created_at: z.string().nullish(),
 });
 
-// HogQL grouped rollups return positional rows: [day, key, count, distinct].
 const dailyCountRow = z.tuple([
   z.string(),
   z.string().nullable(),
@@ -337,10 +315,6 @@ const funnelSchema = z.object({
     }),
   ),
 });
-
-// ---------------------------------------------------------------------------
-// Resources
-// ---------------------------------------------------------------------------
 
 export const posthogResources = defineResources({
   posthog_feature_flag: {
@@ -439,10 +413,6 @@ export const posthogResources = defineResources({
   },
 });
 
-// ---------------------------------------------------------------------------
-// PostHogConnector
-// ---------------------------------------------------------------------------
-
 export const id = 'posthog';
 
 export class PostHogConnector extends BaseConnector<
@@ -486,11 +456,6 @@ export class PostHogConnector extends BaseConnector<
     };
   }
 
-  // ISO date (YYYY-MM-DD) that bounds the rollup window. Metric phases use
-  // clear-and-rewrite, so the window must always cover the full lookback or
-  // an incremental tick would wipe history and only rewrite a narrower slice.
-  // A `since` earlier than the lookback extends the window; a later `since`
-  // is ignored.
   private windowStartDate(options: SyncOptions): string {
     const lookbackDays = this.settings.lookbackDays ?? DEFAULT_LOOKBACK_DAYS;
     const now = Date.now();
@@ -520,19 +485,16 @@ export class PostHogConnector extends BaseConnector<
     ).then((res) => res.body);
   }
 
-  // -------------------------------------------------------------------------
-  // feature_flags — paginated REST list (entities)
-  // -------------------------------------------------------------------------
-
   private async fetchFeatureFlagsPage(
     page: string | null,
+    pageSize: number,
     signal?: AbortSignal,
   ): Promise<{ items: unknown[]; next: string | null }> {
     const offset = safeOffset(page);
     const url = new URL(
       `${this.baseUrl}/api/projects/${this.settings.projectId}/feature_flags/`,
     );
-    url.searchParams.set('limit', String(FLAGS_PAGE_SIZE));
+    url.searchParams.set('limit', String(pageSize));
     url.searchParams.set('offset', String(offset));
     const res = await this.get<FeatureFlagListResponse>(url.toString(), {
       resource: 'feature_flags',
@@ -540,12 +502,9 @@ export class PostHogConnector extends BaseConnector<
       signal,
     });
     const results = res.body.results;
-    // Build the next offset ourselves rather than echoing the API's absolute
-    // `next` URL back into fetch(), avoiding any SSRF surface from a tampered
-    // cursor while still stopping once a short page comes back.
     const next =
-      res.body.next && results.length === FLAGS_PAGE_SIZE
-        ? String(offset + FLAGS_PAGE_SIZE)
+      typeof res.body.next === 'string' && results.length > 0
+        ? String(offset + results.length)
         : null;
     return { items: results, next };
   }
@@ -569,10 +528,6 @@ export class PostHogConnector extends BaseConnector<
       });
     }
   }
-
-  // -------------------------------------------------------------------------
-  // events_per_day — HogQL grouped by (day, event)
-  // -------------------------------------------------------------------------
 
   private async fetchEventsPerDay(
     startDate: string,
@@ -627,10 +582,6 @@ export class PostHogConnector extends BaseConnector<
     }
   }
 
-  // -------------------------------------------------------------------------
-  // feature_flag_usage — HogQL over $feature_flag_called events
-  // -------------------------------------------------------------------------
-
   private async fetchFlagUsage(
     startDate: string,
     page: string | null,
@@ -680,10 +631,6 @@ export class PostHogConnector extends BaseConnector<
     }
   }
 
-  // -------------------------------------------------------------------------
-  // active_users — TrendsQuery (dau / wau / mau)
-  // -------------------------------------------------------------------------
-
   private async fetchActiveUsers(
     startDate: string,
     signal?: AbortSignal,
@@ -730,10 +677,6 @@ export class PostHogConnector extends BaseConnector<
     }
   }
 
-  // -------------------------------------------------------------------------
-  // funnels — one FunnelsQuery per declared funnel (index-paged)
-  // -------------------------------------------------------------------------
-
   private async fetchFunnelPage(
     page: string | null,
     startDate: string,
@@ -756,7 +699,6 @@ export class PostHogConnector extends BaseConnector<
       'funnels',
       signal,
     );
-    // Tag each step row with its funnel so writeBatch stays stateless.
     const items = body.results.map((step) => ({ funnel, step }));
     const next = index + 1 < funnels.length ? String(index + 1) : null;
     return { items, next };
@@ -766,8 +708,6 @@ export class PostHogConnector extends BaseConnector<
     storage: StorageHandle,
     items: Array<{ funnel: PostHogFunnel; step: FunnelStepResult }>,
   ): Promise<void> {
-    // Snapshot timestamp: funnel conversion is measured over the whole window,
-    // so stamp every step at the start of the current UTC day.
     const ts = startOfUtcDay(Date.now());
     for (const { funnel, step } of items) {
       const users = finiteNumber(step.count);
@@ -791,10 +731,6 @@ export class PostHogConnector extends BaseConnector<
     }
   }
 
-  // -------------------------------------------------------------------------
-  // Scope clearing (idempotency)
-  // -------------------------------------------------------------------------
-
   private async clearScopeOnFirstPage(
     storage: StorageHandle,
     phase: PostHogPhase,
@@ -802,7 +738,6 @@ export class PostHogConnector extends BaseConnector<
   ): Promise<void> {
     switch (phase) {
       case 'feature_flags':
-        // Entities upsert by id; only a full backfill drops stale rows.
         if (isFull) {
           await storage.entities([], { types: [FEATURE_FLAG_ENTITY] });
         }
@@ -865,6 +800,7 @@ export class PostHogConnector extends BaseConnector<
       : undefined;
     const isFull = options.mode === 'full';
     const startDate = this.windowStartDate(options);
+    const flagsPageSize = clampFlagsPageSize(options.pageSize);
 
     const phases = selectActivePhases<PostHogResource, PostHogPhase>(
       (r) => r,
@@ -877,10 +813,12 @@ export class PostHogConnector extends BaseConnector<
       cursor,
       signal,
       logger: this.logger,
+      pipeline: true,
+      maxChunkMs: CHUNK_BUDGET_MS,
       fetchPage: async (phase, page, sig) => {
         switch (phase) {
           case 'feature_flags':
-            return this.fetchFeatureFlagsPage(page, sig);
+            return this.fetchFeatureFlagsPage(page, flagsPageSize, sig);
           case 'events_per_day':
             return this.fetchEventsPerDay(startDate, page, sig);
           case 'feature_flag_usage':

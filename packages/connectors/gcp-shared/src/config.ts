@@ -1,10 +1,5 @@
 import { z } from 'zod';
 
-/**
- * Shared GCP config fragment - reused by both `@rawdash/connector-gcp-monitoring`
- * and `@rawdash/connector-gcp-billing`. Both authenticate with a service-account
- * JSON key; the per-connector schema spreads this in alongside its own fields.
- */
 export const gcpAuthConfigShape = {
   serviceAccountJson: z.object({ $secret: z.string().trim().min(1) }).meta({
     label: 'Service Account JSON',

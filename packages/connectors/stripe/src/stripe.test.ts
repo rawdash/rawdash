@@ -2,10 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { StripeConnector, computeMrrAmountCents, configFields } from './stripe';
 
-// ---------------------------------------------------------------------------
-// configFields
-// ---------------------------------------------------------------------------
-
 describe('configFields', () => {
   it('parses a valid config with only apiKey', () => {
     const result = configFields.safeParse({
@@ -45,10 +41,6 @@ describe('configFields', () => {
     }
   });
 });
-
-// ---------------------------------------------------------------------------
-// computeMrrAmountCents
-// ---------------------------------------------------------------------------
 
 function makeSubscription(
   interval: 'day' | 'week' | 'month' | 'year',
@@ -106,14 +98,12 @@ describe('computeMrrAmountCents', () => {
   });
 
   it('handles multi-month intervals', () => {
-    // 6-month plan for 30000 cents → MRR = 30000 / 6 = 5000
     expect(computeMrrAmountCents(makeSubscription('month', 6, 30000, 1))).toBe(
       5000,
     );
   });
 
   it('handles weekly billing', () => {
-    // weekly at 1000 cents → ~1000 * 52 / 12 = 4333
     const mrr = computeMrrAmountCents(makeSubscription('week', 1, 1000, 1));
     expect(mrr).toBe(Math.round((1000 * 52) / 12));
   });
@@ -165,10 +155,6 @@ describe('computeMrrAmountCents', () => {
     expect(computeMrrAmountCents(sub)).toBe(6000);
   });
 });
-
-// ---------------------------------------------------------------------------
-// StripeConnector — sync behaviour
-// ---------------------------------------------------------------------------
 
 function makeStorage() {
   return {
@@ -256,7 +242,6 @@ describe('StripeConnector.sync', () => {
     const storage = makeStorage();
     await connector.sync({ mode: 'full' }, storage);
 
-    // Each entity phase should call storage.entities with an empty array and a scope
     const entityCalls = storage.entities.mock.calls;
     const clearedTypes = entityCalls
       .filter((c) => Array.isArray(c[0]) && (c[0] as unknown[]).length === 0)
@@ -303,7 +288,6 @@ describe('StripeConnector.sync', () => {
       storage,
     );
 
-    // No empty-array clears should be called in incremental mode
     const entityClears = storage.entities.mock.calls.filter(
       (c) => Array.isArray(c[0]) && (c[0] as unknown[]).length === 0,
     );
@@ -374,7 +358,6 @@ describe('StripeConnector.sync', () => {
       storage,
     );
 
-    // Should only call APIs for phases from 'charges' onwards
     const calledUrls: string[] = fetchSpy.mock.calls.map(
       (c: unknown[]) => c[0] as string,
     );

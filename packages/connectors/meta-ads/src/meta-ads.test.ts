@@ -7,10 +7,6 @@ import {
   insightRowToMetricSample,
 } from './meta-ads';
 
-// ---------------------------------------------------------------------------
-// configFields
-// ---------------------------------------------------------------------------
-
 describe('configFields', () => {
   it('parses a valid config with adAccountId and accessToken', () => {
     const result = configFields.safeParse({
@@ -63,10 +59,6 @@ describe('configFields', () => {
     expect(result.success).toBe(false);
   });
 });
-
-// ---------------------------------------------------------------------------
-// Row converters
-// ---------------------------------------------------------------------------
 
 describe('campaignToEntity', () => {
   it('maps a campaign row into an entity with normalized attributes', () => {
@@ -171,10 +163,6 @@ describe('insightRowToMetricSample', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Fetch + storage mocks
-// ---------------------------------------------------------------------------
-
 interface MockCall {
   url: string;
   method: string;
@@ -248,10 +236,6 @@ function connector(overrides?: { resources?: string[]; apiVersion?: string }) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// sync — phase orchestration
-// ---------------------------------------------------------------------------
-
 describe('MetaAdsConnector.sync', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -302,7 +286,6 @@ describe('MetaAdsConnector.sync', () => {
     );
     expect(entityClears).toHaveLength(0);
 
-    // Metric scopes are always rewritten, even in latest mode.
     const metricClears = storage.metrics.mock.calls.filter(
       (c) => Array.isArray(c[0]) && (c[0] as unknown[]).length === 0,
     );
@@ -442,7 +425,6 @@ describe('MetaAdsConnector.sync', () => {
             }),
           );
         }
-        // second page reached when after=AFTER_TOKEN
         if (u.includes('after=AFTER_TOKEN')) {
           return Promise.resolve(
             jsonResponse({
@@ -511,22 +493,16 @@ describe('MetaAdsConnector.sync', () => {
     );
 
     const calls = recordCalls(fetchSpy);
-    // No campaigns call, no campaign_insights call — both phases skipped
     expect(
       calls.find((c) => new URL(c.url).pathname.endsWith('/campaigns')),
     ).toBeUndefined();
     expect(
       calls.find((c) => c.url.includes('level=campaign&')),
     ).toBeUndefined();
-    // adset and ad insights both hit
     expect(calls.find((c) => c.url.includes('level=adset&'))).toBeDefined();
     expect(calls.find((c) => c.url.includes('level=ad&'))).toBeDefined();
   });
 });
-
-// ---------------------------------------------------------------------------
-// MetaAdsConnector.create
-// ---------------------------------------------------------------------------
 
 describe('MetaAdsConnector.create', () => {
   afterEach(() => {

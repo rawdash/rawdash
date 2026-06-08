@@ -10,10 +10,6 @@ import {
 
 const CONNECTOR_ID = 'gcp-monitoring';
 
-// Generate an ephemeral PKCS8 key per test run so no private key material is
-// committed. The JWT this signs is never verified by these tests; any
-// well-formed RSA key works. Uses WebCrypto to match the connector runtime
-// (no node: imports).
 async function generateTestPrivateKeyPem(): Promise<string> {
   const { privateKey } = await globalThis.crypto.subtle.generateKey(
     {
