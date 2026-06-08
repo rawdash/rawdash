@@ -54,6 +54,7 @@
     "@rawdash/connector-klaviyo": "workspace:*",
     "@rawdash/connector-launchdarkly": "workspace:*",
     "@rawdash/connector-linear": "workspace:*",
+    "@rawdash/connector-mailchimp": "workspace:*",
     "@rawdash/connector-meta-ads": "workspace:*",
     "@rawdash/connector-mixpanel": "workspace:*",
     "@rawdash/connector-netlify": "workspace:*",
