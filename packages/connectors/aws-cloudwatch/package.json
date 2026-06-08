@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-aws-cloudwatch",
-  "version": "0.21.0",
+  "version": "0.21.1",
   "description": "Rawdash connector for AWS CloudWatch — pulls declared metric queries into the six-shape storage model via GetMetricData",
   "license": "Apache-2.0",
   "type": "module",
