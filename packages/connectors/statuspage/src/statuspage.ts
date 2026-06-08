@@ -523,13 +523,12 @@ export class StatuspageConnector extends BaseConnector<
 
   private async fetchIncidentsPage(
     page: string | null,
-    options: SyncOptions,
+    sinceMs: number,
     signal: AbortSignal | undefined,
   ): Promise<{ items: IncidentBatchItem[]; next: string | null }> {
     const url = page ?? this.buildInitialUrl('incidents');
     const res = await this.fetch<SPIncident[]>(url, 'incidents', signal);
     const incidents = res.body;
-    const sinceMs = this.computeIncidentSinceMs(options);
 
     // Incidents are returned newest-first by updated_at. Short-circuit
     // pagination once a page is entirely older than the sinceMs floor.
@@ -691,7 +690,7 @@ export class StatuspageConnector extends BaseConnector<
           case 'components':
             return this.fetchComponentsPage(page, sig);
           case 'incidents':
-            return this.fetchIncidentsPage(page, options, sig);
+            return this.fetchIncidentsPage(page, incidentSinceMs, sig);
         }
       },
       writeBatch: async (phase, items, page) => {
