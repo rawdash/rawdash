@@ -2,6 +2,8 @@ import type { ConnectorLogger, HttpErrorKind } from '@rawdash/connector-shared';
 
 import type { SyncResult } from './connector';
 
+export const DEFAULT_MAX_CHUNK_MS = 30_000;
+
 const NON_RETRYABLE_KINDS: ReadonlySet<HttpErrorKind> = new Set([
   'auth',
   'client_bug',
@@ -107,7 +109,13 @@ function swallow(p: Promise<unknown> | null): void {
 export async function paginateChunked<TPhase extends string, TPage>(
   opts: ChunkedSyncOptions<TPhase, TPage>,
 ): Promise<SyncResult> {
-  const { phases, cursor, maxChunkMs, pipeline, now = Date.now } = opts;
+  const {
+    phases,
+    cursor,
+    maxChunkMs = DEFAULT_MAX_CHUNK_MS,
+    pipeline,
+    now = Date.now,
+  } = opts;
 
   if (phases.length === 0) {
     return { done: true };
@@ -130,8 +138,7 @@ export async function paginateChunked<TPhase extends string, TPage>(
     return nextPhase ? { phase: nextPhase, page: null } : null;
   };
 
-  const budgetReached = (): boolean =>
-    maxChunkMs !== undefined && now() - chunkStart >= maxChunkMs;
+  const budgetReached = (): boolean => now() - chunkStart >= maxChunkMs;
 
   return pipeline
     ? runPipelined(opts, startIdx, hasKnownResumePhase, {

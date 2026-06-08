@@ -5,7 +5,7 @@ import {
 } from '@rawdash/connector-shared';
 import { describe, expect, it, vi } from 'vitest';
 
-import { paginateChunked } from './paginate-chunked';
+import { DEFAULT_MAX_CHUNK_MS, paginateChunked } from './paginate-chunked';
 
 type Phase = 'a' | 'b' | 'c';
 const phases: readonly Phase[] = ['a', 'b', 'c'];
@@ -534,6 +534,49 @@ describe('paginateChunked', () => {
         fetchPage: async () => ({ items: [], next: null }),
         writeBatch: async () => {
           clock += 100;
+        },
+      });
+
+      expect(result).toEqual({ done: true });
+    });
+
+    it('applies a default budget when maxChunkMs is omitted', async () => {
+      let clock = 0;
+      const result = await paginateChunked<Phase, number>({
+        phases: ['a'],
+        cursor: undefined,
+        signal: undefined,
+        now: () => clock,
+        fetchPage: async (_phase, page) => {
+          if (page === null) {
+            return { items: [], next: 1 };
+          }
+          return { items: [], next: null };
+        },
+        writeBatch: async () => {
+          clock += DEFAULT_MAX_CHUNK_MS;
+        },
+      });
+
+      expect(result).toEqual({ done: false, cursor: { phase: 'a', page: 1 } });
+    });
+
+    it('treats an Infinity budget as unbounded', async () => {
+      let clock = 0;
+      const result = await paginateChunked<Phase, number>({
+        phases: ['a'],
+        cursor: undefined,
+        signal: undefined,
+        maxChunkMs: Infinity,
+        now: () => clock,
+        fetchPage: async (_phase, page) => {
+          if (page === null) {
+            return { items: [], next: 1 };
+          }
+          return { items: [], next: null };
+        },
+        writeBatch: async () => {
+          clock += DEFAULT_MAX_CHUNK_MS * 10;
         },
       });
 

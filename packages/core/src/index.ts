@@ -42,6 +42,7 @@ export type {
 } from './paginate-chunked';
 
 export {
+  DEFAULT_MAX_CHUNK_MS,
   makeChunkedCursorGuard,
   paginateChunked,
   selectActivePhases,
