@@ -1,5 +1,13 @@
 # @rawdash/connector-gcp-billing
 
+## 0.21.0
+
+### Patch Changes
+
+- Updated dependencies [c796c09]
+- Updated dependencies [37f1083]
+  - @rawdash/core@0.21.0
+
 ## 0.20.0
 
 ### Patch Changes

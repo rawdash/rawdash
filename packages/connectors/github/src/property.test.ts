@@ -750,6 +750,111 @@ describe('GitHubConnector property tests', () => {
     });
   });
 
+  describe('widget-required window bounding', () => {
+    const day = 86_400_000;
+
+    function makeRun(id: number, createdAtMs: number) {
+      const iso = new Date(createdAtMs).toISOString();
+      return {
+        id,
+        name: `run ${id}`,
+        conclusion: 'success',
+        status: 'completed',
+        head_branch: 'main',
+        actor: { login: 'alice' },
+        created_at: iso,
+        updated_at: iso,
+        run_attempt: 1,
+      };
+    }
+
+    it('stops paginating workflow_runs once a page predates the required window', async () => {
+      const now = Date.now();
+      const linkHeader = (next: string) => `<${next}>; rel="next"`;
+      const page2Url =
+        'https://api.github.com/repos/rawdash/rawdash/actions/runs?page=2';
+      const page3Url =
+        'https://api.github.com/repos/rawdash/rawdash/actions/runs?page=3';
+
+      const page1 = {
+        workflow_runs: [makeRun(10, now - 1 * day), makeRun(11, now - 2 * day)],
+      };
+      const page2 = {
+        workflow_runs: [
+          makeRun(20, now - 6 * day),
+          makeRun(21, now - 20 * day),
+        ],
+      };
+      const page3 = { workflow_runs: [makeRun(30, now - 40 * day)] };
+
+      const spy = installFetchMock((url) => {
+        if (url === page3Url) {
+          return { body: page3 };
+        }
+        if (url === page2Url) {
+          return { body: page2, headers: { link: linkHeader(page3Url) } };
+        }
+        if (url.includes('/actions/runs')) {
+          return { body: page1, headers: { link: linkHeader(page2Url) } };
+        }
+        return safeDefaultResponse(url);
+      });
+
+      const storage = new InMemoryStorage();
+      await buildConnector().sync(
+        {
+          mode: 'full',
+          resources: new Set(['workflow_run']),
+          requiredWindowMs: { workflow_run: 7 * day },
+        },
+        storage.getStorageHandle(CONNECTOR_ID),
+      );
+
+      const runCalls = spy.mock.calls
+        .map(([url]) => String(url))
+        .filter((url) => url.includes('/actions/runs'));
+      expect(runCalls).toHaveLength(2);
+      expect(runCalls.some((u) => u === page3Url)).toBe(false);
+    });
+
+    it('fetches unbounded workflow_runs history when no window is supplied', async () => {
+      const now = Date.now();
+      const linkHeader = (next: string) => `<${next}>; rel="next"`;
+      const page2Url =
+        'https://api.github.com/repos/rawdash/rawdash/actions/runs?page=2';
+      const page3Url =
+        'https://api.github.com/repos/rawdash/rawdash/actions/runs?page=3';
+
+      const page1 = { workflow_runs: [makeRun(10, now - 1 * day)] };
+      const page2 = { workflow_runs: [makeRun(20, now - 200 * day)] };
+      const page3 = { workflow_runs: [makeRun(30, now - 400 * day)] };
+
+      const spy = installFetchMock((url) => {
+        if (url === page3Url) {
+          return { body: page3 };
+        }
+        if (url === page2Url) {
+          return { body: page2, headers: { link: linkHeader(page3Url) } };
+        }
+        if (url.includes('/actions/runs')) {
+          return { body: page1, headers: { link: linkHeader(page2Url) } };
+        }
+        return safeDefaultResponse(url);
+      });
+
+      const storage = new InMemoryStorage();
+      await buildConnector().sync(
+        { mode: 'full', resources: new Set(['workflow_run']) },
+        storage.getStorageHandle(CONNECTOR_ID),
+      );
+
+      const runCalls = spy.mock.calls
+        .map(([url]) => String(url))
+        .filter((url) => url.includes('/actions/runs'));
+      expect(runCalls).toHaveLength(3);
+    });
+  });
+
   it('repo_stats: sync upholds universal invariants for any valid API payload', async () => {
     const extra = (storage: InMemoryStorage): InvariantViolation[] => {
       const violations: InvariantViolation[] = [];

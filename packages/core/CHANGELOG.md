@@ -1,5 +1,15 @@
 # @rawdash/core
 
+## 0.21.0
+
+### Minor Changes
+
+- 37f1083: `paginateChunked` now defaults `maxChunkMs` to `DEFAULT_MAX_CHUNK_MS` (30s) when omitted, so every connector's `sync()` returns a graceful, resumable chunk boundary on a wall-time budget instead of paginating an entire resource in a single call. Heavy connectors (e.g. github-actions) now complete a sync as a series of short, bounded chunks rather than relying on the caller's `AbortSignal`. Low-volume connectors are unaffected — they still finish in one chunk. Callers that want unbounded pagination can pass `maxChunkMs: Infinity`.
+
+### Patch Changes
+
+- c796c09: Bound full-sync fetch volume by the widget-declared window. `SyncOptions` gains an optional `requiredWindowMs` map (keyed by resource) and a new `resolveBackfillCutoff` helper merges it with `since` into a single lower bound. The GitHub connector now honors this window when paginating `workflow_runs`, `pull_requests`, `issues`, `deployments`, and `releases`, so an initial sync only pulls as much history as the dashboard's widgets require. A windowless widget still triggers an unbounded fetch, and behavior is unchanged when no window is supplied.
+
 ## 0.20.0
 
 ### Patch Changes

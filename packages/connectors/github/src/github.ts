@@ -20,6 +20,7 @@ import {
   defineResources,
   makeChunkedCursorGuard,
   paginateChunked,
+  resolveBackfillCutoff,
   schemasFromResources,
 } from '@rawdash/core';
 import { z } from 'zod';
@@ -704,7 +705,7 @@ export class GitHubConnector extends BaseConnector<
     );
     const nextLink = parseLinkHeader(res.headers.get('link'))['next'] ?? null;
     const runs = res.body.workflow_runs;
-    const cutoff = options.since ? new Date(options.since).getTime() : null;
+    const cutoff = resolveBackfillCutoff(options, 'workflow_run', Date.now());
 
     const filtered = runs.filter((run) => {
       if (cutoff === null) {
@@ -740,7 +741,7 @@ export class GitHubConnector extends BaseConnector<
     const res = await this.fetch<GitHubPR[]>(url, 'pull_requests', signal);
     const nextLink = parseLinkHeader(res.headers.get('link'))['next'] ?? null;
     const prs = res.body;
-    const cutoff = options.since ? new Date(options.since).getTime() : null;
+    const cutoff = resolveBackfillCutoff(options, 'pull_request', Date.now());
     const filteredPrs =
       cutoff !== null
         ? prs.filter((pr) => new Date(pr.updated_at).getTime() >= cutoff)
@@ -781,8 +782,9 @@ export class GitHubConnector extends BaseConnector<
       const u = new URL(`https://api.github.com/repos/${owner}/${repo}/issues`);
       u.searchParams.set('state', 'all');
       u.searchParams.set('per_page', '100');
-      if (options.since) {
-        u.searchParams.set('since', options.since);
+      const cutoff = resolveBackfillCutoff(options, 'issue', Date.now());
+      if (cutoff !== null) {
+        u.searchParams.set('since', new Date(cutoff).toISOString());
       }
       url = u.toString();
     }
@@ -807,7 +809,7 @@ export class GitHubConnector extends BaseConnector<
     );
     const nextLink = parseLinkHeader(res.headers.get('link'))['next'] ?? null;
     const deployments = res.body;
-    const cutoff = options.since ? new Date(options.since).getTime() : null;
+    const cutoff = resolveBackfillCutoff(options, 'deployment', Date.now());
     const filteredDeployments =
       cutoff !== null
         ? deployments.filter((d) => new Date(d.created_at).getTime() >= cutoff)
@@ -849,7 +851,7 @@ export class GitHubConnector extends BaseConnector<
     const res = await this.fetch<GitHubRelease[]>(url, 'releases', signal);
     const nextLink = parseLinkHeader(res.headers.get('link'))['next'] ?? null;
     const releases = res.body;
-    const cutoff = options.since ? new Date(options.since).getTime() : null;
+    const cutoff = resolveBackfillCutoff(options, 'release', Date.now());
     const filtered =
       cutoff !== null
         ? releases.filter((r) => {

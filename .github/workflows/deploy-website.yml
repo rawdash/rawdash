@@ -8,6 +8,7 @@ on:
       # Connector docs are generated at build time from connector metadata, so
       # changes there must redeploy the site even though they live outside apps/website.
       - 'packages/connectors/**'
+      - 'scripts/connector-placeholders.ts'
       - 'scripts/generate-connector-docs.ts'
       - 'pnpm-lock.yaml'
   workflow_dispatch:
