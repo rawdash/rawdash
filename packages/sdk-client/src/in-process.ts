@@ -2,9 +2,7 @@ import type { DataSource, ServerDataSource, SyncState } from '@rawdash/core';
 import { isSyncActive } from '@rawdash/core';
 
 export interface InProcessOptions {
-  /** Total time to wait for an in-flight sync to finish. Defaults to 30s. */
   syncTimeoutMs?: number;
-  /** Delay between sync-state polls. Defaults to 500ms. */
   syncPollIntervalMs?: number;
 }
 

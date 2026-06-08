@@ -12,10 +12,6 @@ import {
 
 const CONNECTOR_ID = 'gcp-billing';
 
-// Generate an ephemeral PKCS8 key per test run so no private key material is
-// committed. The JWT this signs is never verified by these tests; any
-// well-formed RSA key works. Uses WebCrypto to match the connector runtime
-// (no node: imports).
 async function generateTestPrivateKeyPem(): Promise<string> {
   const { privateKey } = await globalThis.crypto.subtle.generateKey(
     {
@@ -332,7 +328,6 @@ describe('getCostWindow', () => {
   });
 
   it('uses the time elapsed since `options.since` plus a back-revision buffer', () => {
-    // since = 25 days ago: elapsed=25 + buffer=5 = 30
     const since = new Date(now - 25 * 86_400_000).toISOString();
     expect(getCostWindow({ mode: 'full', since }, 90, now)).toEqual({
       startDate: '2024-01-02',
@@ -349,8 +344,6 @@ describe('buildSamplesFromBqResponse', () => {
   });
 
   it('handles missing schema fields gracefully', () => {
-    // No schema, no rows -> no samples; sanity check that the helper does not
-    // throw against a stub response.
     expect(buildSamplesFromBqResponse({}, ['service'])).toEqual([]);
   });
 });

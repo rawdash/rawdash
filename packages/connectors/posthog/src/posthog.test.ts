@@ -137,7 +137,6 @@ describe('PostHogConnector', () => {
     };
     const sql = body.query.query;
     expect(sql).toContain("'signed_up'");
-    // Single quotes in event names are escaped for the HogQL string literal.
     expect(sql).toContain("'weird\\'name'");
   });
 

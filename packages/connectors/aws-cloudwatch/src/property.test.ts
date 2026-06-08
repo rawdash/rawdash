@@ -38,7 +38,6 @@ function serializeMetricData(sample: MetricDataSample): string {
       `<Values>${r.Values.map((v) => `<member>${String(v)}</member>`).join('')}</Values>` +
       `<StatusCode>${r.StatusCode}</StatusCode></member>`,
   ).join('');
-  // NextToken is intentionally omitted so each fuzzed response is a single page.
   return `<GetMetricDataResponse><GetMetricDataResult><MetricDataResults>${members}</MetricDataResults></GetMetricDataResult></GetMetricDataResponse>`;
 }
 
@@ -93,10 +92,6 @@ describe('CloudWatchConnector property tests', () => {
       runs: 100,
       extraInvariants: [expectedCount, docShapeExtra],
       run: async (sample, storage) => {
-        // Give each result a clean id (the fuzzer otherwise produces ids with
-        // whitespace/entities that the parser normalizes, breaking the
-        // id<->query mapping) and a matching query, so every returned point
-        // resolves to a metric stream.
         const results = sample.MetricDataResults.map((r, i) => ({
           ...r,
           Id: `q${i}`,

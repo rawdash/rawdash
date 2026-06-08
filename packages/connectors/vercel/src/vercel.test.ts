@@ -2,10 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { VercelConnector, configFields } from './vercel';
 
-// ---------------------------------------------------------------------------
-// configFields
-// ---------------------------------------------------------------------------
-
 describe('configFields', () => {
   it('parses a valid config with required fields only', () => {
     const result = configFields.safeParse({
@@ -55,10 +51,6 @@ describe('configFields', () => {
     expect(result.success).toBe(false);
   });
 });
-
-// ---------------------------------------------------------------------------
-// Test scaffolding
-// ---------------------------------------------------------------------------
 
 function makeStorage() {
   return {
@@ -136,10 +128,6 @@ function emptyProjectsResponse() {
 function emptyDeploymentsResponse() {
   return { body: { deployments: [], pagination: { count: 0, next: null } } };
 }
-
-// ---------------------------------------------------------------------------
-// VercelConnector — sync
-// ---------------------------------------------------------------------------
 
 describe('VercelConnector.sync', () => {
   afterEach(() => {

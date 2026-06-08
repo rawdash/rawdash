@@ -1,22 +1,3 @@
-/**
- * Generate connector documentation from connector metadata.
- *
- * Single source of truth = each connector's exported metadata:
- *   - `configFields` (Zod schema)  → the configuration table
- *   - `default` connector class    → id + resource schemas
- *   - `doc` (defineConnectorDoc)   → display name, auth, per-resource docs, example
- *
- * Renders, for every `@rawdash/connector-*` package (except the shared helper):
- *   - the package README.md
- *   - a Starlight docs page at apps/website/src/content/docs/docs/connectors/<id>.mdx
- *   - a connectors catalog index page (cross-connector index, docs superset)
- *
- * Run with the source condition so workspace packages resolve to their TS source:
- *   NODE_OPTIONS=--conditions=@rawdash/source tsx scripts/generate-connector-docs.ts
- *
- * Pass --check to fail (non-zero exit) if regenerating would change any file —
- * this is the CI drift guard.
- */
 import type {
   ConnectorCost,
   ConnectorDoc,
@@ -54,8 +35,7 @@ const LANDING_DATA_FILE = join(
   'generated',
   'connectors.ts',
 );
-// Directories under packages/connectors that are not themselves connectors.
-const NOT_A_CONNECTOR = new Set(['aws-shared', 'gcp-shared']);
+const NOT_A_CONNECTOR = new Set(['aws-shared', 'gcp-shared', 'azure-shared']);
 
 interface ConnectorModule {
   default: {
@@ -96,6 +76,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   finance: 'Finance',
   infrastructure: 'Infrastructure',
   security: 'Security',
+  hr: 'HR',
 };
 
 const SHAPE_LABELS: Record<ResourceDefinition['shape'], string> = {
@@ -319,9 +300,6 @@ function renderCore(c: LoadedConnector): {
   };
 }
 
-// Every generated file carries one of these banners at the very top (for the
-// .mdx outputs, immediately after the frontmatter, which must come first), so
-// the artifact is obviously machine-written when read or diffed in isolation.
 const GENERATED_MESSAGE =
   'This file is generated from connector metadata by scripts/generate-connector-docs.ts. Do not edit by hand.';
 const GENERATED_NOTE = `<!-- ${GENERATED_MESSAGE} -->`;
@@ -402,10 +380,6 @@ function renderReadme(c: LoadedConnector): string {
   return parts.join('\n');
 }
 
-// Escape characters MDX would parse as JSX (`{` expression, `<` tag) in free
-// text, while leaving inline code spans untouched (markdown renders `<`/`{`
-// inside backticks literally, so escaping there would show the entity). Applied
-// only to the .mdx outputs; READMEs are plain markdown where these are literal.
 function escapeMdxText(s: string): string {
   return s
     .split(/(`+[^`]*`+)/g)
@@ -524,9 +498,6 @@ function connectorUrl(c: LoadedConnector): string {
   return `/docs/connectors/${c.doc.category}/${c.id}/`;
 }
 
-// Top-level overview: a connector search plus category cards. The cards (and
-// their counts) are rendered from the generated catalog data, so the page never
-// lists individual connectors in prose and never goes stale.
 function renderTopIndex(): string {
   const parts: string[] = [];
   parts.push(
@@ -555,7 +526,6 @@ function renderTopIndex(): string {
   return parts.join('\n');
 }
 
-// One page per category, showing that category's connectors as cards.
 function renderCategoryIndex(category: string): string {
   const label = CATEGORY_LABELS[category] ?? category;
   const parts: string[] = [];
@@ -577,9 +547,6 @@ function renderCategoryIndex(category: string): string {
   return parts.join('\n');
 }
 
-// Distinct lowercase tokens a connector should match on beyond its name and
-// tagline: resource keys, the vendor name, and the package name. Powers the
-// catalog quick-filter's "search by resource" without bloating the card UI.
 function connectorKeywords(c: LoadedConnector): string[] {
   const tokens = new Set<string>();
   for (const key of Object.keys(c.resources)) {
@@ -647,9 +614,6 @@ interface OutFile {
   path: string;
   content: string;
   raw?: boolean;
-  // Whether the output is committed to git (default true). The website docs
-  // tree, public icons, and landing data are gitignored and regenerated at
-  // build time, so they are never committed drift; --check ignores them.
   tracked?: boolean;
 }
 
@@ -706,7 +670,6 @@ function collectOutputs(connectors: LoadedConnector[]): OutFile[] {
   return out;
 }
 
-// Recursively list files under a directory (absolute paths); empty if missing.
 function listFilesRecursive(dir: string): string[] {
   if (!existsSync(dir)) {
     return [];
@@ -723,8 +686,6 @@ function listFilesRecursive(dir: string): string[] {
   return out;
 }
 
-// Files the generator owns and may prune: the connector docs tree and the
-// public connector icons. Anything here not in the current output set is stale.
 function findStaleOutputs(expected: Set<string>): string[] {
   const managed = [
     ...listFilesRecursive(DOCS_CONNECTORS_DIR),
@@ -757,8 +718,6 @@ async function main(): Promise<void> {
         }
       }
     }
-    // --check only guards committed files; the gitignored website tree is
-    // regenerated at build time, so its absence/staleness is never drift.
     if (check && file.tracked === false) {
       continue;
     }
@@ -779,10 +738,6 @@ async function main(): Promise<void> {
     }
   }
 
-  // Prune generated files that are no longer produced (e.g. a removed
-  // connector or the old flat layout). Only meaningful when writing: the
-  // managed trees (docs + icons) are gitignored, so a stale file there is a
-  // local leftover, never committed drift, and --check must not flag it.
   if (!check) {
     const expected = new Set(outputs.map((o) => o.path));
     for (const path of findStaleOutputs(expected)) {

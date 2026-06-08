@@ -23,12 +23,12 @@ A Linear Personal API Key is required. It authenticates all GraphQL requests and
 
 ## Configuration
 
-| Field             | Type   | Required | Description                                                                                                                                          |
-| ----------------- | ------ | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apiKey`          | secret | Yes      | Linear Personal API Key. Create one at Linear → Settings → API → Personal API keys.                                                                  |
-| `teamIds`         | array  | No       | Restrict the sync to specific Linear team IDs. Omit to sync all teams the API key can see.                                                           |
-| `resources`       | array  | No       | Which Linear resources to sync. Omit to sync all resources. The `issues` phase also emits state-transition events derived from each issue's history. |
-| `historyPerIssue` | number | No       | How many history entries to pull per issue (newest first). State transitions inside this window become events. Defaults to 25.                       |
+| Field             | Type   | Required | Description                                                                                                                                                                                                                                                 |
+| ----------------- | ------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apiKey`          | secret | Yes      | Linear Personal API Key. Create one at Linear → Settings → API → Personal API keys.                                                                                                                                                                         |
+| `teamIds`         | array  | No       | Restrict the sync to specific Linear team IDs. Omit to sync all teams the API key can see.                                                                                                                                                                  |
+| `resources`       | array  | No       | Which Linear resources to sync. Omit to sync all resources. The `issues` phase also emits state-transition events derived from each issue's history.                                                                                                        |
+| `historyPerIssue` | number | No       | How many history entries to pull per issue (newest first). State transitions inside this window become events. Defaults to 8. Higher values pull deeper history but lower the effective issues-per-page, since Linear scores the combined query complexity. |
 
 ## Resources
 
@@ -86,7 +86,7 @@ export default defineConfig({
 
 ## Rate limits
 
-Linear returns X-RateLimit-Requests-Remaining / X-RateLimit-Requests-Reset headers (reset in ms); requests are paged 50 at a time.
+Linear returns X-RateLimit-Requests-Remaining / X-RateLimit-Requests-Reset headers (reset in ms); flat resources are paged 250 at a time, issues up to 150 (capped by GraphQL query complexity against the nested history depth).
 
 ## Limitations
 

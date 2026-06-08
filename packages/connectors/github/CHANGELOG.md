@@ -1,5 +1,20 @@
 # @rawdash/connector-github
 
+## 0.19.0
+
+### Patch Changes
+
+- Updated dependencies [725ebcc]
+  - @rawdash/core@0.19.0
+
+## 0.18.0
+
+### Patch Changes
+
+- 621b32f: Expand GitHub issues `labels[]` schema with optional id/node_id/url/color/default/description; make issue `closed_at` optional (shape-drift RAW-347).
+- c33b2ef: Expand GitHub releases schema with optional author sub-fields and top-level fields (assets, body, urls, etc.) (shape-drift RAW-362)
+  - @rawdash/core@0.18.0
+
 ## 0.17.0
 
 ### Patch Changes

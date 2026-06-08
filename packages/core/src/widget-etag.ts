@@ -17,13 +17,6 @@ function stableStringify(value: unknown): string {
   return '{' + parts.join(',') + '}';
 }
 
-/**
- * Stable 32-bit hex hash of a widget's declarative config. Used as the
- * config-dependent component of the widget ETag so that a config edit
- * invalidates the cached ETag even when `lastSyncAt` is unchanged.
- *
- * Not cryptographic — collision-resistant enough for cache busting.
- */
 export function hashWidgetConfig(widget: Widget): string {
   const s = stableStringify(widget);
   let h = 0x811c9dc5;
@@ -34,11 +27,6 @@ export function hashWidgetConfig(widget: Widget): string {
   return (h >>> 0).toString(16).padStart(8, '0');
 }
 
-/**
- * Build the per-widget ETag value (unquoted). Combines the widget's
- * `lastSyncAt` (the connector's last successful sync timestamp, which is
- * what `CachedWidget.cachedAt` reflects) and a hash of the widget config.
- */
 export function computeWidgetEtag(
   lastSyncAt: string | null,
   widget: Widget,

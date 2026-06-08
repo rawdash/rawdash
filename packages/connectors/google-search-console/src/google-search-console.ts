@@ -105,10 +105,6 @@ export const doc: ConnectorDoc = defineConnectorDoc({
   ],
 });
 
-// ---------------------------------------------------------------------------
-// Settings / credentials
-// ---------------------------------------------------------------------------
-
 export interface GSCSettings {
   siteUrl: string;
   lookbackDays?: number;
@@ -134,10 +130,6 @@ const gscCredentials = {
 } satisfies CredentialsSchema;
 
 type GSCCredentials = typeof gscCredentials;
-
-// ---------------------------------------------------------------------------
-// Sync phases + cursor
-// ---------------------------------------------------------------------------
 
 const PHASE_ORDER = [
   'search_analytics_by_day',
@@ -186,10 +178,6 @@ function isGSCSyncCursor(value: unknown): value is GSCSyncCursor {
   return isGSCDateRange(v.dateRange);
 }
 
-// ---------------------------------------------------------------------------
-// Phase configs - dimensions for each resource
-// ---------------------------------------------------------------------------
-
 interface PhaseConfig {
   dimensions: string[];
   metricName: string;
@@ -217,10 +205,6 @@ const PHASE_CONFIGS: Record<GSCPhase, PhaseConfig> = {
 const ROWS_PER_PAGE = 25_000;
 const METRIC_FIELDS = ['clicks', 'impressions', 'ctr', 'position'] as const;
 
-// ---------------------------------------------------------------------------
-// GSC Search Analytics API types
-// ---------------------------------------------------------------------------
-
 export interface GSCReportRow {
   keys?: string[];
   clicks?: number;
@@ -233,10 +217,6 @@ interface GSCReportResponse {
   rows?: GSCReportRow[];
   responseAggregationType?: string;
 }
-
-// ---------------------------------------------------------------------------
-// Service account / OAuth token helpers
-// ---------------------------------------------------------------------------
 
 interface ServiceAccountKey {
   client_email: string;
@@ -334,10 +314,6 @@ async function buildServiceAccountJwt(
   };
 }
 
-// ---------------------------------------------------------------------------
-// Date helpers
-// ---------------------------------------------------------------------------
-
 function toGSCDate(date: Date): string {
   const y = date.getUTCFullYear();
   const m = String(date.getUTCMonth() + 1).padStart(2, '0');
@@ -346,7 +322,6 @@ function toGSCDate(date: Date): string {
 }
 
 function gscDateToMs(gscDate: string): number {
-  // GSC date dimension comes back as 'YYYY-MM-DD'
   const y = gscDate.slice(0, 4);
   const m = gscDate.slice(5, 7);
   const d = gscDate.slice(8, 10);
@@ -378,10 +353,6 @@ function getDateRange(
   const startMs = now - (lookbackDays - 1) * MS_PER_DAY;
   return { startDate: toGSCDate(new Date(startMs)), endDate };
 }
-
-// ---------------------------------------------------------------------------
-// Row conversion
-// ---------------------------------------------------------------------------
 
 export function rowToMetricSample(
   row: GSCReportRow,
@@ -417,10 +388,6 @@ export function rowToMetricSample(
     attributes,
   };
 }
-
-// ---------------------------------------------------------------------------
-// Schemas - describe the per-resource API response shape consumed by request()
-// ---------------------------------------------------------------------------
 
 const dateKey = z
   .string()
@@ -644,8 +611,6 @@ export class GSCConnector extends BaseConnector<GSCSettings, GSCCredentials> {
     const lookbackDays = this.settings.lookbackDays ?? 90;
 
     const cursor = isGSCSyncCursor(options.cursor) ? options.cursor : undefined;
-    // Restore the originally-computed window on resume so phases stay aligned
-    // across midnight rollovers and lookbackDays changes between runs.
     const dateRange = cursor?.dateRange ?? getDateRange(options, lookbackDays);
 
     let accessToken: string | null = null;
@@ -683,9 +648,6 @@ export class GSCConnector extends BaseConnector<GSCSettings, GSCCredentials> {
         const rows = response.rows ?? [];
         allRows.push(...rows);
         startRow += rows.length;
-        // GSC has no totalRowCount field on responses, so a short page is the
-        // terminating signal. Empty page also breaks out (covers the rare
-        // "exact multiple of rowLimit" case where one extra request is fine).
         if (rows.length < ROWS_PER_PAGE) {
           break;
         }
@@ -702,11 +664,6 @@ export class GSCConnector extends BaseConnector<GSCSettings, GSCCredentials> {
         return { done: false, cursor: { phase, dateRange } };
       }
 
-      // Drain every page of this phase in-memory before writing so the commit
-      // is one atomic call. A mid-phase failure restarts this phase from
-      // scratch on the next sync; the clear-and-replace below wipes partial
-      // state. If the abort signal trips mid-drain, surface a resumable
-      // cursor instead of throwing the AbortError up to the caller.
       let rows: GSCReportRow[];
       try {
         rows = await drainPhase(phase);
@@ -720,7 +677,6 @@ export class GSCConnector extends BaseConnector<GSCSettings, GSCCredentials> {
       const samples = rows.map((row) =>
         rowToMetricSample(row, cfg.dimensions, cfg.metricName),
       );
-      // Scoping by name ensures stale rows are wiped even when samples is empty.
       await storage.metrics(samples, { names: [cfg.metricName] });
     }
 

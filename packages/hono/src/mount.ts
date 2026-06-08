@@ -15,27 +15,9 @@ import { createWidgetsRouter } from './widgets';
 
 export interface MountEngineOptions {
   storage?: ServerStorage;
-  /**
-   * Registry mapping connector type id (e.g. `'github-actions'`) to the
-   * connector class. Used to instantiate connector implementations on
-   * demand from the declarative entries in `DashboardConfig.connectors`.
-   * Required for sync and retention to function.
-   */
   connectorRegistry: ConnectorRegistry;
-  /**
-   * Resolves `secret('NAME')` markers in connector configs. Defaults to
-   * `EnvSecretsResolver` (process.env lookup) inside connector
-   * instantiation.
-   */
   secretsResolver?: SecretsResolver;
-  /**
-   * Build a connector logger for the runner and each connector instance.
-   * Called with `'runner'` for the sync-runner envelopes and with each
-   * connector instance name for per-connector progress logs. Defaults to
-   * a structured stdout logger.
-   */
   loggerFactory?: ConnectorLoggerFactory;
-  /** Set false to skip the background retention timer (e.g. on serverless). */
   startRetention?: boolean;
 }
 
@@ -44,16 +26,6 @@ export interface MountEngineResult {
   stop(): void;
 }
 
-/**
- * Convenience wrapper for the common case: builds a Hono app with all
- * standard rawdash routes mounted at their canonical paths, backed by
- * one `DashboardConfig` and one `ServerStorage` (defaults to
- * `InMemoryStorage`).
- *
- * For deployments that need auth or that look up config / storage per
- * request, skip this and compose the router factories directly with
- * per-request `getConfig` / `getStorage` and `before` middleware.
- */
 export function mountEngine(
   config: DashboardConfig,
   options: MountEngineOptions,

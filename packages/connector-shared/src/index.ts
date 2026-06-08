@@ -29,6 +29,7 @@ export type {
   StandardRateLimitPolicyConfig,
 } from './rate-limit';
 export { standardRateLimitPolicy } from './rate-limit';
+export { mapWithConcurrency } from './map-concurrent';
 export { sanitizeAllowedUrl } from './sanitize';
 export type { SanitizeAllowedUrlOptions } from './sanitize';
 export { parseEpoch } from './epoch';

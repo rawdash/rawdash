@@ -85,10 +85,6 @@ export interface HubSpotSettings {
   resources?: readonly HubSpotResource[];
 }
 
-// ---------------------------------------------------------------------------
-// HubSpot API types
-// ---------------------------------------------------------------------------
-
 type HubSpotProperties = Record<string, string | null | undefined>;
 
 interface CrmRecord {
@@ -149,10 +145,6 @@ interface CampaignDetail {
   counters?: CampaignCounters;
 }
 
-// ---------------------------------------------------------------------------
-// Credentials
-// ---------------------------------------------------------------------------
-
 const hubspotCredentials = {
   accessToken: {
     description: 'HubSpot private app access token',
@@ -161,10 +153,6 @@ const hubspotCredentials = {
 } satisfies CredentialsSchema;
 
 type HubSpotCredentials = typeof hubspotCredentials;
-
-// ---------------------------------------------------------------------------
-// Sync phases + cursor
-// ---------------------------------------------------------------------------
 
 const PHASE_ORDER = [
   'contacts',
@@ -187,7 +175,6 @@ const LIST_LIMIT = 100;
 
 type CrmObjectPhase = 'contacts' | 'companies' | 'deals';
 
-// CRM object name + property names requested per search phase.
 const SEARCH_PROPERTIES: Record<CrmObjectPhase, readonly string[]> = {
   contacts: [
     'email',
@@ -217,8 +204,6 @@ const SEARCH_PROPERTIES: Record<CrmObjectPhase, readonly string[]> = {
   ],
 };
 
-// Property each CRM object stamps with its last-modified time, used both for
-// the incremental `since` filter and the entity `updated_at` fallback.
 const MODIFIED_PROPERTY: Record<CrmObjectPhase, string> = {
   contacts: 'lastmodifieddate',
   companies: 'hs_lastmodifieddate',
@@ -235,10 +220,6 @@ const ENTITY_TYPE_BY_PHASE: Partial<Record<HubSpotPhase, string>> = {
 const DEAL_STAGE_EVENT = 'hubspot_deal_stage_change';
 const EMAIL_STATS_METRIC = 'hubspot_email_stats';
 
-// ---------------------------------------------------------------------------
-// Value helpers
-// ---------------------------------------------------------------------------
-
 function finiteNumberOrNull(value: string | null | undefined): number | null {
   if (value === null || value === undefined || value.trim() === '') {
     return null;
@@ -250,10 +231,6 @@ function finiteNumberOrNull(value: string | null | undefined): number | null {
 function counterValue(value: number | undefined): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
-
-// ---------------------------------------------------------------------------
-// Schemas — describe the per-resource API response shape consumed by request()
-// ---------------------------------------------------------------------------
 
 const idString = z.string().min(1);
 
@@ -399,10 +376,6 @@ export const hubspotResources = defineResources({
   },
 });
 
-// ---------------------------------------------------------------------------
-// HubSpotConnector
-// ---------------------------------------------------------------------------
-
 export const id = 'hubspot';
 
 export class HubSpotConnector extends BaseConnector<
@@ -461,10 +434,6 @@ export class HubSpotConnector extends BaseConnector<
     });
   }
 
-  // -------------------------------------------------------------------------
-  // CRM search phases (contacts / companies / deals)
-  // -------------------------------------------------------------------------
-
   private buildSearchBody(
     phase: CrmObjectPhase,
     after: string | null,
@@ -488,9 +457,6 @@ export class HubSpotConnector extends BaseConnector<
     }
     return {
       filterGroups,
-      // Ascending modified-time keeps pagination stable while the `since`
-      // filter trims the set upstream, so an incremental sync never scans
-      // the whole object.
       sorts: [{ propertyName: modifiedProperty, direction: 'ASCENDING' }],
       properties: SEARCH_PROPERTIES[phase],
       limit: SEARCH_LIMIT,
@@ -568,10 +534,6 @@ export class HubSpotConnector extends BaseConnector<
     }
   }
 
-  // -------------------------------------------------------------------------
-  // Deal stage-change events (deal property history)
-  // -------------------------------------------------------------------------
-
   private async fetchDealHistoryPage(
     after: string | null,
     signal?: AbortSignal,
@@ -619,10 +581,6 @@ export class HubSpotConnector extends BaseConnector<
       }
     }
   }
-
-  // -------------------------------------------------------------------------
-  // Marketing email campaigns + stats (legacy email campaigns API)
-  // -------------------------------------------------------------------------
 
   private async fetchCampaignDetail(
     id: number | string,
@@ -717,18 +675,12 @@ export class HubSpotConnector extends BaseConnector<
     }
   }
 
-  // -------------------------------------------------------------------------
-  // Scope clearing (idempotency)
-  // -------------------------------------------------------------------------
-
   private async clearScopeOnFirstPage(
     storage: StorageHandle,
     phase: HubSpotPhase,
     isFull: boolean,
   ): Promise<void> {
     if (phase === 'deal_events') {
-      // Events never upsert and the list endpoint has no `since` filter, so
-      // every sync rewrites the requested window — clear in both modes.
       await storage.events([], { names: [DEAL_STAGE_EVENT] });
       return;
     }
@@ -736,8 +688,6 @@ export class HubSpotConnector extends BaseConnector<
       await storage.metrics([], { names: [EMAIL_STATS_METRIC] });
       return;
     }
-    // Entity phases upsert by id, so only a full backfill needs to drop stale
-    // rows; incremental ticks just overwrite the records they touch.
     if (!isFull) {
       return;
     }
