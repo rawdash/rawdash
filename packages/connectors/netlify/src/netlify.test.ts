@@ -433,6 +433,56 @@ describe('NetlifyConnector.sync', () => {
     ]);
   });
 
+  it('re-discovers sites on a second sync run, picking up newly created sites', async () => {
+    const connector = makeConnector({ resources: ['deploys'] });
+    let siteListings = 0;
+    const { calls } = installRouter((u) => {
+      if (u.includes('/api/v1/sites') && !u.includes('/deploys')) {
+        siteListings += 1;
+        const sites = [siteFixture({ id: 'site_x' })];
+        if (siteListings > 1) {
+          sites.push(siteFixture({ id: 'site_y' }));
+        }
+        return { body: sites };
+      }
+      return { body: [] };
+    });
+
+    await connector.sync({ mode: 'full' }, makeStorage());
+    const firstRunDeploys = calls
+      .map((c) => new URL(c).pathname)
+      .filter((p) => p.endsWith('/deploys'));
+    expect(firstRunDeploys).toEqual(['/api/v1/sites/site_x/deploys']);
+
+    calls.length = 0;
+    await connector.sync({ mode: 'full' }, makeStorage());
+    const secondRunDeploys = calls
+      .map((c) => new URL(c).pathname)
+      .filter((p) => p.endsWith('/deploys'));
+    expect(secondRunDeploys).toEqual([
+      '/api/v1/sites/site_x/deploys',
+      '/api/v1/sites/site_y/deploys',
+    ]);
+  });
+
+  it('deduplicates configured siteIds for the deploys phase', async () => {
+    const connector = makeConnector({
+      siteIds: ['site_a', 'site_a', 'site_b'],
+      resources: ['deploys'],
+    });
+    const { calls } = installRouter(() => ({ body: [] }));
+
+    await connector.sync({ mode: 'full' }, makeStorage());
+
+    const deploysPaths = calls
+      .map((c) => new URL(c).pathname)
+      .filter((p) => p.endsWith('/deploys'));
+    expect(deploysPaths).toEqual([
+      '/api/v1/sites/site_a/deploys',
+      '/api/v1/sites/site_b/deploys',
+    ]);
+  });
+
   it('rejects malicious pagination URLs from a saved cursor', async () => {
     const connector = makeConnector({ resources: ['sites'] });
     const { calls } = installRouter(() => ({ body: [] }));

@@ -418,12 +418,12 @@ export class NetlifyConnector extends BaseConnector<
     signal: AbortSignal | undefined,
   ): Promise<string[]> {
     if (this.settings.siteIds && this.settings.siteIds.length > 0) {
-      return [...this.settings.siteIds];
+      return [...new Set(this.settings.siteIds)];
     }
     if (this.discoveredSiteIds !== null) {
       return this.discoveredSiteIds;
     }
-    const out: string[] = [];
+    const out = new Set<string>();
     let url: string | null = this.buildInitialSitesUrl();
     while (url !== null) {
       const res = await this.fetch<NetlifySite[]>(
@@ -432,13 +432,13 @@ export class NetlifyConnector extends BaseConnector<
         signal,
       );
       for (const site of res.body) {
-        out.push(site.id);
+        out.add(site.id);
       }
       const rawNext = parseLinkHeader(res.headers.get('link'))['next'] ?? null;
       url = this.sanitizeUrl(rawNext, '/api/v1/sites');
     }
-    this.discoveredSiteIds = out;
-    return out;
+    this.discoveredSiteIds = [...out];
+    return this.discoveredSiteIds;
   }
 
   // -------------------------------------------------------------------------
@@ -649,6 +649,7 @@ export class NetlifyConnector extends BaseConnector<
     storage: StorageHandle,
     signal?: AbortSignal,
   ): Promise<SyncResult> {
+    this.discoveredSiteIds = null;
     const cursor = this.resolveCursor(options.cursor);
     const isFull = options.mode === 'full';
     const phases = this.activePhases();
