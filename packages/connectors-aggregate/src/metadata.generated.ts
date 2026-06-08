@@ -138,6 +138,12 @@ import {
   resources as mixpanelResources,
 } from '@rawdash/connector-mixpanel';
 import {
+  configFields as netlifyConfigFields,
+  doc as netlifyDoc,
+  id as netlifyId,
+  resources as netlifyResources,
+} from '@rawdash/connector-netlify';
+import {
   configFields as newRelicConfigFields,
   doc as newRelicDoc,
   id as newRelicId,
@@ -342,6 +348,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     configFields: mixpanelConfigFields,
     resources: mixpanelResources,
     cost: mixpanelCost,
+  },
+  {
+    id: netlifyId,
+    packageName: '@rawdash/connector-netlify',
+    doc: netlifyDoc,
+    configFields: netlifyConfigFields,
+    resources: netlifyResources,
   },
   {
     id: newRelicId,

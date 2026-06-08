@@ -33,6 +33,7 @@
       "@rawdash/connector-klaviyo",
       "@rawdash/connector-meta-ads",
       "@rawdash/connector-mixpanel",
+      "@rawdash/connector-netlify",
       "@rawdash/connector-posthog",
       "@rawdash/connector-salesforce",
       "@rawdash/connector-new-relic",
