@@ -651,11 +651,15 @@ export class GitHubConnector extends BaseConnector<
     try {
       const u = new URL(pageUrl);
       const resourceSuffix = allowedPath.replace(/^\/repos\/[^/]+\/[^/]+/, '');
+      const escapedSuffix = resourceSuffix.replace(
+        /[.*+?^${}()|[\]\\]/g,
+        '\\$&',
+      );
+      const numericPath = new RegExp(`^/repositories/\\d+${escapedSuffix}$`);
       if (
         u.protocol === 'https:' &&
         u.host === 'api.github.com' &&
-        /^\/repositories\/\d+/.test(u.pathname) &&
-        u.pathname.endsWith(resourceSuffix)
+        numericPath.test(u.pathname)
       ) {
         return u.toString();
       }
