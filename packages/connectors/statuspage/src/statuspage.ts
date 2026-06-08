@@ -37,12 +37,16 @@ export const configFields = defineConfigFields(
       placeholder: 'sk_live_...',
       secret: true,
     }),
-    pageId: z.string().min(1).meta({
-      label: 'Page ID',
-      description:
-        'Statuspage page id (the 12-character identifier shown next to your page name in Manage Account -> API Info, also visible in the admin URL).',
-      placeholder: 'abc123def456',
-    }),
+    pageId: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z0-9]{12}$/, 'Page ID must be 12 alphanumeric characters.')
+      .meta({
+        label: 'Page ID',
+        description:
+          'Statuspage page id (the 12-character identifier shown next to your page name in Manage Account -> API Info, also visible in the admin URL).',
+        placeholder: 'abc123def456',
+      }),
     resources: z
       .array(z.enum(['components', 'incidents', 'incident_updates']))
       .nonempty()
@@ -637,13 +641,14 @@ export class StatuspageConnector extends BaseConnector<
   private async writeIncidentUpdates(
     storage: StorageHandle,
     items: IncidentBatchItem[],
+    sinceMs: number,
   ): Promise<void> {
     for (const { incident } of items) {
       for (const upd of incident.incident_updates ?? []) {
         const tsMs =
           this.parseTimestampMs(upd.display_at) ??
           this.parseTimestampMs(upd.created_at);
-        if (tsMs === null) {
+        if (tsMs === null || tsMs < sinceMs) {
           continue;
         }
         await storage.event({
@@ -674,6 +679,7 @@ export class StatuspageConnector extends BaseConnector<
     const cursor = this.resolveCursor(options.cursor);
     const isFull = options.mode === 'full';
     const phases = this.activePhases();
+    const incidentSinceMs = this.computeIncidentSinceMs(options);
 
     return paginateChunked<StatuspagePhase, string>({
       phases,
@@ -724,7 +730,7 @@ export class StatuspageConnector extends BaseConnector<
               await this.writeIncidents(storage, batch);
             }
             if (this.isResourceEnabled('incident_updates')) {
-              await this.writeIncidentUpdates(storage, batch);
+              await this.writeIncidentUpdates(storage, batch, incidentSinceMs);
             }
             return;
           }

@@ -10,9 +10,17 @@ describe('configFields', () => {
   it('parses a valid config with required fields only', () => {
     const result = configFields.safeParse({
       apiKey: { $secret: 'STATUSPAGE_API_KEY' },
-      pageId: 'abc123',
+      pageId: 'abc123def456',
     });
     expect(result.success).toBe(true);
+  });
+
+  it('rejects a malformed pageId', () => {
+    const result = configFields.safeParse({
+      apiKey: { $secret: 'STATUSPAGE_API_KEY' },
+      pageId: 'abc123',
+    });
+    expect(result.success).toBe(false);
   });
 
   it('rejects a config missing apiKey', () => {
@@ -38,7 +46,7 @@ describe('configFields', () => {
   it('accepts optional resources and incidentLookbackDays', () => {
     const result = configFields.safeParse({
       apiKey: { $secret: 'STATUSPAGE_API_KEY' },
-      pageId: 'abc123',
+      pageId: 'abc123def456',
       resources: ['components', 'incidents'],
       incidentLookbackDays: 30,
     });
@@ -548,7 +556,7 @@ describe('StatuspageConnector.create', () => {
     const { spy } = installRouter(routeDefault);
     const connector = StatuspageConnector.create({
       apiKey: { $secret: 'SP_TEST_KEY' },
-      pageId: 'page-test',
+      pageId: 'pagetest1234',
       resources: ['components'],
     });
     expect(connector).toBeInstanceOf(StatuspageConnector);
