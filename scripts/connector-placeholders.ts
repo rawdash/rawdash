@@ -50,15 +50,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
 
   // --- Infrastructure ----------------------------------------------------
   {
-    id: 'netlify',
-    name: 'Netlify',
-    category: 'infrastructure',
-    tagline:
-      'Sync sites, deploys, and build state - including duration and deploy context - from Netlify.',
-    icon: 'netlify',
-    requestIssue: 'RAW-205',
-  },
-  {
     id: 'render',
     name: 'Render',
     category: 'infrastructure',
@@ -254,15 +245,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
   },
 
   // --- Marketing ---------------------------------------------------------
-  {
-    id: 'mailchimp',
-    name: 'Mailchimp',
-    category: 'marketing',
-    tagline:
-      'Sync campaigns, audience growth, and open/click rates from a Mailchimp account.',
-    icon: 'mailchimp',
-    requestIssue: 'RAW-201',
-  },
   {
     id: 'webflow',
     name: 'Webflow',
