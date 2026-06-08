@@ -25,10 +25,6 @@ import {
 } from '@rawdash/core';
 import { z } from 'zod';
 
-// ---------------------------------------------------------------------------
-// configFields
-// ---------------------------------------------------------------------------
-
 export const configFields = defineConfigFields(
   z.object({
     authToken: z.object({ $secret: z.string() }).meta({
@@ -124,10 +120,6 @@ const sentryCredentials = {
 
 type SentryCredentials = typeof sentryCredentials;
 
-// ---------------------------------------------------------------------------
-// Sync phases + cursor
-// ---------------------------------------------------------------------------
-
 const sentryRateLimit = standardRateLimitPolicy({
   remainingHeader: 'x-sentry-rate-limit-remaining',
   resetHeader: 'x-sentry-rate-limit-reset',
@@ -141,10 +133,6 @@ type SentryPhase = (typeof PHASE_ORDER)[number];
 type SentrySyncCursor = ChunkedSyncCursor<SentryPhase, string>;
 
 const isSentrySyncCursor = makeChunkedCursorGuard(PHASE_ORDER);
-
-// ---------------------------------------------------------------------------
-// Sentry API types
-// ---------------------------------------------------------------------------
 
 interface SentryProjectRef {
   id?: string | number;
@@ -199,13 +187,6 @@ interface IssuesPageItem {
   eventsByIssue: Map<string, SentryIssueEvent[]>;
 }
 
-// ---------------------------------------------------------------------------
-// Link header parsing — Sentry uses Web Linking RFC 5988 plus `results="..."`
-// to indicate whether a given direction has more pages. parseLinkHeader from
-// connector-shared captures the URL but not the `results` flag, so we parse
-// the raw header here.
-// ---------------------------------------------------------------------------
-
 interface SentryLink {
   url: string;
   hasResults: boolean;
@@ -236,10 +217,6 @@ function parseSentryLink(
   return null;
 }
 
-// ---------------------------------------------------------------------------
-// SentryConnector
-// ---------------------------------------------------------------------------
-
 const SENTRY_API_HOST = 'sentry.io';
 const SENTRY_API_BASE = `https://${SENTRY_API_HOST}/api/0`;
 const DEFAULT_EVENTS_PER_ISSUE = 100;
@@ -260,10 +237,6 @@ function clampPageSize(
   }
   return Math.min(Math.floor(n), MAX_PAGE_SIZE);
 }
-
-// ---------------------------------------------------------------------------
-// Schemas — describe the per-resource API response shape consumed by request()
-// ---------------------------------------------------------------------------
 
 const idString = z.string().min(1);
 
@@ -405,10 +378,6 @@ export class SentryConnector extends BaseConnector<
     });
   }
 
-  // -------------------------------------------------------------------------
-  // Resource enablement
-  // -------------------------------------------------------------------------
-
   private activePhases(): SentryPhase[] {
     return selectActivePhases<SentryResource, SentryPhase>(
       (r) => {
@@ -426,10 +395,6 @@ export class SentryConnector extends BaseConnector<
       this.settings.resources,
     );
   }
-
-  // -------------------------------------------------------------------------
-  // URL building + sanitization
-  // -------------------------------------------------------------------------
 
   private allowedPagePath(phase: SentryPhase): string | null {
     const org = this.settings.organization;
@@ -527,10 +492,6 @@ export class SentryConnector extends BaseConnector<
     return u.toString();
   }
 
-  // -------------------------------------------------------------------------
-  // Fetchers
-  // -------------------------------------------------------------------------
-
   private async fetchIssuesPage(
     page: string | null,
     options: SyncOptions,
@@ -611,10 +572,6 @@ export class SentryConnector extends BaseConnector<
     );
     return { items: [res.body], next: null };
   }
-
-  // -------------------------------------------------------------------------
-  // Writers
-  // -------------------------------------------------------------------------
 
   private async writeIssuesPage(
     storage: StorageHandle,
@@ -751,10 +708,6 @@ export class SentryConnector extends BaseConnector<
     }
     await storage.metrics(samples, { names: ['sentry_errors_per_hour'] });
   }
-
-  // -------------------------------------------------------------------------
-  // sync
-  // -------------------------------------------------------------------------
 
   async sync(
     options: SyncOptions,

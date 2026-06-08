@@ -104,10 +104,6 @@ export const doc: ConnectorDoc = defineConnectorDoc({
   ],
 });
 
-// ---------------------------------------------------------------------------
-// Settings / credentials
-// ---------------------------------------------------------------------------
-
 export interface MetaAdsSettings {
   adAccountId: string;
   apiVersion?: string;
@@ -123,10 +119,6 @@ const metaAdsCredentials = {
 } satisfies CredentialsSchema;
 
 type MetaAdsCredentials = typeof metaAdsCredentials;
-
-// ---------------------------------------------------------------------------
-// Phases + cursor
-// ---------------------------------------------------------------------------
 
 const PHASE_ORDER = [
   'campaigns',
@@ -147,9 +139,6 @@ const PAGE_LIMIT = 100;
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const DEFAULT_LOOKBACK_DAYS = 90;
-// Meta keeps attributing conversions for several days after the event; on
-// incremental syncs always re-pull the last 30 days so late attribution
-// rewrites stale rows.
 const INCREMENTAL_LOOKBACK_DAYS = 30;
 
 const INSIGHTS_PHASES: ReadonlySet<MetaAdsPhase> = new Set([
@@ -176,10 +165,6 @@ const METRIC_NAME: Record<MetaAdsPhase, string> = {
 
 const CAMPAIGN_ENTITY_TYPE = 'meta_campaign';
 
-// ---------------------------------------------------------------------------
-// Date helpers
-// ---------------------------------------------------------------------------
-
 function toMetaDate(date: Date): string {
   const y = date.getUTCFullYear();
   const m = String(date.getUTCMonth() + 1).padStart(2, '0');
@@ -188,7 +173,6 @@ function toMetaDate(date: Date): string {
 }
 
 function metaDateToMs(metaDate: string): number {
-  // Meta insights dates arrive as 'YYYY-MM-DD'
   const [y, m, d] = metaDate.split('-').map((part) => Number(part));
   if (
     !Number.isFinite(y) ||
@@ -231,10 +215,6 @@ function getDateRange(
   return { since: toMetaDate(new Date(startMs)), until };
 }
 
-// ---------------------------------------------------------------------------
-// Value helpers
-// ---------------------------------------------------------------------------
-
 function parseNumber(value: unknown): number {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return value;
@@ -272,10 +252,6 @@ function sumActionValues(
   }
   return total;
 }
-
-// ---------------------------------------------------------------------------
-// Schemas - describe the per-resource API response shape consumed by request()
-// ---------------------------------------------------------------------------
 
 const actionEntrySchema = z.object({
   action_type: z.string().optional(),
@@ -425,10 +401,6 @@ export const metaAdsResources = defineResources({
   },
 });
 
-// ---------------------------------------------------------------------------
-// API response types
-// ---------------------------------------------------------------------------
-
 export interface MetaActionEntry {
   action_type?: string;
   value?: string | number;
@@ -479,10 +451,6 @@ interface MetaPagedResponse<T> {
     next?: string;
   };
 }
-
-// ---------------------------------------------------------------------------
-// Row conversion helpers
-// ---------------------------------------------------------------------------
 
 export function campaignToEntity(row: MetaCampaign): {
   type: string;
@@ -562,10 +530,6 @@ export function insightRowToMetricSample(
     attributes,
   };
 }
-
-// ---------------------------------------------------------------------------
-// MetaAdsConnector
-// ---------------------------------------------------------------------------
 
 const CAMPAIGN_FIELDS = [
   'id',
@@ -731,8 +695,6 @@ export class MetaAdsConnector extends BaseConnector<
     isFull: boolean,
   ): Promise<void> {
     if (INSIGHTS_PHASES.has(phase)) {
-      // Insights are append-only with no upsert key, so every sync (full or
-      // incremental) rewrites the whole metric scope for the configured window.
       await storage.metrics([], { names: [METRIC_NAME[phase]] });
       return;
     }
@@ -752,8 +714,6 @@ export class MetaAdsConnector extends BaseConnector<
       : undefined;
     const isFull = options.mode === 'full';
     const lookbackDays = this.settings.lookbackDays ?? DEFAULT_LOOKBACK_DAYS;
-    // Recompute on every tick. A resume across midnight will shift `until` by
-    // a day, which is fine: the metric scope is fully replaced each phase.
     const dateRange = getDateRange(options, lookbackDays);
 
     const phases = selectActivePhases<MetaAdsResource, MetaAdsPhase>(

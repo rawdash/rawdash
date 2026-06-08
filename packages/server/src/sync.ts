@@ -20,43 +20,9 @@ export type ConnectorLoggerFactory = (scope: string) => ConnectorLogger;
 export interface RunSyncOptions {
   connectorRegistry: ConnectorRegistry;
   secretsResolver?: SecretsResolver;
-  /**
-   * Build a logger for the runner and for each connector instance. Called
-   * with `'runner'` for the start/settled envelopes and with each
-   * `connector.name` for the per-connector progress logs. Defaults to
-   * {@link createDefaultConnectorLogger}, which writes a single-line
-   * `[scope] event key=value …` record to stdout/stderr.
-   */
   loggerFactory?: ConnectorLoggerFactory;
 }
 
-/**
- * Run a full sync across all connectors in the config in parallel via
- * `Promise.allSettled`, so one failure doesn't abort the others. Each
- * connector run is wrapped in a hard timeout (`FULL_SYNC_TIMEOUT_MS`)
- * raced against the connector's own `Promise`, so a connector that
- * ignores `AbortSignal` (or a storage call that hangs) can still not
- * pin sync state in `running` indefinitely.
- *
- * Connectors that return `{ done: false, cursor }` are looped in-process,
- * threading the cursor back into the next `sync` call until `done: true`
- * or the shared timeout / `FULL_SYNC_MAX_CHUNKS` cap fires. Cloud
- * deployments layer cross-restart cursor persistence on top of the same
- * contract; the OSS runner is the trivial in-process case.
- *
- * The per-run storage handle is bound to the same `AbortController`, so
- * once the timeout fires every subsequent write call on that handle
- * becomes a no-op. That makes tail writes from a timed-out connector
- * invisible to the next sync even if the connector itself keeps running
- * — see `withAbortSignal` in `@rawdash/core` and the safety-net note in
- * `docs/authoring-a-connector.md`.
- *
- * Transitions storage through `queued` → `running` → `succeeded`/`failed`.
- * The `queued` step is a no-op if the caller (typically `triggerSync`)
- * already marked the run as queued.
- *
- * Returns silently if another sync acquired the `running` lock first.
- */
 export async function runSync(
   config: DashboardConfig,
   storage: ServerStorage,

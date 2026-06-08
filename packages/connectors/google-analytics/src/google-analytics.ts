@@ -100,10 +100,6 @@ export const doc: ConnectorDoc = defineConnectorDoc({
   ],
 });
 
-// ---------------------------------------------------------------------------
-// Settings / credentials
-// ---------------------------------------------------------------------------
-
 export interface GA4Settings {
   propertyId: string;
   lookbackDays?: number;
@@ -130,10 +126,6 @@ const ga4Credentials = {
 
 type GA4Credentials = typeof ga4Credentials;
 
-// ---------------------------------------------------------------------------
-// Sync phases + cursor
-// ---------------------------------------------------------------------------
-
 const PHASE_ORDER = [
   'traffic_by_day',
   'traffic_by_source',
@@ -152,8 +144,6 @@ interface GA4DateRange {
 
 interface GA4SyncCursor {
   phase: GA4Phase;
-  // dateRange always populated, even when we abort between phases, so a
-  // resumed run uses the original window for every remaining phase.
   dateRange: GA4DateRange;
 }
 
@@ -184,10 +174,6 @@ function isGA4SyncCursor(value: unknown): value is GA4SyncCursor {
   }
   return isGA4DateRange(v.dateRange);
 }
-
-// ---------------------------------------------------------------------------
-// Phase configs — dimensions + metrics for each resource
-// ---------------------------------------------------------------------------
 
 interface PhaseConfig {
   dimensions: string[];
@@ -236,10 +222,6 @@ const PHASE_CONFIGS: Record<GA4Phase, PhaseConfig> = {
 
 const ROWS_PER_PAGE = 10_000;
 
-// ---------------------------------------------------------------------------
-// GA4 Data API types
-// ---------------------------------------------------------------------------
-
 export interface GA4DimensionValue {
   value: string;
 }
@@ -259,10 +241,6 @@ interface GA4ReportResponse {
   dimensionHeaders?: Array<{ name: string }>;
   metricHeaders?: Array<{ name: string; type: string }>;
 }
-
-// ---------------------------------------------------------------------------
-// Service account / OAuth token helpers
-// ---------------------------------------------------------------------------
 
 interface ServiceAccountKey {
   client_email: string;
@@ -360,10 +338,6 @@ async function buildServiceAccountJwt(
   };
 }
 
-// ---------------------------------------------------------------------------
-// Date helpers
-// ---------------------------------------------------------------------------
-
 function toGA4Date(date: Date): string {
   const y = date.getUTCFullYear();
   const m = String(date.getUTCMonth() + 1).padStart(2, '0');
@@ -372,7 +346,6 @@ function toGA4Date(date: Date): string {
 }
 
 function ga4DateToMs(ga4Date: string): number {
-  // GA4 dates arrive as 'YYYYMMDD'
   const y = ga4Date.slice(0, 4);
   const m = ga4Date.slice(4, 6);
   const d = ga4Date.slice(6, 8);
@@ -404,10 +377,6 @@ function getDateRange(
   const startMs = now - (lookbackDays - 1) * MS_PER_DAY;
   return { startDate: toGA4Date(new Date(startMs)), endDate };
 }
-
-// ---------------------------------------------------------------------------
-// Row conversion
-// ---------------------------------------------------------------------------
 
 export function rowToMetricSample(
   row: GA4ReportRow,
@@ -442,14 +411,6 @@ export function rowToMetricSample(
     attributes: { ...dims, ...mets },
   };
 }
-
-// ---------------------------------------------------------------------------
-// GA4Connector
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// Schemas — describe the per-resource API response shape consumed by request()
-// ---------------------------------------------------------------------------
 
 const dateDimensionValue = z.object({
   value: z.string().regex(/^(19|20)\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])$/),
@@ -712,8 +673,6 @@ export class GA4Connector extends BaseConnector<GA4Settings, GA4Credentials> {
     const lookbackDays = this.settings.lookbackDays ?? 90;
 
     const cursor = isGA4SyncCursor(options.cursor) ? options.cursor : undefined;
-    // Restore the originally-computed window on resume so phases stay aligned
-    // across midnight rollovers and lookbackDays changes between runs.
     const dateRange = cursor?.dateRange ?? getDateRange(options, lookbackDays);
 
     let accessToken: string | null = null;
@@ -754,9 +713,6 @@ export class GA4Connector extends BaseConnector<GA4Settings, GA4Credentials> {
         if (rows.length === 0) {
           break;
         }
-        // Prefer the API's authoritative rowCount when available; fall back
-        // to a short-page heuristic only when GA4 omits it, so a missing
-        // field can't truncate a multi-page dataset to its first page.
         const done =
           typeof response.rowCount === 'number'
             ? offset >= response.rowCount
@@ -777,11 +733,6 @@ export class GA4Connector extends BaseConnector<GA4Settings, GA4Credentials> {
         return { done: false, cursor: { phase, dateRange } };
       }
 
-      // Drain every page of this phase in-memory before writing so the commit
-      // is one atomic call. A mid-phase failure restarts this phase from
-      // scratch on the next sync; the clear-and-replace below wipes partial
-      // state. If the abort signal trips mid-drain, surface a resumable
-      // cursor instead of throwing the AbortError up to the caller.
       let rows: GA4ReportRow[];
       try {
         rows = await drainPhase(phase);
@@ -795,7 +746,6 @@ export class GA4Connector extends BaseConnector<GA4Settings, GA4Credentials> {
       const samples = rows.map((row) =>
         rowToMetricSample(row, cfg.dimensions, cfg.metrics, cfg.metricName),
       );
-      // Scoping by name ensures stale rows are wiped even when samples is empty.
       await storage.metrics(samples, { names: [cfg.metricName] });
     }
 

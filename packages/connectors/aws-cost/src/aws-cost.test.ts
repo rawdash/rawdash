@@ -9,10 +9,6 @@ import {
   getCostWindow,
 } from './aws-cost';
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 function makeStorage() {
   return {
     event: vi.fn().mockResolvedValue(undefined),
@@ -84,10 +80,6 @@ const STS_ASSUME_ROLE_XML = `<AssumeRoleResponse><AssumeRoleResult><Credentials>
   <Expiration>2026-01-01T00:00:00Z</Expiration>
 </Credentials></AssumeRoleResult></AssumeRoleResponse>`;
 
-// ---------------------------------------------------------------------------
-// configFields
-// ---------------------------------------------------------------------------
-
 describe('configFields', () => {
   it('parses a config with access key + secret', () => {
     const result = configFields.safeParse({
@@ -129,10 +121,6 @@ describe('configFields', () => {
     expect(result.success).toBe(false);
   });
 });
-
-// ---------------------------------------------------------------------------
-// buildDailyCostSamples
-// ---------------------------------------------------------------------------
 
 describe('buildDailyCostSamples', () => {
   it('emits one sample per ResultsByTime entry for ungrouped totals', () => {
@@ -203,10 +191,6 @@ describe('buildDailyCostSamples', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// buildForecastSamples
-// ---------------------------------------------------------------------------
-
 describe('buildForecastSamples', () => {
   it('emits one forecast sample per ForecastResultsByTime entry', () => {
     const samples = buildForecastSamples(
@@ -231,17 +215,13 @@ describe('buildForecastSamples', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// getCostWindow
-// ---------------------------------------------------------------------------
-
 describe('getCostWindow', () => {
   const now = Date.UTC(2025, 5, 15, 12, 0, 0);
 
   it('uses the configured lookback for a daily full sync', () => {
     const w = getCostWindow({ mode: 'full' }, 'DAILY', 90, now);
-    expect(w.end).toBe('2025-06-16'); // tomorrow (exclusive)
-    expect(w.start).toBe('2025-03-18'); // 90 days before end
+    expect(w.end).toBe('2025-06-16');
+    expect(w.start).toBe('2025-03-18');
   });
 
   it('uses a short trailing window for incremental syncs', () => {
@@ -253,13 +233,9 @@ describe('getCostWindow', () => {
   it('aligns to month boundaries for MONTHLY granularity', () => {
     const w = getCostWindow({ mode: 'full' }, 'MONTHLY', 90, now);
     expect(w.end).toBe('2025-07-01');
-    expect(w.start).toBe('2025-04-01'); // three full months back
+    expect(w.start).toBe('2025-04-01');
   });
 });
-
-// ---------------------------------------------------------------------------
-// AwsCostConnector.sync
-// ---------------------------------------------------------------------------
 
 describe('AwsCostConnector.sync', () => {
   afterEach(() => {
@@ -454,10 +430,6 @@ describe('AwsCostConnector.sync', () => {
     ).rejects.toBeInstanceOf(AuthError);
   });
 });
-
-// ---------------------------------------------------------------------------
-// AwsCostConnector.create
-// ---------------------------------------------------------------------------
 
 describe('AwsCostConnector.create', () => {
   afterEach(() => {

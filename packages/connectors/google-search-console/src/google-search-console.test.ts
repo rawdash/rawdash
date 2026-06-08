@@ -6,10 +6,6 @@ import {
   rowToMetricSample,
 } from './google-search-console';
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 function makeStorage() {
   return {
     event: vi.fn().mockResolvedValue(undefined),
@@ -55,7 +51,6 @@ function mockFetch(
   return vi.fn().mockImplementation((url: string, init: RequestInit) => {
     const urlStr = String(url);
 
-    // Token endpoint
     if (urlStr.includes('oauth2.googleapis.com/token')) {
       return Promise.resolve({
         ok: true,
@@ -66,7 +61,6 @@ function mockFetch(
       } as Response);
     }
 
-    // GSC searchAnalytics endpoint
     if (urlStr.includes('searchconsole.googleapis.com')) {
       const body = init.body
         ? (JSON.parse(String(init.body)) as { dimensions: string[] })
@@ -104,10 +98,6 @@ function mockFetch(
     } as Response);
   });
 }
-
-// ---------------------------------------------------------------------------
-// configFields
-// ---------------------------------------------------------------------------
 
 describe('configFields', () => {
   it('parses a config with siteUrl and serviceAccountJson', () => {
@@ -190,10 +180,6 @@ describe('configFields', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// rowToMetricSample
-// ---------------------------------------------------------------------------
-
 describe('rowToMetricSample', () => {
   it('converts a daily row correctly', () => {
     const row = makeReportRow(['2025-01-01'], {
@@ -243,10 +229,6 @@ describe('rowToMetricSample', () => {
     expect(sample.attributes['position']).toBe(0);
   });
 });
-
-// ---------------------------------------------------------------------------
-// GSCConnector.sync
-// ---------------------------------------------------------------------------
 
 describe('GSCConnector.sync', () => {
   afterEach(() => {
@@ -448,7 +430,6 @@ describe('GSCConnector.sync', () => {
     );
     expect(gscCalls.length).toBeGreaterThan(0);
     const url = String((gscCalls[0] as [string])[0]);
-    // 'sc-domain:example.com' encoded - the colon becomes %3A
     expect(url).toContain('sc-domain%3Aexample.com');
   });
 
@@ -467,8 +448,6 @@ describe('GSCConnector.sync', () => {
     vi.stubGlobal('fetch', fetchSpy);
 
     const storage = makeStorage();
-    // Resume at phase 'top_pages' - phases 'top_pages' and 'top_countries'
-    // should both use the cursor's dateRange, not a recomputed one.
     await connector.sync(
       {
         mode: 'full',
@@ -529,8 +508,6 @@ describe('GSCConnector.sync', () => {
       );
 
     expect(gscBodies.length).toBeGreaterThan(0);
-    // INCREMENTAL_LOOKBACK_DAYS is 3, so the window spans exactly 2 days
-    // (start inclusive through end inclusive), not the 90-day full lookback.
     const MS_PER_DAY = 24 * 60 * 60 * 1000;
     for (const body of gscBodies) {
       const spanDays =
@@ -550,9 +527,6 @@ describe('GSCConnector.sync', () => {
       },
     );
 
-    // Build a full ROWS_PER_PAGE first page, then a short second page so the
-    // loop terminates via the short-page heuristic. Both must be drained
-    // before a single writeBatch fires for the phase.
     const fullPage: Array<{ keys: string[]; clicks: number }> = [];
     for (let i = 0; i < 25000; i++) {
       fullPage.push({ keys: ['2025-01-01'], clicks: 1 });
@@ -668,10 +642,6 @@ describe('GSCConnector.sync', () => {
     }
   });
 });
-
-// ---------------------------------------------------------------------------
-// GSCConnector.create
-// ---------------------------------------------------------------------------
 
 describe('GSCConnector.create', () => {
   afterEach(() => {

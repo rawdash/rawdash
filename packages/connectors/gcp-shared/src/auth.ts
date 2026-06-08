@@ -82,14 +82,6 @@ export function parseServiceAccountJson(value: string): ServiceAccountKey {
   return serviceAccountKeySchema.parse(JSON.parse(decoded));
 }
 
-/**
- * Build the OAuth 2.0 token-exchange request body for a Google service account.
- * The caller posts the returned body to the returned url and parses the
- * resulting `access_token` (see {@link tokenResponseSchema}).
- *
- * Scope is a space-delimited list of OAuth scope URLs (e.g.
- * `https://www.googleapis.com/auth/monitoring.read`).
- */
 export async function buildServiceAccountJwt(
   serviceAccountJson: string,
   scope: string,

@@ -2,10 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { GreenhouseConnector, configFields } from './greenhouse';
 
-// ---------------------------------------------------------------------------
-// configFields
-// ---------------------------------------------------------------------------
-
 describe('configFields', () => {
   it('parses a valid config with only apiKey', () => {
     const result = configFields.safeParse({
@@ -39,10 +35,6 @@ describe('configFields', () => {
     expect(configFields.safeParse({}).success).toBe(false);
   });
 });
-
-// ---------------------------------------------------------------------------
-// Fetch + storage mocks
-// ---------------------------------------------------------------------------
 
 interface MockCall {
   url: string;
@@ -117,10 +109,6 @@ function connector(overrides: { resources?: string[] } = {}) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// sync — auth, since, scope clearing, event derivation
-// ---------------------------------------------------------------------------
-
 describe('GreenhouseConnector.sync', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -160,7 +148,6 @@ describe('GreenhouseConnector.sync', () => {
     }).sync({ mode: 'full', since }, makeStorage());
 
     const urls = recordCalls(fetchSpy).map((c) => c.url);
-    // Each paginated entity phase forwards `since` as updated_after.
     for (const path of [
       '/v1/jobs',
       '/v1/candidates',
@@ -368,19 +355,15 @@ describe('GreenhouseConnector.sync', () => {
     const transitions = events.map(
       (e) => `${e.attributes.applicationId}:${e.attributes.transition}`,
     );
-    // Every emitted event has the connector's event name.
     for (const e of events) {
       expect(e.name).toBe('greenhouse_application_event');
     }
-    // Application 1 (hired): applied + hired (no rejected_at).
     expect(transitions).toContain('1:applied');
     expect(transitions).toContain('1:hired');
     expect(transitions).not.toContain('1:rejected');
-    // Application 2 (rejected): applied + rejected, no hired.
     expect(transitions).toContain('2:applied');
     expect(transitions).toContain('2:rejected');
     expect(transitions).not.toContain('2:hired');
-    // Application 3 (active): applied only.
     expect(transitions).toContain('3:applied');
     expect(transitions).not.toContain('3:hired');
     expect(transitions).not.toContain('3:rejected');

@@ -7,20 +7,9 @@ import type { HonoRouterOptions } from './shared';
 import { applyBefore, makeEngineContext, mapError } from './shared';
 
 export interface HonoWidgetsRouterOptions extends HonoRouterOptions {
-  /**
-   * Optional per-request factory returning a `WidgetCache`. Invoked once
-   * per request so the cache can be scoped to the request's tenant/auth
-   * context. When omitted, widgets are resolved fresh on every request.
-   */
   cache?: (c: Context) => WidgetCache;
 }
 
-/**
- * - `GET /:dashboardId/widgets` → `WidgetsListResponse`
- * - `GET /:dashboardId/widgets/:widgetId` → `CachedWidget`
- *
- * Mount at `/dashboards`.
- */
 export function createWidgetsRouter(opts: HonoWidgetsRouterOptions): Hono {
   const app = new Hono();
   applyBefore(app, opts.before);

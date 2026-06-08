@@ -12,12 +12,6 @@ export interface ServeOptions {
   connectorRegistry: ConnectorRegistry;
 }
 
-/**
- * Local-only convenience: mount the engine on a Hono app and bind it to
- * a Node TCP port. Equivalent to `mountEngine(config, options).app` +
- * `@hono/node-server`. Use this only in long-lived Node deployments —
- * serverless/edge runtimes should mount the Hono app directly.
- */
 export function serve(config: DashboardConfig, options: ServeOptions): void {
   const { port = 8080, storage, connectorRegistry } = options;
   const { app } = mountEngine(config, { storage, connectorRegistry });

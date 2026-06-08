@@ -66,8 +66,6 @@ describe('CircleCIConnector property tests', () => {
       runs: 50,
       extraInvariants: [extra, docShapeExtra],
       run: async (sample, storage) => {
-        // Terminate pagination after one page; empty workflows so the
-        // pipelines-shape invariant is what we measure.
         const terminated = { ...sample, next_page_token: null };
         installFetchMock((url) => {
           if (url.includes('/workflow')) {
@@ -123,8 +121,6 @@ describe('CircleCIConnector property tests', () => {
       runs: 50,
       extraInvariants: [extra, docShapeExtra],
       run: async (sample, storage) => {
-        // One synthetic pipeline drives the workflow fan-out so the property
-        // test exercises the workflow writer with the fuzzed workflows payload.
         const terminated = { ...sample, next_page_token: null };
         installFetchMock((url) => {
           if (url.includes('/workflow')) {

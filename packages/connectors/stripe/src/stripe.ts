@@ -93,10 +93,6 @@ export interface StripeSettings {
   resources?: readonly StripeResource[];
 }
 
-// ---------------------------------------------------------------------------
-// Stripe API types
-// ---------------------------------------------------------------------------
-
 interface StripeListResponse<T> {
   object: 'list';
   data: T[];
@@ -208,10 +204,6 @@ interface StripeRefund {
   created: number;
 }
 
-// ---------------------------------------------------------------------------
-// Credentials
-// ---------------------------------------------------------------------------
-
 const stripeCredentials = {
   apiKey: {
     description: 'Stripe API key',
@@ -220,10 +212,6 @@ const stripeCredentials = {
 } satisfies CredentialsSchema;
 
 type StripeCredentials = typeof stripeCredentials;
-
-// ---------------------------------------------------------------------------
-// Sync phases + cursor
-// ---------------------------------------------------------------------------
 
 const PHASE_ORDER = [
   'customers',
@@ -257,10 +245,6 @@ const EVENT_NAME_BY_PHASE: Partial<Record<StripePhase, string>> = {
   disputes: 'stripe_dispute',
   refunds: 'stripe_refund',
 };
-
-// ---------------------------------------------------------------------------
-// MRR helper
-// ---------------------------------------------------------------------------
 
 export function computeMrrAmountCents(
   subscription: StripeSubscription,
@@ -303,10 +287,6 @@ export function computeMrrAmountCents(
   }
   return Math.round(sum);
 }
-
-// ---------------------------------------------------------------------------
-// Schemas — describe the per-resource API response shape consumed by request()
-// ---------------------------------------------------------------------------
 
 const idString = z.string().min(1);
 
@@ -483,10 +463,6 @@ export const stripeResources = defineResources({
   },
 });
 
-// ---------------------------------------------------------------------------
-// StripeConnector
-// ---------------------------------------------------------------------------
-
 export const id = 'stripe';
 
 export class StripeConnector extends BaseConnector<
@@ -549,11 +525,6 @@ export class StripeConnector extends BaseConnector<
     return url.toString();
   }
 
-  // created[gte] cutoff for entity phases — in incremental (latest) mode adds
-  // a 7-day grace so recent edits to slightly older entities still surface.
-  // Subscriptions are intentionally exempt in full mode: a subscription's
-  // updated_at is derived from current_period_end, so a still-active sub
-  // created well before the cutoff would otherwise be dropped on backfill.
   private entityCreatedGte(
     phase: StripePhase,
     options: SyncOptions,
@@ -571,8 +542,6 @@ export class StripeConnector extends BaseConnector<
     return String(Math.floor(sinceMs / 1000));
   }
 
-  // created[gt] cutoff for event phases — applied in both full and incremental
-  // modes so backfill respects the widget-driven window.
   private eventCreatedGt(options: SyncOptions): string | undefined {
     if (!options.since) {
       return undefined;

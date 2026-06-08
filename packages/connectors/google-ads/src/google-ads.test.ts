@@ -10,10 +10,6 @@ import {
   keywordMetricRowToSample,
 } from './google-ads';
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 function makeStorage() {
   return {
     event: vi.fn().mockResolvedValue(undefined),
@@ -108,10 +104,6 @@ function makeConnector(
   );
 }
 
-// ---------------------------------------------------------------------------
-// configFields
-// ---------------------------------------------------------------------------
-
 describe('configFields', () => {
   it('parses a fully-specified config', () => {
     const result = configFields.safeParse({
@@ -183,12 +175,8 @@ describe('configFields', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// getDateRange
-// ---------------------------------------------------------------------------
-
 describe('getDateRange', () => {
-  const NOW = Date.UTC(2025, 0, 31); // 2025-01-31
+  const NOW = Date.UTC(2025, 0, 31);
 
   it('returns a 3-day window in latest mode', () => {
     const r = getDateRange({ mode: 'latest' }, 90, NOW);
@@ -203,7 +191,6 @@ describe('getDateRange', () => {
   });
 
   it('clamps a wider since window to lookbackDays', () => {
-    // since is 30 days back, but lookback is 7
     const since = new Date(NOW - 30 * 24 * 60 * 60 * 1000).toISOString();
     const r = getDateRange({ mode: 'full', since }, 7, NOW);
     expect(r.startDate).toBe('2025-01-25');
@@ -215,10 +202,6 @@ describe('getDateRange', () => {
     expect(r.startDate).toBe('2025-01-30');
   });
 });
-
-// ---------------------------------------------------------------------------
-// Row → storage helpers
-// ---------------------------------------------------------------------------
 
 describe('row conversion helpers', () => {
   it('campaignToEntity converts a campaign row', () => {
@@ -255,7 +238,7 @@ describe('row conversion helpers', () => {
     });
     expect(sample.name).toBe('google_ads_campaign_metrics');
     expect(sample.ts).toBe(Date.UTC(2025, 0, 15));
-    expect(sample.value).toBeCloseTo(1.5); // 1,500,000 micros = 1.5 currency
+    expect(sample.value).toBeCloseTo(1.5);
     expect(sample.attributes.cost).toBeCloseTo(1.5);
     expect(sample.attributes.costMicros).toBe(1500000);
     expect(sample.attributes.impressions).toBe(12000);
@@ -336,10 +319,6 @@ describe('row conversion helpers', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// GoogleAdsConnector.sync
-// ---------------------------------------------------------------------------
-
 describe('GoogleAdsConnector.sync', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -387,7 +366,6 @@ describe('GoogleAdsConnector.sync', () => {
         (c[1] as { names: string[] }).names[0] ===
         'google_ads_campaign_metrics',
     );
-    // Two calls: the clear-on-first-page (`samples: []`) and the data write.
     const withSamples = campaignMetricsWrites.filter(
       (c) => (c[0] as unknown[]).length > 0,
     );
@@ -442,8 +420,6 @@ describe('GoogleAdsConnector.sync', () => {
       String(c[0]).includes('googleads.googleapis.com'),
     );
     expect(apiCalls.length).toBeGreaterThan(0);
-    // The shared request layer lowercases header keys before handing them
-    // to fetch, so we look them up case-insensitively.
     const headers = (
       apiCalls[0] as [string, { headers: Record<string, string> }]
     )[1].headers;
@@ -507,7 +483,6 @@ describe('GoogleAdsConnector.sync', () => {
             query: string;
           },
       );
-    // Every search call should be the campaigns query — no metric queries.
     expect(apiBodies.length).toBeGreaterThan(0);
     for (const body of apiBodies) {
       expect(body.query).toContain('FROM campaign');
@@ -612,16 +587,11 @@ describe('GoogleAdsConnector.sync', () => {
       );
 
     expect(apiBodies.length).toBeGreaterThan(0);
-    // Resuming at keyword_metrics: every query should be the keyword query.
     for (const body of apiBodies) {
       expect(body.query).toContain('FROM keyword_view');
     }
   });
 });
-
-// ---------------------------------------------------------------------------
-// GoogleAdsConnector.create
-// ---------------------------------------------------------------------------
 
 describe('GoogleAdsConnector.create', () => {
   afterEach(() => {

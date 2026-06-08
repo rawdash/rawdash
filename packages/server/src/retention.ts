@@ -5,17 +5,12 @@ import type {
 } from '@rawdash/core';
 import { selectForDeletion } from '@rawdash/core';
 
-export const DEFAULT_RETENTION_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+export const DEFAULT_RETENTION_INTERVAL_MS = 60 * 60 * 1000;
 
 export function hasPruningPolicy(config: RetentionConfig): boolean {
   return config.maxAge !== undefined || config.maxSize !== undefined;
 }
 
-/**
- * Apply the retention policy in `config` to every connector's stored data.
- * No-op if the config has no pruning policy. Throws an aggregated error if
- * any connector fails.
- */
 export async function runRetention(
   config: DashboardConfig,
   storage: ServerStorage,

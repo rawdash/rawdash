@@ -2,10 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { DatadogConnector, configFields } from './datadog';
 
-// ---------------------------------------------------------------------------
-// configFields
-// ---------------------------------------------------------------------------
-
 describe('configFields', () => {
   it('parses a valid config with required fields only', () => {
     const result = configFields.safeParse({
@@ -76,10 +72,6 @@ describe('configFields', () => {
     expect(result.success).toBe(false);
   });
 });
-
-// ---------------------------------------------------------------------------
-// Test scaffolding
-// ---------------------------------------------------------------------------
 
 function makeStorage() {
   return {
@@ -208,10 +200,6 @@ function routeAllEmpty(u: string): MockResponseSpec {
   throw new Error(`Unexpected URL ${u}`);
 }
 
-// ---------------------------------------------------------------------------
-// DatadogConnector — sync
-// ---------------------------------------------------------------------------
-
 describe('DatadogConnector.sync', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -229,7 +217,6 @@ describe('DatadogConnector.sync', () => {
     expect(spy).toHaveBeenCalled();
     const firstCall = spy.mock.calls[0]!;
     const init = firstCall[1] as RequestInit;
-    // `fetch` lowercases header names in its RequestInit normalization.
     expect(init.headers).toMatchObject({
       'dd-api-key': 'dd_api',
       'dd-application-key': 'dd_app',

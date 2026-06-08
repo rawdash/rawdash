@@ -22,10 +22,6 @@ import {
 } from '@rawdash/core';
 import { z } from 'zod';
 
-// ---------------------------------------------------------------------------
-// configFields
-// ---------------------------------------------------------------------------
-
 export const configFields = defineConfigFields(
   z.object({
     accessToken: z.object({ $secret: z.string() }).meta({
@@ -75,10 +71,6 @@ export const configFields = defineConfigFields(
   }),
 );
 
-// ---------------------------------------------------------------------------
-// Connector doc (catalog metadata)
-// ---------------------------------------------------------------------------
-
 export const doc: ConnectorDoc = defineConnectorDoc({
   displayName: 'Intercom',
   category: 'support',
@@ -110,10 +102,6 @@ export const doc: ConnectorDoc = defineConnectorDoc({
   ],
 });
 
-// ---------------------------------------------------------------------------
-// Settings / credentials
-// ---------------------------------------------------------------------------
-
 export interface IntercomSettings {
   apiVersion: string;
   region: 'us' | 'eu' | 'au';
@@ -128,10 +116,6 @@ const intercomCredentials = {
 } satisfies CredentialsSchema;
 
 type IntercomCredentials = typeof intercomCredentials;
-
-// ---------------------------------------------------------------------------
-// Sync phases + cursor
-// ---------------------------------------------------------------------------
 
 const PHASE_ORDER = [
   'admins',
@@ -160,10 +144,6 @@ const REGION_HOSTS: Record<IntercomSettings['region'], string> = {
   eu: 'https://api.eu.intercom.io',
   au: 'https://api.au.intercom.io',
 };
-
-// ---------------------------------------------------------------------------
-// API response types
-// ---------------------------------------------------------------------------
 
 interface AdminRecord {
   id: string;
@@ -241,10 +221,6 @@ interface ContactSearchResponse {
   pages?: SearchPagingBlock | null;
 }
 
-// ---------------------------------------------------------------------------
-// Schemas — describe the per-resource API response shape consumed by request()
-// ---------------------------------------------------------------------------
-
 const idString = z.string().min(1);
 
 const adminSchema = z.object({
@@ -305,10 +281,6 @@ const conversationSchema = z.object({
     .nullish(),
 });
 
-// ---------------------------------------------------------------------------
-// Value helpers
-// ---------------------------------------------------------------------------
-
 function assigneeIdOrNull(
   value: number | string | null | undefined,
 ): string | null {
@@ -316,7 +288,6 @@ function assigneeIdOrNull(
     return null;
   }
   const s = String(value);
-  // Intercom returns 0 (number) for unassigned conversations.
   return s === '' || s === '0' ? null : s;
 }
 
@@ -331,7 +302,6 @@ function tagNames(tags: ConversationTagsBlock | null | undefined): string[] {
   return names;
 }
 
-// Intercom timestamps come as Unix seconds; storage uses Unix milliseconds.
 function epochSecToMs(value: number | null | undefined): number | null {
   return parseEpoch(value ?? null, 's');
 }
@@ -339,10 +309,6 @@ function epochSecToMs(value: number | null | undefined): number | null {
 function epochSecToMsOrZero(value: number | null | undefined): number {
   return epochSecToMs(value) ?? 0;
 }
-
-// ---------------------------------------------------------------------------
-// Resources
-// ---------------------------------------------------------------------------
 
 export const intercomResources = defineResources({
   [ADMIN_ENTITY]: {
@@ -472,10 +438,6 @@ export const intercomResources = defineResources({
   },
 });
 
-// ---------------------------------------------------------------------------
-// IntercomConnector
-// ---------------------------------------------------------------------------
-
 export const id = 'intercom';
 
 export class IntercomConnector extends BaseConnector<
@@ -544,16 +506,11 @@ export class IntercomConnector extends BaseConnector<
     });
   }
 
-  // -------------------------------------------------------------------------
-  // admins — GET /admins (single page, not paginated)
-  // -------------------------------------------------------------------------
-
   private async fetchAdmins(
     page: string | null,
     signal?: AbortSignal,
   ): Promise<{ items: unknown[]; next: string | null }> {
     if (page !== null) {
-      // Single-page resource; only fetched when cursor is null.
       return { items: [], next: null };
     }
     const res = await this.apiGet<AdminListResponse>(
@@ -579,16 +536,10 @@ export class IntercomConnector extends BaseConnector<
           awayMode: admin.away_mode_enabled ?? null,
           hasInboxSeat: admin.has_inbox_seat ?? null,
         },
-        // Admins have no updatedAt in the API; stamp with sync time so newer
-        // syncs win on conflict.
         updated_at: Date.now(),
       });
     }
   }
-
-  // -------------------------------------------------------------------------
-  // teams — GET /teams (single page, not paginated)
-  // -------------------------------------------------------------------------
 
   private async fetchTeams(
     page: string | null,
@@ -621,10 +572,6 @@ export class IntercomConnector extends BaseConnector<
       });
     }
   }
-
-  // -------------------------------------------------------------------------
-  // contacts — POST /contacts/search (cursor-paginated)
-  // -------------------------------------------------------------------------
 
   private buildContactSearchBody(
     startingAfter: string | null,
@@ -687,10 +634,6 @@ export class IntercomConnector extends BaseConnector<
     }
   }
 
-  // -------------------------------------------------------------------------
-  // conversations — POST /conversations/search (entities)
-  // -------------------------------------------------------------------------
-
   private buildConversationSearchBody(
     startingAfter: string | null,
     options: SyncOptions,
@@ -719,10 +662,6 @@ export class IntercomConnector extends BaseConnector<
     options: SyncOptions,
     signal?: AbortSignal,
   ): Promise<{ items: unknown[]; next: string | null }> {
-    // conversation_events clears and rewrites its whole scope on every sync
-    // (events can't be upserted by key), so it must re-fetch every conversation
-    // even on incremental ticks — otherwise a `since` filter would drop the
-    // historical events for conversations untouched in this window.
     const fetchOptions =
       resource === 'conversation_events'
         ? { ...options, since: undefined }
@@ -767,10 +706,6 @@ export class IntercomConnector extends BaseConnector<
       });
     }
   }
-
-  // -------------------------------------------------------------------------
-  // conversation_events — derived from the same /conversations/search payload
-  // -------------------------------------------------------------------------
 
   private async writeConversationEvents(
     storage: StorageHandle,
@@ -828,25 +763,16 @@ export class IntercomConnector extends BaseConnector<
     }
   }
 
-  // -------------------------------------------------------------------------
-  // Scope clearing (idempotency)
-  // -------------------------------------------------------------------------
-
   private async clearScopeOnFirstPage(
     storage: StorageHandle,
     phase: IntercomPhase,
     isFull: boolean,
   ): Promise<void> {
     if (phase === 'conversation_events') {
-      // Events can't be upserted by key, so the only way to keep a sync
-      // idempotent is to wipe the scope and rewrite from the freshly fetched
-      // statistics. Cheap because the scope is per-name.
       await storage.events([], { names: [CONVERSATION_STATE_EVENT] });
       return;
     }
     if (!isFull) {
-      // Entity phases upsert by id, so incremental ticks just overwrite the
-      // records they touch — no need to drop the rest of the entity scope.
       return;
     }
     const entityType = ENTITY_TYPE_BY_PHASE[phase];
@@ -926,10 +852,6 @@ export class IntercomConnector extends BaseConnector<
   }
 }
 
-// ---------------------------------------------------------------------------
-// Helpers (module-scoped)
-// ---------------------------------------------------------------------------
-
 const ENTITY_TYPE_BY_PHASE: Partial<Record<IntercomPhase, string>> = {
   admins: ADMIN_ENTITY,
   teams: TEAM_ENTITY,
@@ -937,9 +859,6 @@ const ENTITY_TYPE_BY_PHASE: Partial<Record<IntercomPhase, string>> = {
   conversations: CONVERSATION_ENTITY,
 };
 
-// Intercom search filters use Unix seconds, while SyncOptions.since is an
-// ISO timestamp. Returns null when no incremental window applies, which keeps
-// the search body free of a no-op filter clause.
 function sinceUnixSec(options: SyncOptions): number | null {
   if (!options.since) {
     return null;

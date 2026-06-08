@@ -72,25 +72,11 @@ async function resolveWithCache(
   return fresh;
 }
 
-/**
- * Per-request lookup shape accepted by `triggerSync` in deferred mode.
- * `getConfig` is optional because the trigger handler never calls
- * `runSync` — deployments that delegate the actual sync work to an
- * external runner may not be able to materialize a `DashboardConfig` at
- * request time.
- */
 export interface DeferredTriggerSyncContext {
   getConfig?: () => DashboardConfig | Promise<DashboardConfig>;
   getStorage: () => ServerStorage | Promise<ServerStorage>;
 }
 
-/**
- * Per-request lookup shape accepted by `triggerSync` in in-process
- * mode. `getConfig` is required because the trigger handler kicks off
- * `runSync(config, storage)` in the background. `connectorRegistry` is
- * required so the background runner can instantiate connector
- * implementations on demand from the declarative `DashboardConfig`.
- */
 export interface InProcessTriggerSyncContext {
   getConfig: () => DashboardConfig | Promise<DashboardConfig>;
   getStorage: () => ServerStorage | Promise<ServerStorage>;
@@ -99,38 +85,13 @@ export interface InProcessTriggerSyncContext {
   loggerFactory?: ConnectorLoggerFactory;
 }
 
-/**
- * @deprecated Prefer `InProcessTriggerSyncContext` /
- * `DeferredTriggerSyncContext`. Retained as the union for callers that
- * need a single type covering both modes.
- */
 export type TriggerSyncContext = DeferredTriggerSyncContext;
 
 export type TriggerSyncMode = 'in-process' | 'deferred';
 
 export interface TriggerSyncOptions {
-  /**
-   * `'in-process'` (default): the trigger handler also runs the sync in
-   * the background by invoking `runSync(config, storage)`. Suitable for
-   * self-hosted, single-process deployments.
-   *
-   * `'deferred'`: the trigger handler only persists the `queued`
-   * transition and returns. The `running → succeeded/failed` transitions
-   * are the responsibility of an external runner (e.g. a queue consumer
-   * worker), which must drive the storage accordingly.
-   */
   mode?: TriggerSyncMode;
 }
-
-/**
- * Framework-agnostic request handlers for the rawdash wire contract.
- *
- * Each function takes an `EngineContext` (providing per-request access to
- * the config + storage) and returns the response body, or throws a
- * `RawdashError` on a client-visible failure. HTTP adapters
- * (`@rawdash/hono`, etc.) wrap these in their framework's request/response
- * cycle and translate `RawdashError` into a structured error response.
- */
 
 export function getHealth(): HealthResponse {
   return { status: 'ok' };

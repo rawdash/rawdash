@@ -49,7 +49,7 @@ export class EnvSecretsResolver implements SecretsResolver {
       return raw;
     }
     const first = raw.charCodeAt(0);
-    if (first !== 0x7b /* { */ && first !== 0x5b /* [ */) {
+    if (first !== 0x7b && first !== 0x5b) {
       return raw;
     }
     try {

@@ -2,10 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { LinearConnector, configFields } from './linear';
 
-// ---------------------------------------------------------------------------
-// configFields
-// ---------------------------------------------------------------------------
-
 describe('configFields', () => {
   it('parses a valid config with only apiKey', () => {
     const result = configFields.safeParse({
@@ -53,10 +49,6 @@ describe('configFields', () => {
     expect(result.success).toBe(false);
   });
 });
-
-// ---------------------------------------------------------------------------
-// Test scaffolding
-// ---------------------------------------------------------------------------
 
 function makeStorage() {
   return {
@@ -116,10 +108,6 @@ function operationName(query: string): string {
   const match = query.match(/query\s+(\w+)/);
   return match ? match[1]! : '';
 }
-
-// ---------------------------------------------------------------------------
-// LinearConnector — sync
-// ---------------------------------------------------------------------------
 
 describe('LinearConnector.sync', () => {
   afterEach(() => {

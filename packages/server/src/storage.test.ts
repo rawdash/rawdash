@@ -395,9 +395,7 @@ describe('InMemoryStorage — sync state', () => {
 
   it('markSyncRunning rejects non-queued states', async () => {
     const { storage } = makeStorage();
-    // idle → running is rejected
     expect(await storage.markSyncRunning()).toBe(false);
-    // succeeded → running is rejected
     await storage.markSyncQueued();
     await storage.markSyncRunning();
     await storage.markSyncSucceeded();

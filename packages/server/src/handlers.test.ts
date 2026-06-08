@@ -119,9 +119,6 @@ describe('triggerSync', () => {
     const { ctx, storage } = makeCtx();
     await triggerSync(ctx);
     const state = await storage.getSyncState();
-    // After triggerSync returns, the state is either still 'queued' (the
-    // background runSync hasn't started yet) or already 'running'. Both
-    // are valid; what matters is that we passed through 'queued'.
     expect(['queued', 'running', 'succeeded']).toContain(state.status);
     expect(
       state.queuedAt ?? state.startedAt ?? state.lastSyncAt,
@@ -176,8 +173,6 @@ describe('triggerSync', () => {
   describe('mode: "in-process" (default)', () => {
     it('throws if getConfig is missing (runtime defense for JS callers)', async () => {
       const storage = new InMemoryStorage();
-      // The overloads forbid this at compile time; cast to exercise the
-      // runtime guard that protects untyped JS consumers.
       const ctx = {
         getStorage: () => storage,
       } as unknown as InProcessTriggerSyncContext;

@@ -5,11 +5,6 @@ import { snapshotStorage } from './invariants';
 
 type ObservedShape = 'entity' | 'event' | 'metric';
 
-/**
- * Build a map of stored resource name → storage shape observed in a populated
- * `InMemoryStorage` after a connector sync. Entity `type`, event `name`, and
- * metric `name` are the resource keys widgets reference.
- */
 function observedShapes(
   storage: InMemoryStorage,
   connectorId: string,
@@ -33,21 +28,6 @@ function observedShapes(
   return observed;
 }
 
-/**
- * Compare a connector's `resources` definitions against what it actually wrote
- * to storage and return any violations. This is the per-resource shape
- * enforcement from RAW-356:
- *
- * - every entity/event/metric written must be declared in `resources` (no
- *   undeclared resources slipping into storage), and
- * - every declared resource that was observed must carry the shape it was
- *   actually written with (the declared `shape` discriminant can't drift).
- *
- * Resources declared `dynamic: true` have user-defined names, so any stored
- * resource matching that entry's shape is accepted by name. Edges and
- * distributions are relationship/histogram plumbing and are not required to
- * appear as declared resources here.
- */
 export function connectorResourceShapeViolations(
   resources: ResourceDefinitions,
   storage: InMemoryStorage,
@@ -88,10 +68,6 @@ export function connectorResourceShapeViolations(
   return violations;
 }
 
-/**
- * Throwing wrapper around {@link connectorResourceShapeViolations} for direct
- * use in a test assertion.
- */
 export function assertConnectorResourceShapes(
   resources: ResourceDefinitions,
   storage: InMemoryStorage,

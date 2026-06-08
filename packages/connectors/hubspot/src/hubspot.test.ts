@@ -2,10 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { HubSpotConnector, configFields } from './hubspot';
 
-// ---------------------------------------------------------------------------
-// configFields
-// ---------------------------------------------------------------------------
-
 describe('configFields', () => {
   it('parses a valid config with only accessToken', () => {
     const result = configFields.safeParse({
@@ -40,10 +36,6 @@ describe('configFields', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Fetch + storage mocks
-// ---------------------------------------------------------------------------
-
 interface MockCall {
   url: string;
   method: string;
@@ -61,8 +53,6 @@ function jsonResponse(body: unknown): Response {
   } as Response;
 }
 
-// Routes a request to a body based on URL + method. Returns endpoint-shaped
-// empty defaults for anything not explicitly overridden.
 function makeFetch(route: (url: string, method: string) => unknown) {
   return vi.fn().mockImplementation((url: string | URL, init?: RequestInit) => {
     const u = typeof url === 'string' ? url : url.toString();
@@ -80,7 +70,6 @@ function makeFetch(route: (url: string, method: string) => unknown) {
     if (u.includes('/email/public/v1/campaigns')) {
       return Promise.resolve(jsonResponse({ campaigns: [], hasMore: false }));
     }
-    // CRM list (deal history)
     return Promise.resolve(jsonResponse({ results: [] }));
   });
 }
@@ -127,10 +116,6 @@ function connector(resources?: string[]) {
     { accessToken: TOKEN },
   );
 }
-
-// ---------------------------------------------------------------------------
-// sync — phase orchestration
-// ---------------------------------------------------------------------------
 
 describe('HubSpotConnector.sync', () => {
   afterEach(() => {
@@ -183,7 +168,6 @@ describe('HubSpotConnector.sync', () => {
     expect(clearedEvents).toContain('hubspot_deal_stage_change');
     expect(clearedMetrics).toContain('hubspot_email_stats');
 
-    // Entity types must NOT be cleared in incremental mode.
     const entityClears = storage.entities.mock.calls.filter(
       (c) => Array.isArray(c[0]) && (c[0] as unknown[]).length === 0,
     );
