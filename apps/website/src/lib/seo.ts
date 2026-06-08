@@ -37,6 +37,41 @@ export function breadcrumbJsonLd(
   };
 }
 
+export function softwareApplicationJsonLd(
+  description: string,
+): Record<string, unknown> {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
+    name: 'Rawdash',
+    applicationCategory: 'DeveloperApplication',
+    operatingSystem: 'Any',
+    description,
+    url: ORG.url,
+    license: 'https://www.apache.org/licenses/LICENSE-2.0',
+    offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+    author: ORG,
+    publisher: ORG,
+  };
+}
+
+interface FaqItem {
+  question: string;
+  answer: string;
+}
+
+export function faqPageJsonLd(items: FaqItem[]): Record<string, unknown> {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: items.map((item) => ({
+      '@type': 'Question',
+      name: item.question,
+      acceptedAnswer: { '@type': 'Answer', text: item.answer },
+    })),
+  };
+}
+
 export function entryJsonLd(
   entry: ContentEntry,
   url: string,

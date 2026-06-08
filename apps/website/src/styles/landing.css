@@ -400,6 +400,47 @@ nav {
   color: #fda4af;
 }
 
+.faq-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 760px;
+}
+
+.faq-item {
+  background: var(--bg-card);
+  border: 1px solid var(--bg-card-border);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem;
+}
+
+.faq-item summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 1.05rem;
+  list-style: none;
+}
+
+.faq-item summary::-webkit-details-marker {
+  display: none;
+}
+
+.faq-item summary::after {
+  content: '+';
+  float: right;
+  color: var(--accent-light);
+  font-weight: 700;
+}
+
+.faq-item[open] summary::after {
+  content: '−';
+}
+
+.faq-item p {
+  margin-top: 0.85rem;
+  color: var(--text-muted);
+}
+
 .cta-banner {
   max-width: 1100px;
   margin: 0 auto 5rem;
