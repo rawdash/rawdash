@@ -1,10 +1,67 @@
 ---
 import { connectors, connectorPlaceholders } from '../generated/connectors';
+import Analytics from '../components/Analytics.astro';
+import {
+  faqPageJsonLd,
+  serializeJsonLd,
+  softwareApplicationJsonLd,
+} from '../lib/seo';
 import '../styles/landing.css';
 
 const PLANNED_PREVIEW_COUNT = 12;
 const plannedPreview = connectorPlaceholders.slice(0, PLANNED_PREVIEW_COUNT);
 const plannedRemaining = connectorPlaceholders.length - plannedPreview.length;
+
+const PRODUCT_DESCRIPTION =
+  'Open-source headless dashboard backend. Pre-built connectors, background ' +
+  'sync, and a clean API your frontend can consume.';
+
+const faqs = [
+  {
+    question: 'What is Rawdash?',
+    answer:
+      'Rawdash is an open-source headless dashboard backend. It syncs data ' +
+      'from your SaaS tools on a schedule, caches it locally, and exposes it ' +
+      'through a typed query API — so you can build dashboards without writing ' +
+      'glue code.',
+  },
+  {
+    question: 'Is Rawdash free and open source?',
+    answer:
+      'Yes. Rawdash is licensed under Apache 2.0 and free to self-host. ' +
+      'Rawdash Cloud is an optional managed offering for teams that want ' +
+      'hosting, automatic syncs, and a hosted dashboard UI without running ' +
+      'infrastructure.',
+  },
+  {
+    question: 'How is Rawdash different from a BI tool like Metabase or Looker?',
+    answer:
+      'Rawdash is headless: it has no opinion about your UI. Instead of ' +
+      'shipping charts, it gives you a framework-agnostic API that any ' +
+      'frontend — Next.js, Remix, or a plain HTTP client — can consume. You ' +
+      'bring your own UI and run it anywhere.',
+  },
+  {
+    question: 'Do I have to host Rawdash myself?',
+    answer:
+      'No. You can self-host the open-source packages anywhere that runs ' +
+      'Node.js, or use Rawdash Cloud for managed hosting with no infra to ' +
+      'maintain.',
+  },
+  {
+    question: 'Which data sources does Rawdash support?',
+    answer:
+      'Rawdash ships with pre-built connectors such as GitHub, with more ' +
+      'added regularly. Each connector defines its own data shape, sync ' +
+      'schedule, and retention policy, and you can author your own using the ' +
+      'connector guide.',
+  },
+];
+
+const jsonLd = [
+  softwareApplicationJsonLd(PRODUCT_DESCRIPTION),
+  faqPageJsonLd(faqs),
+];
 ---
 
 <!doctype html>
@@ -14,10 +71,13 @@ const plannedRemaining = connectorPlaceholders.length - plannedPreview.length;
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>Rawdash — Headless dashboard backend for any team</title>
-    <meta
-      name="description"
-      content="Open-source headless dashboard backend. Pre-built connectors, background sync, and a clean API your frontend can consume."
-    />
+    <meta name="description" content={PRODUCT_DESCRIPTION} />
+    {
+      jsonLd.map((block) => (
+        <script type="application/ld+json" set:html={serializeJsonLd(block)} />
+      ))
+    }
+    <Analytics />
   </head>
   <body>
     <!-- Nav -->
@@ -223,6 +283,22 @@ const plannedRemaining = connectorPlaceholders.length - plannedPreview.length;
           Read the connector author guide →
         </a>
       </p>
+    </section>
+
+    <!-- FAQ -->
+    <section class="section" style="padding-top: 0;">
+      <p class="section-label">FAQ</p>
+      <h2 class="section-title">Questions, answered</h2>
+      <div class="faq-list">
+        {
+          faqs.map((faq) => (
+            <details class="faq-item">
+              <summary>{faq.question}</summary>
+              <p>{faq.answer}</p>
+            </details>
+          ))
+        }
+      </div>
     </section>
 
     <!-- CTA Banner -->

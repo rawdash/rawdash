@@ -2,6 +2,23 @@ import sitemap from '@astrojs/sitemap';
 import starlight from '@astrojs/starlight';
 import { defineConfig } from 'astro/config';
 
+const ga4Id = process.env.PUBLIC_GA4_ID?.trim();
+const ga4Head = ga4Id
+  ? [
+      {
+        tag: 'script',
+        attrs: {
+          async: true,
+          src: `https://www.googletagmanager.com/gtag/js?id=${ga4Id}`,
+        },
+      },
+      {
+        tag: 'script',
+        content: `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${ga4Id}');`,
+      },
+    ]
+  : [];
+
 export default defineConfig({
   site: 'https://rawdash.dev',
   integrations: [
@@ -9,6 +26,7 @@ export default defineConfig({
     starlight({
       title: 'Rawdash',
       description: 'Headless dashboard backend for any team.',
+      head: ga4Head,
       logo: {
         light: './src/assets/logo.svg',
         dark: './src/assets/logo-dark.svg',
