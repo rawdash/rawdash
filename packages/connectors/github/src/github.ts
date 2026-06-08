@@ -640,11 +640,33 @@ export class GitHubConnector extends BaseConnector<
     if (allowedPath === null) {
       return null;
     }
-    return sanitizeAllowedUrl({
+    const canonical = sanitizeAllowedUrl({
       url: pageUrl,
       host: 'api.github.com',
       pathname: allowedPath,
     });
+    if (canonical !== null || pageUrl === null) {
+      return canonical;
+    }
+    try {
+      const u = new URL(pageUrl);
+      const resourceSuffix = allowedPath.replace(/^\/repos\/[^/]+\/[^/]+/, '');
+      const escapedSuffix = resourceSuffix.replace(
+        /[.*+?^${}()|[\]\\]/g,
+        '\\$&',
+      );
+      const numericPath = new RegExp(`^/repositories/\\d+${escapedSuffix}$`);
+      if (
+        u.protocol === 'https:' &&
+        u.host === 'api.github.com' &&
+        numericPath.test(u.pathname)
+      ) {
+        return u.toString();
+      }
+    } catch {
+      return null;
+    }
+    return null;
   }
 
   private isResourceAllowed(options: SyncOptions, resource: string): boolean {
