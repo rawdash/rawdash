@@ -9,6 +9,8 @@
       "@rawdash/hono",
       "@rawdash/sdk-nextjs",
       "@rawdash/connector-aws-cloudwatch",
+      "@rawdash/connector-azure-cost",
+      "@rawdash/connector-azure-monitor",
       "@rawdash/connector-datadog",
       "@rawdash/connector-github",
       "@rawdash/connector-gitlab",
