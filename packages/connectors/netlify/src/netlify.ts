@@ -11,6 +11,7 @@ import {
   type ConnectorContext,
   type ConnectorDoc,
   type CredentialsSchema,
+  type Event,
   type FetchPageResult,
   type JSONValue,
   type StorageHandle,
@@ -581,6 +582,7 @@ export class NetlifyConnector extends BaseConnector<
       return;
     }
     const batches = items as SiteDeploysBatch[];
+    const eventsById = new Map<string, Event>();
     for (const batch of batches) {
       for (const d of batch.items) {
         const createdMs = parseEpoch(d.created_at, 'iso');
@@ -629,7 +631,7 @@ export class NetlifyConnector extends BaseConnector<
           });
         }
         if (writeEvents) {
-          await storage.event({
+          eventsById.set(`${batch.siteId}:${d.id}`, {
             name: 'netlify_deploy_event',
             start_ts: createdMs,
             end_ts: publishedMs,
@@ -637,6 +639,9 @@ export class NetlifyConnector extends BaseConnector<
           });
         }
       }
+    }
+    for (const event of eventsById.values()) {
+      await storage.event(event);
     }
   }
 
