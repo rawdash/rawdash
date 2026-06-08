@@ -278,7 +278,7 @@ const releaseResponseSchema = z.array(
 );
 
 const errorStatsResponseSchema = z.object({
-  intervals: z.array(z.iso.datetime()),
+  intervals: z.array(z.iso.datetime()).optional(),
   groups: z.array(
     z.object({
       by: z.record(z.string(), z.union([z.string(), z.number()])),
