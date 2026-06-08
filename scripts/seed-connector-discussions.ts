@@ -150,14 +150,20 @@ async function main(): Promise<void> {
         body: discussionBody(p),
       },
     );
-    await gql(
-      `mutation ($subjectId: ID!) {
-        removeUpvote(input: { subjectId: $subjectId }) {
-          subject { ... on Discussion { upvoteCount } }
-        }
-      }`,
-      { subjectId: data.createDiscussion.discussion.id },
-    );
+    try {
+      await gql(
+        `mutation ($subjectId: ID!) {
+          removeUpvote(input: { subjectId: $subjectId }) {
+            subject { ... on Discussion { upvoteCount } }
+          }
+        }`,
+        { subjectId: data.createDiscussion.discussion.id },
+      );
+    } catch (err) {
+      console.warn(
+        `Warning: failed to removeUpvote on newly-created "${p.id}" (${p.name}); discussion will start at 1 instead of 0. Run a manual sweep to fix. Error: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
     created += 1;
     console.log(
       `Created discussion "${p.id}" (${p.name}): ${data.createDiscussion.discussion.url}`,
