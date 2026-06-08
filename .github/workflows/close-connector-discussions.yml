@@ -1,0 +1,65 @@
+name: Close graduated connector discussions
+
+# When a connector graduates from placeholder to shipped, it is removed from
+# scripts/connector-placeholders.ts. This workflow detects those removals on
+# merge to main and closes the matching "Connector Requests" GitHub Discussion
+# as resolved (see scripts/close-connector-discussions.ts and RAW-361).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - scripts/connector-placeholders.ts
+
+permissions:
+  contents: read
+  discussions: write
+
+jobs:
+  close-discussions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Determine removed placeholder ids
+        id: removed
+        run: |
+          before="${{ github.event.before }}"
+          after="${{ github.sha }}"
+          # First push to a fresh branch has an all-zero "before"; nothing to diff.
+          if [ -z "$before" ] || [ "$before" = "0000000000000000000000000000000000000000" ]; then
+            echo "ids=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Removed `id: '<value>'` lines in the placeholder list = graduated connectors.
+          ids=$(git diff "$before" "$after" -- scripts/connector-placeholders.ts \
+            | grep -E '^-\s*id:' \
+            | sed -E "s/.*id:\s*'([^']+)'.*/\1/" \
+            | tr '\n' ' ' \
+            | sed -E 's/ +$//')
+          echo "ids=$ids" >> "$GITHUB_OUTPUT"
+          echo "Removed placeholder ids: $ids"
+
+      - uses: pnpm/action-setup@v4
+        if: steps.removed.outputs.ids != ''
+
+      - uses: actions/setup-node@v4
+        if: steps.removed.outputs.ids != ''
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install tsx
+        if: steps.removed.outputs.ids != ''
+        run: pnpm install --frozen-lockfile
+
+      - name: Close discussions for graduated connectors
+        if: steps.removed.outputs.ids != ''
+        env:
+          GRADUATED_IDS: ${{ steps.removed.outputs.ids }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: pnpm exec tsx scripts/close-connector-discussions.ts "$GRADUATED_IDS"

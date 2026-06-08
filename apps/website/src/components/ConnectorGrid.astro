@@ -1,5 +1,5 @@
 ---
-import { connectors } from '../generated/connectors';
+import { connectors, connectorPlaceholders } from '../generated/connectors';
 
 interface Props {
   category: string;
@@ -10,7 +10,13 @@ const { category } = Astro.props;
 const haystack = (c: (typeof connectors)[number]) =>
   [c.name, c.tagline, c.categoryLabel, ...c.keywords].join(' ').toLowerCase();
 
+const plannedHaystack = (c: (typeof connectorPlaceholders)[number]) =>
+  [c.name, c.tagline, c.categoryLabel, 'planned', 'requested']
+    .join(' ')
+    .toLowerCase();
+
 const list = connectors.filter((c) => c.category === category);
+const planned = connectorPlaceholders.filter((c) => c.category === category);
 ---
 
 <div class="connector-catalog" data-connector-grid>
@@ -49,6 +55,7 @@ const list = connectors.filter((c) => c.category === category);
           class="catalog-card"
           href={c.href}
           data-connector-card
+          data-status="available"
           data-search={haystack(c)}
         >
           <span class="catalog-card-icon">
@@ -65,6 +72,39 @@ const list = connectors.filter((c) => c.category === category);
       ))
     }
   </div>
+
+  {
+    planned.length > 0 && (
+      <div class="catalog-planned" data-planned-section>
+        <h2 class="catalog-planned-title">Planned / requested</h2>
+        <p class="catalog-planned-sub">
+          Not built yet. Open one and give it a 👍 to help us prioritize.
+        </p>
+        <div class="catalog-grid">
+          {planned.map((c) => (
+            <a
+              class="catalog-card catalog-card--planned"
+              href={c.href}
+              data-connector-card
+              data-status="planned"
+              data-search={plannedHaystack(c)}
+            >
+              <span class="catalog-card-icon">
+                <img src={c.iconPath} alt={`${c.name} logo`} width="28" height="28" loading="lazy" />
+              </span>
+              <span class="catalog-card-body">
+                <span class="catalog-card-head">
+                  <span class="catalog-card-name">{c.name}</span>
+                  <span class="catalog-card-badge">Planned</span>
+                </span>
+                <span class="catalog-card-tagline">{c.tagline}</span>
+              </span>
+            </a>
+          ))}
+        </div>
+      </div>
+    )
+  }
 
   <p class="catalog-empty" data-catalog-empty hidden>
     No connectors match your search.
@@ -85,25 +125,43 @@ const list = connectors.filter((c) => c.category === category);
     ];
     const count = root.querySelector<HTMLElement>('[data-catalog-count]');
     const empty = root.querySelector<HTMLElement>('[data-catalog-empty]');
+    const plannedSection = root.querySelector<HTMLElement>(
+      '[data-planned-section]',
+    );
+    const totalAvailable = cards.filter(
+      (c) => c.dataset.status !== 'planned',
+    ).length;
 
     const apply = () => {
       const query = normalize(input?.value ?? '');
-      let visible = 0;
+      let visibleAvailable = 0;
+      let visiblePlanned = 0;
       for (const card of cards) {
         const show = !query || (card.dataset.search ?? '').includes(query);
         card.hidden = !show;
         if (show) {
-          visible += 1;
+          if (card.dataset.status === 'planned') {
+            visiblePlanned += 1;
+          } else {
+            visibleAvailable += 1;
+          }
         }
       }
+      if (plannedSection) {
+        plannedSection.hidden = visiblePlanned === 0;
+      }
       if (empty) {
-        empty.hidden = visible > 0;
+        empty.hidden = visibleAvailable + visiblePlanned > 0;
       }
       if (count) {
+        const available =
+          visibleAvailable === totalAvailable
+            ? `${totalAvailable} ${totalAvailable === 1 ? 'connector' : 'connectors'}`
+            : `${visibleAvailable} of ${totalAvailable} connectors`;
         count.textContent =
-          visible === cards.length
-            ? `${cards.length} ${cards.length === 1 ? 'connector' : 'connectors'}`
-            : `${visible} of ${cards.length} connectors`;
+          visiblePlanned > 0
+            ? `${available} · ${visiblePlanned} planned`
+            : available;
       }
     };
 

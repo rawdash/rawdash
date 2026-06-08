@@ -131,6 +131,12 @@ import {
   resources as linearResources,
 } from '@rawdash/connector-linear';
 import {
+  configFields as mailchimpConfigFields,
+  doc as mailchimpDoc,
+  id as mailchimpId,
+  resources as mailchimpResources,
+} from '@rawdash/connector-mailchimp';
+import {
   configFields as metaAdsConfigFields,
   doc as metaAdsDoc,
   id as metaAdsId,
@@ -143,6 +149,12 @@ import {
   id as mixpanelId,
   resources as mixpanelResources,
 } from '@rawdash/connector-mixpanel';
+import {
+  configFields as netlifyConfigFields,
+  doc as netlifyDoc,
+  id as netlifyId,
+  resources as netlifyResources,
+} from '@rawdash/connector-netlify';
 import {
   configFields as newRelicConfigFields,
   doc as newRelicDoc,
@@ -167,6 +179,12 @@ import {
   id as sentryId,
   resources as sentryResources,
 } from '@rawdash/connector-sentry';
+import {
+  configFields as statuspageConfigFields,
+  doc as statuspageDoc,
+  id as statuspageId,
+  resources as statuspageResources,
+} from '@rawdash/connector-statuspage';
 import {
   configFields as stripeConfigFields,
   doc as stripeDoc,
@@ -342,6 +360,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     resources: linearResources,
   },
   {
+    id: mailchimpId,
+    packageName: '@rawdash/connector-mailchimp',
+    doc: mailchimpDoc,
+    configFields: mailchimpConfigFields,
+    resources: mailchimpResources,
+  },
+  {
     id: metaAdsId,
     packageName: '@rawdash/connector-meta-ads',
     doc: metaAdsDoc,
@@ -355,6 +380,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     configFields: mixpanelConfigFields,
     resources: mixpanelResources,
     cost: mixpanelCost,
+  },
+  {
+    id: netlifyId,
+    packageName: '@rawdash/connector-netlify',
+    doc: netlifyDoc,
+    configFields: netlifyConfigFields,
+    resources: netlifyResources,
   },
   {
     id: newRelicId,
@@ -383,6 +415,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: sentryDoc,
     configFields: sentryConfigFields,
     resources: sentryResources,
+  },
+  {
+    id: statuspageId,
+    packageName: '@rawdash/connector-statuspage',
+    doc: statuspageDoc,
+    configFields: statuspageConfigFields,
+    resources: statuspageResources,
   },
   {
     id: stripeId,

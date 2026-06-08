@@ -1,6 +1,10 @@
 ---
-import { connectors } from '../generated/connectors';
+import { connectors, connectorPlaceholders } from '../generated/connectors';
 import '../styles/landing.css';
+
+const PLANNED_PREVIEW_COUNT = 12;
+const plannedPreview = connectorPlaceholders.slice(0, PLANNED_PREVIEW_COUNT);
+const plannedRemaining = connectorPlaceholders.length - plannedPreview.length;
 ---
 
 <!doctype html>
@@ -169,6 +173,39 @@ import '../styles/landing.css';
               <span class="connector-badge badge-available">Available</span>
             </a>
           ))
+        }
+        {
+          plannedPreview.map((c) => (
+            <a class="connector-card planned" href={c.href}>
+              <div class="connector-icon" style="background:#ffffff;">
+                <img
+                  src={c.iconPath}
+                  alt={`${c.name} logo`}
+                  width="26"
+                  height="26"
+                  loading="lazy"
+                />
+              </div>
+              <span class="connector-name">{c.name}</span>
+              <span class="connector-badge badge-soon">Planned</span>
+            </a>
+          ))
+        }
+        {
+          plannedRemaining > 0 && (
+            <a class="connector-card" href="/docs/connectors/">
+              <div
+                class="connector-icon"
+                style="background:#1e1e2e; color: var(--text-dim);"
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" opacity="0.4" aria-hidden="true" focusable="false">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+                </svg>
+              </div>
+              <span class="connector-name">+{plannedRemaining} more planned</span>
+              <span class="connector-badge badge-soon">Upvote</span>
+            </a>
+          )
         }
         <a class="connector-card" href="/docs/connector-guide/">
           <div class="connector-icon" style="background:#1e1e2e; color: var(--text-dim);">
