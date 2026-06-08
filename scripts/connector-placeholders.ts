@@ -2200,4 +2200,1792 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     icon: 'googlecloud',
     requestIssue: 'RAW-413',
   },
+
+  {
+    id: 'sonarqube',
+    name: 'SonarQube',
+    category: 'engineering',
+    tagline:
+      'Sync code quality issues, coverage, and per-project quality gates from a SonarQube server.',
+    brandColor: '#4E9BCD',
+  },
+  {
+    id: 'qodana',
+    name: 'Qodana',
+    category: 'engineering',
+    tagline:
+      'Sync code inspection results, coverage, and quality gates from JetBrains Qodana.',
+    brandColor: '#FA1F8E',
+  },
+  {
+    id: 'zephyr-scale',
+    name: 'Zephyr Scale',
+    category: 'engineering',
+    tagline:
+      'Sync test cases, executions, and pass/fail breakdowns from Zephyr Scale.',
+    brandColor: '#00A4E4',
+  },
+  {
+    id: 'qtest',
+    name: 'qTest',
+    category: 'engineering',
+    tagline:
+      'Sync test runs, defects, and execution coverage from Tricentis qTest.',
+    brandColor: '#00B4A0',
+  },
+  {
+    id: 'xray',
+    name: 'Xray Test Management',
+    category: 'engineering',
+    tagline: 'Sync test runs, coverage, and defect linkage from Xray for Jira.',
+    brandColor: '#5E0EBB',
+  },
+  {
+    id: 'semaphoreci',
+    name: 'Semaphore CI',
+    category: 'engineering',
+    tagline: 'Sync pipelines, builds, and per-job duration from Semaphore CI.',
+    icon: 'semaphoreci',
+  },
+  {
+    id: 'drone-ci',
+    name: 'Drone CI',
+    category: 'engineering',
+    tagline: 'Sync pipelines, builds, and per-stage durations from Drone CI.',
+    icon: 'drone',
+  },
+  {
+    id: 'woodpecker-ci',
+    name: 'Woodpecker CI',
+    category: 'engineering',
+    tagline: 'Sync pipelines, builds, and per-step results from Woodpecker CI.',
+    brandColor: '#4CAF50',
+  },
+  {
+    id: 'travis-ci',
+    name: 'Travis CI',
+    category: 'engineering',
+    tagline: 'Sync builds, jobs, and pass/fail rates from Travis CI.',
+    icon: 'travisci',
+  },
+  {
+    id: 'teamcity',
+    name: 'TeamCity',
+    category: 'engineering',
+    tagline:
+      'Sync builds, agents, and per-configuration health from JetBrains TeamCity.',
+    icon: 'teamcity',
+  },
+  {
+    id: 'azure-pipelines',
+    name: 'Azure Pipelines',
+    category: 'engineering',
+    tagline:
+      'Sync pipelines, runs, and per-stage durations from Azure DevOps Pipelines.',
+    brandColor: '#2560E0',
+  },
+  {
+    id: 'browserstack',
+    name: 'BrowserStack',
+    category: 'engineering',
+    tagline:
+      'Sync automated test sessions, pass/fail rates, and parallel usage from BrowserStack.',
+    brandColor: '#FF6C37',
+  },
+  {
+    id: 'saucelabs',
+    name: 'Sauce Labs',
+    category: 'engineering',
+    tagline:
+      'Sync automated test sessions, pass/fail rates, and minute usage from Sauce Labs.',
+    brandColor: '#E2231A',
+  },
+  {
+    id: 'lambdatest',
+    name: 'LambdaTest',
+    category: 'engineering',
+    tagline:
+      'Sync automated and manual test sessions, pass/fail rates, and concurrency from LambdaTest.',
+    brandColor: '#0EBAC5',
+  },
+  {
+    id: 'percy',
+    name: 'Percy',
+    category: 'engineering',
+    tagline:
+      'Sync visual snapshots, review status, and diff counts from Percy.',
+    brandColor: '#9E1D8E',
+  },
+  {
+    id: 'applitools',
+    name: 'Applitools',
+    category: 'engineering',
+    tagline:
+      'Sync visual AI checkpoints, diffs, and test runs from Applitools.',
+    brandColor: '#00A39B',
+  },
+  {
+    id: 'chromatic',
+    name: 'Chromatic',
+    category: 'engineering',
+    tagline:
+      'Sync component snapshots, review status, and visual regressions from Chromatic.',
+    brandColor: '#FC521F',
+  },
+  {
+    id: 'checkmarx',
+    name: 'Checkmarx',
+    category: 'engineering',
+    tagline:
+      'Sync SAST findings, severity counts, and scan coverage from Checkmarx.',
+    icon: 'checkmarx',
+  },
+  {
+    id: 'veracode',
+    name: 'Veracode',
+    category: 'engineering',
+    tagline:
+      'Sync application scans, flaw distribution, and policy compliance from Veracode.',
+    brandColor: '#003C5B',
+  },
+  {
+    id: 'appdynamics',
+    name: 'AppDynamics',
+    category: 'engineering',
+    tagline:
+      'Sync application performance, business transactions, and error counts from AppDynamics.',
+    brandColor: '#0070D2',
+  },
+  {
+    id: 'raygun',
+    name: 'Raygun',
+    category: 'engineering',
+    tagline:
+      'Sync errors, occurrence counts, and real-user monitoring data from Raygun.',
+    brandColor: '#E03426',
+  },
+  {
+    id: 'instabug',
+    name: 'Instabug',
+    category: 'engineering',
+    tagline:
+      'Sync mobile crashes, bug reports, and session counts from Instabug.',
+    brandColor: '#F4385E',
+  },
+  {
+    id: 'logz-io',
+    name: 'Logz.io',
+    category: 'engineering',
+    tagline: 'Sync log volumes, alerts, and per-source rates from Logz.io.',
+    brandColor: '#0AB7E6',
+  },
+  {
+    id: 'coralogix',
+    name: 'Coralogix',
+    category: 'engineering',
+    tagline:
+      'Sync log volumes, alerts, and per-application rates from Coralogix.',
+    brandColor: '#7A37C8',
+  },
+  {
+    id: 'loggly',
+    name: 'Loggly',
+    category: 'engineering',
+    tagline:
+      'Sync log volumes, error counts, and per-source rates from SolarWinds Loggly.',
+    brandColor: '#F99D1C',
+  },
+  {
+    id: 'papertrail',
+    name: 'Papertrail',
+    category: 'engineering',
+    tagline:
+      'Sync log volumes, alert counts, and per-system rates from Papertrail.',
+    brandColor: '#5B5B5B',
+  },
+  {
+    id: 'better-stack-logs',
+    name: 'Better Stack Logs',
+    category: 'engineering',
+    tagline: 'Sync log volumes, queries, and alerts from Better Stack Logs.',
+    icon: 'betterstack',
+  },
+  {
+    id: 'lightstep',
+    name: 'Lightstep',
+    category: 'engineering',
+    tagline:
+      'Sync trace volume, service latency, and error rate from Lightstep.',
+    brandColor: '#00B5AD',
+  },
+  {
+    id: 'aspecto',
+    name: 'Aspecto',
+    category: 'engineering',
+    tagline: 'Sync OpenTelemetry traces, latency, and error rate from Aspecto.',
+    brandColor: '#1A1A2E',
+  },
+  {
+    id: 'helios',
+    name: 'Helios',
+    category: 'engineering',
+    tagline:
+      'Sync distributed traces, errors, and request latency from Helios.',
+    brandColor: '#FF6B35',
+  },
+  {
+    id: 'pingdom',
+    name: 'Pingdom',
+    category: 'engineering',
+    tagline:
+      'Sync uptime, response time, and page-load performance from Pingdom.',
+    icon: 'pingdom',
+  },
+  {
+    id: 'uptimerobot',
+    name: 'UptimeRobot',
+    category: 'engineering',
+    tagline:
+      'Sync monitor uptime, response time, and incident counts from UptimeRobot.',
+    brandColor: '#52B956',
+  },
+  {
+    id: 'statuscake',
+    name: 'StatusCake',
+    category: 'engineering',
+    tagline:
+      'Sync monitor uptime, response time, and downtime events from StatusCake.',
+    brandColor: '#FFCC00',
+  },
+  {
+    id: 'checkly',
+    name: 'Checkly',
+    category: 'engineering',
+    tagline:
+      'Sync synthetic check results, uptime, and API performance from Checkly.',
+    brandColor: '#0075FF',
+  },
+  {
+    id: 'site24x7',
+    name: 'Site24x7',
+    category: 'engineering',
+    tagline:
+      'Sync monitor uptime, response time, and infrastructure health from Site24x7.',
+    brandColor: '#F89D2E',
+  },
+  {
+    id: 'sematext',
+    name: 'Sematext',
+    category: 'engineering',
+    tagline: 'Sync logs, metrics, and synthetic monitor results from Sematext.',
+    brandColor: '#FF6E42',
+  },
+  {
+    id: 'freshping',
+    name: 'Freshping',
+    category: 'engineering',
+    tagline:
+      'Sync monitor uptime, response time, and incidents from Freshping.',
+    brandColor: '#26A69A',
+  },
+  {
+    id: 'better-stack-uptime',
+    name: 'Better Stack Uptime',
+    category: 'engineering',
+    tagline:
+      'Sync monitor uptime, incidents, and on-call activity from Better Stack Uptime.',
+    icon: 'betterstack',
+  },
+  {
+    id: 'status-io',
+    name: 'Status.io',
+    category: 'engineering',
+    tagline:
+      'Sync incidents, component status, and uptime from a Status.io page.',
+    brandColor: '#4A90E2',
+  },
+  {
+    id: 'hund',
+    name: 'Hund',
+    category: 'engineering',
+    tagline:
+      'Sync incidents, component status, and uptime from a Hund status page.',
+    brandColor: '#1E3A5F',
+  },
+  {
+    id: 'healthchecks-io',
+    name: 'Healthchecks.io',
+    category: 'engineering',
+    tagline:
+      'Sync cron-job health, missed pings, and per-check status from Healthchecks.io.',
+    brandColor: '#5BAF6E',
+  },
+  {
+    id: 'cronitor',
+    name: 'Cronitor',
+    category: 'engineering',
+    tagline:
+      'Sync cron-job health, missed runs, and incident counts from Cronitor.',
+    brandColor: '#FFB81C',
+  },
+  {
+    id: 'npm-trends',
+    name: 'npm trends',
+    category: 'engineering',
+    tagline:
+      'Sync comparative weekly download trends across npm packages from npm trends.',
+    brandColor: '#CB3837',
+  },
+
+  {
+    id: 'linode',
+    name: 'Linode',
+    category: 'infrastructure',
+    tagline:
+      'Sync instances, volumes, and monthly spend from a Linode (Akamai) account.',
+    brandColor: '#00A95C',
+  },
+  {
+    id: 'hetzner',
+    name: 'Hetzner Cloud',
+    category: 'infrastructure',
+    tagline:
+      'Sync servers, volumes, and monthly spend from a Hetzner Cloud account.',
+    icon: 'hetzner',
+  },
+  {
+    id: 'vultr',
+    name: 'Vultr',
+    category: 'infrastructure',
+    tagline:
+      'Sync instances, block storage, and monthly spend from a Vultr account.',
+    icon: 'vultr',
+  },
+  {
+    id: 'scaleway',
+    name: 'Scaleway',
+    category: 'infrastructure',
+    tagline:
+      'Sync instances, object storage, and monthly spend from a Scaleway account.',
+    icon: 'scaleway',
+  },
+  {
+    id: 'ovhcloud',
+    name: 'OVHcloud',
+    category: 'infrastructure',
+    tagline:
+      'Sync instances, storage, and monthly spend from an OVHcloud account.',
+    icon: 'ovh',
+  },
+  {
+    id: 'aiven',
+    name: 'Aiven',
+    category: 'infrastructure',
+    tagline:
+      'Sync managed-database services, plans, and monthly spend from Aiven.',
+    brandColor: '#FF6900',
+  },
+  {
+    id: 'elastic-cloud',
+    name: 'Elastic Cloud',
+    category: 'infrastructure',
+    tagline:
+      'Sync deployments, indices, and ingest rates from an Elastic Cloud account.',
+    icon: 'elasticcloud',
+  },
+  {
+    id: 'aws-dynamodb',
+    name: 'Amazon DynamoDB',
+    category: 'infrastructure',
+    tagline:
+      'Sync table read/write capacity, throttles, and storage from Amazon DynamoDB.',
+    brandColor: '#4053D6',
+  },
+  {
+    id: 'cassandra',
+    name: 'Apache Cassandra',
+    category: 'infrastructure',
+    tagline:
+      'Sync cluster nodes, read/write throughput, and latency from an Apache Cassandra cluster.',
+    icon: 'apachecassandra',
+  },
+  {
+    id: 'couchbase',
+    name: 'Couchbase',
+    category: 'infrastructure',
+    tagline:
+      'Sync buckets, document counts, and operations-per-second from Couchbase.',
+    icon: 'couchbase',
+  },
+  {
+    id: 'fauna',
+    name: 'Fauna',
+    category: 'infrastructure',
+    tagline:
+      'Sync database read/write ops, storage, and per-collection counts from Fauna.',
+    icon: 'fauna',
+  },
+  {
+    id: 'xata',
+    name: 'Xata',
+    category: 'infrastructure',
+    tagline: 'Sync databases, branches, and per-table row counts from Xata.',
+    brandColor: '#9F87FF',
+  },
+  {
+    id: 'motherduck',
+    name: 'MotherDuck',
+    category: 'infrastructure',
+    tagline:
+      'Sync databases, query usage, and storage from a MotherDuck workspace.',
+    brandColor: '#FFD23F',
+  },
+  {
+    id: 'firebolt',
+    name: 'Firebolt',
+    category: 'analytics',
+    tagline:
+      'Run scheduled SQL against Firebolt and sync the result rows as a metric or entity series.',
+    brandColor: '#FE3464',
+  },
+  {
+    id: 'typesense',
+    name: 'Typesense',
+    category: 'infrastructure',
+    tagline:
+      'Sync collection sizes, query counts, and latency from a Typesense cluster.',
+    brandColor: '#DA4167',
+  },
+  {
+    id: 'meilisearch',
+    name: 'Meilisearch',
+    category: 'infrastructure',
+    tagline:
+      'Sync index sizes, search query counts, and latency from Meilisearch.',
+    icon: 'meilisearch',
+  },
+  {
+    id: 'redpanda',
+    name: 'Redpanda',
+    category: 'infrastructure',
+    tagline:
+      'Sync topic message rates, consumer lag, and cluster throughput from Redpanda.',
+    brandColor: '#E8485B',
+  },
+  {
+    id: 'aws-msk',
+    name: 'Amazon MSK',
+    category: 'infrastructure',
+    tagline:
+      'Sync Kafka topic throughput, consumer lag, and broker health from Amazon MSK.',
+    brandColor: '#FF9900',
+  },
+  {
+    id: 'materialize',
+    name: 'Materialize',
+    category: 'infrastructure',
+    tagline:
+      'Sync materialized view freshness, source lag, and per-cluster throughput from Materialize.',
+    brandColor: '#7F4EFF',
+  },
+  {
+    id: 'risingwave',
+    name: 'RisingWave',
+    category: 'infrastructure',
+    tagline: 'Sync streaming jobs, source lag, and throughput from RisingWave.',
+    brandColor: '#005EFF',
+  },
+  {
+    id: 'decodable',
+    name: 'Decodable',
+    category: 'infrastructure',
+    tagline:
+      'Sync stream pipelines, throughput, and connector status from Decodable.',
+    brandColor: '#FF5C39',
+  },
+  {
+    id: 'akamai',
+    name: 'Akamai',
+    category: 'infrastructure',
+    tagline:
+      'Sync requests, cache-hit ratio, and origin performance from Akamai.',
+    icon: 'akamai',
+  },
+  {
+    id: 'bunnycdn',
+    name: 'BunnyCDN',
+    category: 'infrastructure',
+    tagline:
+      'Sync requests, bandwidth, and cache-hit ratio across zones from BunnyCDN.',
+    brandColor: '#FF8D00',
+  },
+  {
+    id: 'keycdn',
+    name: 'KeyCDN',
+    category: 'infrastructure',
+    tagline:
+      'Sync requests, bandwidth, and cache-hit ratio across zones from KeyCDN.',
+    icon: 'keycdn',
+  },
+  {
+    id: 'aws-route53',
+    name: 'Amazon Route 53',
+    category: 'infrastructure',
+    tagline:
+      'Sync hosted zones, query volume, and health-check status from Amazon Route 53.',
+    brandColor: '#8C4FFF',
+  },
+  {
+    id: 'ns1',
+    name: 'NS1',
+    category: 'infrastructure',
+    tagline: 'Sync zones, query volume, and health-check status from NS1.',
+    brandColor: '#1B1F3B',
+  },
+  {
+    id: 'dnsimple',
+    name: 'DNSimple',
+    category: 'infrastructure',
+    tagline: 'Sync domains, query volume, and renewal status from DNSimple.',
+    brandColor: '#1A8FE3',
+  },
+  {
+    id: 'cloudinary',
+    name: 'Cloudinary',
+    category: 'infrastructure',
+    tagline:
+      'Sync transformations, bandwidth, and storage from a Cloudinary account.',
+    icon: 'cloudinary',
+  },
+  {
+    id: 'imgix',
+    name: 'imgix',
+    category: 'infrastructure',
+    tagline:
+      'Sync transformations, bandwidth, and origin reads from an imgix source.',
+    brandColor: '#000000',
+  },
+
+  {
+    id: 'lokalise',
+    name: 'Lokalise',
+    category: 'engineering',
+    tagline:
+      'Sync translation progress, untranslated key counts, and reviewer activity from Lokalise.',
+    brandColor: '#2B53FF',
+  },
+  {
+    id: 'phrase',
+    name: 'Phrase',
+    category: 'engineering',
+    tagline:
+      'Sync translation progress, untranslated key counts, and contributor activity from Phrase.',
+    brandColor: '#2EAFB7',
+  },
+  {
+    id: 'crowdin',
+    name: 'Crowdin',
+    category: 'engineering',
+    tagline:
+      'Sync translation progress, untranslated string counts, and contributor activity from Crowdin.',
+    icon: 'crowdin',
+  },
+  {
+    id: 'smartling',
+    name: 'Smartling',
+    category: 'engineering',
+    tagline:
+      'Sync translation progress, jobs, and cost-per-word from Smartling.',
+    brandColor: '#1C8DC7',
+  },
+  {
+    id: 'transifex',
+    name: 'Transifex',
+    category: 'engineering',
+    tagline:
+      'Sync translation progress, untranslated string counts, and reviewer activity from Transifex.',
+    icon: 'transifex',
+  },
+
+  {
+    id: 'hashicorp-vault',
+    name: 'HashiCorp Vault',
+    category: 'security',
+    tagline:
+      'Sync secret counts, lease activity, and policy usage from HashiCorp Vault.',
+    brandColor: '#000000',
+  },
+  {
+    id: 'doppler',
+    name: 'Doppler',
+    category: 'security',
+    tagline:
+      'Sync project, environment, and secret counts plus rotation activity from Doppler.',
+    brandColor: '#3391FF',
+  },
+  {
+    id: 'infisical',
+    name: 'Infisical',
+    category: 'security',
+    tagline:
+      'Sync project, environment, and secret counts plus rotation activity from Infisical.',
+    brandColor: '#EBF852',
+  },
+  {
+    id: 'bitwarden',
+    name: 'Bitwarden',
+    category: 'security',
+    tagline:
+      'Sync vault item counts, organization seats, and watchtower findings from Bitwarden.',
+    icon: 'bitwarden',
+  },
+  {
+    id: 'lastpass',
+    name: 'LastPass',
+    category: 'security',
+    tagline: 'Sync vault item counts, seats, and security score from LastPass.',
+    icon: 'lastpass',
+  },
+  {
+    id: 'dashlane',
+    name: 'Dashlane',
+    category: 'security',
+    tagline:
+      'Sync vault item counts, seats, and password health from Dashlane.',
+    icon: 'dashlane',
+  },
+  {
+    id: 'keeper',
+    name: 'Keeper Security',
+    category: 'security',
+    tagline:
+      'Sync vault item counts, seats, and security audit findings from Keeper.',
+    icon: 'keeper',
+  },
+  {
+    id: 'hyperproof',
+    name: 'Hyperproof',
+    category: 'security',
+    tagline:
+      'Sync control status, evidence freshness, and audit readiness from Hyperproof.',
+    brandColor: '#0061A0',
+  },
+  {
+    id: 'zengrc',
+    name: 'ZenGRC',
+    category: 'security',
+    tagline:
+      'Sync control status, audit readiness, and evidence coverage from ZenGRC.',
+    brandColor: '#5CC8C2',
+  },
+  {
+    id: 'onetrust',
+    name: 'OneTrust',
+    category: 'security',
+    tagline: 'Sync DSARs, consent status, and risk findings from OneTrust.',
+    brandColor: '#41C0CB',
+  },
+  {
+    id: 'cookiebot',
+    name: 'Cookiebot',
+    category: 'security',
+    tagline:
+      'Sync consent rates, banner views, and scan findings from Cookiebot.',
+    brandColor: '#62D58C',
+  },
+  {
+    id: 'iubenda',
+    name: 'Iubenda',
+    category: 'security',
+    tagline:
+      'Sync consent rates, policy views, and compliance status from Iubenda.',
+    brandColor: '#1CC691',
+  },
+  {
+    id: 'didomi',
+    name: 'Didomi',
+    category: 'security',
+    tagline:
+      'Sync consent rates, notice views, and compliance signals from Didomi.',
+    brandColor: '#1F2A37',
+  },
+  {
+    id: 'termly',
+    name: 'Termly',
+    category: 'security',
+    tagline: 'Sync consent rates and policy view counts from Termly.',
+    brandColor: '#3B5BDB',
+  },
+  {
+    id: 'osano',
+    name: 'Osano',
+    category: 'security',
+    tagline: 'Sync consent rates, DSARs, and vendor risk scores from Osano.',
+    icon: 'osano',
+  },
+  {
+    id: 'nightfall',
+    name: 'Nightfall',
+    category: 'security',
+    tagline:
+      'Sync DLP findings, sensitive-data detections, and policy violations from Nightfall.',
+    brandColor: '#9F4DFF',
+  },
+  {
+    id: 'cyberhaven',
+    name: 'Cyberhaven',
+    category: 'security',
+    tagline:
+      'Sync data flow events, insider risk signals, and policy violations from Cyberhaven.',
+    brandColor: '#3D2BFF',
+  },
+  {
+    id: 'hackerone',
+    name: 'HackerOne',
+    category: 'security',
+    tagline:
+      'Sync reports, severity distribution, bounty spend, and resolution times from HackerOne.',
+    icon: 'hackerone',
+  },
+  {
+    id: 'bugcrowd',
+    name: 'Bugcrowd',
+    category: 'security',
+    tagline:
+      'Sync submissions, severity distribution, bounty spend, and resolution times from Bugcrowd.',
+    icon: 'bugcrowd',
+  },
+  {
+    id: 'intigriti',
+    name: 'Intigriti',
+    category: 'security',
+    tagline:
+      'Sync submissions, severity distribution, and bounty spend from Intigriti.',
+    icon: 'intigriti',
+  },
+  {
+    id: 'cobalt',
+    name: 'Cobalt',
+    category: 'security',
+    tagline: 'Sync pentests, findings, and remediation progress from Cobalt.',
+    icon: 'cobalt',
+  },
+  {
+    id: 'fossa',
+    name: 'FOSSA',
+    category: 'security',
+    tagline:
+      'Sync open-source dependency issues, license violations, and SBOM coverage from FOSSA.',
+    icon: 'fossa',
+  },
+  {
+    id: 'mend',
+    name: 'Mend',
+    category: 'security',
+    tagline:
+      'Sync open-source dependency vulnerabilities, license issues, and remediation from Mend.',
+    brandColor: '#7C3AED',
+  },
+  {
+    id: 'blackduck',
+    name: 'Black Duck',
+    category: 'security',
+    tagline:
+      'Sync open-source components, vulnerabilities, and license findings from Black Duck.',
+    brandColor: '#000000',
+  },
+  {
+    id: 'jupiterone',
+    name: 'JupiterOne',
+    category: 'security',
+    tagline:
+      'Sync asset counts, policy compliance, and security findings from JupiterOne.',
+    brandColor: '#1A2533',
+  },
+  {
+    id: 'panther',
+    name: 'Panther',
+    category: 'security',
+    tagline: 'Sync detections, alerts, and rule activity from Panther.',
+    brandColor: '#7C3AED',
+  },
+
+  {
+    id: 'stytch',
+    name: 'Stytch',
+    category: 'security',
+    tagline: 'Sync users, sign-ups, and authentication activity from Stytch.',
+    brandColor: '#0577F2',
+  },
+  {
+    id: 'frontegg',
+    name: 'Frontegg',
+    category: 'security',
+    tagline: 'Sync tenants, users, and sign-in activity from Frontegg.',
+    brandColor: '#9747FF',
+  },
+  {
+    id: 'supertokens',
+    name: 'SuperTokens',
+    category: 'security',
+    tagline: 'Sync users, sessions, and sign-in activity from SuperTokens.',
+    brandColor: '#FF9933',
+  },
+  {
+    id: 'onelogin',
+    name: 'OneLogin',
+    category: 'security',
+    tagline:
+      'Sync users, sign-ins, and MFA enrollment from a OneLogin account.',
+    brandColor: '#1C1F2B',
+  },
+  {
+    id: 'jumpcloud',
+    name: 'JumpCloud',
+    category: 'security',
+    tagline: 'Sync users, devices, and SSO sign-in activity from JumpCloud.',
+    brandColor: '#16ABDE',
+  },
+  {
+    id: 'descope',
+    name: 'Descope',
+    category: 'security',
+    tagline: 'Sync users, sign-ups, and authentication activity from Descope.',
+    brandColor: '#3F8CFF',
+  },
+  {
+    id: 'firebase-auth',
+    name: 'Firebase Auth',
+    category: 'security',
+    tagline:
+      'Sync user counts, sign-ups, and provider-mix from Firebase Authentication.',
+    icon: 'firebase',
+  },
+  {
+    id: 'aws-cognito',
+    name: 'Amazon Cognito',
+    category: 'security',
+    tagline:
+      'Sync user pools, sign-ups, MFA adoption, and sign-in activity from Amazon Cognito.',
+    brandColor: '#DD344C',
+  },
+  {
+    id: 'keycloak',
+    name: 'Keycloak',
+    category: 'security',
+    tagline: 'Sync realms, users, and sign-in activity from a Keycloak server.',
+    icon: 'keycloak',
+  },
+  {
+    id: 'ory',
+    name: 'Ory',
+    category: 'security',
+    tagline:
+      'Sync identities, sessions, and sign-in activity from an Ory project.',
+    icon: 'ory',
+  },
+  {
+    id: 'fusionauth',
+    name: 'FusionAuth',
+    category: 'security',
+    tagline:
+      'Sync users, sign-ups, and authentication activity from FusionAuth.',
+    icon: 'fusionauth',
+  },
+
+  {
+    id: 'persona',
+    name: 'Persona',
+    category: 'security',
+    tagline:
+      'Sync identity verifications, pass rate, and case throughput from Persona.',
+    brandColor: '#1E3DB1',
+  },
+  {
+    id: 'onfido',
+    name: 'Onfido',
+    category: 'security',
+    tagline:
+      'Sync identity verifications, pass rate, and turnaround time from Onfido.',
+    brandColor: '#3640F0',
+  },
+  {
+    id: 'alloy',
+    name: 'Alloy',
+    category: 'security',
+    tagline:
+      'Sync onboarding decisions, KYC checks, and case review from Alloy.',
+    brandColor: '#0A2540',
+  },
+  {
+    id: 'trulioo',
+    name: 'Trulioo',
+    category: 'security',
+    tagline:
+      'Sync identity verifications, match rates, and per-country coverage from Trulioo.',
+    brandColor: '#0061A8',
+  },
+  {
+    id: 'jumio',
+    name: 'Jumio',
+    category: 'security',
+    tagline:
+      'Sync identity verifications, pass rate, and per-document-type breakdown from Jumio.',
+    brandColor: '#1E2A4D',
+  },
+  {
+    id: 'veriff',
+    name: 'Veriff',
+    category: 'security',
+    tagline:
+      'Sync identity verifications, pass rate, and turnaround time from Veriff.',
+    brandColor: '#FFCD00',
+  },
+  {
+    id: 'sumsub',
+    name: 'Sumsub',
+    category: 'security',
+    tagline:
+      'Sync identity verifications, KYC checks, and case throughput from Sumsub.',
+    brandColor: '#0075FF',
+  },
+  {
+    id: 'middesk',
+    name: 'Middesk',
+    category: 'security',
+    tagline:
+      'Sync business verifications, KYB checks, and pass rate from Middesk.',
+    brandColor: '#101820',
+  },
+
+  {
+    id: 'paycom',
+    name: 'Paycom',
+    category: 'hr',
+    tagline: 'Sync employees, payroll runs, and pay-cycle spend from Paycom.',
+    brandColor: '#1A6DB5',
+  },
+  {
+    id: 'ukg',
+    name: 'UKG',
+    category: 'hr',
+    tagline: 'Sync employees, time-and-attendance, and payroll spend from UKG.',
+    brandColor: '#005EB8',
+  },
+  {
+    id: 'paycor',
+    name: 'Paycor',
+    category: 'hr',
+    tagline: 'Sync employees, payroll runs, and pay-cycle spend from Paycor.',
+    brandColor: '#F25C19',
+  },
+  {
+    id: 'namely',
+    name: 'Namely',
+    category: 'hr',
+    tagline: 'Sync employees, payroll, and time-off from Namely.',
+    brandColor: '#FF6543',
+  },
+  {
+    id: 'multiplier',
+    name: 'Multiplier',
+    category: 'hr',
+    tagline:
+      'Sync employees, contractors, and payroll spend across countries from Multiplier.',
+    brandColor: '#3F2DFF',
+  },
+  {
+    id: 'papaya-global',
+    name: 'Papaya Global',
+    category: 'hr',
+    tagline:
+      'Sync employees, contractors, and global payroll spend from Papaya Global.',
+    brandColor: '#0061FF',
+  },
+  {
+    id: 'globalization-partners',
+    name: 'G-P (Globalization Partners)',
+    category: 'hr',
+    tagline:
+      'Sync EOR employees, contracts, and payroll spend across countries from G-P.',
+    brandColor: '#001E62',
+  },
+  {
+    id: 'plane-hr',
+    name: 'Plane',
+    category: 'hr',
+    tagline:
+      'Sync employees, contractors, and global payroll spend from Plane.',
+    brandColor: '#0035FF',
+  },
+  {
+    id: 'hibob',
+    name: 'HiBob',
+    category: 'hr',
+    tagline:
+      'Sync employees, tenure, time-off, and engagement signals from HiBob.',
+    icon: 'hibob',
+  },
+  {
+    id: 'sapling',
+    name: 'Sapling',
+    category: 'hr',
+    tagline:
+      'Sync employees, onboarding completion, and time-off from Sapling.',
+    brandColor: '#1A7AFF',
+  },
+  {
+    id: 'humaans',
+    name: 'Humaans',
+    category: 'hr',
+    tagline: 'Sync employees, time-off, and compensation events from Humaans.',
+    brandColor: '#0F172A',
+  },
+  {
+    id: 'workable',
+    name: 'Workable',
+    category: 'hr',
+    tagline:
+      'Sync candidates, applications, and pipeline progression from Workable.',
+    brandColor: '#1A2734',
+  },
+  {
+    id: 'jobvite',
+    name: 'Jobvite',
+    category: 'hr',
+    tagline: 'Sync candidates, applications, and offer activity from Jobvite.',
+    brandColor: '#FF6F4D',
+  },
+  {
+    id: 'smartrecruiters',
+    name: 'SmartRecruiters',
+    category: 'hr',
+    tagline:
+      'Sync candidates, applications, and pipeline progression from SmartRecruiters.',
+    brandColor: '#00BCD4',
+  },
+  {
+    id: 'teamtailor',
+    name: 'Teamtailor',
+    category: 'hr',
+    tagline:
+      'Sync candidates, applications, and pipeline progression from Teamtailor.',
+    brandColor: '#2EAF7D',
+  },
+  {
+    id: 'breezyhr',
+    name: 'Breezy HR',
+    category: 'hr',
+    tagline:
+      'Sync candidates, applications, and pipeline progression from Breezy HR.',
+    brandColor: '#1FAD8F',
+  },
+  {
+    id: '360learning',
+    name: '360Learning',
+    category: 'hr',
+    tagline:
+      'Sync course enrollments, completions, and reactions from 360Learning.',
+    brandColor: '#1A1A1A',
+  },
+  {
+    id: 'docebo-learn',
+    name: 'Docebo Learn',
+    category: 'hr',
+    tagline:
+      'Sync course catalog, completions, and certification status from Docebo Learn.',
+    brandColor: '#FFA200',
+  },
+  {
+    id: 'coursera-business',
+    name: 'Coursera for Business',
+    category: 'hr',
+    tagline:
+      'Sync learner activity, course completions, and skill progress from Coursera for Business.',
+    icon: 'coursera',
+  },
+  {
+    id: 'udemy-business',
+    name: 'Udemy Business',
+    category: 'hr',
+    tagline:
+      'Sync learner activity, course completions, and minutes consumed from Udemy Business.',
+    icon: 'udemy',
+  },
+  {
+    id: 'cornerstone-ondemand',
+    name: 'Cornerstone OnDemand',
+    category: 'hr',
+    tagline:
+      'Sync learner activity, course completions, and certification status from Cornerstone OnDemand.',
+    brandColor: '#E81A2B',
+  },
+
+  {
+    id: 'freeagent',
+    name: 'FreeAgent',
+    category: 'finance',
+    tagline:
+      'Sync invoices, expenses, and profit-and-loss figures from FreeAgent.',
+    brandColor: '#5DB948',
+  },
+  {
+    id: 'manager-accounting',
+    name: 'Manager',
+    category: 'finance',
+    tagline:
+      'Sync invoices, expenses, and profit-and-loss figures from Manager.',
+    brandColor: '#1A1A1A',
+  },
+  {
+    id: 'tesorio',
+    name: 'Tesorio',
+    category: 'finance',
+    tagline: 'Sync AR aging, collections forecast, and DSO from Tesorio.',
+    brandColor: '#1E40AF',
+  },
+  {
+    id: 'highradius',
+    name: 'HighRadius',
+    category: 'finance',
+    tagline: 'Sync AR aging, collections, and disputes from HighRadius.',
+    brandColor: '#0072CE',
+  },
+  {
+    id: 'upflow',
+    name: 'Upflow',
+    category: 'finance',
+    tagline: 'Sync AR aging, collections cadence, and DSO from Upflow.',
+    brandColor: '#5B4DEE',
+  },
+  {
+    id: 'taxjar',
+    name: 'TaxJar',
+    category: 'finance',
+    tagline:
+      'Sync sales-tax liability by jurisdiction and filing status from TaxJar.',
+    brandColor: '#0072CE',
+  },
+  {
+    id: 'quaderno',
+    name: 'Quaderno',
+    category: 'finance',
+    tagline:
+      'Sync tax-compliant invoices, taxes collected, and filings from Quaderno.',
+    brandColor: '#5469D4',
+  },
+  {
+    id: 'mosaic',
+    name: 'Mosaic',
+    category: 'finance',
+    tagline: 'Sync forecasts, plan-vs-actuals, and metric trends from Mosaic.',
+    brandColor: '#1A1A2E',
+  },
+  {
+    id: 'cube-software',
+    name: 'Cube',
+    category: 'finance',
+    tagline: 'Sync forecasts, plan-vs-actuals, and budget variance from Cube.',
+    brandColor: '#9333EA',
+  },
+  {
+    id: 'pigment',
+    name: 'Pigment',
+    category: 'finance',
+    tagline:
+      'Sync planning model outputs, forecasts, and scenarios from Pigment.',
+    brandColor: '#E94E1B',
+  },
+  {
+    id: 'vena',
+    name: 'Vena',
+    category: 'finance',
+    tagline: 'Sync budget vs actuals, forecasts, and scenarios from Vena.',
+    brandColor: '#0072CE',
+  },
+  {
+    id: 'anaplan',
+    name: 'Anaplan',
+    category: 'finance',
+    tagline:
+      'Sync planning model outputs, forecasts, and scenarios from Anaplan.',
+    brandColor: '#1A1A1A',
+  },
+  {
+    id: 'kyriba',
+    name: 'Kyriba',
+    category: 'finance',
+    tagline:
+      'Sync cash balances, payments, and liquidity forecasts from Kyriba.',
+    brandColor: '#0E4ECF',
+  },
+  {
+    id: 'modern-treasury',
+    name: 'Modern Treasury',
+    category: 'finance',
+    tagline:
+      'Sync payments, account balances, and reconciliation status from Modern Treasury.',
+    brandColor: '#1A1A1A',
+  },
+  {
+    id: 'finch',
+    name: 'Finch',
+    category: 'finance',
+    tagline:
+      'Sync employees, payroll, and benefits data across providers via Finch.',
+    brandColor: '#0F172A',
+  },
+  {
+    id: 'routable',
+    name: 'Routable',
+    category: 'finance',
+    tagline: 'Sync bills, payouts, and AP automation activity from Routable.',
+    brandColor: '#3B82F6',
+  },
+  {
+    id: 'melio',
+    name: 'Melio',
+    category: 'finance',
+    tagline: 'Sync bills, payments, and AP activity from Melio.',
+    brandColor: '#3F2DFF',
+  },
+  {
+    id: 'jeeves',
+    name: 'Jeeves',
+    category: 'finance',
+    tagline:
+      'Sync card transactions, spend by category, and FX activity from Jeeves.',
+    brandColor: '#06CFB7',
+  },
+  {
+    id: 'airwallex',
+    name: 'Airwallex',
+    category: 'finance',
+    tagline:
+      'Sync multi-currency balances, payments, and FX activity from Airwallex.',
+    brandColor: '#612FFF',
+  },
+  {
+    id: 'wise-business',
+    name: 'Wise Business',
+    category: 'finance',
+    tagline:
+      'Sync multi-currency balances, transfers, and FX activity from Wise Business.',
+    icon: 'wise',
+  },
+  {
+    id: 'pipe',
+    name: 'Pipe',
+    category: 'finance',
+    tagline:
+      'Sync trading capacity, advances, and repayment schedule from Pipe.',
+    brandColor: '#11FF8E',
+  },
+  {
+    id: 'capchase',
+    name: 'Capchase',
+    category: 'finance',
+    tagline: 'Sync advances, repayments, and runway from Capchase.',
+    brandColor: '#1F1F1F',
+  },
+  {
+    id: 'zip',
+    name: 'Zip',
+    category: 'finance',
+    tagline:
+      'Sync intake requests, vendor approvals, and procurement cycle time from Zip.',
+    brandColor: '#101010',
+  },
+  {
+    id: 'sastrify',
+    name: 'Sastrify',
+    category: 'finance',
+    tagline: 'Sync SaaS spend, contract renewals, and savings from Sastrify.',
+    brandColor: '#5333FF',
+  },
+  {
+    id: 'vendr',
+    name: 'Vendr',
+    category: 'finance',
+    tagline: 'Sync SaaS spend, contract renewals, and savings from Vendr.',
+    brandColor: '#101820',
+  },
+  {
+    id: 'tropic',
+    name: 'Tropic',
+    category: 'finance',
+    tagline:
+      'Sync SaaS spend, contract renewals, and negotiated savings from Tropic.',
+    brandColor: '#1A7F37',
+  },
+  {
+    id: 'productiv',
+    name: 'Productiv',
+    category: 'finance',
+    tagline: 'Sync SaaS spend, app usage, and renewal risk from Productiv.',
+    brandColor: '#005EFF',
+  },
+  {
+    id: 'torii',
+    name: 'Torii',
+    category: 'finance',
+    tagline: 'Sync SaaS app inventory, spend, and usage from Torii.',
+    brandColor: '#3F2DFF',
+  },
+
+  {
+    id: 'linkedin-sales-navigator',
+    name: 'LinkedIn Sales Navigator',
+    category: 'sales',
+    tagline:
+      'Sync saved searches, lead activity, and InMail engagement from LinkedIn Sales Navigator.',
+    brandColor: '#0A66C2',
+  },
+  {
+    id: 'lusha',
+    name: 'Lusha',
+    category: 'sales',
+    tagline:
+      'Sync enrichment lookups, reveal activity, and credit usage from Lusha.',
+    brandColor: '#1F5BFF',
+  },
+  {
+    id: 'cognism',
+    name: 'Cognism',
+    category: 'sales',
+    tagline:
+      'Sync enrichment lookups, reveal activity, and credit usage from Cognism.',
+    brandColor: '#0E1E40',
+  },
+  {
+    id: 'seamless-ai',
+    name: 'Seamless.AI',
+    category: 'sales',
+    tagline:
+      'Sync enrichment lookups, contact discovery, and credit usage from Seamless.AI.',
+    brandColor: '#0EB8A6',
+  },
+  {
+    id: 'rocketreach',
+    name: 'RocketReach',
+    category: 'sales',
+    tagline:
+      'Sync enrichment lookups, contact discovery, and credit usage from RocketReach.',
+    brandColor: '#FF4F00',
+  },
+  {
+    id: 'hunter-io',
+    name: 'Hunter',
+    category: 'sales',
+    tagline:
+      'Sync email finder lookups, verifications, and credit usage from Hunter.',
+    brandColor: '#FF6D3F',
+  },
+  {
+    id: 'fullcontact',
+    name: 'FullContact',
+    category: 'sales',
+    tagline:
+      'Sync enrichment lookups, identity resolution, and credit usage from FullContact.',
+    brandColor: '#FF6F00',
+  },
+  {
+    id: 'people-data-labs',
+    name: 'People Data Labs',
+    category: 'sales',
+    tagline:
+      'Sync enrichment lookups, person and company records, and credit usage from People Data Labs.',
+    brandColor: '#5E5BFF',
+  },
+  {
+    id: 'demandbase',
+    name: 'Demandbase',
+    category: 'sales',
+    tagline:
+      'Sync target accounts, engagement, and intent signals from Demandbase.',
+    brandColor: '#001E5E',
+  },
+  {
+    id: '6sense',
+    name: '6sense',
+    category: 'sales',
+    tagline:
+      'Sync target accounts, buying-stage, and intent signals from 6sense.',
+    brandColor: '#1A1A1A',
+  },
+  {
+    id: 'bombora',
+    name: 'Bombora',
+    category: 'sales',
+    tagline: 'Sync surging accounts and topic intent signals from Bombora.',
+    brandColor: '#FFA632',
+  },
+  {
+    id: 'rollworks',
+    name: 'RollWorks',
+    category: 'sales',
+    tagline:
+      'Sync ABM campaign performance, target accounts, and engagement from RollWorks.',
+    brandColor: '#005DFF',
+  },
+  {
+    id: 'terminus',
+    name: 'Terminus',
+    category: 'sales',
+    tagline:
+      'Sync ABM campaign performance, target accounts, and engagement from Terminus.',
+    brandColor: '#33B2FF',
+  },
+  {
+    id: 'leadfeeder',
+    name: 'Leadfeeder',
+    category: 'sales',
+    tagline:
+      'Sync website-visiting companies, lead activity, and account quality from Leadfeeder.',
+    brandColor: '#86C440',
+  },
+
+  {
+    id: 'avoma',
+    name: 'Avoma',
+    category: 'sales',
+    tagline: 'Sync meetings, talk-time, and conversation insights from Avoma.',
+    brandColor: '#5350FF',
+  },
+  {
+    id: 'fathom',
+    name: 'Fathom',
+    category: 'sales',
+    tagline: 'Sync meetings, summaries, and talk-time stats from Fathom.',
+    icon: 'fathom',
+  },
+  {
+    id: 'otter-ai',
+    name: 'Otter.ai',
+    category: 'sales',
+    tagline:
+      'Sync meetings, transcription volume, and per-user usage from Otter.ai.',
+    brandColor: '#00B0F0',
+  },
+  {
+    id: 'fireflies-ai',
+    name: 'Fireflies.ai',
+    category: 'sales',
+    tagline:
+      'Sync meetings, transcription volume, and conversation insights from Fireflies.ai.',
+    brandColor: '#F77737',
+  },
+  {
+    id: 'grain',
+    name: 'Grain',
+    category: 'sales',
+    tagline: 'Sync meetings, highlights, and conversation insights from Grain.',
+    brandColor: '#FF4D2E',
+  },
+
+  {
+    id: 'clari',
+    name: 'Clari',
+    category: 'sales',
+    tagline:
+      'Sync forecast vs commit, pipeline coverage, and deal slippage from Clari.',
+    brandColor: '#2D6CDF',
+  },
+  {
+    id: 'aviso',
+    name: 'Aviso',
+    category: 'sales',
+    tagline:
+      'Sync forecast vs commit, deal risk, and pipeline coverage from Aviso.',
+    brandColor: '#0E2A5C',
+  },
+  {
+    id: 'boostup',
+    name: 'BoostUp',
+    category: 'sales',
+    tagline:
+      'Sync forecast vs commit, deal risk, and rep activity from BoostUp.',
+    brandColor: '#5733FF',
+  },
+  {
+    id: 'insightsquared',
+    name: 'InsightSquared',
+    category: 'sales',
+    tagline:
+      'Sync forecasts, pipeline analytics, and rep activity from InsightSquared.',
+    brandColor: '#3FCEF5',
+  },
+
+  {
+    id: 'highspot',
+    name: 'Highspot',
+    category: 'sales',
+    tagline:
+      'Sync content engagement, rep usage, and pitch outcomes from Highspot.',
+    brandColor: '#FF7A00',
+  },
+  {
+    id: 'seismic',
+    name: 'Seismic',
+    category: 'sales',
+    tagline:
+      'Sync content engagement, rep usage, and live-send activity from Seismic.',
+    brandColor: '#FF6347',
+  },
+  {
+    id: 'showpad',
+    name: 'Showpad',
+    category: 'sales',
+    tagline:
+      'Sync content engagement, rep usage, and learning progress from Showpad.',
+    icon: 'showpad',
+  },
+
+  {
+    id: 'spiff',
+    name: 'Spiff',
+    category: 'sales',
+    tagline:
+      'Sync commission calculations, payouts, and quota attainment from Spiff.',
+    brandColor: '#0A1A2F',
+  },
+  {
+    id: 'captivateiq',
+    name: 'CaptivateIQ',
+    category: 'sales',
+    tagline:
+      'Sync commission calculations, payouts, and quota attainment from CaptivateIQ.',
+    brandColor: '#1A7FE3',
+  },
+  {
+    id: 'quotapath',
+    name: 'QuotaPath',
+    category: 'sales',
+    tagline:
+      'Sync commission calculations, payouts, and quota attainment from QuotaPath.',
+    brandColor: '#7C3AED',
+  },
+  {
+    id: 'salesforce-cpq',
+    name: 'Salesforce CPQ',
+    category: 'sales',
+    tagline:
+      'Sync quotes, configurations, and approval cycle time from Salesforce CPQ.',
+    brandColor: '#00A1E0',
+  },
+  {
+    id: 'dealhub',
+    name: 'DealHub',
+    category: 'sales',
+    tagline: 'Sync quotes, deal rooms, and approval cycle time from DealHub.',
+    brandColor: '#FF6F00',
+  },
+  {
+    id: 'subskribe',
+    name: 'Subskribe',
+    category: 'sales',
+    tagline: 'Sync quotes, subscriptions, and renewal cycle from Subskribe.',
+    brandColor: '#1A1A4E',
+  },
+
+  {
+    id: 'ringcentral',
+    name: 'RingCentral',
+    category: 'support',
+    tagline:
+      'Sync calls, minutes, and per-user activity from a RingCentral account.',
+    brandColor: '#0073AE',
+  },
+  {
+    id: 'dialpad',
+    name: 'Dialpad',
+    category: 'support',
+    tagline:
+      'Sync calls, minutes, and per-user activity from a Dialpad account.',
+    brandColor: '#7C52FF',
+  },
+  {
+    id: 'aircall',
+    name: 'Aircall',
+    category: 'support',
+    tagline: 'Sync calls, abandonment, and per-team activity from Aircall.',
+    icon: 'aircall',
+  },
+  {
+    id: 'justcall',
+    name: 'JustCall',
+    category: 'support',
+    tagline: 'Sync calls, SMS volume, and per-user activity from JustCall.',
+    brandColor: '#0E55FF',
+  },
+  {
+    id: 'openphone',
+    name: 'OpenPhone',
+    category: 'support',
+    tagline: 'Sync calls, SMS volume, and per-user activity from OpenPhone.',
+    brandColor: '#7C3AED',
+  },
+  {
+    id: 'talkdesk',
+    name: 'Talkdesk',
+    category: 'support',
+    tagline:
+      'Sync calls, abandonment, average handle time, and CSAT from Talkdesk.',
+    brandColor: '#02265F',
+  },
+  {
+    id: 'five9',
+    name: 'Five9',
+    category: 'support',
+    tagline:
+      'Sync calls, abandonment, average handle time, and CSAT from Five9.',
+    brandColor: '#1E2B4F',
+  },
+  {
+    id: 'nice-incontact',
+    name: 'NICE CXone',
+    category: 'support',
+    tagline:
+      'Sync contact volume, abandonment, AHT, and CSAT from NICE CXone (inContact).',
+    brandColor: '#1A1A1A',
+  },
+  {
+    id: 'vonage',
+    name: 'Vonage',
+    category: 'support',
+    tagline:
+      'Sync calls, minutes, and per-user activity from a Vonage account.',
+    icon: 'vonage',
+  },
+
+  {
+    id: 'plivo',
+    name: 'Plivo',
+    category: 'engineering',
+    tagline:
+      'Sync SMS, voice, and per-number usage with delivery and error rates from Plivo.',
+    brandColor: '#1F8FFF',
+  },
+  {
+    id: 'messagebird',
+    name: 'MessageBird',
+    category: 'engineering',
+    tagline:
+      'Sync SMS, voice, WhatsApp, and email usage with delivery rates from MessageBird.',
+    brandColor: '#2481D7',
+  },
+  {
+    id: 'sinch',
+    name: 'Sinch',
+    category: 'engineering',
+    tagline:
+      'Sync SMS, voice, and per-channel usage with delivery rates from Sinch.',
+    brandColor: '#003F31',
+  },
+  {
+    id: 'telnyx',
+    name: 'Telnyx',
+    category: 'engineering',
+    tagline:
+      'Sync SMS, voice, and per-number usage with delivery and error rates from Telnyx.',
+    brandColor: '#00E3AA',
+  },
+  {
+    id: 'bandwidth',
+    name: 'Bandwidth',
+    category: 'engineering',
+    tagline:
+      'Sync SMS, voice, and 911 usage with delivery rates from Bandwidth.',
+    brandColor: '#0021A5',
+  },
+
+  {
+    id: 'pusher-beams',
+    name: 'Pusher Beams',
+    category: 'marketing',
+    tagline:
+      'Sync push notification send volume, delivery rate, and opens from Pusher Beams.',
+    icon: 'pusher',
+  },
+  {
+    id: 'airship',
+    name: 'Airship',
+    category: 'marketing',
+    tagline:
+      'Sync push notification send volume, delivery, opens, and engagement from Airship.',
+    brandColor: '#FA0F40',
+  },
+
+  {
+    id: 'cloudflare-radar',
+    name: 'Cloudflare Radar',
+    category: 'analytics',
+    tagline:
+      'Sync internet traffic trends, attack signals, and domain ranking data from Cloudflare Radar.',
+    icon: 'cloudflare',
+  },
+  {
+    id: 'stack-overflow-tags',
+    name: 'Stack Overflow Tags',
+    category: 'marketing',
+    tagline:
+      'Watch question volume, answer rate, and view counts for tracked Stack Overflow tags.',
+    icon: 'stackoverflow',
+  },
+  {
+    id: 'g2',
+    name: 'G2',
+    category: 'marketing',
+    tagline:
+      'Sync overall rating, review count, and category rank from a G2 product page.',
+    icon: 'g2',
+  },
+  {
+    id: 'capterra',
+    name: 'Capterra',
+    category: 'marketing',
+    tagline:
+      'Sync overall rating, review count, and category rank from a Capterra product page.',
+    brandColor: '#FF9D28',
+  },
+  {
+    id: 'trustradius',
+    name: 'TrustRadius',
+    category: 'marketing',
+    tagline:
+      'Sync overall rating, review count, and category rank from a TrustRadius product page.',
+    brandColor: '#F2683B',
+  },
+  {
+    id: 'mention',
+    name: 'Mention',
+    category: 'marketing',
+    tagline:
+      'Sync brand mentions, reach, and sentiment across web and social from Mention.',
+    brandColor: '#0084FF',
+  },
+  {
+    id: 'brand24',
+    name: 'Brand24',
+    category: 'marketing',
+    tagline:
+      'Sync brand mentions, reach, and sentiment across web and social from Brand24.',
+    brandColor: '#1ABC9C',
+  },
+  {
+    id: 'talkwalker',
+    name: 'Talkwalker',
+    category: 'marketing',
+    tagline:
+      'Sync brand mentions, reach, sentiment, and share-of-voice from Talkwalker.',
+    brandColor: '#005AFF',
+  },
+  {
+    id: 'meltwater',
+    name: 'Meltwater',
+    category: 'marketing',
+    tagline:
+      'Sync media mentions, reach, sentiment, and share-of-voice from Meltwater.',
+    brandColor: '#1A1A1A',
+  },
 ];
