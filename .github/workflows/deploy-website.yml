@@ -23,6 +23,7 @@ jobs:
     permissions:
       contents: read
       deployments: write
+      discussions: read
 
     steps:
       - name: Checkout
@@ -44,6 +45,8 @@ jobs:
 
       - name: Build website
         run: pnpm --filter website build
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/pages-action@f0a1cd58cd66095dee69bfa18fa5efd1dde93bca # v1.5.0
