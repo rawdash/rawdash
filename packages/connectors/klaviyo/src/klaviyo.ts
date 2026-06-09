@@ -72,6 +72,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Sync campaigns, flows, lists, and segments from Klaviyo for ecommerce email and SMS marketing analytics.',
   vendor: {
     name: 'Klaviyo',
+    domain: 'klaviyo.com',
     apiDocs: 'https://developers.klaviyo.com/en/reference/api_overview',
     website: 'https://www.klaviyo.com',
   },

@@ -59,6 +59,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Sync CRM contacts, companies, and deals plus deal stage-change events and marketing email campaign stats from HubSpot.',
   vendor: {
     name: 'HubSpot',
+    domain: 'hubspot.com',
     apiDocs: 'https://developers.hubspot.com/docs/api/overview',
     website: 'https://www.hubspot.com',
   },

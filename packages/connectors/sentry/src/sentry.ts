@@ -76,6 +76,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Sync issues, issue events, releases, and hourly error rates from a Sentry organization.',
   vendor: {
     name: 'Sentry',
+    domain: 'sentry.io',
     apiDocs: 'https://docs.sentry.io/api/',
     website: 'https://sentry.io',
   },

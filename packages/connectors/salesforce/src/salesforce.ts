@@ -85,6 +85,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Sync opportunities, opportunity stage-change events, accounts, leads, and users from a Salesforce org for pipeline, forecast, and quota-attainment dashboards.',
   vendor: {
     name: 'Salesforce',
+    domain: 'salesforce.com',
     apiDocs:
       'https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/',
     website: 'https://www.salesforce.com',

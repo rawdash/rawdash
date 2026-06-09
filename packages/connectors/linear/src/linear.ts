@@ -61,6 +61,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Sync teams, members, cycles, issues, and issue state-transition events from a Linear workspace.',
   vendor: {
     name: 'Linear',
+    domain: 'linear.app',
     apiDocs: 'https://developers.linear.app/docs',
     website: 'https://linear.app',
   },

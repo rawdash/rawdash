@@ -87,6 +87,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Sync projects, users, sprints, issues, and issue status-change events from a Jira Cloud site.',
   vendor: {
     name: 'Atlassian',
+    domain: 'atlassian.com',
     apiDocs: 'https://developer.atlassian.com/cloud/jira/platform/rest/v3/',
     website: 'https://www.atlassian.com/software/jira',
   },

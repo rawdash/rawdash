@@ -55,6 +55,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Sync Mailchimp campaigns, audiences (lists), automations, and per-campaign engagement stats for marketing email analytics.',
   vendor: {
     name: 'Mailchimp',
+    domain: 'mailchimp.com',
     apiDocs: 'https://mailchimp.com/developer/marketing/api/',
     website: 'https://mailchimp.com',
   },

@@ -99,6 +99,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Sync projects, merge requests, pipelines, issues, and releases from GitLab.com or a self-hosted GitLab instance.',
   vendor: {
     name: 'GitLab',
+    domain: 'gitlab.com',
     apiDocs: 'https://docs.gitlab.com/ee/api/',
     website: 'https://gitlab.com',
   },

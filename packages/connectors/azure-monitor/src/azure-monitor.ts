@@ -155,6 +155,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Pull declared Azure Monitor metric time series and resource alerts into the six-shape storage model.',
   vendor: {
     name: 'Microsoft Azure',
+    domain: 'azure.microsoft.com',
     apiDocs: 'https://learn.microsoft.com/en-us/rest/api/monitor/',
     website: 'https://azure.microsoft.com/en-us/products/monitor',
   },

@@ -121,6 +121,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Cloud Monitoring projects.timeSeries.list is rate-limited per project; 429 / RESOURCE_EXHAUSTED responses are retried with backoff. Pagination uses nextPageToken.',
   vendor: {
     name: 'Google Cloud',
+    domain: 'cloud.google.com',
     apiDocs: 'https://cloud.google.com/monitoring/api/v3',
     website: 'https://cloud.google.com/monitoring',
   },
