@@ -111,15 +111,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     icon: 'expo',
   },
   {
-    id: 'firebase-crashlytics',
-    name: 'Firebase Crashlytics',
-    category: 'engineering',
-    tagline:
-      'Sync crash-free user rate, top issues, and version-level reliability from Firebase Crashlytics.',
-    icon: 'firebase',
-    requestIssue: 'RAW-405',
-  },
-  {
     id: 'github-container-registry',
     name: 'GitHub Container Registry',
     category: 'engineering',

@@ -41,6 +41,7 @@
     "@rawdash/connector-bitbucket": "workspace:*",
     "@rawdash/connector-circleci": "workspace:*",
     "@rawdash/connector-datadog": "workspace:*",
+    "@rawdash/connector-firebase-crashlytics": "workspace:*",
     "@rawdash/connector-gcp-billing": "workspace:*",
     "@rawdash/connector-gcp-monitoring": "workspace:*",
     "@rawdash/connector-github": "workspace:*",
