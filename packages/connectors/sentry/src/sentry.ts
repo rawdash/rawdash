@@ -138,6 +138,7 @@ interface SentryProjectRef {
   id?: string | number;
   slug: string;
   name?: string;
+  platform?: string;
 }
 
 interface SentryIssue {
@@ -253,7 +254,7 @@ const issueResponseSchema = z.array(
     userCount: z.number().int().nonnegative(),
     project: z.object({
       slug: z.string().min(1),
-      id: idString.optional(),
+      id: z.union([idString, z.number()]).optional(),
       name: z.string().optional(),
       platform: z.string().nullable().optional(),
     }),
@@ -275,9 +276,9 @@ const issueResponseSchema = z.array(
     permalink: z.string().optional(),
     platform: z.string().nullable().optional(),
     priority: z.string().optional(),
-    priorityLockedAt: z.string().nullable().optional(),
-    seerAutofixLastTriggered: z.string().nullable().optional(),
-    seerExplorerAutofixLastTriggered: z.string().nullable().optional(),
+    priorityLockedAt: z.iso.datetime().nullable().optional(),
+    seerAutofixLastTriggered: z.iso.datetime().nullable().optional(),
+    seerExplorerAutofixLastTriggered: z.iso.datetime().nullable().optional(),
     seerFixabilityScore: z.number().nullable().optional(),
     shareId: z.string().nullable().optional(),
     stats: z.unknown().optional(),
