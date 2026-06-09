@@ -35,4 +35,13 @@ describe('defineConnectorDoc', () => {
   it('requires displayName and tagline', () => {
     expect(() => defineConnectorDoc({ ...valid, tagline: '' })).toThrow();
   });
+
+  it('rejects a malformed vendor domain', () => {
+    expect(() =>
+      defineConnectorDoc({
+        ...valid,
+        vendor: { ...valid.vendor, domain: '-example.com' },
+      }),
+    ).toThrow();
+  });
 });
