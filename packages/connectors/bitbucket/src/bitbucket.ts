@@ -98,6 +98,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Sync pull requests, pipelines, and pipeline lifecycle events from Bitbucket Cloud repositories.',
   vendor: {
     name: 'Atlassian',
+    domain: 'bitbucket.org',
     apiDocs: 'https://developer.atlassian.com/cloud/bitbucket/rest/intro/',
     website: 'https://bitbucket.org',
   },

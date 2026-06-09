@@ -33,6 +33,8 @@ const DOCS_CONNECTORS_DIR = join(
   'connectors',
 );
 const PUBLIC_ICONS_DIR = join(WEBSITE_DIR, 'public', 'connectors');
+const PLACEHOLDER_ICONS_DIR = join(ROOT, 'scripts', 'connector-icons');
+const BRANDFETCH_CLIENT_ID = '1idWBskC-5Zk9ZNyvDS';
 const LANDING_DATA_FILE = join(
   WEBSITE_DIR,
   'src',
@@ -69,7 +71,9 @@ interface LoadedPlaceholder {
   category: ConnectorCategory;
   tagline: string;
   brandColor: string;
-  iconSvg: string;
+  domain: string;
+  iconSvg?: string;
+  iconHref: string;
   requestIssue?: string;
 }
 
@@ -121,6 +125,40 @@ function monogramIconSvg(name: string, hex: string): string {
   return `<svg role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>${escapeXml(name)}</title><rect width="24" height="24" rx="5" fill="${hex}"/><text x="12" y="13" text-anchor="middle" dominant-baseline="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#ffffff">${letter}</text></svg>`;
 }
 
+const RASTER_MIME: Record<string, string> = {
+  png: 'image/png',
+  webp: 'image/webp',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  ico: 'image/x-icon',
+};
+
+function rasterIconSvg(name: string, ext: string, data: Buffer): string {
+  const href = `data:${RASTER_MIME[ext]};base64,${data.toString('base64')}`;
+  return `<svg role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>${escapeXml(name)}</title><image href="${href}" x="0" y="0" width="24" height="24" preserveAspectRatio="xMidYMid meet"/></svg>`;
+}
+
+function bundledIconSvg(id: string, name: string): string | undefined {
+  const svgPath = join(PLACEHOLDER_ICONS_DIR, `${id}.svg`);
+  if (existsSync(svgPath)) {
+    return readFileSync(svgPath, 'utf8').trim();
+  }
+  for (const ext of Object.keys(RASTER_MIME)) {
+    const rasterPath = join(PLACEHOLDER_ICONS_DIR, `${id}.${ext}`);
+    if (existsSync(rasterPath)) {
+      return rasterIconSvg(name, ext, readFileSync(rasterPath));
+    }
+  }
+  return undefined;
+}
+
+function brandfetchUrl(domain: string): string {
+  return (
+    `https://cdn.brandfetch.io/${domain}/w/128/h/128/type/icon` +
+    `/fallback/lettermark?c=${BRANDFETCH_CLIENT_ID}`
+  );
+}
+
 function loadPlaceholders(
   realIds: Set<string>,
   realNames: Set<string>,
@@ -150,16 +188,31 @@ function loadPlaceholders(
           `and no brandColor. Add a brandColor (used for the monogram fallback).`,
       );
     }
-    const iconSvg = icon
-      ? brandedIconSvg(p.name, icon.path, icon.hex)
-      : monogramIconSvg(p.name, brandColor);
+    const bundled = bundledIconSvg(p.id, p.name);
+    const domain = p.domain;
+    let iconSvg: string | undefined;
+    let iconHref: string;
+    if (bundled) {
+      iconSvg = bundled;
+      iconHref = `/connectors/${p.id}.svg`;
+    } else if (icon) {
+      iconSvg = brandedIconSvg(p.name, icon.path, icon.hex);
+      iconHref = `/connectors/${p.id}.svg`;
+    } else if (domain && !p.monogram) {
+      iconHref = brandfetchUrl(domain);
+    } else {
+      iconSvg = monogramIconSvg(p.name, brandColor);
+      iconHref = `/connectors/${p.id}.svg`;
+    }
     out.push({
       id: p.id,
       name: p.name,
       category: p.category,
       tagline: p.tagline,
       brandColor,
+      domain: p.domain,
       iconSvg,
+      iconHref,
       requestIssue: p.requestIssue,
     });
   }
@@ -699,7 +752,7 @@ function renderPlaceholderMdx(p: LoadedPlaceholder): string {
   );
   parts.push('');
   parts.push(
-    `<p style="display:flex;align-items:center;gap:0.75rem;margin:0 0 1rem;"><img src="/connectors/${p.id}.svg" alt="${escapeXml(p.name)} logo" width="40" height="40" style="background:#fff;border-radius:8px;padding:6px;box-sizing:border-box;" /> <Badge text="${CATEGORY_LABELS[p.category] ?? p.category}" variant="tip" /> <Badge text="Planned" variant="caution" /></p>`,
+    `<p style="display:flex;align-items:center;gap:0.75rem;margin:0 0 1rem;"><img src="${p.iconHref}" alt="${escapeXml(p.name)} logo" width="40" height="40" style="background:#fff;border-radius:8px;padding:6px;box-sizing:border-box;" /> <Badge text="${CATEGORY_LABELS[p.category] ?? p.category}" variant="tip" /> <Badge text="Planned" variant="caution" /></p>`,
   );
   parts.push('');
   parts.push(escapeMdxText(p.tagline));
@@ -746,6 +799,7 @@ function renderLandingData(
       href: connectorUrl(c),
       iconPath: `/connectors/${c.id}.svg`,
       brandColor: c.doc.brandColor ?? null,
+      domain: c.doc.vendor.domain,
       keywords: connectorKeywords(c),
     }));
   const planned = placeholders.map((p) => ({
@@ -755,8 +809,9 @@ function renderLandingData(
     categoryLabel: CATEGORY_LABELS[p.category] ?? p.category,
     tagline: p.tagline,
     href: placeholderUrl(p),
-    iconPath: `/connectors/${p.id}.svg`,
+    iconPath: p.iconHref,
     brandColor: p.brandColor,
+    domain: p.domain,
     requestUrl: p.requestIssue ? requestIssueUrl(p.requestIssue) : null,
   }));
   const plannedByCategory = new Map<string, number>();
@@ -789,6 +844,7 @@ function renderLandingData(
     '  href: string;',
     '  iconPath: string;',
     '  brandColor: string | null;',
+    '  domain: string;',
     '  keywords: string[];',
     '}',
     '',
@@ -801,6 +857,7 @@ function renderLandingData(
     '  href: string;',
     '  iconPath: string;',
     '  brandColor: string;',
+    '  domain: string;',
     '  requestUrl: string | null;',
     '}',
     '',
@@ -870,12 +927,14 @@ function collectOutputs(
       content: renderPlaceholderMdx(p),
       tracked: false,
     });
-    out.push({
-      path: join(PUBLIC_ICONS_DIR, `${p.id}.svg`),
-      content: p.iconSvg,
-      raw: true,
-      tracked: false,
-    });
+    if (p.iconSvg) {
+      out.push({
+        path: join(PUBLIC_ICONS_DIR, `${p.id}.svg`),
+        content: p.iconSvg,
+        raw: true,
+        tracked: false,
+      });
+    }
   }
   const allCategories = new Set([
     ...byCategory.keys(),

@@ -102,6 +102,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Sync Google Ads campaigns plus daily campaign, ad-group, and keyword performance (impressions, clicks, cost, conversions) via GAQL.',
   vendor: {
     name: 'Google Ads',
+    domain: 'ads.google.com',
     apiDocs: 'https://developers.google.com/google-ads/api/docs/start',
     website: 'https://ads.google.com',
   },

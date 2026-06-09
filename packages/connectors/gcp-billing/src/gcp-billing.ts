@@ -95,6 +95,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Track Google Cloud spend over time from the Cloud Billing -> BigQuery export, optionally broken down by service, project, SKU, or location.',
   vendor: {
     name: 'Google Cloud',
+    domain: 'cloud.google.com',
     apiDocs:
       'https://cloud.google.com/billing/docs/how-to/export-data-bigquery',
     website: 'https://cloud.google.com/billing',

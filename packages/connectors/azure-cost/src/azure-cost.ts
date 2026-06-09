@@ -112,6 +112,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Track daily Azure spend over time, optionally broken down by resource group, service, or tag, via the Cost Management query API.',
   vendor: {
     name: 'Microsoft Azure',
+    domain: 'azure.microsoft.com',
     apiDocs: 'https://learn.microsoft.com/en-us/rest/api/cost-management/',
     website: 'https://azure.microsoft.com/en-us/products/cost-management',
   },

@@ -53,6 +53,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Sync pull requests, issues, deployments, releases, CI runs, and contributor activity from a GitHub repository.',
   vendor: {
     name: 'GitHub',
+    domain: 'github.com',
     apiDocs: 'https://docs.github.com/rest',
     website: 'https://github.com',
   },

@@ -73,6 +73,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Sync Atlassian Statuspage components, incidents, and incident updates - current component health, recent incident history, and per-update status transitions.',
   vendor: {
     name: 'Atlassian Statuspage',
+    domain: 'statuspage.io',
     apiDocs: 'https://developer.statuspage.io/',
     website: 'https://www.atlassian.com/software/statuspage',
   },

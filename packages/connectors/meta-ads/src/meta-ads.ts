@@ -82,6 +82,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Sync Meta (Facebook + Instagram) ad campaigns plus daily campaign, adset, and ad-level insights - spend, impressions, clicks, reach, conversions, and conversion value.',
   vendor: {
     name: 'Meta',
+    domain: 'meta.com',
     apiDocs: 'https://developers.facebook.com/docs/marketing-api/insights',
     website: 'https://business.facebook.com',
   },

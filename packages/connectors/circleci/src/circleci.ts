@@ -103,6 +103,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Sync CircleCI pipelines, workflows, jobs, and workflow state-transition events so build success rate and duration land on dashboards.',
   vendor: {
     name: 'CircleCI',
+    domain: 'circleci.com',
     apiDocs: 'https://circleci.com/docs/api/v2/',
     website: 'https://circleci.com',
   },

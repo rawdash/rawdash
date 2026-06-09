@@ -79,6 +79,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Sync tickets, ticket state-change events, satisfaction ratings, users, and groups from Zendesk Support for queue depth, response time, and CSAT analytics.',
   vendor: {
     name: 'Zendesk',
+    domain: 'zendesk.com',
     apiDocs:
       'https://developer.zendesk.com/api-reference/ticketing/introduction/',
     website: 'https://www.zendesk.com',

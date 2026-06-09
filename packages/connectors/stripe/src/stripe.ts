@@ -67,6 +67,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Sync customers, products, prices, subscriptions, and invoices alongside charge, payment, dispute, and refund events from your Stripe account.',
   vendor: {
     name: 'Stripe',
+    domain: 'stripe.com',
     apiDocs: 'https://stripe.com/docs/api',
     website: 'https://stripe.com',
   },

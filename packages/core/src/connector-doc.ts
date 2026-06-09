@@ -25,6 +25,7 @@ export const connectorDocSchema = z.object({
     .optional(),
   vendor: z.object({
     name: z.string().min(1),
+    domain: z.string().regex(/^[a-z0-9-]+(\.[a-z0-9-]+)+$/i),
     apiDocs: z.url().optional(),
     website: z.url().optional(),
   }),
