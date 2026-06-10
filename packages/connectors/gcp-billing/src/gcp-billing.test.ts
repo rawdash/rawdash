@@ -179,14 +179,14 @@ describe('GcpBillingConnector sync', () => {
     expect(parsed.query).toContain('service.description AS service');
   });
 
-  it('follows pageToken across pages', async () => {
+  it('follows pageToken across pages via jobs.getQueryResults', async () => {
     let call = 0;
-    const bqBodies: Array<Record<string, unknown>> = [];
+    const bqRequests: Array<{ url: string; method: string }> = [];
     installFetch((url, init) => {
       if (url.startsWith('https://oauth2.googleapis.com/token')) {
         return { body: { access_token: 'tok' } };
       }
-      bqBodies.push(JSON.parse(String(init.body)));
+      bqRequests.push({ url, method: init.method ?? 'GET' });
       call += 1;
       const fields = [
         { name: 'date', type: 'DATE' },
@@ -205,6 +205,11 @@ describe('GcpBillingConnector sync', () => {
               },
             ],
             pageToken: 'next-page',
+            jobReference: {
+              projectId: 'my-billing-project',
+              jobId: 'job-1',
+              location: 'US',
+            },
           },
         };
       }
@@ -225,7 +230,16 @@ describe('GcpBillingConnector sync', () => {
       storage.getStorageHandle(CONNECTOR_ID),
     );
     expect(metricsFor(storage).map((m) => m.value)).toEqual([1, 2]);
-    expect(bqBodies[1]).toMatchObject({ pageToken: 'next-page' });
+
+    expect(bqRequests[0]!.method).toBe('POST');
+    expect(bqRequests[0]!.url).toContain('projects/my-billing-project/queries');
+
+    expect(bqRequests[1]!.method).toBe('GET');
+    expect(bqRequests[1]!.url).toContain(
+      'projects/my-billing-project/jobs/job-1',
+    );
+    expect(bqRequests[1]!.url).toContain('pageToken=next-page');
+    expect(bqRequests[1]!.url).toContain('location=US');
   });
 
   it('drops rows whose cost is null or not finite', async () => {
