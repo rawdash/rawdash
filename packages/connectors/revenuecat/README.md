@@ -51,7 +51,7 @@ Authenticates with a RevenueCat v2 REST API key scoped to a single project. The 
   - `lastSeenAt`: Unix seconds of the most recent activity.
   - `activeEntitlements`: Array of entitlement_id strings currently granting access.
 - **`revenuecat_subscription`** _(entity)_ - Subscriptions, one row per (customer, product, original transaction). Extracted from the embedded `subscriptions.items` array in each customer response.
-  - Endpoint: `GET /v2/projects/{project_id}/customers (embedded `subscriptions.items`)`
+  - Endpoint: `GET /v2/projects/{project_id}/customers`
   - `customerId`: RevenueCat customer (app user) id.
   - `productId`: Product the subscription is for.
   - `store`: Originating store (app_store, play_store, ...).

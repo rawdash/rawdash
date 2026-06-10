@@ -318,8 +318,7 @@ export const revenuecatResources = defineResources({
     shape: 'entity',
     description:
       'Subscriptions, one row per (customer, product, original transaction). Extracted from the embedded `subscriptions.items` array in each customer response.',
-    endpoint:
-      'GET /v2/projects/{project_id}/customers (embedded `subscriptions.items`)',
+    endpoint: 'GET /v2/projects/{project_id}/customers',
     fields: [
       { name: 'customerId', description: 'RevenueCat customer (app user) id.' },
       { name: 'productId', description: 'Product the subscription is for.' },
@@ -409,7 +408,7 @@ function toMs(epochSecOrMs: number): number {
   return epochSecOrMs > 1_000_000_000_000 ? epochSecOrMs : epochSecOrMs * 1000;
 }
 
-function attrFromSecs(value: number | null): number | null {
+function nullableSeconds(value: number | null): number | null {
   if (value === null || value === undefined) {
     return null;
   }
@@ -542,7 +541,7 @@ export class RevenueCatConnector extends BaseConnector<
               type: p.type ?? null,
               appId: p.app_id ?? null,
               displayName: p.display_name ?? null,
-              createdAt: attrFromSecs(p.created_at),
+              createdAt: nullableSeconds(p.created_at),
             },
             updated_at: toMs(p.created_at),
           });
@@ -556,7 +555,7 @@ export class RevenueCatConnector extends BaseConnector<
             attributes: {
               lookupKey: e.lookup_key,
               displayName: e.display_name ?? null,
-              createdAt: attrFromSecs(e.created_at),
+              createdAt: nullableSeconds(e.created_at),
             },
             updated_at: toMs(e.created_at),
           });
@@ -572,8 +571,8 @@ export class RevenueCatConnector extends BaseConnector<
             type: 'revenuecat_customer',
             id: c.id,
             attributes: {
-              firstSeenAt: attrFromSecs(c.first_seen_at),
-              lastSeenAt: attrFromSecs(c.last_seen_at),
+              firstSeenAt: nullableSeconds(c.first_seen_at),
+              lastSeenAt: nullableSeconds(c.last_seen_at),
               activeEntitlements: activeEntitlementIds,
             },
             updated_at: toMs(lastSeen),
