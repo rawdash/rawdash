@@ -236,7 +236,7 @@ describe('GcpBillingConnector sync', () => {
 
     expect(bqRequests[1]!.method).toBe('GET');
     expect(bqRequests[1]!.url).toContain(
-      'projects/my-billing-project/jobs/job-1',
+      'projects/my-billing-project/queries/job-1',
     );
     expect(bqRequests[1]!.url).toContain('pageToken=next-page');
     expect(bqRequests[1]!.url).toContain('location=US');

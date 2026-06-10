@@ -338,7 +338,7 @@ export class GcpBillingConnector extends BaseConnector<
     }
     const url = `${BQ_API_BASE}/projects/${encodeURIComponent(
       jobReference.projectId,
-    )}/jobs/${encodeURIComponent(jobReference.jobId)}?${params.toString()}`;
+    )}/queries/${encodeURIComponent(jobReference.jobId)}?${params.toString()}`;
     const res = await this.get<z.infer<typeof bqQueryResponseSchema>>(url, {
       resource: 'daily_cost',
       headers,
