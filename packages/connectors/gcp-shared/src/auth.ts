@@ -109,3 +109,23 @@ export async function buildServiceAccountJwt(
     body,
   };
 }
+
+export interface RefreshTokenCredentials {
+  refreshToken: string;
+  clientId: string;
+  clientSecret: string;
+}
+
+export function buildRefreshTokenGrant(credentials: RefreshTokenCredentials): {
+  url: string;
+  body: string;
+} {
+  const body = new URLSearchParams({
+    grant_type: 'refresh_token',
+    refresh_token: credentials.refreshToken,
+    client_id: credentials.clientId,
+    client_secret: credentials.clientSecret,
+  }).toString();
+
+  return { url: 'https://oauth2.googleapis.com/token', body };
+}

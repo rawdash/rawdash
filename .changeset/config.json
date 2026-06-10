@@ -46,6 +46,7 @@
       "@rawdash/connector-zendesk",
       "@rawdash/connector-statuspage",
       "@rawdash/connector-revenuecat",
+      "@rawdash/connector-firebase-analytics",
       "@rawdash/connectors",
       "@rawdash/adapter-libsql",
       "@rawdash/adapter-sqlite",

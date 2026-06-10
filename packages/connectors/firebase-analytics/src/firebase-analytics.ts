@@ -25,26 +25,36 @@ export const configFields = defineConfigFields(
         .meta({
           label: 'GA4 Property ID',
           description:
-            'Numeric ID of your GA4 property (e.g. 123456789). Find it in Google Analytics → Admin → Property settings.',
+            'Numeric ID of the GA4 property linked to your Firebase project (e.g. 123456789). Find it in Google Analytics -> Admin -> Property settings.',
           placeholder: '123456789',
+        }),
+      firebaseAppId: z
+        .string()
+        .trim()
+        .min(1, 'Firebase App ID is required')
+        .meta({
+          label: 'Firebase App ID',
+          description:
+            'Firebase App ID for the app whose analytics you are syncing (e.g. 1:1234567890:web:abcdef). Find it in Firebase Console -> Project settings -> General -> Your apps. Used to label samples with the source app.',
+          placeholder: '1:1234567890:web:abcdef',
         }),
       serviceAccountJson: z.object({ $secret: z.string() }).optional().meta({
         label: 'Service Account JSON (recommended)',
         description:
-          'Contents of the JSON key file for a Google service account with the Analytics Viewer role. Create one at Google Cloud → IAM & Admin → Service Accounts.',
+          'Contents of the JSON key file for a Google service account with the Firebase Viewer + Analytics Viewer roles. Create one at Google Cloud -> IAM & Admin -> Service Accounts.',
         secret: true,
       }),
       refreshToken: z.object({ $secret: z.string() }).optional().meta({
         label: 'OAuth Refresh Token',
         description:
-          'Google OAuth 2.0 refresh token with analytics.readonly scope. Required if not using serviceAccountJson.',
+          'Google OAuth 2.0 refresh token with the analytics.readonly scope. Required if not using serviceAccountJson.',
         secret: true,
       }),
       clientId: z.string().optional().meta({
         label: 'OAuth Client ID',
         description:
           'OAuth 2.0 client ID from Google Cloud Console. Required when using refreshToken auth.',
-        placeholder: '…apps.googleusercontent.com',
+        placeholder: '...apps.googleusercontent.com',
       }),
       clientSecret: z.object({ $secret: z.string() }).optional().meta({
         label: 'OAuth Client Secret',
@@ -73,41 +83,44 @@ export const configFields = defineConfigFields(
 );
 
 export const doc: ConnectorDoc = defineConnectorDoc({
-  displayName: 'Google Analytics',
-  category: 'analytics',
-  brandColor: '#E37400',
+  displayName: 'Firebase Analytics',
+  category: 'product',
+  brandColor: '#DD2C00',
   tagline:
-    'Sync daily GA4 traffic, acquisition, top pages, events, conversions, and geography metrics from a Google Analytics 4 property.',
+    'Sync DAU/WAU/MAU, per-event activity, and cohort retention from a Firebase project via the GA4 Data API.',
   vendor: {
-    name: 'Google Analytics',
-    domain: 'analytics.google.com',
+    name: 'Firebase Analytics',
+    domain: 'firebase.google.com',
     apiDocs:
       'https://developers.google.com/analytics/devguides/reporting/data/v1',
-    website: 'https://analytics.google.com',
+    website: 'https://firebase.google.com/products/analytics',
   },
   auth: {
     summary:
-      'Authenticate against the GA4 Data API with either a Google service account JSON key (recommended) or an OAuth 2.0 refresh-token tuple. The identity must have at least the Analytics Viewer role on the property.',
+      'Firebase Analytics data is exposed through the linked GA4 property. Authenticate against the GA4 Data API with either a Google service account JSON key (recommended) or an OAuth 2.0 refresh-token tuple. The identity must have at least the Analytics Viewer role on the property.',
     setup: [
-      'Find your GA4 Property ID under Google Analytics -> Admin -> Property settings (numeric, e.g. 123456789).',
-      'Recommended: create a service account at Google Cloud -> IAM & Admin -> Service Accounts, generate a JSON key, and grant it the Analytics Viewer role on the property. Store the JSON as a secret and reference it as serviceAccountJson: secret("GA4_SERVICE_ACCOUNT_JSON").',
+      'In Firebase Console -> Project settings -> Integrations -> Google Analytics, note the linked GA4 property and copy its numeric Property ID from Google Analytics -> Admin -> Property settings.',
+      'In Firebase Console -> Project settings -> General -> Your apps, copy the Firebase App ID for the app whose analytics you want to sync.',
+      'Recommended: create a service account at Google Cloud -> IAM & Admin -> Service Accounts, generate a JSON key, and grant it the Analytics Viewer role on the GA4 property. Store the JSON as a secret and reference it as serviceAccountJson: secret("FIREBASE_ANALYTICS_SA_JSON").',
       'Alternative: provide an OAuth 2.0 refresh token with the analytics.readonly scope together with its clientId and clientSecret from the Google Cloud Console.',
     ],
   },
   rateLimit:
     'GA4 Data API quota is 200,000 tokens/day per property (default); 429 responses are retried automatically with exponential backoff.',
   limitations: [
-    'Incremental syncs use a 30-day window because GA4 can attribute conversions up to 3 days after the session.',
+    'Incremental syncs use a 30-day window because GA4 can attribute events up to 3 days after they occur.',
     'Report pagination is 10,000 rows per page.',
+    'The firebaseAppId is recorded on every sample but does not filter the report; ensure your GA4 property only contains the app you intend to sync.',
   ],
 });
 
-export interface GA4Settings {
+export interface FirebaseAnalyticsSettings {
   propertyId: string;
+  firebaseAppId: string;
   lookbackDays?: number;
 }
 
-const ga4Credentials = {
+const firebaseAnalyticsCredentials = {
   serviceAccountJson: {
     description: 'Google service account JSON key (base64 or raw JSON)',
     auth: 'optional' as const,
@@ -126,44 +139,37 @@ const ga4Credentials = {
   },
 } satisfies CredentialsSchema;
 
-type GA4Credentials = typeof ga4Credentials;
+type FirebaseAnalyticsCredentials = typeof firebaseAnalyticsCredentials;
 
-const PHASE_ORDER = [
-  'traffic_by_day',
-  'traffic_by_source',
-  'top_pages',
-  'events',
-  'conversions',
-  'geo',
-] as const;
+const PHASE_ORDER = ['dau_wau_mau', 'events_per_day', 'retention'] as const;
 
-type GA4Phase = (typeof PHASE_ORDER)[number];
+type FirebaseAnalyticsPhase = (typeof PHASE_ORDER)[number];
 
-interface GA4DateRange {
+interface FirebaseAnalyticsDateRange {
   startDate: string;
   endDate: string;
 }
 
-interface GA4SyncCursor {
-  phase: GA4Phase;
-  dateRange: GA4DateRange;
+interface FirebaseAnalyticsSyncCursor {
+  phase: FirebaseAnalyticsPhase;
+  dateRange: FirebaseAnalyticsDateRange;
 }
 
-const GA4_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const FA_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-function isGA4DateString(value: unknown): value is string {
-  return typeof value === 'string' && GA4_DATE_RE.test(value);
+function isFADateString(value: unknown): value is string {
+  return typeof value === 'string' && FA_DATE_RE.test(value);
 }
 
-function isGA4DateRange(value: unknown): value is GA4DateRange {
+function isFADateRange(value: unknown): value is FirebaseAnalyticsDateRange {
   if (typeof value !== 'object' || value === null) {
     return false;
   }
   const v = value as { startDate?: unknown; endDate?: unknown };
-  return isGA4DateString(v.startDate) && isGA4DateString(v.endDate);
+  return isFADateString(v.startDate) && isFADateString(v.endDate);
 }
 
-function isGA4SyncCursor(value: unknown): value is GA4SyncCursor {
+function isFASyncCursor(value: unknown): value is FirebaseAnalyticsSyncCursor {
   if (typeof value !== 'object' || value === null) {
     return false;
   }
@@ -174,7 +180,7 @@ function isGA4SyncCursor(value: unknown): value is GA4SyncCursor {
   if (!(PHASE_ORDER as readonly string[]).includes(v.phase)) {
     return false;
   }
-  return isGA4DateRange(v.dateRange);
+  return isFADateRange(v.dateRange);
 }
 
 interface PhaseConfig {
@@ -183,62 +189,41 @@ interface PhaseConfig {
   metricName: string;
 }
 
-const PHASE_CONFIGS: Record<GA4Phase, PhaseConfig> = {
-  traffic_by_day: {
+const PHASE_CONFIGS: Record<FirebaseAnalyticsPhase, PhaseConfig> = {
+  dau_wau_mau: {
     dimensions: ['date'],
-    metrics: [
-      'sessions',
-      'totalUsers',
-      'newUsers',
-      'screenPageViews',
-      'engagementRate',
-    ],
-    metricName: 'ga4_traffic_by_day',
+    metrics: ['active1DayUsers', 'active7DayUsers', 'active28DayUsers'],
+    metricName: 'firebase_dau_wau_mau',
   },
-  traffic_by_source: {
-    dimensions: ['date', 'sessionSource', 'sessionMedium'],
-    metrics: ['sessions', 'conversions'],
-    metricName: 'ga4_traffic_by_source',
-  },
-  top_pages: {
-    dimensions: ['date', 'pagePath'],
-    metrics: ['screenPageViews', 'averageSessionDuration'],
-    metricName: 'ga4_top_pages',
-  },
-  events: {
+  events_per_day: {
     dimensions: ['date', 'eventName'],
     metrics: ['eventCount', 'totalUsers'],
-    metricName: 'ga4_events',
+    metricName: 'firebase_events_per_day',
   },
-  conversions: {
-    dimensions: ['date', 'eventName'],
-    metrics: ['conversions', 'totalRevenue'],
-    metricName: 'ga4_conversions',
-  },
-  geo: {
-    dimensions: ['date', 'country'],
-    metrics: ['sessions', 'totalUsers'],
-    metricName: 'ga4_geo',
+  retention: {
+    dimensions: ['firstSessionDate', 'date'],
+    metrics: ['activeUsers'],
+    metricName: 'firebase_retention',
   },
 };
 
 const ROWS_PER_PAGE = 10_000;
 
-export interface GA4DimensionValue {
+export interface FAReportDimensionValue {
   value: string;
 }
 
-export interface GA4MetricValue {
+export interface FAReportMetricValue {
   value: string;
 }
 
-export interface GA4ReportRow {
-  dimensionValues: GA4DimensionValue[];
-  metricValues: GA4MetricValue[];
+export interface FAReportRow {
+  dimensionValues: FAReportDimensionValue[];
+  metricValues: FAReportMetricValue[];
 }
 
-interface GA4ReportResponse {
-  rows?: GA4ReportRow[];
+interface FAReportResponse {
+  rows?: FAReportRow[];
   rowCount?: number;
   dimensionHeaders?: Array<{ name: string }>;
   metricHeaders?: Array<{ name: string; type: string }>;
@@ -264,7 +249,7 @@ const INCREMENTAL_LOOKBACK_DAYS = 30;
 function getDateRange(
   options: SyncOptions,
   lookbackDays: number,
-): GA4DateRange {
+): FirebaseAnalyticsDateRange {
   const now = Date.now();
   const endDate = toGA4Date(new Date(now));
   if (options.mode === 'latest' && options.since) {
@@ -285,10 +270,11 @@ function getDateRange(
 }
 
 export function rowToMetricSample(
-  row: GA4ReportRow,
+  row: FAReportRow,
   dimensionHeaders: string[],
   metricHeaders: string[],
   metricName: string,
+  firebaseAppId: string,
 ): {
   name: string;
   ts: number;
@@ -310,11 +296,24 @@ export function rowToMetricSample(
   const ts = ga4DateToMs(dateStr);
   const primaryValue = mets[metricHeaders[0]!] ?? 0;
 
+  const attributes: Record<string, string | number> = {
+    firebaseAppId,
+    ...dims,
+    ...mets,
+  };
+
+  if (dims['firstSessionDate'] && dims['date']) {
+    const firstMs = ga4DateToMs(dims['firstSessionDate']);
+    const dateMs = ga4DateToMs(dims['date']);
+    const period = Math.max(0, Math.round((dateMs - firstMs) / MS_PER_DAY));
+    attributes['period'] = period;
+  }
+
   return {
     name: metricName,
     ts,
     value: primaryValue,
-    attributes: { ...dims, ...mets },
+    attributes,
   };
 }
 
@@ -327,14 +326,15 @@ const numericMetricValue = z.object({
   value: z.string().regex(/^-?\d+(\.\d+)?$/),
 });
 
-function reportSchema(dimensionCount: number) {
+function reportSchema(dimensionCount: number, firstIsDate = true) {
+  const first = firstIsDate ? dateDimensionValue : stringDimensionValue;
   const dims =
     dimensionCount === 1
-      ? z.tuple([dateDimensionValue])
+      ? z.tuple([first])
       : z.tuple([
-          dateDimensionValue,
+          first,
           ...Array(dimensionCount - 1).fill(stringDimensionValue),
-        ] as [typeof dateDimensionValue, ...z.ZodType[]]);
+        ] as [typeof first, ...z.ZodType[]]);
   return z.object({
     rows: z
       .array(
@@ -347,17 +347,28 @@ function reportSchema(dimensionCount: number) {
   });
 }
 
+const retentionReportSchema = z.object({
+  rows: z
+    .array(
+      z.object({
+        dimensionValues: z.tuple([dateDimensionValue, dateDimensionValue]),
+        metricValues: z.array(numericMetricValue).nonempty(),
+      }),
+    )
+    .optional(),
+});
+
 const tokenResponseSchema = z.object({
   access_token: z.string().min(1),
   expires_in: z.number().int().positive().optional(),
 });
 
-export const googleAnalyticsResources = defineResources({
-  ga4_traffic_by_day: {
+export const firebaseAnalyticsResources = defineResources({
+  firebase_dau_wau_mau: {
     shape: 'metric',
     description:
-      'Daily site traffic totals - sessions, total users, new users, page views, and engagement rate.',
-    unit: 'sessions',
+      'Daily active, weekly active, and monthly active user counts for the linked GA4 property.',
+    unit: 'users',
     granularity: 'day',
     endpoint: 'POST /v1beta/properties/{propertyId}:runReport',
     dimensions: [
@@ -365,50 +376,13 @@ export const googleAnalyticsResources = defineResources({
     ],
     responses: {
       oauth_token: tokenResponseSchema,
-      traffic_by_day: reportSchema(1),
+      dau_wau_mau: reportSchema(1),
     },
   },
-  ga4_traffic_by_source: {
+  firebase_events_per_day: {
     shape: 'metric',
     description:
-      'Daily sessions and conversions broken down by acquisition source and medium.',
-    unit: 'sessions',
-    granularity: 'day',
-    endpoint: 'POST /v1beta/properties/{propertyId}:runReport',
-    dimensions: [
-      { name: 'date', description: 'Calendar day of the metric sample.' },
-      {
-        name: 'sessionSource',
-        description: 'Origin of the session (e.g. google, direct, newsletter).',
-      },
-      {
-        name: 'sessionMedium',
-        description:
-          'Acquisition medium of the session (e.g. organic, cpc, referral).',
-      },
-    ],
-    responses: { traffic_by_source: reportSchema(3) },
-  },
-  ga4_top_pages: {
-    shape: 'metric',
-    description:
-      'Daily page views and average session duration bucketed by page path.',
-    unit: 'page_views',
-    granularity: 'day',
-    endpoint: 'POST /v1beta/properties/{propertyId}:runReport',
-    dimensions: [
-      { name: 'date', description: 'Calendar day of the metric sample.' },
-      {
-        name: 'pagePath',
-        description: 'URL path of the page that was viewed.',
-      },
-    ],
-    responses: { top_pages: reportSchema(2) },
-  },
-  ga4_events: {
-    shape: 'metric',
-    description:
-      'Daily event counts and the users that triggered them, bucketed by event name.',
+      'Daily event counts and the active users that triggered them, bucketed by event name.',
     unit: 'events',
     granularity: 'day',
     endpoint: 'POST /v1beta/properties/{propertyId}:runReport',
@@ -416,59 +390,55 @@ export const googleAnalyticsResources = defineResources({
       { name: 'date', description: 'Calendar day of the metric sample.' },
       {
         name: 'eventName',
-        description: 'GA4 event name (e.g. page_view, scroll, click).',
+        description: 'GA4 event name (e.g. session_start, first_open, login).',
       },
     ],
-    responses: { events: reportSchema(2) },
+    responses: { events_per_day: reportSchema(2) },
   },
-  ga4_conversions: {
+  firebase_retention: {
     shape: 'metric',
     description:
-      'Daily conversion counts and total revenue bucketed by conversion event name.',
-    unit: 'conversions',
+      'Active users on each day grouped by the date of their first session (cohort retention).',
+    unit: 'users',
     granularity: 'day',
     endpoint: 'POST /v1beta/properties/{propertyId}:runReport',
     dimensions: [
-      { name: 'date', description: 'Calendar day of the metric sample.' },
       {
-        name: 'eventName',
-        description:
-          'GA4 conversion event name (e.g. purchase, generate_lead).',
+        name: 'firstSessionDate',
+        description: 'Calendar day on which the user first opened the app.',
+      },
+      {
+        name: 'date',
+        description: 'Calendar day on which the user was active.',
       },
     ],
-    responses: { conversions: reportSchema(2) },
-  },
-  ga4_geo: {
-    shape: 'metric',
-    description: 'Daily sessions and total users bucketed by visitor country.',
-    unit: 'sessions',
-    granularity: 'day',
-    endpoint: 'POST /v1beta/properties/{propertyId}:runReport',
-    dimensions: [
-      { name: 'date', description: 'Calendar day of the metric sample.' },
-      {
-        name: 'country',
-        description: 'Country the session originated from.',
-      },
-    ],
-    responses: { geo: reportSchema(2) },
+    notes:
+      'Each sample also carries a `period` attribute equal to (date - firstSessionDate) in days, so retention curves can be built by grouping on it.',
+    responses: { retention: retentionReportSchema },
   },
 });
 
-export const id = 'google-analytics';
+export const id = 'firebase-analytics';
 
-export class GA4Connector extends BaseConnector<GA4Settings, GA4Credentials> {
+export class FirebaseAnalyticsConnector extends BaseConnector<
+  FirebaseAnalyticsSettings,
+  FirebaseAnalyticsCredentials
+> {
   static readonly id = id;
 
-  static readonly resources = googleAnalyticsResources;
+  static readonly resources = firebaseAnalyticsResources;
 
-  static readonly schemas = schemasFromResources(googleAnalyticsResources);
+  static readonly schemas = schemasFromResources(firebaseAnalyticsResources);
 
-  static create(input: unknown, ctx?: ConnectorContext): GA4Connector {
+  static create(
+    input: unknown,
+    ctx?: ConnectorContext,
+  ): FirebaseAnalyticsConnector {
     const parsed = configFields.parse(input);
-    return new GA4Connector(
+    return new FirebaseAnalyticsConnector(
       {
         propertyId: parsed.propertyId,
+        firebaseAppId: parsed.firebaseAppId,
         lookbackDays: parsed.lookbackDays,
       },
       {
@@ -482,7 +452,7 @@ export class GA4Connector extends BaseConnector<GA4Settings, GA4Credentials> {
   }
 
   readonly id = id;
-  override readonly credentials = ga4Credentials;
+  override readonly credentials = firebaseAnalyticsCredentials;
 
   private tokenProvider?: GcpAccessTokenProvider;
 
@@ -506,11 +476,11 @@ export class GA4Connector extends BaseConnector<GA4Settings, GA4Credentials> {
 
   private async runReport(
     accessToken: string,
-    phase: GA4Phase,
+    phase: FirebaseAnalyticsPhase,
     dateRange: { startDate: string; endDate: string },
     offset: number,
     signal?: AbortSignal,
-  ): Promise<GA4ReportResponse> {
+  ): Promise<FAReportResponse> {
     const { dimensions, metrics } = PHASE_CONFIGS[phase];
     const url = `https://analyticsdata.googleapis.com/v1beta/properties/${this.settings.propertyId}:runReport`;
 
@@ -524,12 +494,12 @@ export class GA4Connector extends BaseConnector<GA4Settings, GA4Credentials> {
       offset,
     };
 
-    const res = await this.post<GA4ReportResponse>(url, {
+    const res = await this.post<FAReportResponse>(url, {
       resource: phase,
       headers: {
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
-        'User-Agent': connectorUserAgent('google-analytics'),
+        'User-Agent': connectorUserAgent('firebase-analytics'),
       },
       body: JSON.stringify(body),
       signal,
@@ -544,7 +514,7 @@ export class GA4Connector extends BaseConnector<GA4Settings, GA4Credentials> {
   ): Promise<SyncResult> {
     const lookbackDays = this.settings.lookbackDays ?? 90;
 
-    const cursor = isGA4SyncCursor(options.cursor) ? options.cursor : undefined;
+    const cursor = isFASyncCursor(options.cursor) ? options.cursor : undefined;
     const dateRange = cursor?.dateRange ?? getDateRange(options, lookbackDays);
 
     let accessToken: string | null = null;
@@ -556,26 +526,28 @@ export class GA4Connector extends BaseConnector<GA4Settings, GA4Credentials> {
     };
 
     const runReportWithRetry = async (
-      phase: GA4Phase,
+      phase: FirebaseAnalyticsPhase,
       offset: number,
       sig: AbortSignal | undefined,
-    ): Promise<GA4ReportResponse> => {
+    ): Promise<FAReportResponse> => {
       const token = await getToken(sig);
       try {
         return await this.runReport(token, phase, dateRange, offset, sig);
       } catch (err) {
-        console.warn(
-          `[ga4] runReport failed, refreshing token and retrying once`,
-          err,
-        );
+        this.logger.warn('runReport failed, refreshing token and retrying', {
+          err: String(err),
+          phase,
+        });
         accessToken = null;
         const freshToken = await getToken(sig);
         return this.runReport(freshToken, phase, dateRange, offset, sig);
       }
     };
 
-    const drainPhase = async (phase: GA4Phase): Promise<GA4ReportRow[]> => {
-      const allRows: GA4ReportRow[] = [];
+    const drainPhase = async (
+      phase: FirebaseAnalyticsPhase,
+    ): Promise<FAReportRow[]> => {
+      const allRows: FAReportRow[] = [];
       let offset = 0;
       for (;;) {
         const response = await runReportWithRetry(phase, offset, signal);
@@ -596,6 +568,14 @@ export class GA4Connector extends BaseConnector<GA4Settings, GA4Credentials> {
       return allRows;
     };
 
+    const enabled = options.resources;
+    const isPhaseEnabled = (phase: FirebaseAnalyticsPhase): boolean => {
+      if (!enabled || enabled.size === 0) {
+        return true;
+      }
+      return enabled.has(PHASE_CONFIGS[phase].metricName);
+    };
+
     const resumeIdx = cursor ? PHASE_ORDER.indexOf(cursor.phase) : -1;
     const startIdx = resumeIdx >= 0 ? resumeIdx : 0;
 
@@ -604,8 +584,11 @@ export class GA4Connector extends BaseConnector<GA4Settings, GA4Credentials> {
       if (signal?.aborted) {
         return { done: false, cursor: { phase, dateRange } };
       }
+      if (!isPhaseEnabled(phase)) {
+        continue;
+      }
 
-      let rows: GA4ReportRow[];
+      let rows: FAReportRow[];
       try {
         rows = await drainPhase(phase);
       } catch (err) {
@@ -616,7 +599,13 @@ export class GA4Connector extends BaseConnector<GA4Settings, GA4Credentials> {
       }
       const cfg = PHASE_CONFIGS[phase];
       const samples = rows.map((row) =>
-        rowToMetricSample(row, cfg.dimensions, cfg.metrics, cfg.metricName),
+        rowToMetricSample(
+          row,
+          cfg.dimensions,
+          cfg.metrics,
+          cfg.metricName,
+          this.settings.firebaseAppId,
+        ),
       );
       await storage.metrics(samples, { names: [cfg.metricName] });
     }

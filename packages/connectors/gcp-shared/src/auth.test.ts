@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildServiceAccountJwt, parseServiceAccountJson } from './auth';
+import {
+  buildRefreshTokenGrant,
+  buildServiceAccountJwt,
+  parseServiceAccountJson,
+} from './auth';
 
 const TEST_PRIVATE_KEY = `-----BEGIN PRIVATE KEY-----
 MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDFvX2hX9MZqaQz
@@ -84,5 +88,21 @@ describe('buildServiceAccountJwt', () => {
       'https://www.googleapis.com/auth/monitoring.read',
     );
     expect(payload.aud).toBe('https://oauth2.googleapis.com/token');
+  });
+});
+
+describe('buildRefreshTokenGrant', () => {
+  it('builds a refresh_token grant request', () => {
+    const result = buildRefreshTokenGrant({
+      refreshToken: 'refresh-123',
+      clientId: 'client-abc',
+      clientSecret: 'secret-xyz',
+    });
+    expect(result.url).toBe('https://oauth2.googleapis.com/token');
+    const params = new URLSearchParams(result.body);
+    expect(params.get('grant_type')).toBe('refresh_token');
+    expect(params.get('refresh_token')).toBe('refresh-123');
+    expect(params.get('client_id')).toBe('client-abc');
+    expect(params.get('client_secret')).toBe('secret-xyz');
   });
 });

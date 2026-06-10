@@ -1,3 +1,4 @@
+import { GcpAccessTokenProvider } from '@rawdash/connector-gcp-shared';
 import { connectorUserAgent } from '@rawdash/connector-shared';
 import {
   BaseConnector,
@@ -174,7 +175,6 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const DEFAULT_LOOKBACK_DAYS = 90;
 const INCREMENTAL_LOOKBACK_DAYS = 3;
 const MICROS_PER_UNIT = 1_000_000;
-const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 
 const ENTITY_TYPE_CAMPAIGN = 'google_ads_campaign';
 const METRIC_NAME: Record<GoogleAdsPhase, string> = {
@@ -647,11 +647,6 @@ export function keywordMetricRowToSample(row: KeywordMetricRow): {
   };
 }
 
-interface TokenResponse {
-  access_token: string;
-  expires_in?: number;
-}
-
 interface SearchResponse<TRow> {
   results?: TRow[];
   nextPageToken?: string;
@@ -691,36 +686,22 @@ export class GoogleAdsConnector extends BaseConnector<
   readonly id = id;
   override readonly credentials = googleAdsCredentials;
 
-  private cachedToken: { token: string; expiresAt: number } | null = null;
+  private tokenProvider?: GcpAccessTokenProvider;
 
-  private async fetchAccessToken(
-    signal: AbortSignal | undefined,
-  ): Promise<{ token: string; expiresAt: number }> {
-    const body = new URLSearchParams({
-      grant_type: 'refresh_token',
-      client_id: this.creds.clientId,
-      client_secret: this.creds.clientSecret,
-      refresh_token: this.creds.refreshToken,
-    }).toString();
-    const res = await this.post<TokenResponse>(TOKEN_URL, {
-      resource: 'oauth_token',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body,
-      signal,
+  private getAccessToken(signal?: AbortSignal): Promise<string> {
+    this.tokenProvider ??= new GcpAccessTokenProvider({
+      connectorId: this.id,
+      scope: 'https://www.googleapis.com/auth/adwords',
+      getServiceAccountJson: () => undefined,
+      getRefreshTokenCredentials: () => ({
+        refreshToken: this.creds.refreshToken,
+        clientId: this.creds.clientId,
+        clientSecret: this.creds.clientSecret,
+      }),
+      post: (url, opts) =>
+        this.post<{ access_token: string; expires_in?: number }>(url, opts),
     });
-    const expiresIn = res.body.expires_in ?? 3600;
-    return {
-      token: res.body.access_token,
-      expiresAt: Date.now() + (expiresIn - 60) * 1000,
-    };
-  }
-
-  private async getAccessToken(signal?: AbortSignal): Promise<string> {
-    if (this.cachedToken && Date.now() < this.cachedToken.expiresAt) {
-      return this.cachedToken.token;
-    }
-    this.cachedToken = await this.fetchAccessToken(signal);
-    return this.cachedToken.token;
+    return this.tokenProvider.getToken(signal);
   }
 
   private buildHeaders(accessToken: string): Record<string, string> {

@@ -1,6 +1,8 @@
 export {
+  type RefreshTokenCredentials,
   type ServiceAccountKey,
   type TokenResponse,
+  buildRefreshTokenGrant,
   buildServiceAccountJwt,
   parseServiceAccountJson,
   tokenResponseSchema,

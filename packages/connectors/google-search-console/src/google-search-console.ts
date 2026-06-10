@@ -1,3 +1,4 @@
+import { GcpAccessTokenProvider } from '@rawdash/connector-gcp-shared';
 import { connectorUserAgent } from '@rawdash/connector-shared';
 import {
   BaseConnector,
@@ -219,102 +220,6 @@ interface GSCReportResponse {
   responseAggregationType?: string;
 }
 
-interface ServiceAccountKey {
-  client_email: string;
-  private_key: string;
-  token_uri?: string;
-}
-
-interface TokenResponse {
-  access_token: string;
-  expires_in?: number;
-}
-
-function base64urlFromBytes(bytes: Uint8Array): string {
-  let binary = '';
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i]!);
-  }
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
-}
-
-function base64urlFromString(str: string): string {
-  return base64urlFromBytes(new TextEncoder().encode(str));
-}
-
-async function signRS256JWT(
-  payload: Record<string, unknown>,
-  privateKeyPem: string,
-): Promise<string> {
-  const header = { alg: 'RS256', typ: 'JWT' };
-  const headerB64 = base64urlFromString(JSON.stringify(header));
-  const payloadB64 = base64urlFromString(JSON.stringify(payload));
-  const signingInput = `${headerB64}.${payloadB64}`;
-
-  const pemContent = privateKeyPem
-    .replace(/-----BEGIN PRIVATE KEY-----/g, '')
-    .replace(/-----END PRIVATE KEY-----/g, '')
-    .replace(/\s/g, '');
-  const der = Uint8Array.from(atob(pemContent), (c) => c.charCodeAt(0));
-
-  const key = await globalThis.crypto.subtle.importKey(
-    'pkcs8',
-    der,
-    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
-    false,
-    ['sign'],
-  );
-
-  const signature = await globalThis.crypto.subtle.sign(
-    'RSASSA-PKCS1-v1_5',
-    key,
-    new TextEncoder().encode(signingInput),
-  );
-
-  return `${signingInput}.${base64urlFromBytes(new Uint8Array(signature))}`;
-}
-
-function parseServiceAccountJson(value: string): ServiceAccountKey {
-  const trimmed = value.trim();
-  if (trimmed.startsWith('{')) {
-    return JSON.parse(trimmed) as ServiceAccountKey;
-  }
-  const binary = atob(trimmed);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  const decoded = new TextDecoder().decode(bytes);
-  return JSON.parse(decoded) as ServiceAccountKey;
-}
-
-async function buildServiceAccountJwt(
-  serviceAccountJson: string,
-): Promise<{ url: string; body: string }> {
-  const sa = parseServiceAccountJson(serviceAccountJson);
-  const now = Math.floor(Date.now() / 1000);
-  const jwt = await signRS256JWT(
-    {
-      iss: sa.client_email,
-      scope: 'https://www.googleapis.com/auth/webmasters.readonly',
-      aud: sa.token_uri ?? 'https://oauth2.googleapis.com/token',
-      exp: now + 3600,
-      iat: now,
-    },
-    sa.private_key,
-  );
-
-  const body = new URLSearchParams({
-    grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-    assertion: jwt,
-  }).toString();
-
-  return {
-    url: sa.token_uri ?? 'https://oauth2.googleapis.com/token',
-    body,
-  };
-}
-
 function toGSCDate(date: Date): string {
   const y = date.getUTCFullYear();
   const m = String(date.getUTCMonth() + 1).padStart(2, '0');
@@ -519,58 +424,24 @@ export class GSCConnector extends BaseConnector<GSCSettings, GSCCredentials> {
   readonly id = id;
   override readonly credentials = gscCredentials;
 
-  private cachedToken: { token: string; expiresAt: number } | null = null;
+  private tokenProvider?: GcpAccessTokenProvider;
 
-  private async fetchOAuthToken(
-    url: string,
-    body: string,
-    signal: AbortSignal | undefined,
-  ): Promise<{ token: string; expiresAt: number }> {
-    const res = await this.post<TokenResponse>(url, {
-      resource: 'oauth_token',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body,
-      signal,
+  private getAccessToken(signal?: AbortSignal): Promise<string> {
+    this.tokenProvider ??= new GcpAccessTokenProvider({
+      connectorId: this.id,
+      scope: 'https://www.googleapis.com/auth/webmasters.readonly',
+      getServiceAccountJson: () => this.creds.serviceAccountJson,
+      getRefreshTokenCredentials: () => {
+        const { refreshToken, clientId, clientSecret } = this.creds;
+        if (refreshToken && clientId && clientSecret) {
+          return { refreshToken, clientId, clientSecret };
+        }
+        return undefined;
+      },
+      post: (url, opts) =>
+        this.post<{ access_token: string; expires_in?: number }>(url, opts),
     });
-    const expiresIn = res.body.expires_in ?? 3600;
-    return {
-      token: res.body.access_token,
-      expiresAt: Date.now() + (expiresIn - 60) * 1000,
-    };
-  }
-
-  private async getAccessToken(signal?: AbortSignal): Promise<string> {
-    if (this.cachedToken && Date.now() < this.cachedToken.expiresAt) {
-      return this.cachedToken.token;
-    }
-
-    const { serviceAccountJson, refreshToken, clientId, clientSecret } =
-      this.creds;
-
-    if (serviceAccountJson) {
-      const { url, body } = await buildServiceAccountJwt(serviceAccountJson);
-      this.cachedToken = await this.fetchOAuthToken(url, body, signal);
-      return this.cachedToken.token;
-    }
-
-    if (refreshToken && clientId && clientSecret) {
-      const body = new URLSearchParams({
-        grant_type: 'refresh_token',
-        refresh_token: refreshToken,
-        client_id: clientId,
-        client_secret: clientSecret,
-      }).toString();
-      this.cachedToken = await this.fetchOAuthToken(
-        'https://oauth2.googleapis.com/token',
-        body,
-        signal,
-      );
-      return this.cachedToken.token;
-    }
-
-    throw new Error(
-      'GSC connector: provide either serviceAccountJson or (refreshToken + clientId + clientSecret)',
-    );
+    return this.tokenProvider.getToken(signal);
   }
 
   private async runReport(

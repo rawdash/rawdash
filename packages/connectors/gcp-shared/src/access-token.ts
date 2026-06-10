@@ -1,6 +1,10 @@
 import { AuthError } from '@rawdash/connector-shared';
 
-import { buildServiceAccountJwt } from './auth';
+import {
+  type RefreshTokenCredentials,
+  buildRefreshTokenGrant,
+  buildServiceAccountJwt,
+} from './auth';
 
 interface GcpTokenResponse {
   access_token: string;
@@ -25,24 +29,30 @@ export class GcpAccessTokenProvider {
       connectorId: string;
       scope: string;
       getServiceAccountJson: () => string | undefined;
+      getRefreshTokenCredentials?: () => RefreshTokenCredentials | undefined;
       post: GcpTokenPoster;
     },
   ) {}
+
+  private async resolveGrant(): Promise<{ url: string; body: string }> {
+    const serviceAccountJson = this.opts.getServiceAccountJson();
+    if (serviceAccountJson) {
+      return buildServiceAccountJwt(serviceAccountJson, this.opts.scope);
+    }
+    const refreshTokenCredentials = this.opts.getRefreshTokenCredentials?.();
+    if (refreshTokenCredentials) {
+      return buildRefreshTokenGrant(refreshTokenCredentials);
+    }
+    throw new AuthError(
+      `${this.opts.connectorId}: missing serviceAccountJson or refresh-token credentials`,
+    );
+  }
 
   async getToken(signal?: AbortSignal): Promise<string> {
     if (this.cached && Date.now() < this.cached.expiresAt) {
       return this.cached.token;
     }
-    const serviceAccountJson = this.opts.getServiceAccountJson();
-    if (!serviceAccountJson) {
-      throw new AuthError(
-        `${this.opts.connectorId}: missing serviceAccountJson credential`,
-      );
-    }
-    const { url, body } = await buildServiceAccountJwt(
-      serviceAccountJson,
-      this.opts.scope,
-    );
+    const { url, body } = await this.resolveGrant();
     const res = await this.opts.post(url, {
       resource: 'oauth_token',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
