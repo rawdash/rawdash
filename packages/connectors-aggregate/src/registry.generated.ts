@@ -47,6 +47,8 @@ export const connectorLoaders: Record<string, () => Promise<ConnectorClass>> = {
   'new-relic': () =>
     import('@rawdash/connector-new-relic').then((m) => m.default),
   posthog: () => import('@rawdash/connector-posthog').then((m) => m.default),
+  revenuecat: () =>
+    import('@rawdash/connector-revenuecat').then((m) => m.default),
   salesforce: () =>
     import('@rawdash/connector-salesforce').then((m) => m.default),
   sentry: () => import('@rawdash/connector-sentry').then((m) => m.default),

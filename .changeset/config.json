@@ -42,6 +42,7 @@
       "@rawdash/connector-new-relic",
       "@rawdash/connector-zendesk",
       "@rawdash/connector-statuspage",
+      "@rawdash/connector-revenuecat",
       "@rawdash/connectors",
       "@rawdash/adapter-libsql",
       "@rawdash/adapter-sqlite",
