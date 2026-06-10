@@ -13,6 +13,7 @@ const content = defineCollection({
       'compare',
       'alternative',
       'dashboard',
+      'metric',
     ]),
     slug: z.string(),
     title: z.string(),
@@ -29,6 +30,15 @@ const content = defineCollection({
     competitor: z.string().optional(),
     author: z.string().optional(),
     tags: z.array(z.string()).default([]),
+    definition: z.string().optional(),
+    formula: z.string().optional(),
+    benchmark: z
+      .array(z.object({ label: z.string(), value: z.string() }))
+      .default([]),
+    relatedMetrics: z
+      .array(z.object({ slug: z.string(), title: z.string() }))
+      .default([]),
+    pitfalls: z.array(z.string()).default([]),
     publishedAt: z.coerce.date().optional(),
     updatedAt: z.coerce.date().optional(),
     draft: z.boolean().default(false),

@@ -1,7 +1,7 @@
 # Content feed integration
 
 The marketing content surface (`/blog`, `/integrations`, `/compare`,
-`/alternatives`, `/dashboards`) is **not** authored in this public repo. Content lives and is
+`/alternatives`, `/dashboards`, `/metrics`) is **not** authored in this public repo. Content lives and is
 automated in the private cloud repo (RAW-370) and is served to this site as a
 presentation-agnostic JSON feed (RAW-371). This site fetches that feed **at
 build time only** (SSG — never a client-side runtime fetch) and renders static
@@ -45,7 +45,7 @@ Accept: application/json
   "generatedAt": "2026-05-31T00:00:00.000Z", // optional ISO timestamp
   "items": [
     {
-      "pageType": "blog", // "blog" | "integration" | "compare" | "alternative" | "dashboard"
+      "pageType": "blog", // "blog" | "integration" | "compare" | "alternative" | "dashboard" | "metric"
       "slug": "stripe-revenue-dashboard",
       "title": "Build a Stripe revenue dashboard", // the single on-page H1
       "metaTitle": "Stripe Revenue Dashboard — Rawdash", // optional <title> override
@@ -69,6 +69,22 @@ Accept: application/json
       "competitor": "Geckoboard", // optional; for compare / alternative pages
       "author": "Elad Shaham", // optional; blog byline
       "tags": ["stripe", "finance"], // optional
+      // The following drive the `metric` (KPI library) template only:
+      "definition": "Net revenue retention measures …", // optional; metric lead + DefinedTerm JSON-LD
+      "formula": "(Starting MRR + Expansion − Churn − Contraction) / Starting MRR", // optional
+      "benchmark": [
+        // optional; rendered as the benchmark table
+        { "label": "Best-in-class SaaS", "value": "> 120%" },
+        { "label": "Median", "value": "100%" },
+      ],
+      "relatedMetrics": [
+        // optional; links to other /metrics pages
+        {
+          "slug": "gross-revenue-retention",
+          "title": "Gross revenue retention",
+        },
+      ],
+      "pitfalls": ["Counting one-off services revenue as expansion."], // optional
       "publishedAt": "2026-05-20T00:00:00.000Z", // optional ISO
       "updatedAt": "2026-05-22T00:00:00.000Z", // optional ISO
       "draft": false, // optional; drafts are dropped
@@ -80,20 +96,25 @@ Accept: application/json
 ### Field rules
 
 - `pageType` + `slug` are required and form the route: `/{section}/{slug}/`,
-  where the section is `blog`, `integrations`, `compare`, `alternatives`, or
-  `dashboards`.
+  where the section is `blog`, `integrations`, `compare`, `alternatives`,
+  `dashboards`, or `metrics` (the `metric` pageType, i.e. the KPI library).
 - `body` is **plain markdown** (rendered to HTML at build via `marked`).
   Keep it presentation-agnostic: no MDX, no JSX, no Astro components — markup
   lives here in the OSS repo, data lives in the feed (see RAW-370).
-- `connectors` and `faq` drive the dedicated sections on `dashboard` pages
-  (connector chips link to the docs; `faq` also emits `FAQPage` JSON-LD). They
-  are accepted on any `pageType` but only rendered by the dashboard template.
+- `connectors` and `faq` drive the dedicated sections on `dashboard` and
+  `metric` pages (connector chips link to the docs; `faq` also emits `FAQPage`
+  JSON-LD). They are accepted on any `pageType` but only rendered by those
+  templates.
+- `definition`, `formula`, `benchmark`, `relatedMetrics`, and `pitfalls` drive
+  the `metric` (KPI library) template only. `definition` also emits a
+  `DefinedTerm` JSON-LD block. They are ignored by every other `pageType`.
 - All CTA links should point at the `cloud.rawdash.dev` conversion surface.
 
 ## Rendering & SEO
 
 Each page gets: one `<h1>`, a meta title/description, a canonical URL, Open
 Graph/Twitter tags, JSON-LD (`BlogPosting` for blog, `WebPage` for the SEO
-pages, a `FAQPage` when a `dashboard` page carries `faq`, plus a
+pages, a `FAQPage` when a `dashboard` or `metric` page carries `faq`, a
+`DefinedTerm` when a `metric` page carries a `definition`, plus a
 `BreadcrumbList`), and inclusion in `sitemap.xml` via `@astrojs/sitemap`. Every
 page cross-links down to `cloud.rawdash.dev`.

@@ -72,6 +72,25 @@ export function faqPageJsonLd(items: FaqItem[]): Record<string, unknown> {
   };
 }
 
+export function definedTermJsonLd(
+  term: string,
+  definition: string,
+  url: string,
+): Record<string, unknown> {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'DefinedTerm',
+    name: term,
+    description: definition,
+    url,
+    inDefinedTermSet: {
+      '@type': 'DefinedTermSet',
+      name: 'Rawdash Metrics & KPI Library',
+      url: canonical('/metrics/', undefined),
+    },
+  };
+}
+
 export function entryJsonLd(
   entry: ContentEntry,
   url: string,
