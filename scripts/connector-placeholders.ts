@@ -921,16 +921,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     domain: 'delighted.com',
   },
   {
-    id: 'firebase-analytics',
-    name: 'Firebase Analytics',
-    category: 'product',
-    tagline:
-      'Sync DAU, retention, and in-app event volume from Firebase Analytics.',
-    icon: 'firebase',
-    domain: 'firebase.google.com',
-    requestIssue: 'RAW-406',
-  },
-  {
     id: 'flagsmith',
     name: 'Flagsmith',
     category: 'product',
