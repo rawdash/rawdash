@@ -1,18 +1,22 @@
 import {
+  BQ_DATASET_RE,
+  BQ_IDENT_RE,
   BQ_READONLY_SCOPE,
   type BqPageRequest,
   type BqQueryResponse,
+  GcpAccessTokenProvider,
+  MS_PER_DAY,
   bqQueryResponseSchema,
-  buildServiceAccountJwt,
   collectBigQueryPages,
   gcpAuthConfigShape,
+  indexBqFields,
+  parseBqDateOrEpoch,
+  readBqCell as readCell,
+  startOfUtcDay,
+  toDateStr,
   tokenResponseSchema,
 } from '@rawdash/connector-gcp-shared';
-import {
-  AuthError,
-  connectorUserAgent,
-  parseEpoch,
-} from '@rawdash/connector-shared';
+import { connectorUserAgent, parseEpoch } from '@rawdash/connector-shared';
 import {
   BaseConnector,
   type ConnectorContext,
@@ -30,9 +34,6 @@ import {
   schemasFromResources,
 } from '@rawdash/core';
 import { z } from 'zod';
-
-const BQ_IDENT_RE = /^[A-Za-z_][A-Za-z0-9_-]*$/;
-const BQ_DATASET_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 export const configFields = defineConfigFields(
   z.object({
@@ -120,7 +121,6 @@ const DEFAULT_LOOKBACK_DAYS = 90;
 const DEFAULT_TOP_ISSUES_LIMIT = 50;
 const DEFAULT_BQ_DATASET = 'firebase_crashlytics';
 const INCREMENTAL_LOOKBACK_DAYS = 2;
-const MS_PER_DAY = 86_400_000;
 type ResourceName = typeof CRASHES_METRIC_NAME | 'top_issues';
 
 export interface FirebaseCrashlyticsSettings {
@@ -266,35 +266,17 @@ export class FirebaseCrashlyticsConnector extends BaseConnector<
   readonly id = id;
   override readonly credentials = firebaseCrashlyticsCredentials;
 
-  private cachedToken: { token: string; expiresAt: number } | null = null;
+  private tokenProvider?: GcpAccessTokenProvider;
 
-  private async getAccessToken(signal?: AbortSignal): Promise<string> {
-    if (this.cachedToken && Date.now() < this.cachedToken.expiresAt) {
-      return this.cachedToken.token;
-    }
-    const { serviceAccountJson } = this.creds;
-    if (!serviceAccountJson) {
-      throw new AuthError(`${this.id}: missing serviceAccountJson credential`);
-    }
-    const { url, body } = await buildServiceAccountJwt(
-      serviceAccountJson,
-      BQ_READONLY_SCOPE,
-    );
-    const res = await this.post<{
-      access_token: string;
-      expires_in?: number;
-    }>(url, {
-      resource: 'oauth_token',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body,
-      signal,
+  private getAccessToken(signal?: AbortSignal): Promise<string> {
+    this.tokenProvider ??= new GcpAccessTokenProvider({
+      connectorId: this.id,
+      scope: BQ_READONLY_SCOPE,
+      getServiceAccountJson: () => this.creds.serviceAccountJson,
+      post: (url, opts) =>
+        this.post<{ access_token: string; expires_in?: number }>(url, opts),
     });
-    const expiresIn = res.body.expires_in ?? 3600;
-    this.cachedToken = {
-      token: res.body.access_token,
-      expiresAt: Date.now() + (expiresIn - 60) * 1000,
-    };
-    return this.cachedToken.token;
+    return this.tokenProvider.getToken(signal);
   }
 
   private async fetchBigQueryPage(
@@ -496,19 +478,6 @@ export function buildTopIssuesSql(args: {
   ].join('\n');
 }
 
-function pad2(n: number): string {
-  return String(n).padStart(2, '0');
-}
-
-function toDateStr(ms: number): string {
-  const d = new Date(ms);
-  return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
-}
-
-function startOfUtcDay(ms: number): number {
-  return Math.floor(ms / MS_PER_DAY) * MS_PER_DAY;
-}
-
 export function getCrashlyticsWindow(
   options: SyncOptions,
   lookbackDays: number,
@@ -537,11 +506,7 @@ export function getCrashlyticsWindow(
 export function buildCrashesSamplesFromBqResponse(
   response: z.infer<typeof bqQueryResponseSchema>,
 ): MetricSample[] {
-  const schema = response.schema?.fields ?? [];
-  const fieldIndex: Record<string, number> = {};
-  schema.forEach((field, idx) => {
-    fieldIndex[field.name] = idx;
-  });
+  const fieldIndex = indexBqFields(response);
 
   const samples: MetricSample[] = [];
   for (const row of response.rows ?? []) {
@@ -603,11 +568,7 @@ export function buildCrashesSamplesFromBqResponse(
 export function buildTopIssuesEntitiesFromBqResponse(
   response: z.infer<typeof bqQueryResponseSchema>,
 ): Entity[] {
-  const schema = response.schema?.fields ?? [];
-  const fieldIndex: Record<string, number> = {};
-  schema.forEach((field, idx) => {
-    fieldIndex[field.name] = idx;
-  });
+  const fieldIndex = indexBqFields(response);
 
   const entities: Entity[] = [];
   for (const row of response.rows ?? []) {
@@ -646,32 +607,4 @@ export function buildTopIssuesEntitiesFromBqResponse(
     });
   }
   return entities;
-}
-
-function readCell(
-  cells: ReadonlyArray<{ v?: string | null }>,
-  fieldIndex: Record<string, number>,
-  name: string,
-): string | null {
-  const idx = fieldIndex[name];
-  if (idx === undefined) {
-    return null;
-  }
-  const raw = cells[idx]?.v;
-  if (raw === undefined || raw === null) {
-    return null;
-  }
-  return raw;
-}
-
-function parseBqDateOrEpoch(value: string): number | null {
-  const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (dateMatch) {
-    return Date.UTC(
-      Number(dateMatch[1]),
-      Number(dateMatch[2]) - 1,
-      Number(dateMatch[3]),
-    );
-  }
-  return parseEpoch(value, 'iso');
 }

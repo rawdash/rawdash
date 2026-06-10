@@ -1,18 +1,22 @@
 import {
+  BQ_DATASET_RE,
+  BQ_IDENT_RE,
   BQ_READONLY_SCOPE,
   type BqPageRequest,
   type BqQueryResponse,
+  GcpAccessTokenProvider,
+  MS_PER_DAY,
   bqQueryResponseSchema,
-  buildServiceAccountJwt,
   collectBigQueryPages,
   gcpAuthConfigShape,
+  indexBqFields,
+  parseBqDateOrEpoch,
+  readBqCell as readCell,
+  startOfUtcDay,
+  toDateStr,
   tokenResponseSchema,
 } from '@rawdash/connector-gcp-shared';
-import {
-  AuthError,
-  connectorUserAgent,
-  parseEpoch,
-} from '@rawdash/connector-shared';
+import { connectorUserAgent, parseEpoch } from '@rawdash/connector-shared';
 import {
   BaseConnector,
   type ConnectorContext,
@@ -31,8 +35,6 @@ import {
 } from '@rawdash/core';
 import { z } from 'zod';
 
-const BQ_IDENT_RE = /^[A-Za-z_][A-Za-z0-9_-]*$/;
-const BQ_DATASET_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const DIMENSION_VALUES = ['service', 'project', 'sku', 'location'] as const;
 type Dimension = (typeof DIMENSION_VALUES)[number];
 
@@ -129,7 +131,6 @@ export const doc: ConnectorDoc = defineConnectorDoc({
 const COST_METRIC_NAME = 'gcp_cost_daily';
 const DEFAULT_LOOKBACK_DAYS = 90;
 const INCREMENTAL_LOOKBACK_DAYS = 5;
-const MS_PER_DAY = 86_400_000;
 const DEFAULT_GROUP_BY: readonly Dimension[] = ['service'];
 
 export interface GcpBillingSettings {
@@ -229,35 +230,17 @@ export class GcpBillingConnector extends BaseConnector<
   readonly id = id;
   override readonly credentials = gcpBillingCredentials;
 
-  private cachedToken: { token: string; expiresAt: number } | null = null;
+  private tokenProvider?: GcpAccessTokenProvider;
 
-  private async getAccessToken(signal?: AbortSignal): Promise<string> {
-    if (this.cachedToken && Date.now() < this.cachedToken.expiresAt) {
-      return this.cachedToken.token;
-    }
-    const { serviceAccountJson } = this.creds;
-    if (!serviceAccountJson) {
-      throw new AuthError(`${this.id}: missing serviceAccountJson credential`);
-    }
-    const { url, body } = await buildServiceAccountJwt(
-      serviceAccountJson,
-      BQ_READONLY_SCOPE,
-    );
-    const res = await this.post<{
-      access_token: string;
-      expires_in?: number;
-    }>(url, {
-      resource: 'oauth_token',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body,
-      signal,
+  private getAccessToken(signal?: AbortSignal): Promise<string> {
+    this.tokenProvider ??= new GcpAccessTokenProvider({
+      connectorId: this.id,
+      scope: BQ_READONLY_SCOPE,
+      getServiceAccountJson: () => this.creds.serviceAccountJson,
+      post: (url, opts) =>
+        this.post<{ access_token: string; expires_in?: number }>(url, opts),
     });
-    const expiresIn = res.body.expires_in ?? 3600;
-    this.cachedToken = {
-      token: res.body.access_token,
-      expiresAt: Date.now() + (expiresIn - 60) * 1000,
-    };
-    return this.cachedToken.token;
+    return this.tokenProvider.getToken(signal);
   }
 
   private async fetchBigQueryPage(
@@ -361,19 +344,6 @@ export function buildBillingSql(args: {
   ].join('\n');
 }
 
-function pad2(n: number): string {
-  return String(n).padStart(2, '0');
-}
-
-function toDateStr(ms: number): string {
-  const d = new Date(ms);
-  return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
-}
-
-function startOfUtcDay(ms: number): number {
-  return Math.floor(ms / MS_PER_DAY) * MS_PER_DAY;
-}
-
 export function getCostWindow(
   options: SyncOptions,
   lookbackDays: number,
@@ -403,11 +373,7 @@ export function buildSamplesFromBqResponse(
   response: z.infer<typeof bqQueryResponseSchema>,
   groupBy: readonly Dimension[],
 ): MetricSample[] {
-  const schema = response.schema?.fields ?? [];
-  const fieldIndex: Record<string, number> = {};
-  schema.forEach((field, idx) => {
-    fieldIndex[field.name] = idx;
-  });
+  const fieldIndex = indexBqFields(response);
 
   const samples: MetricSample[] = [];
   for (const row of response.rows ?? []) {
@@ -439,32 +405,4 @@ export function buildSamplesFromBqResponse(
     samples.push({ name: COST_METRIC_NAME, ts, value, attributes });
   }
   return samples;
-}
-
-function readCell(
-  cells: ReadonlyArray<{ v?: string | null }>,
-  fieldIndex: Record<string, number>,
-  name: string,
-): string | null {
-  const idx = fieldIndex[name];
-  if (idx === undefined) {
-    return null;
-  }
-  const raw = cells[idx]?.v;
-  if (raw === undefined || raw === null) {
-    return null;
-  }
-  return raw;
-}
-
-function parseBqDateOrEpoch(value: string): number | null {
-  const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (dateMatch) {
-    return Date.UTC(
-      Number(dateMatch[1]),
-      Number(dateMatch[2]) - 1,
-      Number(dateMatch[3]),
-    );
-  }
-  return parseEpoch(value, 'iso');
 }

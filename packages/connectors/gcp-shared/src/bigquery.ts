@@ -1,4 +1,8 @@
+import { parseEpoch } from '@rawdash/connector-shared';
 import { z } from 'zod';
+
+export const BQ_IDENT_RE = /^[A-Za-z_][A-Za-z0-9_-]*$/;
+export const BQ_DATASET_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 export const BQ_API_BASE = 'https://bigquery.googleapis.com/bigquery/v2';
 export const BQ_READONLY_SCOPE =
@@ -163,4 +167,42 @@ export async function collectBigQueryPages<T>(opts: {
     duration_ms: Date.now() - phaseStart,
   });
   return { rows, aborted: false };
+}
+
+export function indexBqFields(
+  response: BqQueryResponse,
+): Record<string, number> {
+  const fieldIndex: Record<string, number> = {};
+  (response.schema?.fields ?? []).forEach((field, idx) => {
+    fieldIndex[field.name] = idx;
+  });
+  return fieldIndex;
+}
+
+export function readBqCell(
+  cells: ReadonlyArray<{ v?: string | null }>,
+  fieldIndex: Record<string, number>,
+  name: string,
+): string | null {
+  const idx = fieldIndex[name];
+  if (idx === undefined) {
+    return null;
+  }
+  const raw = cells[idx]?.v;
+  if (raw === undefined || raw === null) {
+    return null;
+  }
+  return raw;
+}
+
+export function parseBqDateOrEpoch(value: string): number | null {
+  const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (dateMatch) {
+    return Date.UTC(
+      Number(dateMatch[1]),
+      Number(dateMatch[2]) - 1,
+      Number(dateMatch[3]),
+    );
+  }
+  return parseEpoch(value, 'iso');
 }
