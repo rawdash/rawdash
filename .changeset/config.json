@@ -9,6 +9,7 @@
       "@rawdash/hono",
       "@rawdash/sdk-nextjs",
       "@rawdash/connector-app-store-connect",
+      "@rawdash/connector-appsflyer",
       "@rawdash/connector-aws-cloudwatch",
       "@rawdash/connector-azure-cost",
       "@rawdash/connector-azure-monitor",

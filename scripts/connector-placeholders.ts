@@ -1148,16 +1148,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     requestIssue: 'RAW-233',
   },
   {
-    id: 'appsflyer',
-    name: 'AppsFlyer',
-    category: 'marketing',
-    tagline:
-      'Sync mobile installs, CPI, ROAS, and retention by source from AppsFlyer.',
-    brandColor: '#007AFF',
-    domain: 'appsflyer.com',
-    requestIssue: 'RAW-408',
-  },
-  {
     id: 'beehiiv',
     name: 'Beehiiv',
     category: 'marketing',
