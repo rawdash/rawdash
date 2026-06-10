@@ -299,6 +299,78 @@ describe('FirebaseCrashlyticsConnector sync', () => {
     expect(metricsFor(storage).map((m) => m.value)).toEqual([1, 2]);
   });
 
+  it('follows pageToken across pages for top_issues', async () => {
+    let issueCall = 0;
+    installFetch((url, init) => {
+      if (url.startsWith('https://oauth2.googleapis.com/token')) {
+        return { body: { access_token: 'tok' } };
+      }
+      const parsed = JSON.parse(String(init.body)) as {
+        query: string;
+        pageToken?: string;
+      };
+      if (parsed.query.includes('ORDER BY event_count DESC')) {
+        issueCall += 1;
+        if (issueCall === 1) {
+          return {
+            body: {
+              jobComplete: true,
+              schema: ISSUE_SCHEMA,
+              rows: [
+                {
+                  f: [
+                    { v: 'issue-1' },
+                    { v: 't1' },
+                    { v: 's1' },
+                    { v: 'app' },
+                    { v: 'ios' },
+                    { v: '2' },
+                    { v: '1' },
+                    { v: '1704067200000000' },
+                  ],
+                },
+              ],
+              pageToken: 'issue-page-2',
+            },
+          };
+        }
+        expect(parsed.pageToken).toBe('issue-page-2');
+        return {
+          body: {
+            jobComplete: true,
+            schema: ISSUE_SCHEMA,
+            rows: [
+              {
+                f: [
+                  { v: 'issue-2' },
+                  { v: 't2' },
+                  { v: 's2' },
+                  { v: 'app' },
+                  { v: 'ios' },
+                  { v: '5' },
+                  { v: '3' },
+                  { v: '1704153600000000' },
+                ],
+              },
+            ],
+          },
+        };
+      }
+      return { body: { jobComplete: true, schema: CRASH_SCHEMA, rows: [] } };
+    });
+
+    const storage = new InMemoryStorage();
+    await makeConnector().sync(
+      { mode: 'full', resources: new Set(['top_issues']) },
+      storage.getStorageHandle(CONNECTOR_ID),
+    );
+    expect(
+      entitiesFor(storage)
+        .map((e) => e.id)
+        .sort(),
+    ).toEqual(['issue-1', 'issue-2']);
+  });
+
   it('drops crash rows with no count', async () => {
     installFetch((url, init) => {
       if (url.startsWith('https://oauth2.googleapis.com/token')) {
@@ -423,6 +495,20 @@ describe('buildTopIssuesSql', () => {
     expect(sql).toContain('ORDER BY event_count DESC');
     expect(sql).toContain('issue_id IS NOT NULL');
   });
+
+  it('selects the most recent attributes per issue', () => {
+    const sql = buildTopIssuesSql({
+      projectId: 'p',
+      bqDataset: 'd',
+      startDate: '2024-01-01',
+      endDate: '2024-02-01',
+      limit: 25,
+    });
+    expect(sql).toContain('ANY_VALUE(issue_title HAVING MAX event_timestamp)');
+    expect(sql).toContain(
+      'ANY_VALUE(application.bundle_id HAVING MAX event_timestamp)',
+    );
+  });
 });
 
 describe('getCrashlyticsWindow', () => {
@@ -438,6 +524,30 @@ describe('getCrashlyticsWindow', () => {
   it('clamps to a short refetch window in latest mode', () => {
     expect(getCrashlyticsWindow({ mode: 'latest' }, 90, now)).toEqual({
       startDate: '2024-01-30',
+      endDate: '2024-02-01',
+    });
+  });
+
+  it('uses since with a trailing refetch and clamps to lookbackDays', () => {
+    expect(
+      getCrashlyticsWindow(
+        { mode: 'full', since: new Date(now).toISOString() },
+        90,
+        now,
+      ),
+    ).toEqual({
+      startDate: '2024-01-30',
+      endDate: '2024-02-01',
+    });
+
+    expect(
+      getCrashlyticsWindow(
+        { mode: 'full', since: '2024-01-01T00:00:00.000Z' },
+        3,
+        now,
+      ),
+    ).toEqual({
+      startDate: '2024-01-29',
       endDate: '2024-02-01',
     });
   });

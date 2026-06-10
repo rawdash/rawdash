@@ -389,6 +389,9 @@ export class FirebaseCrashlyticsConnector extends BaseConnector<
         endDate: window.endDate,
       });
       const samples = await this.collectSamples(sql, signal);
+      if (signal?.aborted) {
+        return { done: false };
+      }
       await storage.metrics(samples, { names: [CRASHES_METRIC_NAME] });
     }
 
@@ -404,6 +407,9 @@ export class FirebaseCrashlyticsConnector extends BaseConnector<
         limit: topIssuesLimit,
       });
       const entities = await this.collectIssues(sql, signal);
+      if (signal?.aborted) {
+        return { done: false };
+      }
       await storage.entities(entities, { types: [TOP_ISSUES_ENTITY_TYPE] });
     }
 
@@ -581,10 +587,10 @@ export function buildTopIssuesSql(args: {
   return [
     'SELECT',
     '  issue_id,',
-    '  ANY_VALUE(issue_title) AS title,',
-    '  ANY_VALUE(issue_subtitle) AS subtitle,',
-    '  ANY_VALUE(application.bundle_id) AS app_id,',
-    "  LOWER(IFNULL(ANY_VALUE(application.platform), 'unknown')) AS platform,",
+    '  ANY_VALUE(issue_title HAVING MAX event_timestamp) AS title,',
+    '  ANY_VALUE(issue_subtitle HAVING MAX event_timestamp) AS subtitle,',
+    '  ANY_VALUE(application.bundle_id HAVING MAX event_timestamp) AS app_id,',
+    "  LOWER(IFNULL(ANY_VALUE(application.platform HAVING MAX event_timestamp), 'unknown')) AS platform,",
     '  COUNT(*) AS event_count,',
     '  COUNT(DISTINCT user.id) AS user_count,',
     '  MAX(event_timestamp) AS last_seen',
