@@ -1,8 +1,4 @@
-import {
-  type TokenResponse,
-  buildRefreshTokenGrant,
-  buildServiceAccountJwt,
-} from '@rawdash/connector-gcp-shared';
+import { GcpAccessTokenProvider } from '@rawdash/connector-gcp-shared';
 import { connectorUserAgent } from '@rawdash/connector-shared';
 import {
   BaseConnector,
@@ -458,56 +454,24 @@ export class FirebaseAnalyticsConnector extends BaseConnector<
   readonly id = id;
   override readonly credentials = firebaseAnalyticsCredentials;
 
-  private cachedToken: { token: string; expiresAt: number } | null = null;
+  private tokenProvider?: GcpAccessTokenProvider;
 
-  private async fetchOAuthToken(
-    url: string,
-    body: string,
-    signal: AbortSignal | undefined,
-  ): Promise<{ token: string; expiresAt: number }> {
-    const res = await this.post<TokenResponse>(url, {
-      resource: 'oauth_token',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body,
-      signal,
+  private getAccessToken(signal?: AbortSignal): Promise<string> {
+    this.tokenProvider ??= new GcpAccessTokenProvider({
+      connectorId: this.id,
+      scope: 'https://www.googleapis.com/auth/analytics.readonly',
+      getServiceAccountJson: () => this.creds.serviceAccountJson,
+      getRefreshTokenCredentials: () => {
+        const { refreshToken, clientId, clientSecret } = this.creds;
+        if (refreshToken && clientId && clientSecret) {
+          return { refreshToken, clientId, clientSecret };
+        }
+        return undefined;
+      },
+      post: (url, opts) =>
+        this.post<{ access_token: string; expires_in?: number }>(url, opts),
     });
-    const expiresIn = res.body.expires_in ?? 3600;
-    return {
-      token: res.body.access_token,
-      expiresAt: Date.now() + (expiresIn - 60) * 1000,
-    };
-  }
-
-  private async getAccessToken(signal?: AbortSignal): Promise<string> {
-    if (this.cachedToken && Date.now() < this.cachedToken.expiresAt) {
-      return this.cachedToken.token;
-    }
-
-    const { serviceAccountJson, refreshToken, clientId, clientSecret } =
-      this.creds;
-
-    if (serviceAccountJson) {
-      const { url, body } = await buildServiceAccountJwt(
-        serviceAccountJson,
-        'https://www.googleapis.com/auth/analytics.readonly',
-      );
-      this.cachedToken = await this.fetchOAuthToken(url, body, signal);
-      return this.cachedToken.token;
-    }
-
-    if (refreshToken && clientId && clientSecret) {
-      const { url, body } = buildRefreshTokenGrant({
-        refreshToken,
-        clientId,
-        clientSecret,
-      });
-      this.cachedToken = await this.fetchOAuthToken(url, body, signal);
-      return this.cachedToken.token;
-    }
-
-    throw new Error(
-      'Firebase Analytics connector: provide either serviceAccountJson or (refreshToken + clientId + clientSecret)',
-    );
+    return this.tokenProvider.getToken(signal);
   }
 
   private async runReport(

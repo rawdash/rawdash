@@ -354,6 +354,9 @@ importers:
       '@rawdash/connector-datadog':
         specifier: workspace:*
         version: link:../connectors/datadog
+      '@rawdash/connector-firebase-analytics':
+        specifier: workspace:*
+        version: link:../connectors/firebase-analytics
       '@rawdash/connector-firebase-crashlytics':
         specifier: workspace:*
         version: link:../connectors/firebase-crashlytics
