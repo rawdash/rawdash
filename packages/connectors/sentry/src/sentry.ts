@@ -139,6 +139,7 @@ interface SentryProjectRef {
   id?: string | number;
   slug: string;
   name?: string;
+  platform?: string;
 }
 
 interface SentryIssue {
@@ -252,7 +253,40 @@ const issueResponseSchema = z.array(
     lastSeen: z.iso.datetime(),
     count: z.union([z.string().regex(/^\d+$/), z.number().int().nonnegative()]),
     userCount: z.number().int().nonnegative(),
-    project: z.object({ slug: z.string().min(1) }),
+    project: z.object({
+      slug: z.string().min(1),
+      id: z.union([idString, z.number()]).optional(),
+      name: z.string().optional(),
+      platform: z.string().nullable().optional(),
+    }),
+    annotations: z.unknown().optional(),
+    assignedTo: z.unknown().nullable().optional(),
+    culprit: z.string().nullable().optional(),
+    filtered: z.unknown().nullable().optional(),
+    hasSeen: z.boolean().optional(),
+    isBookmarked: z.boolean().optional(),
+    isPublic: z.boolean().optional(),
+    isSubscribed: z.boolean().optional(),
+    isUnhandled: z.boolean().optional(),
+    issueCategory: z.string().optional(),
+    issueType: z.string().optional(),
+    lifetime: z.unknown().optional(),
+    logger: z.string().nullable().optional(),
+    metadata: z.unknown().optional(),
+    numComments: z.number().int().nonnegative().optional(),
+    permalink: z.string().optional(),
+    platform: z.string().nullable().optional(),
+    priority: z.string().optional(),
+    priorityLockedAt: z.iso.datetime().nullable().optional(),
+    seerAutofixLastTriggered: z.iso.datetime().nullable().optional(),
+    seerExplorerAutofixLastTriggered: z.iso.datetime().nullable().optional(),
+    seerFixabilityScore: z.number().nullable().optional(),
+    shareId: z.string().nullable().optional(),
+    stats: z.unknown().optional(),
+    statusDetails: z.unknown().optional(),
+    subscriptionDetails: z.unknown().nullable().optional(),
+    substatus: z.string().nullable().optional(),
+    type: z.string().optional(),
   }),
 );
 
