@@ -14,6 +14,7 @@
       "@rawdash/connector-azure-cost",
       "@rawdash/connector-azure-monitor",
       "@rawdash/connector-datadog",
+      "@rawdash/connector-firebase-crashlytics",
       "@rawdash/connector-github",
       "@rawdash/connector-bitbucket",
       "@rawdash/connector-gitlab",

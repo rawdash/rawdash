@@ -58,6 +58,12 @@ import {
   resources as datadogResources,
 } from '@rawdash/connector-datadog';
 import {
+  configFields as firebaseCrashlyticsConfigFields,
+  doc as firebaseCrashlyticsDoc,
+  id as firebaseCrashlyticsId,
+  resources as firebaseCrashlyticsResources,
+} from '@rawdash/connector-firebase-crashlytics';
+import {
   configFields as gcpBillingConfigFields,
   cost as gcpBillingCost,
   doc as gcpBillingDoc,
@@ -298,6 +304,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: datadogDoc,
     configFields: datadogConfigFields,
     resources: datadogResources,
+  },
+  {
+    id: firebaseCrashlyticsId,
+    packageName: '@rawdash/connector-firebase-crashlytics',
+    doc: firebaseCrashlyticsDoc,
+    configFields: firebaseCrashlyticsConfigFields,
+    resources: firebaseCrashlyticsResources,
   },
   {
     id: gcpBillingId,

@@ -1,13 +1,9 @@
 import {
-  buildServiceAccountJwt,
+  GcpAccessTokenProvider,
   gcpAuthConfigShape,
   tokenResponseSchema,
 } from '@rawdash/connector-gcp-shared';
-import {
-  AuthError,
-  connectorUserAgent,
-  parseEpoch,
-} from '@rawdash/connector-shared';
+import { connectorUserAgent, parseEpoch } from '@rawdash/connector-shared';
 import {
   BaseConnector,
   type ConnectorContext,
@@ -298,35 +294,17 @@ export class GcpMonitoringConnector extends BaseConnector<
   readonly id = id;
   override readonly credentials = gcpMonitoringCredentials;
 
-  private cachedToken: { token: string; expiresAt: number } | null = null;
+  private tokenProvider?: GcpAccessTokenProvider;
 
-  private async getAccessToken(signal?: AbortSignal): Promise<string> {
-    if (this.cachedToken && Date.now() < this.cachedToken.expiresAt) {
-      return this.cachedToken.token;
-    }
-    const { serviceAccountJson } = this.creds;
-    if (!serviceAccountJson) {
-      throw new AuthError(`${this.id}: missing serviceAccountJson credential`);
-    }
-    const { url, body } = await buildServiceAccountJwt(
-      serviceAccountJson,
-      MONITORING_SCOPE,
-    );
-    const res = await this.post<{
-      access_token: string;
-      expires_in?: number;
-    }>(url, {
-      resource: 'oauth_token',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body,
-      signal,
+  private getAccessToken(signal?: AbortSignal): Promise<string> {
+    this.tokenProvider ??= new GcpAccessTokenProvider({
+      connectorId: this.id,
+      scope: MONITORING_SCOPE,
+      getServiceAccountJson: () => this.creds.serviceAccountJson,
+      post: (url, opts) =>
+        this.post<{ access_token: string; expires_in?: number }>(url, opts),
     });
-    const expiresIn = res.body.expires_in ?? 3600;
-    this.cachedToken = {
-      token: res.body.access_token,
-      expiresAt: Date.now() + (expiresIn - 60) * 1000,
-    };
-    return this.cachedToken.token;
+    return this.tokenProvider.getToken(signal);
   }
 
   private computeWindow(options: SyncOptions): {
