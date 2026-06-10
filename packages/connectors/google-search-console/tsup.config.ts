@@ -3,7 +3,7 @@ import { defineConfig } from 'tsup';
 export default defineConfig({
   entry: ['src/index.ts'],
   format: ['esm'],
-  noExternal: ['@rawdash/connector-shared'],
+  noExternal: ['@rawdash/connector-gcp-shared', '@rawdash/connector-shared'],
   dts: true,
   sourcemap: true,
   clean: true,

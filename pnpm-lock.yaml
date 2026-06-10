@@ -980,6 +980,9 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
+      '@rawdash/connector-gcp-shared':
+        specifier: workspace:*
+        version: link:../gcp-shared
       '@rawdash/connector-shared':
         specifier: workspace:*
         version: link:../../connector-shared
@@ -1008,6 +1011,9 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
+      '@rawdash/connector-gcp-shared':
+        specifier: workspace:*
+        version: link:../gcp-shared
       '@rawdash/connector-shared':
         specifier: workspace:*
         version: link:../../connector-shared
@@ -1064,6 +1070,9 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
+      '@rawdash/connector-gcp-shared':
+        specifier: workspace:*
+        version: link:../gcp-shared
       '@rawdash/connector-shared':
         specifier: workspace:*
         version: link:../../connector-shared
