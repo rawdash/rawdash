@@ -27,6 +27,8 @@ export const connectorLoaders: Record<string, () => Promise<ConnectorClass>> = {
     import('@rawdash/connector-google-ads').then((m) => m.default),
   'google-analytics': () =>
     import('@rawdash/connector-google-analytics').then((m) => m.default),
+  'google-play-console': () =>
+    import('@rawdash/connector-google-play-console').then((m) => m.default),
   'google-search-console': () =>
     import('@rawdash/connector-google-search-console').then((m) => m.default),
   greenhouse: () =>

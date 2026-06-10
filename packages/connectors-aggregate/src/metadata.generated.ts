@@ -89,6 +89,12 @@ import {
   resources as googleAnalyticsResources,
 } from '@rawdash/connector-google-analytics';
 import {
+  configFields as googlePlayConsoleConfigFields,
+  doc as googlePlayConsoleDoc,
+  id as googlePlayConsoleId,
+  resources as googlePlayConsoleResources,
+} from '@rawdash/connector-google-play-console';
+import {
   configFields as googleSearchConsoleConfigFields,
   doc as googleSearchConsoleDoc,
   id as googleSearchConsoleId,
@@ -322,6 +328,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: googleAnalyticsDoc,
     configFields: googleAnalyticsConfigFields,
     resources: googleAnalyticsResources,
+  },
+  {
+    id: googlePlayConsoleId,
+    packageName: '@rawdash/connector-google-play-console',
+    doc: googlePlayConsoleDoc,
+    configFields: googlePlayConsoleConfigFields,
+    resources: googlePlayConsoleResources,
   },
   {
     id: googleSearchConsoleId,

@@ -48,6 +48,7 @@
     "@rawdash/connector-gitlab": "workspace:*",
     "@rawdash/connector-google-ads": "workspace:*",
     "@rawdash/connector-google-analytics": "workspace:*",
+    "@rawdash/connector-google-play-console": "workspace:*",
     "@rawdash/connector-google-search-console": "workspace:*",
     "@rawdash/connector-greenhouse": "workspace:*",
     "@rawdash/connector-hubspot": "workspace:*",

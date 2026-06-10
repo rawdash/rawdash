@@ -968,16 +968,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     domain: 'gainsight.com',
   },
   {
-    id: 'google-play-console',
-    name: 'Google Play Console',
-    category: 'product',
-    tagline:
-      'Sync app installs, in-app revenue, and ratings across countries from Google Play Console.',
-    icon: 'googleplay',
-    domain: 'play.google.com',
-    requestIssue: 'RAW-404',
-  },
-  {
     id: 'google-sheets',
     name: 'Google Sheets',
     category: 'product',
