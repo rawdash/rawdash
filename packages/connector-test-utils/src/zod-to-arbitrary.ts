@@ -205,6 +205,24 @@ export function zodToArbitrary<T>(schema: z.ZodType<T>): fc.Arbitrary<T> {
 }
 
 function zodToArbitraryInternal(schema: unknown): fc.Arbitrary<unknown> {
+  const arb = buildArbitrary(schema);
+  const checks =
+    (
+      getDef(schema) as {
+        checks?: Array<{ _zod?: { def?: { check?: string } } }>;
+      }
+    ).checks ?? [];
+  const hasRefinement = checks.some((c) => c?._zod?.def?.check === 'custom');
+  if (!hasRefinement) {
+    return arb;
+  }
+  const refined = schema as {
+    safeParse: (value: unknown) => { success: boolean };
+  };
+  return arb.filter((value) => refined.safeParse(value).success);
+}
+
+function buildArbitrary(schema: unknown): fc.Arbitrary<unknown> {
   const def = getDef(schema);
   switch (def.type) {
     case 'string':
