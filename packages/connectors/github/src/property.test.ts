@@ -855,6 +855,140 @@ describe('GitHubConnector property tests', () => {
     });
   });
 
+  describe('fetchSpecs filter pushdown', () => {
+    const day = 86_400_000;
+
+    function makePR(number: number, state: string, updatedAt: string) {
+      return {
+        number,
+        title: `PR ${number}`,
+        state,
+        draft: false,
+        user: { login: 'alice' },
+        created_at: updatedAt,
+        updated_at: updatedAt,
+      };
+    }
+
+    it('pushes ?state=open and applies no time cutoff for an unbounded filtered spec', async () => {
+      const now = Date.now();
+      const linkHeader = (next: string) => `<${next}>; rel="next"`;
+      const page2Url =
+        'https://api.github.com/repos/rawdash/rawdash/pulls?state=open&page=2';
+      const page1 = [
+        makePR(1, 'open', new Date(now - 400 * day).toISOString()),
+      ];
+      const page2 = [
+        makePR(2, 'open', new Date(now - 800 * day).toISOString()),
+      ];
+
+      const spy = installFetchMock((url) => {
+        if (url === page2Url) {
+          return { body: page2 };
+        }
+        if (url.match(/\/pulls(\?|$)/)) {
+          return { body: page1, headers: { link: linkHeader(page2Url) } };
+        }
+        return safeDefaultResponse(url);
+      });
+
+      const storage = new InMemoryStorage();
+      await buildConnector().sync(
+        {
+          mode: 'full',
+          resources: new Set(['pull_request']),
+          fetchSpecs: {
+            pull_request: [
+              { filter: [{ field: 'state', op: 'eq', value: 'open' }] },
+            ],
+          },
+        },
+        storage.getStorageHandle(CONNECTOR_ID),
+      );
+
+      const pullCalls = spy.mock.calls
+        .map(([url]) => String(url))
+        .filter((url) => url.match(/\/pulls(\?|$)/));
+      expect(pullCalls[0]).toContain('state=open');
+      expect(pullCalls.some((u) => u.includes('state=all'))).toBe(false);
+      expect(pullCalls).toHaveLength(2);
+      expect(entityStoreFor(storage).get('pull_request')?.size).toBe(2);
+    });
+
+    it('runs one fetch per spec: state=open unbounded plus state=closed within window', async () => {
+      const now = Date.now();
+      const spy = installFetchMock((url) => {
+        if (url.includes('state=open')) {
+          return {
+            body: [makePR(1, 'open', new Date(now - 400 * day).toISOString())],
+          };
+        }
+        if (url.includes('state=closed')) {
+          return {
+            body: [
+              makePR(2, 'closed', new Date(now - 2 * day).toISOString()),
+              makePR(3, 'closed', new Date(now - 30 * day).toISOString()),
+            ],
+          };
+        }
+        return safeDefaultResponse(url);
+      });
+
+      const storage = new InMemoryStorage();
+      await buildConnector().sync(
+        {
+          mode: 'full',
+          resources: new Set(['pull_request']),
+          fetchSpecs: {
+            pull_request: [
+              { filter: [{ field: 'state', op: 'eq', value: 'open' }] },
+              {
+                filter: [{ field: 'state', op: 'eq', value: 'closed' }],
+                requiredWindowMs: 7 * day,
+              },
+            ],
+          },
+        },
+        storage.getStorageHandle(CONNECTOR_ID),
+      );
+
+      const pullCalls = spy.mock.calls
+        .map(([url]) => String(url))
+        .filter((url) => url.match(/\/pulls(\?|$)/));
+      expect(pullCalls.some((u) => u.includes('state=open'))).toBe(true);
+      expect(pullCalls.some((u) => u.includes('state=closed'))).toBe(true);
+
+      const prs = entityStoreFor(storage).get('pull_request');
+      expect(new Set(prs?.keys() ?? [])).toEqual(new Set(['1', '2']));
+    });
+
+    it('pushes ?state=open for issues', async () => {
+      const spy = installFetchMock((url) => {
+        if (url.match(/\/issues(\?|$)/)) {
+          return { body: [] };
+        }
+        return safeDefaultResponse(url);
+      });
+
+      const storage = new InMemoryStorage();
+      await buildConnector().sync(
+        {
+          mode: 'full',
+          resources: new Set(['issue']),
+          fetchSpecs: {
+            issue: [{ filter: [{ field: 'state', op: 'eq', value: 'open' }] }],
+          },
+        },
+        storage.getStorageHandle(CONNECTOR_ID),
+      );
+
+      const issueCalls = spy.mock.calls
+        .map(([url]) => String(url))
+        .filter((url) => url.match(/\/issues(\?|$)/));
+      expect(issueCalls[0]).toContain('state=open');
+    });
+  });
+
   it('repo_stats: sync upholds universal invariants for any valid API payload', async () => {
     const extra = (storage: InMemoryStorage): InvariantViolation[] => {
       const violations: InvariantViolation[] = [];
