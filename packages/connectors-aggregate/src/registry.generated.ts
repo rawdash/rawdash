@@ -4,6 +4,8 @@ import type { ConnectorClass } from '@rawdash/core';
 export const connectorLoaders: Record<string, () => Promise<ConnectorClass>> = {
   'app-store-connect': () =>
     import('@rawdash/connector-app-store-connect').then((m) => m.default),
+  appsflyer: () =>
+    import('@rawdash/connector-appsflyer').then((m) => m.default),
   'aws-cloudwatch': () =>
     import('@rawdash/connector-aws-cloudwatch').then((m) => m.default),
   'aws-cost': () =>

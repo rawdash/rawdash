@@ -7,6 +7,12 @@ import {
   resources as appStoreConnectResources,
 } from '@rawdash/connector-app-store-connect';
 import {
+  configFields as appsflyerConfigFields,
+  doc as appsflyerDoc,
+  id as appsflyerId,
+  resources as appsflyerResources,
+} from '@rawdash/connector-appsflyer';
+import {
   configFields as awsCloudwatchConfigFields,
   cost as awsCloudwatchCost,
   doc as awsCloudwatchDoc,
@@ -233,6 +239,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     configFields: appStoreConnectConfigFields,
     resources: appStoreConnectResources,
     cost: appStoreConnectCost,
+  },
+  {
+    id: appsflyerId,
+    packageName: '@rawdash/connector-appsflyer',
+    doc: appsflyerDoc,
+    configFields: appsflyerConfigFields,
+    resources: appsflyerResources,
   },
   {
     id: awsCloudwatchId,
