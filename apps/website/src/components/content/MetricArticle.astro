@@ -1,0 +1,172 @@
+---
+import { render } from 'astro:content';
+import { connectors as allConnectors } from '../../generated/connectors';
+import type { ContentEntry } from '../../lib/content';
+import { SECTIONS } from '../../lib/content';
+import CloudCta from '../site/CloudCta.astro';
+
+interface Props {
+  entry: ContentEntry;
+  sectionLabel: string;
+  basePath: string;
+}
+
+const { entry, sectionLabel, basePath } = Astro.props;
+const { data } = entry;
+
+const { Content } = await render(entry);
+
+const connectorsById = new Map(allConnectors.map((c) => [c.id, c]));
+const connectors = data.connectors.map((id) => ({
+  id,
+  match: connectorsById.get(id) ?? null,
+}));
+
+const metricsBase = SECTIONS.metrics.basePath;
+
+const date = data.publishedAt ?? data.updatedAt;
+const dateFmt = new Intl.DateTimeFormat('en-US', {
+  year: 'numeric',
+  month: 'long',
+  day: 'numeric',
+});
+---
+
+<article class="content-article">
+  <nav class="content-breadcrumb" aria-label="Breadcrumb">
+    <a href={`${basePath}/`}>{sectionLabel}</a>
+    <span aria-hidden="true">/</span>
+    <span>{data.title}</span>
+  </nav>
+
+  <header class="content-article-header">
+    <h1>{data.title}</h1>
+    {data.definition && <p class="metric-definition">{data.definition}</p>}
+    <div class="content-article-meta">
+      {
+        date && (
+          <time datetime={date.toISOString()}>{dateFmt.format(date)}</time>
+        )
+      }
+    </div>
+  </header>
+
+  {
+    (data.formula || data.benchmark.length > 0) && (
+      <section class="metric-glance" aria-label="At a glance">
+        {data.formula && (
+          <div class="metric-formula">
+            <p class="section-label">Formula</p>
+            <p class="metric-formula-value">{data.formula}</p>
+          </div>
+        )}
+        {data.benchmark.length > 0 && (
+          <div class="metric-benchmark">
+            <p class="section-label">Benchmarks</p>
+            <dl class="metric-benchmark-list">
+              {data.benchmark.map((row) => (
+                <div class="metric-benchmark-row">
+                  <dt>{row.label}</dt>
+                  <dd>{row.value}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        )}
+      </section>
+    )
+  }
+
+  {
+    connectors.length > 0 && (
+      <section class="dashboard-connectors" aria-label="Connectors">
+        <p class="section-label">Track it with</p>
+        <ul class="dashboard-connector-list">
+          {connectors.map(({ id, match }) =>
+            match ? (
+              <li>
+                <a class="dashboard-connector" href={match.href}>
+                  <img
+                    src={match.iconPath}
+                    alt={`${match.name} logo`}
+                    width="24"
+                    height="24"
+                    loading="lazy"
+                  />
+                  <span>{match.name}</span>
+                </a>
+              </li>
+            ) : (
+              <li>
+                <span class="dashboard-connector dashboard-connector-plain">
+                  {id}
+                </span>
+              </li>
+            ),
+          )}
+        </ul>
+      </section>
+    )
+  }
+
+  <div class="content-prose">
+    <Content />
+  </div>
+
+  {
+    data.pitfalls.length > 0 && (
+      <section class="metric-pitfalls" aria-labelledby="metric-pitfalls-heading">
+        <h2 id="metric-pitfalls-heading">Common pitfalls</h2>
+        <ul>
+          {data.pitfalls.map((pitfall) => (
+            <li>{pitfall}</li>
+          ))}
+        </ul>
+      </section>
+    )
+  }
+
+  {
+    data.relatedMetrics.length > 0 && (
+      <section class="metric-related" aria-labelledby="metric-related-heading">
+        <h2 id="metric-related-heading">Related metrics</h2>
+        <ul class="metric-related-list">
+          {data.relatedMetrics.map((related) => (
+            <li>
+              <a href={`${metricsBase}/${related.slug}/`}>{related.title}</a>
+            </li>
+          ))}
+        </ul>
+      </section>
+    )
+  }
+
+  {
+    data.faq.length > 0 && (
+      <section class="dashboard-faq" aria-labelledby="metric-faq-heading">
+        <h2 id="metric-faq-heading">Frequently asked questions</h2>
+        <dl>
+          {data.faq.map((item) => (
+            <div class="dashboard-faq-item">
+              <dt>{item.question}</dt>
+              <dd>{item.answer}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
+    )
+  }
+
+  {
+    data.cta ? (
+      <CloudCta
+        heading={data.title}
+        body={data.metaDescription}
+        href={data.cta.href}
+        label={data.cta.label}
+      />
+    ) : (
+      <CloudCta />
+    )
+  }
+</article>

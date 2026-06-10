@@ -6,7 +6,8 @@ export type ContentPageType =
   | 'integration'
   | 'compare'
   | 'alternative'
-  | 'dashboard';
+  | 'dashboard'
+  | 'metric';
 
 export type ContentFeedItem = {
   pageType: ContentPageType;
@@ -23,6 +24,11 @@ export type ContentFeedItem = {
   competitor?: string;
   author?: string;
   tags?: string[];
+  definition?: string;
+  formula?: string;
+  benchmark?: { label: string; value: string }[];
+  relatedMetrics?: { slug: string; title: string }[];
+  pitfalls?: string[];
   publishedAt?: string;
   updatedAt?: string;
   draft?: boolean;

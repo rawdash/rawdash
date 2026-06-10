@@ -21,6 +21,14 @@ export const SECTIONS = {
       'Outcome dashboards built on Rawdash — wired to your tools, ready to ship.',
     label: 'Dashboards',
   },
+  metrics: {
+    pageType: 'metric',
+    basePath: '/metrics',
+    title: 'Metrics & KPIs',
+    description:
+      'A plain-English library of the metrics that matter — definitions, formulas, benchmarks, and the connectors that surface them.',
+    label: 'Metrics',
+  },
   blog: {
     pageType: 'blog',
     basePath: '/blog',

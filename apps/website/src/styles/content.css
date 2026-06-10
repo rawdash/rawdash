@@ -292,6 +292,107 @@ a.dashboard-connector:hover {
   line-height: 1.7;
 }
 
+.metric-definition {
+  margin-top: 0.85rem;
+  font-size: 1.2rem;
+  line-height: 1.6;
+  color: var(--text-dim);
+}
+
+.metric-glance {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.25rem;
+  margin-bottom: 2.5rem;
+  padding: 1.5rem;
+  background: var(--bg-card);
+  border: 1px solid var(--bg-card-border);
+  border-radius: 12px;
+}
+
+.metric-glance .section-label {
+  margin-bottom: 0.6rem;
+}
+
+.metric-formula-value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 1.05rem;
+  line-height: 1.6;
+  color: var(--text);
+}
+
+.metric-benchmark-list {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.metric-benchmark-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.95rem;
+}
+
+.metric-benchmark-row dt {
+  color: var(--text-dim);
+}
+
+.metric-benchmark-row dd {
+  margin: 0;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.metric-pitfalls,
+.metric-related {
+  margin-top: 3rem;
+}
+
+.metric-pitfalls h2,
+.metric-related h2 {
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  margin-bottom: 1.25rem;
+}
+
+.metric-pitfalls ul {
+  margin: 0;
+  padding-left: 1.25rem;
+  color: var(--text-dim);
+  line-height: 1.7;
+}
+
+.metric-pitfalls li + li {
+  margin-top: 0.6rem;
+}
+
+.metric-related-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.metric-related-list a {
+  display: inline-flex;
+  padding: 0.4rem 0.85rem;
+  background: var(--bg-card);
+  border: 1px solid var(--bg-card-border);
+  border-radius: 999px;
+  font-size: 0.9rem;
+  color: var(--text);
+  transition: border-color 0.15s;
+}
+
+.metric-related-list a:hover {
+  border-color: var(--accent);
+}
+
 @media (max-width: 600px) {
   .content-article {
     padding: 2.5rem 1rem 1rem;
