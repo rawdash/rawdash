@@ -15,7 +15,7 @@ build-time consumer (RAW-372).
 | Variable             | Required | Default                                      | Purpose                                 |
 | -------------------- | -------- | -------------------------------------------- | --------------------------------------- |
 | `CONTENT_FEED_TOKEN` | gate     | —                                            | Bearer build token. **Absent → skip.**  |
-| `CONTENT_FEED_URL`   | no       | `https://cloud.rawdash.dev/api/content-feed` | Full URL of the feed endpoint to `GET`. |
+| `CONTENT_FEED_URL`   | no       | `https://cloud.rawdash.dev/api/content/feed` | Full URL of the feed endpoint to `GET`. |
 
 ### Token gating
 
