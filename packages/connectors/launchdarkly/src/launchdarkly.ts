@@ -65,6 +65,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Sync LaunchDarkly projects, feature flags, and audit-log events - including flag state per environment, kind, and recent rollout changes.',
   vendor: {
     name: 'LaunchDarkly',
+    domain: 'launchdarkly.com',
     apiDocs: 'https://apidocs.launchdarkly.com/',
     website: 'https://launchdarkly.com',
   },

@@ -27,6 +27,7 @@ export {
   BaseConnector,
   defineConnector,
   resolveBackfillCutoff,
+  resolveSpecCutoff,
 } from './connector';
 
 export {
@@ -136,15 +137,23 @@ export type {
   ResourceDefinition,
   ResourceDefinitions,
   ResourceField,
+  ResourceFilterField,
 } from './resource';
 
 export { defineResources, schemasFromResources } from './resource';
 
 export { computeMetric } from './compute';
 
-export type { ConnectorBackfill, ResourceBackfill } from './backfill-window';
+export type {
+  ConnectorBackfill,
+  FetchSpec,
+  ResourceBackfill,
+} from './backfill-window';
 
-export { computeConnectorBackfill } from './backfill-window';
+export {
+  computeConnectorBackfill,
+  fetchSpecsForConnector,
+} from './backfill-window';
 
 export { resolveWidget } from './resolve-widget';
 

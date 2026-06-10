@@ -53,6 +53,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Sync daily Android app vitals from the Play Developer Reporting API - crash rate, ANR rate, ratings, and error counts.',
   vendor: {
     name: 'Google Play Console',
+    domain: 'play.google.com',
     apiDocs: 'https://developers.google.com/play/developer/reporting',
     website: 'https://play.google.com/console/',
   },

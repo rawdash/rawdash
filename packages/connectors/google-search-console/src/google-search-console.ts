@@ -84,6 +84,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Sync daily Search Console SEO metrics - clicks, impressions, CTR, and average position - by date, query, page, and country.',
   vendor: {
     name: 'Google Search Console',
+    domain: 'search.google.com',
     apiDocs:
       'https://developers.google.com/webmaster-tools/v1/api_reference_index',
     website: 'https://search.google.com/search-console',

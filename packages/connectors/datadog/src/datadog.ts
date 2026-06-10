@@ -111,6 +111,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Sync monitor health, monitor state-change events, incidents, SLOs, and user-declared metric queries from a Datadog org.',
   vendor: {
     name: 'Datadog',
+    domain: 'datadoghq.com',
     apiDocs: 'https://docs.datadoghq.com/api/latest/',
     website: 'https://www.datadoghq.com',
   },

@@ -91,6 +91,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Sync Mixpanel active-user counts, per-event volume, funnel conversion, and cohort retention as metric time series.',
   vendor: {
     name: 'Mixpanel',
+    domain: 'mixpanel.com',
     apiDocs: 'https://developer.mixpanel.com/reference/query-api',
     website: 'https://mixpanel.com',
   },

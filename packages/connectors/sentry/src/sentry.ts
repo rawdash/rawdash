@@ -76,6 +76,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Sync issues, issue events, releases, and hourly error rates from a Sentry organization.',
   vendor: {
     name: 'Sentry',
+    domain: 'sentry.io',
     apiDocs: 'https://docs.sentry.io/api/',
     website: 'https://sentry.io',
   },
@@ -138,6 +139,7 @@ interface SentryProjectRef {
   id?: string | number;
   slug: string;
   name?: string;
+  platform?: string;
 }
 
 interface SentryIssue {
@@ -166,8 +168,8 @@ interface SentryIssueEvent {
 interface SentryRelease {
   version: string;
   dateCreated: string;
-  dateReleased: string | null;
-  lastEvent: string | null;
+  dateReleased?: string | null;
+  lastEvent?: string | null;
   projects: SentryProjectRef[];
 }
 
@@ -251,7 +253,40 @@ const issueResponseSchema = z.array(
     lastSeen: z.iso.datetime(),
     count: z.union([z.string().regex(/^\d+$/), z.number().int().nonnegative()]),
     userCount: z.number().int().nonnegative(),
-    project: z.object({ slug: z.string().min(1) }),
+    project: z.object({
+      slug: z.string().min(1),
+      id: z.union([idString, z.number()]).optional(),
+      name: z.string().optional(),
+      platform: z.string().nullable().optional(),
+    }),
+    annotations: z.unknown().optional(),
+    assignedTo: z.unknown().nullable().optional(),
+    culprit: z.string().nullable().optional(),
+    filtered: z.unknown().nullable().optional(),
+    hasSeen: z.boolean().optional(),
+    isBookmarked: z.boolean().optional(),
+    isPublic: z.boolean().optional(),
+    isSubscribed: z.boolean().optional(),
+    isUnhandled: z.boolean().optional(),
+    issueCategory: z.string().optional(),
+    issueType: z.string().optional(),
+    lifetime: z.unknown().optional(),
+    logger: z.string().nullable().optional(),
+    metadata: z.unknown().optional(),
+    numComments: z.number().int().nonnegative().optional(),
+    permalink: z.string().optional(),
+    platform: z.string().nullable().optional(),
+    priority: z.string().optional(),
+    priorityLockedAt: z.iso.datetime().nullable().optional(),
+    seerAutofixLastTriggered: z.iso.datetime().nullable().optional(),
+    seerExplorerAutofixLastTriggered: z.iso.datetime().nullable().optional(),
+    seerFixabilityScore: z.number().nullable().optional(),
+    shareId: z.string().nullable().optional(),
+    stats: z.unknown().optional(),
+    statusDetails: z.unknown().optional(),
+    subscriptionDetails: z.unknown().nullable().optional(),
+    substatus: z.string().nullable().optional(),
+    type: z.string().optional(),
   }),
 );
 
@@ -264,6 +299,15 @@ const issueEventResponseSchema = z.array(
     platform: z.string().nullable().optional(),
     groupID: z.string().optional(),
     environment: z.string().nullable().optional(),
+    crashFile: z.unknown().nullable().optional(),
+    culprit: z.string().optional(),
+    'event.type': z.string().optional(),
+    location: z.string().optional(),
+    metadata: z.unknown().optional(),
+    projectID: z.string().optional(),
+    tags: z.unknown().optional(),
+    title: z.string().optional(),
+    user: z.unknown().optional(),
   }),
 );
 
@@ -271,9 +315,36 @@ const releaseResponseSchema = z.array(
   z.object({
     version: idString,
     dateCreated: z.iso.datetime(),
-    dateReleased: z.iso.datetime().nullable(),
-    lastEvent: z.iso.datetime().nullable(),
-    projects: z.array(z.object({ slug: z.string().min(1) })),
+    dateReleased: z.iso.datetime().nullable().optional(),
+    lastEvent: z.iso.datetime().nullable().optional(),
+    projects: z.array(
+      z.object({
+        slug: z.string().min(1),
+        hasHealthData: z.unknown().optional(),
+        id: z.unknown().optional(),
+        name: z.unknown().optional(),
+        newGroups: z.unknown().optional(),
+        platform: z.unknown().optional(),
+        platforms: z.unknown().optional(),
+      }),
+    ),
+    authors: z.unknown().optional(),
+    commitCount: z.unknown().optional(),
+    currentProjectMeta: z.unknown().optional(),
+    data: z.unknown().optional(),
+    deployCount: z.unknown().optional(),
+    firstEvent: z.unknown().nullable().optional(),
+    id: z.unknown().optional(),
+    lastCommit: z.unknown().optional(),
+    lastDeploy: z.unknown().optional(),
+    newGroups: z.unknown().optional(),
+    owner: z.unknown().optional(),
+    ref: z.unknown().nullable().optional(),
+    shortVersion: z.unknown().optional(),
+    status: z.unknown().optional(),
+    url: z.unknown().nullable().optional(),
+    userAgent: z.unknown().nullable().optional(),
+    versionInfo: z.unknown().optional(),
   }),
 );
 

@@ -80,6 +80,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'GetMetricData is batched at most 500 metrics per call with NextToken pagination; throttling (Throttling / RequestLimitExceeded / TooManyRequests) is retried with backoff.',
   vendor: {
     name: 'Amazon Web Services',
+    domain: 'aws.amazon.com',
     apiDocs:
       'https://docs.aws.amazon.com/AmazonCloudWatch/latest/APIReference/API_GetMetricData.html',
     website: 'https://aws.amazon.com/cloudwatch/',

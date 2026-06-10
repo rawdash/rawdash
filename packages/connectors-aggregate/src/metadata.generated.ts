@@ -1,5 +1,12 @@
 // This file is generated from the connector packages by scripts/generate-connectors-package.ts. Do not edit by hand.
 import {
+  configFields as appStoreConnectConfigFields,
+  cost as appStoreConnectCost,
+  doc as appStoreConnectDoc,
+  id as appStoreConnectId,
+  resources as appStoreConnectResources,
+} from '@rawdash/connector-app-store-connect';
+import {
   configFields as awsCloudwatchConfigFields,
   cost as awsCloudwatchCost,
   doc as awsCloudwatchDoc,
@@ -174,6 +181,12 @@ import {
   resources as posthogResources,
 } from '@rawdash/connector-posthog';
 import {
+  configFields as revenuecatConfigFields,
+  doc as revenuecatDoc,
+  id as revenuecatId,
+  resources as revenuecatResources,
+} from '@rawdash/connector-revenuecat';
+import {
   configFields as salesforceConfigFields,
   doc as salesforceDoc,
   id as salesforceId,
@@ -213,6 +226,14 @@ import {
 import type { ConnectorMetadata } from './types';
 
 export const connectorMetadata: ConnectorMetadata[] = [
+  {
+    id: appStoreConnectId,
+    packageName: '@rawdash/connector-app-store-connect',
+    doc: appStoreConnectDoc,
+    configFields: appStoreConnectConfigFields,
+    resources: appStoreConnectResources,
+    cost: appStoreConnectCost,
+  },
   {
     id: awsCloudwatchId,
     packageName: '@rawdash/connector-aws-cloudwatch',
@@ -414,6 +435,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: posthogDoc,
     configFields: posthogConfigFields,
     resources: posthogResources,
+  },
+  {
+    id: revenuecatId,
+    packageName: '@rawdash/connector-revenuecat',
+    doc: revenuecatDoc,
+    configFields: revenuecatConfigFields,
+    resources: revenuecatResources,
   },
   {
     id: salesforceId,

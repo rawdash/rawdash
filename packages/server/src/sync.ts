@@ -8,6 +8,7 @@ import type {
 import {
   computeConnectorBackfill,
   createDefaultConnectorLogger,
+  fetchSpecsForConnector,
   instantiateConnector,
 } from '@rawdash/core';
 
@@ -113,14 +114,17 @@ export async function runSync(
         });
 
         const resources: ReadonlySet<string> = new Set(scope.keys());
+        const fetchSpecs = fetchSpecsForConnector(config, entry.name);
 
         let maxWindowMs: number | undefined;
-        for (const [, { requiredWindowMs }] of scope.entries()) {
-          if (requiredWindowMs === undefined) {
-            continue;
-          }
-          if (maxWindowMs === undefined || requiredWindowMs > maxWindowMs) {
-            maxWindowMs = requiredWindowMs;
+        for (const [, { specs }] of scope.entries()) {
+          for (const { requiredWindowMs } of specs) {
+            if (requiredWindowMs === undefined) {
+              continue;
+            }
+            if (maxWindowMs === undefined || requiredWindowMs > maxWindowMs) {
+              maxWindowMs = requiredWindowMs;
+            }
           }
         }
         const since =
@@ -146,7 +150,7 @@ export async function runSync(
             );
           }
           const syncPromise = connector.sync(
-            { mode: 'full', since, cursor, resources },
+            { mode: 'full', since, cursor, resources, fetchSpecs },
             handle,
             controller.signal,
           );

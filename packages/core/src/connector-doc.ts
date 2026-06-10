@@ -11,6 +11,7 @@ export const connectorCategorySchema = z.enum([
   'infrastructure',
   'security',
   'hr',
+  'mobile',
 ]);
 
 export type ConnectorCategory = z.infer<typeof connectorCategorySchema>;
@@ -25,6 +26,11 @@ export const connectorDocSchema = z.object({
     .optional(),
   vendor: z.object({
     name: z.string().min(1),
+    domain: z
+      .string()
+      .regex(
+        /^(?=.{1,253}$)(?!-)[a-z0-9-]{1,63}(?<!-)(\.(?!-)[a-z0-9-]{1,63}(?<!-))+$/i,
+      ),
     apiDocs: z.url().optional(),
     website: z.url().optional(),
   }),
