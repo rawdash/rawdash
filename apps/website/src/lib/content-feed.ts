@@ -59,7 +59,7 @@ export function contentFeedLoader(): Loader {
       if (!token) {
         logger.info(
           'CONTENT_FEED_TOKEN not set — skipping marketing content feed ' +
-            '(/blog, /integrations, /compare, /alternatives, /dashboards). ' +
+            '(/blog, /integrations, /compare, /alternatives, /dashboards, /metrics). ' +
             'This is expected for local docs and contributor builds.',
         );
         return;
