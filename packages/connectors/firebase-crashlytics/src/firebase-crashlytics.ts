@@ -491,7 +491,7 @@ export function buildTopIssuesSql(args: {
     `  AND DATE(event_timestamp) < DATE('${args.endDate}')`,
     '  AND issue_id IS NOT NULL',
     'GROUP BY issue_id',
-    'ORDER BY event_count DESC',
+    'ORDER BY event_count DESC, last_seen DESC, issue_id ASC',
     `LIMIT ${args.limit}`,
   ].join('\n');
 }

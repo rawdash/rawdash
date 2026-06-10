@@ -506,7 +506,9 @@ describe('buildTopIssuesSql', () => {
       limit: 25,
     });
     expect(sql).toContain('LIMIT 25');
-    expect(sql).toContain('ORDER BY event_count DESC');
+    expect(sql).toContain(
+      'ORDER BY event_count DESC, last_seen DESC, issue_id ASC',
+    );
     expect(sql).toContain('issue_id IS NOT NULL');
   });
 
