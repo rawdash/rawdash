@@ -1,7 +1,7 @@
 # Content feed integration
 
 The marketing content surface (`/blog`, `/integrations`, `/compare`,
-`/alternatives`) is **not** authored in this public repo. Content lives and is
+`/alternatives`, `/dashboards`) is **not** authored in this public repo. Content lives and is
 automated in the private cloud repo (RAW-370) and is served to this site as a
 presentation-agnostic JSON feed (RAW-371). This site fetches that feed **at
 build time only** (SSG — never a client-side runtime fetch) and renders static
@@ -45,7 +45,7 @@ Accept: application/json
   "generatedAt": "2026-05-31T00:00:00.000Z", // optional ISO timestamp
   "items": [
     {
-      "pageType": "blog", // "blog" | "integration" | "compare" | "alternative"
+      "pageType": "blog", // "blog" | "integration" | "compare" | "alternative" | "dashboard"
       "slug": "stripe-revenue-dashboard",
       "title": "Build a Stripe revenue dashboard", // the single on-page H1
       "metaTitle": "Stripe Revenue Dashboard — Rawdash", // optional <title> override
@@ -54,6 +54,13 @@ Accept: application/json
       "body": "## Why …\n\nPlain **markdown** only — no JSX/components.",
       "targetKeyword": "stripe revenue dashboard", // optional, not rendered
       "connectors": ["stripe"], // optional connector ids
+      "faq": [
+        // optional; rendered as a FAQ section + FAQPage JSON-LD on `dashboard` pages
+        {
+          "question": "How fresh is the data?",
+          "answer": "Synced every 15 minutes.",
+        },
+      ],
       "cta": {
         // optional; defaults to the generic Cloud CTA
         "label": "Start free on Rawdash Cloud ↗",
@@ -73,15 +80,20 @@ Accept: application/json
 ### Field rules
 
 - `pageType` + `slug` are required and form the route: `/{section}/{slug}/`,
-  where the section is `blog`, `integrations`, `compare`, or `alternatives`.
+  where the section is `blog`, `integrations`, `compare`, `alternatives`, or
+  `dashboards`.
 - `body` is **plain markdown** (rendered to HTML at build via `marked`).
   Keep it presentation-agnostic: no MDX, no JSX, no Astro components — markup
   lives here in the OSS repo, data lives in the feed (see RAW-370).
+- `connectors` and `faq` drive the dedicated sections on `dashboard` pages
+  (connector chips link to the docs; `faq` also emits `FAQPage` JSON-LD). They
+  are accepted on any `pageType` but only rendered by the dashboard template.
 - All CTA links should point at the `cloud.rawdash.dev` conversion surface.
 
 ## Rendering & SEO
 
 Each page gets: one `<h1>`, a meta title/description, a canonical URL, Open
 Graph/Twitter tags, JSON-LD (`BlogPosting` for blog, `WebPage` for the SEO
-pages, plus a `BreadcrumbList`), and inclusion in `sitemap.xml` via
-`@astrojs/sitemap`. Every page cross-links down to `cloud.rawdash.dev`.
+pages, a `FAQPage` when a `dashboard` page carries `faq`, plus a
+`BreadcrumbList`), and inclusion in `sitemap.xml` via `@astrojs/sitemap`. Every
+page cross-links down to `cloud.rawdash.dev`.

@@ -1,0 +1,22 @@
+---
+import ContentLayout from '../../layouts/ContentLayout.astro';
+import ContentList from '../../components/content/ContentList.astro';
+import { SECTIONS, getSectionEntries } from '../../lib/content';
+
+const section = SECTIONS.dashboards;
+const entries = await getSectionEntries(section.pageType);
+---
+
+<ContentLayout
+  title={`${section.title} — Rawdash`}
+  description={section.description}
+  path={`${section.basePath}/`}
+>
+  <ContentList
+    label={section.label}
+    title={section.title}
+    description={section.description}
+    basePath={section.basePath}
+    entries={entries}
+  />
+</ContentLayout>

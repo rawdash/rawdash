@@ -5,7 +5,8 @@ export type ContentPageType =
   | 'blog'
   | 'integration'
   | 'compare'
-  | 'alternative';
+  | 'alternative'
+  | 'dashboard';
 
 export type ContentFeedItem = {
   pageType: ContentPageType;
@@ -17,6 +18,7 @@ export type ContentFeedItem = {
   body: string;
   targetKeyword?: string;
   connectors?: string[];
+  faq?: { question: string; answer: string }[];
   cta?: { label: string; href: string };
   competitor?: string;
   author?: string;
@@ -51,8 +53,8 @@ export function contentFeedLoader(): Loader {
       if (!token) {
         logger.info(
           'CONTENT_FEED_TOKEN not set — skipping marketing content feed ' +
-            '(/blog, /integrations, /compare, /alternatives). This is expected ' +
-            'for local docs and contributor builds.',
+            '(/blog, /integrations, /compare, /alternatives, /dashboards). ' +
+            'This is expected for local docs and contributor builds.',
         );
         return;
       }
