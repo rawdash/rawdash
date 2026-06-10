@@ -32,7 +32,7 @@ interface ContentFeedResponse {
   items: ContentFeedItem[];
 }
 
-const DEFAULT_FEED_URL = 'https://cloud.rawdash.dev/api/content-feed';
+const DEFAULT_FEED_URL = 'https://cloud.rawdash.dev/api/content/feed';
 
 export function contentFeedLoader(): Loader {
   return {

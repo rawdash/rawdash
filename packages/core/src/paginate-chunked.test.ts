@@ -768,4 +768,65 @@ describe('paginateChunked', () => {
       expect(result).toEqual({ done: false, cursor: { phase: 'a', page: 1 } });
     });
   });
+
+  describe('per-spec iteration', () => {
+    it('runs each phase once per spec and passes the spec index to callbacks', async () => {
+      const seen: Array<{ phase: Phase; spec: number }> = [];
+      const result = await paginateChunked<Phase, number>({
+        phases: ['a', 'b'],
+        cursor: undefined,
+        signal: undefined,
+        specCount: (phase) => (phase === 'a' ? 2 : 1),
+        fetchPage: async (phase, _page, _signal, spec) => {
+          seen.push({ phase, spec });
+          return { items: [], next: null };
+        },
+        writeBatch: async () => {},
+      });
+
+      expect(result).toEqual({ done: true });
+      expect(seen).toEqual([
+        { phase: 'a', spec: 0 },
+        { phase: 'a', spec: 1 },
+        { phase: 'b', spec: 0 },
+      ]);
+    });
+
+    it('checkpoints a per-spec cursor at the chunk budget and resumes it', async () => {
+      let clock = 0;
+      const result = await paginateChunked<Phase, number>({
+        phases: ['a'],
+        cursor: undefined,
+        signal: undefined,
+        specCount: () => 2,
+        maxChunkMs: 50,
+        now: () => clock,
+        fetchPage: async () => ({ items: [], next: null }),
+        writeBatch: async () => {
+          clock += 100;
+        },
+      });
+
+      expect(result).toEqual({
+        done: false,
+        cursor: { phase: 'a', page: null, spec: 1 },
+      });
+
+      const seen: Array<{ spec: number }> = [];
+      const resumed = await paginateChunked<Phase, number>({
+        phases: ['a'],
+        cursor: { phase: 'a', page: null, spec: 1 },
+        signal: undefined,
+        specCount: () => 2,
+        fetchPage: async (_phase, _page, _signal, spec) => {
+          seen.push({ spec });
+          return { items: [], next: null };
+        },
+        writeBatch: async () => {},
+      });
+
+      expect(resumed).toEqual({ done: true });
+      expect(seen).toEqual([{ spec: 1 }]);
+    });
+  });
 });

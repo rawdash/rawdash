@@ -83,6 +83,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Track mobile app reliability over time from the Firebase Crashlytics -> BigQuery export: daily crashes, crash-free user rate, and top issues by impact.',
   vendor: {
     name: 'Firebase',
+    domain: 'firebase.google.com',
     apiDocs: 'https://firebase.google.com/docs/crashlytics/bigquery-export',
     website: 'https://firebase.google.com/products/crashlytics',
   },

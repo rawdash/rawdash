@@ -6,6 +6,7 @@ import {
   type SyncOptions,
   type SyncResult,
   resolveBackfillCutoff,
+  resolveSpecCutoff,
 } from './connector';
 import { EnvSecretsResolver, type SecretsResolver, secret } from './secrets';
 
@@ -147,5 +148,18 @@ describe('resolveBackfillCutoff', () => {
         now,
       ),
     ).toBe(Date.parse(recentSince));
+  });
+});
+
+describe('resolveSpecCutoff', () => {
+  const now = Date.parse('2026-06-08T00:00:00Z');
+  const day = 86_400_000;
+
+  it('returns null for an unbounded spec (no window)', () => {
+    expect(resolveSpecCutoff(undefined, now)).toBeNull();
+  });
+
+  it('returns now minus the window for a bounded spec', () => {
+    expect(resolveSpecCutoff(7 * day, now)).toBe(now - 7 * day);
   });
 });

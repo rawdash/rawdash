@@ -92,6 +92,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Sync Netlify sites and deploys - including build state, branch, commit ref, and deploy duration - across your team.',
   vendor: {
     name: 'Netlify',
+    domain: 'netlify.com',
     apiDocs: 'https://open-api.netlify.com/',
     website: 'https://www.netlify.com',
   },

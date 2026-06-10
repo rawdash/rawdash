@@ -95,6 +95,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Sync Vercel projects and deployments - including build state, target, git ref, and build duration - across your team.',
   vendor: {
     name: 'Vercel',
+    domain: 'vercel.com',
     apiDocs: 'https://vercel.com/docs/rest-api',
     website: 'https://vercel.com',
   },

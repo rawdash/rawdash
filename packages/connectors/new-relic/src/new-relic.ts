@@ -97,6 +97,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Sync NRQL alert conditions, AI incidents, and user-declared NRQL metric queries from a New Relic account via NerdGraph.',
   vendor: {
     name: 'New Relic',
+    domain: 'newrelic.com',
     apiDocs: 'https://docs.newrelic.com/docs/apis/nerdgraph/',
     website: 'https://newrelic.com',
   },

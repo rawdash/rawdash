@@ -79,6 +79,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Sync daily GA4 traffic, acquisition, top pages, events, conversions, and geography metrics from a Google Analytics 4 property.',
   vendor: {
     name: 'Google Analytics',
+    domain: 'analytics.google.com',
     apiDocs:
       'https://developers.google.com/analytics/devguides/reporting/data/v1',
     website: 'https://analytics.google.com',

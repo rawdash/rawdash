@@ -79,6 +79,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Track AWS spend over time and projected month-end costs, optionally broken down by service, account, tag, or cost category.',
   vendor: {
     name: 'Amazon Web Services',
+    domain: 'aws.amazon.com',
     apiDocs:
       'https://docs.aws.amazon.com/aws-cost-management/latest/APIReference/API_Operations_AWS_Cost_Explorer_Service.html',
     website: 'https://aws.amazon.com/aws-cost-management/aws-cost-explorer/',

@@ -98,6 +98,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Sync pull requests, pipelines, and pipeline lifecycle events from Bitbucket Cloud repositories.',
   vendor: {
     name: 'Atlassian',
+    domain: 'bitbucket.org',
     apiDocs: 'https://developer.atlassian.com/cloud/bitbucket/rest/intro/',
     website: 'https://bitbucket.org',
   },
@@ -718,6 +719,7 @@ export class BitbucketConnector extends BaseConnector<
     items: unknown[],
     page: string | null,
     options: SyncOptions,
+    seenPipelineIds: Set<string>,
   ): Promise<void> {
     const pipelineAllowed = this.isResourceAllowed(
       'pipeline',
@@ -742,6 +744,11 @@ export class BitbucketConnector extends BaseConnector<
         if (createdMs === null) {
           continue;
         }
+        const entityId = `${this.settings.workspace}/${batch.repoSlug}:${pipeline.uuid}`;
+        if (seenPipelineIds.has(entityId)) {
+          continue;
+        }
+        seenPipelineIds.add(entityId);
         const completedMs = parseEpoch(pipeline.completed_on ?? null, 'iso');
         const durationMs =
           pipeline.duration_in_seconds !== null &&
@@ -757,7 +764,7 @@ export class BitbucketConnector extends BaseConnector<
         if (pipelineAllowed) {
           await storage.entity({
             type: 'pipeline',
-            id: `${this.settings.workspace}/${batch.repoSlug}:${pipeline.uuid}`,
+            id: entityId,
             attributes: {
               workspace: this.settings.workspace,
               repo_slug: batch.repoSlug,
@@ -824,6 +831,7 @@ export class BitbucketConnector extends BaseConnector<
   ): Promise<SyncResult> {
     const cursor = this.resolveCursor(options.cursor);
     const phases = this.activePhases(options.resources);
+    const seenPipelineIds = new Set<string>();
     return paginateChunked<BitbucketPhase, string>({
       phases,
       cursor,
@@ -842,7 +850,13 @@ export class BitbucketConnector extends BaseConnector<
           case 'pull_requests':
             return this.writePullRequests(storage, items, page, options);
           case 'pipelines':
-            return this.writePipelines(storage, items, page, options);
+            return this.writePipelines(
+              storage,
+              items,
+              page,
+              options,
+              seenPipelineIds,
+            );
         }
       },
     });

@@ -7,6 +7,7 @@ import {
   request as sharedRequest,
 } from '@rawdash/connector-shared';
 
+import type { FetchSpec } from './backfill-window';
 import {
   EnvSecretsResolver,
   type Secret,
@@ -171,6 +172,7 @@ export interface SyncOptions {
   resources?: ReadonlySet<string>;
   pageSize?: number;
   requiredWindowMs?: Record<string, number>;
+  fetchSpecs?: Record<string, FetchSpec[]>;
 }
 
 export function resolveBackfillCutoff(
@@ -188,6 +190,13 @@ export function resolveBackfillCutoff(
     return sinceMs;
   }
   return Math.max(sinceMs, windowCutoff);
+}
+
+export function resolveSpecCutoff(
+  requiredWindowMs: number | undefined,
+  now: number,
+): number | null {
+  return requiredWindowMs !== undefined ? now - requiredWindowMs : null;
 }
 
 export interface SyncResult {

@@ -64,6 +64,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Sync jobs, candidates, applications, and offers from the Greenhouse Harvest API for hiring-funnel, time-to-hire, and offer-rate analytics.',
   vendor: {
     name: 'Greenhouse',
+    domain: 'greenhouse.io',
     apiDocs: 'https://developers.greenhouse.io/harvest.html',
     website: 'https://www.greenhouse.com',
   },

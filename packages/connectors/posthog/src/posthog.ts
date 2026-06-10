@@ -100,6 +100,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Sync feature flags, per-day event volume, feature flag usage, active users, and funnel conversion from a PostHog project.',
   vendor: {
     name: 'PostHog',
+    domain: 'posthog.com',
     apiDocs: 'https://posthog.com/docs/api',
     website: 'https://posthog.com',
   },

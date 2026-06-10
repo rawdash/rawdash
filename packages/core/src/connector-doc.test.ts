@@ -7,7 +7,11 @@ const valid: ConnectorDoc = {
   category: 'engineering',
   tagline: 'Sync example resources.',
   brandColor: '#1A2B3C',
-  vendor: { name: 'Example', apiDocs: 'https://example.com/docs' },
+  vendor: {
+    name: 'Example',
+    domain: 'example.com',
+    apiDocs: 'https://example.com/docs',
+  },
   auth: { summary: 'Use an API key.', setup: ['Create a key.'] },
   rateLimit: '100 requests / minute.',
   limitations: ['Search API caps at 10,000 results.'],
@@ -30,5 +34,14 @@ describe('defineConnectorDoc', () => {
 
   it('requires displayName and tagline', () => {
     expect(() => defineConnectorDoc({ ...valid, tagline: '' })).toThrow();
+  });
+
+  it('rejects a malformed vendor domain', () => {
+    expect(() =>
+      defineConnectorDoc({
+        ...valid,
+        vendor: { ...valid.vendor, domain: '-example.com' },
+      }),
+    ).toThrow();
   });
 });

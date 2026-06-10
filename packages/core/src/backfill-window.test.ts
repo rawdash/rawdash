@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { computeConnectorBackfill } from './backfill-window';
+import {
+  computeConnectorBackfill,
+  fetchSpecsForConnector,
+} from './backfill-window';
 import type { DashboardConfig } from './config';
 
 function configWith(widgets: Record<string, unknown>): DashboardConfig {
@@ -10,13 +13,15 @@ function configWith(widgets: Record<string, unknown>): DashboardConfig {
   } as unknown as DashboardConfig;
 }
 
+const day = 86_400_000;
+
 describe('computeConnectorBackfill', () => {
   it('omits connectors with no widgets', () => {
     const result = computeConnectorBackfill(configWith({}));
     expect(result.size).toBe(0);
   });
 
-  it('takes max window across widgets per resource', () => {
+  it('takes max window across same-filter widgets per resource', () => {
     const result = computeConnectorBackfill(
       configWith({
         a: {
@@ -45,12 +50,12 @@ describe('computeConnectorBackfill', () => {
         },
       }),
     );
-    expect(result.get('gh')?.get('workflow_run')?.requiredWindowMs).toBe(
-      90 * 86_400_000,
-    );
+    expect(result.get('gh')?.get('workflow_run')?.specs).toEqual([
+      { requiredWindowMs: 90 * day },
+    ]);
   });
 
-  it('records current-state-only widgets with undefined window', () => {
+  it('records current-state-only widgets with a single window-less spec', () => {
     const result = computeConnectorBackfill(
       configWith({
         stars: {
@@ -65,8 +70,7 @@ describe('computeConnectorBackfill', () => {
         },
       }),
     );
-    expect(result.get('gh')?.has('repo')).toBe(true);
-    expect(result.get('gh')?.get('repo')?.requiredWindowMs).toBeUndefined();
+    expect(result.get('gh')?.get('repo')?.specs).toEqual([{}]);
   });
 
   it('treats status widgets as references to the named connector with no resources', () => {
@@ -108,9 +112,10 @@ describe('computeConnectorBackfill', () => {
     );
     const gh = result.get('gh');
     expect(gh?.size).toBe(2);
-    expect(gh?.get('pull_request')?.requiredWindowMs).toBe(30 * 86_400_000);
-    expect(gh?.has('repo')).toBe(true);
-    expect(gh?.get('repo')?.requiredWindowMs).toBeUndefined();
+    expect(gh?.get('pull_request')?.specs).toEqual([
+      { requiredWindowMs: 30 * day },
+    ]);
+    expect(gh?.get('repo')?.specs).toEqual([{}]);
   });
 
   it('does not include resources that are not referenced by any widget', () => {
@@ -150,5 +155,168 @@ describe('computeConnectorBackfill', () => {
       }),
     );
     expect(result.get('gh')?.has('contributor')).toBe(true);
+  });
+
+  describe('mergeSpecs', () => {
+    it('keeps separate specs for different filter sets', () => {
+      const result = computeConnectorBackfill(
+        configWith({
+          open: {
+            kind: 'stat',
+            title: 'open PRs',
+            metric: {
+              connectorId: 'gh',
+              shape: 'entity',
+              name: 'pull_request',
+              fn: 'count',
+              filter: [{ field: 'state', op: 'eq', value: 'open' }],
+            },
+          },
+          closed: {
+            kind: 'timeseries',
+            title: 'closed per day',
+            window: '7d',
+            metric: {
+              connectorId: 'gh',
+              shape: 'entity',
+              name: 'pull_request',
+              fn: 'count',
+              filter: [{ field: 'state', op: 'eq', value: 'closed' }],
+            },
+          },
+        }),
+      );
+      const specs = result.get('gh')?.get('pull_request')?.specs;
+      expect(specs).toEqual([
+        { filter: [{ field: 'state', op: 'eq', value: 'open' }] },
+        {
+          filter: [{ field: 'state', op: 'eq', value: 'closed' }],
+          requiredWindowMs: 7 * day,
+        },
+      ]);
+    });
+
+    it('collapses same-filter specs to the loosest window (unbounded subsumes bounded)', () => {
+      const result = computeConnectorBackfill(
+        configWith({
+          openNoWindow: {
+            kind: 'stat',
+            title: 'open PRs',
+            metric: {
+              connectorId: 'gh',
+              shape: 'entity',
+              name: 'pull_request',
+              fn: 'count',
+              filter: [{ field: 'state', op: 'eq', value: 'open' }],
+            },
+          },
+          open7d: {
+            kind: 'timeseries',
+            title: 'open opened per day',
+            window: '7d',
+            metric: {
+              connectorId: 'gh',
+              shape: 'entity',
+              name: 'pull_request',
+              fn: 'count',
+              filter: [{ field: 'state', op: 'eq', value: 'open' }],
+            },
+          },
+        }),
+      );
+      expect(result.get('gh')?.get('pull_request')?.specs).toEqual([
+        { filter: [{ field: 'state', op: 'eq', value: 'open' }] },
+      ]);
+    });
+
+    it('treats filter order as insignificant when collapsing specs', () => {
+      const result = computeConnectorBackfill(
+        configWith({
+          a: {
+            kind: 'stat',
+            title: 'a',
+            metric: {
+              connectorId: 'gh',
+              shape: 'entity',
+              name: 'pull_request',
+              fn: 'count',
+              filter: [
+                { field: 'state', op: 'eq', value: 'open' },
+                { field: 'draft', op: 'eq', value: false },
+              ],
+            },
+          },
+          b: {
+            kind: 'stat',
+            title: 'b',
+            metric: {
+              connectorId: 'gh',
+              shape: 'entity',
+              name: 'pull_request',
+              fn: 'count',
+              filter: [
+                { field: 'draft', op: 'eq', value: false },
+                { field: 'state', op: 'eq', value: 'open' },
+              ],
+            },
+          },
+        }),
+      );
+      expect(result.get('gh')?.get('pull_request')?.specs).toHaveLength(1);
+    });
+  });
+});
+
+describe('fetchSpecsForConnector', () => {
+  it('returns undefined for a connector with no referenced widgets', () => {
+    expect(fetchSpecsForConnector(configWith({}), 'gh')).toBeUndefined();
+  });
+
+  it('returns the wire-shape record keyed by resource', () => {
+    const config = configWith({
+      open: {
+        kind: 'stat',
+        title: 'open PRs',
+        metric: {
+          connectorId: 'gh',
+          shape: 'entity',
+          name: 'pull_request',
+          fn: 'count',
+          filter: [{ field: 'state', op: 'eq', value: 'open' }],
+        },
+      },
+      closed: {
+        kind: 'timeseries',
+        title: 'closed per day',
+        window: '7d',
+        metric: {
+          connectorId: 'gh',
+          shape: 'entity',
+          name: 'pull_request',
+          fn: 'count',
+          filter: [{ field: 'state', op: 'eq', value: 'closed' }],
+        },
+      },
+      stars: {
+        kind: 'stat',
+        title: 'stars',
+        metric: {
+          connectorId: 'gh',
+          shape: 'entity',
+          name: 'repo',
+          fn: 'latest',
+        },
+      },
+    });
+    expect(fetchSpecsForConnector(config, 'gh')).toEqual({
+      pull_request: [
+        { filter: [{ field: 'state', op: 'eq', value: 'open' }] },
+        {
+          filter: [{ field: 'state', op: 'eq', value: 'closed' }],
+          requiredWindowMs: 7 * day,
+        },
+      ],
+      repo: [{}],
+    });
   });
 });

@@ -79,6 +79,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Sync conversations, contacts, teams, and admins from Intercom for support volume, response latency, and queue-depth analytics.',
   vendor: {
     name: 'Intercom',
+    domain: 'intercom.com',
     apiDocs:
       'https://developers.intercom.com/docs/references/rest-api/api.intercom.io/',
     website: 'https://www.intercom.com',

@@ -159,6 +159,52 @@ describe('BitbucketConnector — resource allowlist', () => {
     expect(events[0]!.end_ts).toBe(Date.parse('2026-05-01T00:05:00.000Z'));
   });
 
+  it('emits one pipeline entity and event per uuid when a page repeats a pipeline', async () => {
+    const first = {
+      uuid: '{dup-1}',
+      build_number: 7,
+      state: { name: 'IN_PROGRESS', result: null },
+      created_on: '2026-05-02T00:00:00.000Z',
+      completed_on: null,
+      duration_in_seconds: null,
+    };
+    const second = {
+      uuid: '{dup-1}',
+      build_number: 7,
+      state: { name: 'COMPLETED', result: { name: 'SUCCESSFUL' } },
+      created_on: '2026-05-02T00:00:00.000Z',
+      completed_on: '2026-05-02T00:03:00.000Z',
+      duration_in_seconds: 180,
+    };
+    fetchSpy.mockImplementation((url: string | URL) => {
+      const u = typeof url === 'string' ? url : url.toString();
+      if (u.includes('/pipelines')) {
+        return Promise.resolve(
+          mockJson({ values: [first, second], next: null }),
+        );
+      }
+      return Promise.resolve(mockJson({ values: [], next: null }));
+    });
+
+    const connector = new BitbucketConnector(
+      { workspace: 'demo-ws', repoSlugs: ['demo-repo'] },
+      { username: 'janedoe', appPassword: 'ATBB-test' },
+    );
+    const storage = new InMemoryStorage();
+    const handle = storage.getStorageHandle('bitbucket');
+
+    await connector.sync(
+      { mode: 'full', resources: new Set(['pipeline', 'pipeline_event']) },
+      handle,
+    );
+
+    const pipelines = await handle.queryEntities({ type: 'pipeline' });
+    expect(pipelines).toHaveLength(1);
+
+    const events = await handle.queryEvents({ name: 'pipeline_event' });
+    expect(events).toHaveLength(1);
+  });
+
   it('does not wipe existing entities on an incremental sync', async () => {
     const pr = {
       id: 1,
