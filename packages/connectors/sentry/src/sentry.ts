@@ -172,7 +172,7 @@ interface SentryRelease {
 }
 
 interface SentryStatsResponse {
-  intervals: string[];
+  intervals?: string[];
   groups: Array<{
     by: Record<string, string | number>;
     totals?: Record<string, number>;
@@ -680,6 +680,7 @@ export class SentryConnector extends BaseConnector<
       value: number;
       attributes: Record<string, string | number>;
     }> = [];
+    const intervals = stats.intervals ?? [];
     for (const group of stats.groups) {
       const project = group.by['project'];
       const projectKey = project !== undefined ? String(project) : 'unknown';
@@ -687,8 +688,8 @@ export class SentryConnector extends BaseConnector<
       if (series.length === 0) {
         continue;
       }
-      for (let i = 0; i < stats.intervals.length; i++) {
-        const intervalIso = stats.intervals[i];
+      for (let i = 0; i < intervals.length; i++) {
+        const intervalIso = intervals[i];
         const rawValue = series[i];
         if (intervalIso === undefined || rawValue === undefined) {
           continue;
