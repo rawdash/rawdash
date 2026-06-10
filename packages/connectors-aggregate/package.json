@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connectors",
-  "version": "0.21.1",
+  "version": "0.22.0",
   "description": "Aggregate package bundling every built-in Rawdash connector. Depend on this one package instead of N individual @rawdash/connector-* packages.",
   "license": "Apache-2.0",
   "type": "module",

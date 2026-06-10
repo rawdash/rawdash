@@ -1,5 +1,22 @@
 # @rawdash/connector-sentry
 
+## 0.22.0
+
+### Patch Changes
+
+- beb78ff: Require a `domain` field on connector vendor metadata, and give each connector a vendor domain.
+
+  `connectorDocSchema` now requires `vendor.domain` (a validated hostname), so every connector declares the vendor's domain. This is a breaking change for connector authors using `@rawdash/core` directly. All built-in connectors now set `vendor.domain`.
+
+- e47003f: Update the Sentry `error_stats` schema to tolerate the `stats_v2` response shape: `intervals` is now `.optional()`. Other observed drift (`groups[*].by.project`, `groups[*].totals["sum(quantity)"]`, `series`, `start`/`end`) is already permitted by the existing schema and needed no change.
+- 80eccb6: Update the Sentry `issue_events` schema to match newly observed payloads: additional optional event-level fields (`crashFile`, `culprit`, `event.type`, `location`, `metadata`, `projectID`, `tags`, `title`, `user`).
+- d224059: Update the Sentry `issues` schema to match newly observed payloads: richer `project` ref fields, ISO datetime validation for the seer/priority timestamps, a `project.id` that accepts string or number, and additional optional issue-level fields.
+- c3d227f: Update the Sentry `releases` schema to match newly observed payloads: `dateReleased` and `lastEvent` became nullable/optional, plus additional optional fields on each release (`authors`, `commitCount`, `currentProjectMeta`, `data`, `deployCount`, `firstEvent`, `id`, `lastCommit`, `lastDeploy`, `newGroups`, `owner`, `ref`, `shortVersion`, `status`, `url`, `userAgent`, `versionInfo`) and on nested `projects` (`hasHealthData`, `id`, `name`, `newGroups`, `platform`, `platforms`).
+- Updated dependencies [851d1f1]
+- Updated dependencies [beb78ff]
+- Updated dependencies [afbf954]
+  - @rawdash/core@0.22.0
+
 ## 0.21.1
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-sentry",
-  "version": "0.21.1",
+  "version": "0.22.0",
   "description": "Rawdash connector for Sentry — issues, issue events, releases, and error-rate metrics",
   "license": "Apache-2.0",
   "type": "module",

@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/server",
-  "version": "0.21.1",
+  "version": "0.22.0",
   "description": "Framework-agnostic rawdash request handlers, engine, and wire contract. Wrap with @rawdash/hono (or another adapter) to serve over HTTP.",
   "license": "Apache-2.0",
   "type": "module",
