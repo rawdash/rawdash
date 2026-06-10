@@ -166,8 +166,8 @@ interface SentryIssueEvent {
 interface SentryRelease {
   version: string;
   dateCreated: string;
-  dateReleased: string | null;
-  lastEvent: string | null;
+  dateReleased?: string | null;
+  lastEvent?: string | null;
   projects: SentryProjectRef[];
 }
 
