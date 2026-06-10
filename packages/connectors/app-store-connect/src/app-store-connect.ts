@@ -49,7 +49,7 @@ export const configFields = defineConfigFields(
     }),
     vendorNumber: z
       .string()
-      .regex(/^\d+$/u, 'Vendor number must be a numeric string')
+      .regex(/^\d{8,9}$/u, 'Vendor number must be an 8-9 digit numeric string')
       .optional()
       .meta({
         label: 'Vendor number',
@@ -89,6 +89,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Sync your iOS / macOS apps, daily sales (downloads and proceeds), and customer review ratings from the App Store Connect API for mobile-team dashboards.',
   vendor: {
     name: 'Apple',
+    domain: 'apple.com',
     apiDocs: 'https://developer.apple.com/documentation/appstoreconnectapi',
     website: 'https://appstoreconnect.apple.com',
   },
@@ -514,14 +515,32 @@ export class AppStoreConnectConnector extends BaseConnector<
     signal?: AbortSignal,
   ): Promise<string | null> {
     const url = this.buildSalesReportUrl(reportDate);
-    const headers = await this.authHeaders();
-    headers['Accept'] = 'application/a-gzip';
 
-    const res = await globalThis.fetch(url, {
-      method: 'GET',
-      headers,
-      signal,
-    });
+    const res = await this.withRetry<Response>(
+      async (sig) => {
+        const headers = await this.authHeaders();
+        headers['Accept'] = 'application/a-gzip';
+        const response = await globalThis.fetch(url, {
+          method: 'GET',
+          headers,
+          signal: sig,
+        });
+        if (response.status === 429) {
+          const retryAfter = Number(response.headers.get('retry-after') ?? '');
+          if (Number.isFinite(retryAfter) && retryAfter > 0) {
+            await this.sleep(retryAfter * 1000, sig);
+          }
+          return { status: 'retry' };
+        }
+        return { status: 'done', value: response };
+      },
+      { signal },
+    );
+    if (res === null) {
+      throw new Error(
+        `App Store Connect sales report ${reportDate} failed: exhausted retries on HTTP 429`,
+      );
+    }
     if (res.status === 404) {
       return null;
     }
@@ -659,8 +678,6 @@ export class AppStoreConnectConnector extends BaseConnector<
           appId,
           reviewId: review.id,
           territory: attrs.territory ?? null,
-          title: attrs.title ?? null,
-          reviewerNickname: attrs.reviewerNickname ?? null,
         };
         samples.push({
           name: APP_RATINGS_METRIC,
