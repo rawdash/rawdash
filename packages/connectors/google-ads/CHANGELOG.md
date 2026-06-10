@@ -1,5 +1,19 @@
 # @rawdash/connector-google-ads
 
+## 0.22.0
+
+### Patch Changes
+
+- beb78ff: Require a `domain` field on connector vendor metadata, and give each connector a vendor domain.
+
+  `connectorDocSchema` now requires `vendor.domain` (a validated hostname), so every connector declares the vendor's domain. This is a breaking change for connector authors using `@rawdash/core` directly. All built-in connectors now set `vendor.domain`.
+
+- 0b6099b: Migrate the Google-API connectors to the shared `GcpAccessTokenProvider` from `@rawdash/connector-gcp-shared` instead of connector-local JWT signing and OAuth token handling. No behavior change — the token requests are identical; this removes duplicated service-account and refresh-token auth code so a fix to GCP auth only has to land in one place.
+- Updated dependencies [851d1f1]
+- Updated dependencies [beb78ff]
+- Updated dependencies [afbf954]
+  - @rawdash/core@0.22.0
+
 ## 0.21.1
 
 ### Patch Changes

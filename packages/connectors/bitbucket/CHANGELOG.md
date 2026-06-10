@@ -1,5 +1,19 @@
 # @rawdash/connector-bitbucket
 
+## 0.22.0
+
+### Patch Changes
+
+- 833af29: Deduplicate Bitbucket pipeline writes by uuid within a sync so a pipeline that repeats across pages (or within a single page) yields exactly one `pipeline` entity and one `pipeline_event`, instead of double-counting events. Entities already deduped via last-write-wins on their id, but `pipeline_event` rows were appended once per occurrence.
+- beb78ff: Require a `domain` field on connector vendor metadata, and give each connector a vendor domain.
+
+  `connectorDocSchema` now requires `vendor.domain` (a validated hostname), so every connector declares the vendor's domain. This is a breaking change for connector authors using `@rawdash/core` directly. All built-in connectors now set `vendor.domain`.
+
+- Updated dependencies [851d1f1]
+- Updated dependencies [beb78ff]
+- Updated dependencies [afbf954]
+  - @rawdash/core@0.22.0
+
 ## 0.21.1
 
 ### Patch Changes

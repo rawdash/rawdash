@@ -1,5 +1,72 @@
 # @rawdash/connectors
 
+## 0.22.0
+
+### Minor Changes
+
+- 851d1f1: Add `@rawdash/connector-app-store-connect` — syncs the team's iOS/macOS apps, daily sales (units and developer proceeds), and a rolling sample of customer review ratings from the App Store Connect REST API into the six-shape storage model. Authenticates with an ES256-signed JWT minted per request from an issuer ID, key ID, and a PKCS#8 EC private key (.p8). Sales reports are fetched as gzipped TSV (DAILY frequency, SALES SUMMARY) and broken out by `(date, app, country, productTypeIdentifier)`; revenue samples preserve each row's native "Currency of Proceeds" so downstream widgets can group or FX-convert. App ratings are sampled from each app's most-recent N customer reviews (default 200, capped at 2,000) and emitted as a metric with rating 1-5 as the value and territory on the attribute, since Apple does not expose lifetime aggregates over the REST API. Per-build crash counts (`app_crashes`) are intentionally deferred — they require the asynchronous Analytics Reports request/poll/download flow which is a follow-up. A new `mobile` connector category is added to `@rawdash/core` so this and future mobile connectors land in a dedicated docs vertical.
+
+### Patch Changes
+
+- a190bd9: Add `@rawdash/connector-appsflyer`, a new connector that syncs daily install metrics (installs, cost, revenue, conversions by media source and campaign) and cohort retention (retention day 1/7/30 by media source) from the AppsFlyer Master API. Authenticated via a V2.0 bearer API token.
+- 0b6099b: New connector `@rawdash/connector-firebase-analytics` that syncs a Firebase project's analytics data through the linked GA4 Data API. Three metric resources: `firebase_dau_wau_mau` (DAU/WAU/MAU per day), `firebase_events_per_day` (per-event counts and active users), and `firebase_retention` (active users by `firstSessionDate` x `date` with a derived `period` attribute for cohort retention). Auth mirrors `@rawdash/connector-google-analytics` (service-account JWT or OAuth refresh-token tuple) and a required `firebaseAppId` labels every sample with the source app. Backfill (90-day default) and incremental (30-day rolling) syncs both honor `options.since` and `options.resources`, with a resumable phase cursor.
+- 41d4d01: Add `@rawdash/connector-revenuecat`, a new connector for the RevenueCat v2 REST API. Syncs products, entitlements, customers, and subscription entities (extracted from each customer's embedded `subscriptions.items` field) plus subscription lifecycle events, and writes a point-in-time snapshot of the project's overview metrics (MRR, active subscriptions, trial conversion rate, ...) on every sync. Authenticates with a project-scoped v2 API key and supports both full backfills and `since`-driven incremental event syncs.
+- Updated dependencies [a190bd9]
+- Updated dependencies [4d15cfd]
+- Updated dependencies [833af29]
+- Updated dependencies [851d1f1]
+- Updated dependencies [beb78ff]
+- Updated dependencies [0b6099b]
+- Updated dependencies [4e7c58e]
+- Updated dependencies [0b6099b]
+- Updated dependencies [47aefb7]
+- Updated dependencies [41d4d01]
+- Updated dependencies [e47003f]
+- Updated dependencies [80eccb6]
+- Updated dependencies [d224059]
+- Updated dependencies [c3d227f]
+- Updated dependencies [afbf954]
+  - @rawdash/connector-appsflyer@0.22.0
+  - @rawdash/connector-firebase-crashlytics@0.22.0
+  - @rawdash/connector-bitbucket@0.22.0
+  - @rawdash/connector-app-store-connect@0.22.0
+  - @rawdash/core@0.22.0
+  - @rawdash/connector-aws-cloudwatch@0.22.0
+  - @rawdash/connector-aws-cost@0.22.0
+  - @rawdash/connector-azure-cost@0.22.0
+  - @rawdash/connector-azure-monitor@0.22.0
+  - @rawdash/connector-circleci@0.22.0
+  - @rawdash/connector-datadog@0.22.0
+  - @rawdash/connector-gcp-billing@0.22.0
+  - @rawdash/connector-gcp-monitoring@0.22.0
+  - @rawdash/connector-github@0.22.0
+  - @rawdash/connector-gitlab@0.22.0
+  - @rawdash/connector-google-ads@0.22.0
+  - @rawdash/connector-google-analytics@0.22.0
+  - @rawdash/connector-google-search-console@0.22.0
+  - @rawdash/connector-greenhouse@0.22.0
+  - @rawdash/connector-hubspot@0.22.0
+  - @rawdash/connector-intercom@0.22.0
+  - @rawdash/connector-jira@0.22.0
+  - @rawdash/connector-klaviyo@0.22.0
+  - @rawdash/connector-launchdarkly@0.22.0
+  - @rawdash/connector-linear@0.22.0
+  - @rawdash/connector-mailchimp@0.22.0
+  - @rawdash/connector-meta-ads@0.22.0
+  - @rawdash/connector-mixpanel@0.22.0
+  - @rawdash/connector-netlify@0.22.0
+  - @rawdash/connector-new-relic@0.22.0
+  - @rawdash/connector-posthog@0.22.0
+  - @rawdash/connector-salesforce@0.22.0
+  - @rawdash/connector-sentry@0.22.0
+  - @rawdash/connector-statuspage@0.22.0
+  - @rawdash/connector-stripe@0.22.0
+  - @rawdash/connector-vercel@0.22.0
+  - @rawdash/connector-zendesk@0.22.0
+  - @rawdash/connector-firebase-analytics@0.22.0
+  - @rawdash/connector-google-play-console@0.22.0
+  - @rawdash/connector-revenuecat@0.22.0
+
 ## 0.21.1
 
 ### Patch Changes

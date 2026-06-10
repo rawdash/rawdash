@@ -1,5 +1,22 @@
 # @rawdash/connector-github
 
+## 0.22.0
+
+### Patch Changes
+
+- beb78ff: Require a `domain` field on connector vendor metadata, and give each connector a vendor domain.
+
+  `connectorDocSchema` now requires `vendor.domain` (a validated hostname), so every connector declares the vendor's domain. This is a breaking change for connector authors using `@rawdash/core` directly. All built-in connectors now set `vendor.domain`.
+
+- afbf954: Carry widget filters into connector fetch via per-resource FetchSpecs.
+
+  `@rawdash/core` now models backfill output as `ResourceBackfill { specs: FetchSpec[] }` (was `{ requiredWindowMs }`), merging per resource so same-filter specs collapse to the loosest window while different filter sets are kept apart. Adds `fetchSpecsForConnector`, `SyncOptions.fetchSpecs`, `resolveSpecCutoff`, optional `filterable` on resource definitions, and per-spec cursor support in `paginateChunked`. The GitHub connector pushes recognized `state` filters down to the API and applies a per-spec cutoff; the OSS sync runner routes through `fetchSpecsForConnector` so OSS and cloud share one fetch path.
+
+- Updated dependencies [851d1f1]
+- Updated dependencies [beb78ff]
+- Updated dependencies [afbf954]
+  - @rawdash/core@0.22.0
+
 ## 0.21.1
 
 ### Patch Changes
