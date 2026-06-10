@@ -880,16 +880,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     requestIssue: 'RAW-448',
   },
   {
-    id: 'app-store-connect',
-    name: 'App Store Connect',
-    category: 'product',
-    tagline:
-      'Sync app installs, in-app revenue, and ratings across territories from App Store Connect.',
-    icon: 'appstore',
-    domain: 'apple.com',
-    requestIssue: 'RAW-403',
-  },
-  {
     id: 'appcues',
     name: 'Appcues',
     category: 'product',

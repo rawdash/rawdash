@@ -1,5 +1,12 @@
 // This file is generated from the connector packages by scripts/generate-connectors-package.ts. Do not edit by hand.
 import {
+  configFields as appStoreConnectConfigFields,
+  cost as appStoreConnectCost,
+  doc as appStoreConnectDoc,
+  id as appStoreConnectId,
+  resources as appStoreConnectResources,
+} from '@rawdash/connector-app-store-connect';
+import {
   configFields as awsCloudwatchConfigFields,
   cost as awsCloudwatchCost,
   doc as awsCloudwatchDoc,
@@ -207,6 +214,14 @@ import {
 import type { ConnectorMetadata } from './types';
 
 export const connectorMetadata: ConnectorMetadata[] = [
+  {
+    id: appStoreConnectId,
+    packageName: '@rawdash/connector-app-store-connect',
+    doc: appStoreConnectDoc,
+    configFields: appStoreConnectConfigFields,
+    resources: appStoreConnectResources,
+    cost: appStoreConnectCost,
+  },
   {
     id: awsCloudwatchId,
     packageName: '@rawdash/connector-aws-cloudwatch',
