@@ -695,6 +695,7 @@ export class AppStoreConnectConnector extends BaseConnector<
     storage: StorageHandle,
     signal?: AbortSignal,
   ): Promise<SyncResult> {
+    this.cachedAppIds = null;
     const cursor = this.resolveCursor(options.cursor);
     const isFull = options.mode === 'full';
     const phases = selectActivePhases<
