@@ -34,6 +34,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@rawdash/connector-app-store-connect": "workspace:*",
     "@rawdash/connector-aws-cloudwatch": "workspace:*",
     "@rawdash/connector-aws-cost": "workspace:*",
     "@rawdash/connector-azure-cost": "workspace:*",
@@ -62,6 +63,7 @@
     "@rawdash/connector-netlify": "workspace:*",
     "@rawdash/connector-new-relic": "workspace:*",
     "@rawdash/connector-posthog": "workspace:*",
+    "@rawdash/connector-revenuecat": "workspace:*",
     "@rawdash/connector-salesforce": "workspace:*",
     "@rawdash/connector-sentry": "workspace:*",
     "@rawdash/connector-statuspage": "workspace:*",

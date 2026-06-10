@@ -870,16 +870,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     requestIssue: 'RAW-448',
   },
   {
-    id: 'app-store-connect',
-    name: 'App Store Connect',
-    category: 'product',
-    tagline:
-      'Sync app installs, in-app revenue, and ratings across territories from App Store Connect.',
-    icon: 'appstore',
-    domain: 'apple.com',
-    requestIssue: 'RAW-403',
-  },
-  {
     id: 'appcues',
     name: 'Appcues',
     category: 'product',
@@ -2267,17 +2257,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     brandColor: '#F8423A',
     domain: 'recurly.com',
     requestIssue: 'RAW-216',
-  },
-  {
-    id: 'revenuecat',
-    name: 'RevenueCat',
-    category: 'finance',
-    tagline:
-      'Sync mobile MRR, churn, trial conversion, and active subscribers from RevenueCat.',
-    icon: 'revenuecat',
-    brandColor: '#F44CA1',
-    domain: 'revenuecat.com',
-    requestIssue: 'RAW-407',
   },
   {
     id: 'sage-intacct',

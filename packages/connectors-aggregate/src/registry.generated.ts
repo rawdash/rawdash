@@ -2,6 +2,8 @@
 import type { ConnectorClass } from '@rawdash/core';
 
 export const connectorLoaders: Record<string, () => Promise<ConnectorClass>> = {
+  'app-store-connect': () =>
+    import('@rawdash/connector-app-store-connect').then((m) => m.default),
   'aws-cloudwatch': () =>
     import('@rawdash/connector-aws-cloudwatch').then((m) => m.default),
   'aws-cost': () =>
@@ -47,6 +49,8 @@ export const connectorLoaders: Record<string, () => Promise<ConnectorClass>> = {
   'new-relic': () =>
     import('@rawdash/connector-new-relic').then((m) => m.default),
   posthog: () => import('@rawdash/connector-posthog').then((m) => m.default),
+  revenuecat: () =>
+    import('@rawdash/connector-revenuecat').then((m) => m.default),
   salesforce: () =>
     import('@rawdash/connector-salesforce').then((m) => m.default),
   sentry: () => import('@rawdash/connector-sentry').then((m) => m.default),
