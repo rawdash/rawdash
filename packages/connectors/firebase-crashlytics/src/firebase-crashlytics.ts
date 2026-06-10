@@ -1,5 +1,10 @@
 import {
+  BQ_READONLY_SCOPE,
+  type BqPageRequest,
+  type BqQueryResponse,
+  bqQueryResponseSchema,
   buildServiceAccountJwt,
+  collectBigQueryPages,
   gcpAuthConfigShape,
   tokenResponseSchema,
 } from '@rawdash/connector-gcp-shared';
@@ -109,8 +114,6 @@ export const doc: ConnectorDoc = defineConnectorDoc({
   ],
 });
 
-const BQ_API_BASE = 'https://bigquery.googleapis.com/bigquery/v2';
-const BQ_SCOPE = 'https://www.googleapis.com/auth/bigquery.readonly';
 const CRASHES_METRIC_NAME = 'crashes_per_day';
 const TOP_ISSUES_ENTITY_TYPE = 'firebase_crashlytics_issue';
 const DEFAULT_LOOKBACK_DAYS = 90;
@@ -118,7 +121,6 @@ const DEFAULT_TOP_ISSUES_LIMIT = 50;
 const DEFAULT_BQ_DATASET = 'firebase_crashlytics';
 const INCREMENTAL_LOOKBACK_DAYS = 2;
 const MS_PER_DAY = 86_400_000;
-const PAGE_SIZE = 10_000;
 type ResourceName = typeof CRASHES_METRIC_NAME | 'top_issues';
 
 export interface FirebaseCrashlyticsSettings {
@@ -137,34 +139,6 @@ const firebaseCrashlyticsCredentials = {
 } satisfies CredentialsSchema;
 
 type FirebaseCrashlyticsCredentials = typeof firebaseCrashlyticsCredentials;
-
-const bqQueryResponseSchema = z.object({
-  jobComplete: z.boolean().optional(),
-  schema: z
-    .object({
-      fields: z.array(z.object({ name: z.string(), type: z.string() })),
-    })
-    .optional(),
-  rows: z
-    .array(
-      z.object({
-        f: z.array(z.object({ v: z.string().nullable().optional() })),
-      }),
-    )
-    .optional(),
-  pageToken: z.string().optional(),
-  jobReference: z
-    .object({
-      projectId: z.string(),
-      jobId: z.string(),
-      location: z.string().optional(),
-    })
-    .optional(),
-});
-
-type BqJobReference = NonNullable<
-  z.infer<typeof bqQueryResponseSchema>['jobReference']
->;
 
 export const firebaseCrashlyticsResources = defineResources({
   [CRASHES_METRIC_NAME]: {
@@ -304,7 +278,7 @@ export class FirebaseCrashlyticsConnector extends BaseConnector<
     }
     const { url, body } = await buildServiceAccountJwt(
       serviceAccountJson,
-      BQ_SCOPE,
+      BQ_READONLY_SCOPE,
     );
     const res = await this.post<{
       access_token: string;
@@ -323,61 +297,27 @@ export class FirebaseCrashlyticsConnector extends BaseConnector<
     return this.cachedToken.token;
   }
 
-  private async runQuery(
-    accessToken: string,
+  private async fetchBigQueryPage(
     resource: ResourceName,
-    sql: string,
-    pageToken: string | undefined,
-    jobReference: BqJobReference | undefined,
-    signal?: AbortSignal,
-  ): Promise<z.infer<typeof bqQueryResponseSchema>> {
+    request: BqPageRequest,
+    signal: AbortSignal | undefined,
+  ): Promise<BqQueryResponse> {
+    const accessToken = await this.getAccessToken(signal);
     const headers = {
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
       'User-Agent': connectorUserAgent(this.id),
     };
-
-    if (pageToken === undefined) {
-      const url = `${BQ_API_BASE}/projects/${encodeURIComponent(
-        this.settings.projectId,
-      )}/queries`;
-      const body: Record<string, unknown> = {
-        query: sql,
-        useLegacySql: false,
-        maxResults: PAGE_SIZE,
-        timeoutMs: 30_000,
-      };
-      if (this.settings.bqLocation !== undefined) {
-        body['location'] = this.settings.bqLocation;
-      }
-      const res = await this.post<z.infer<typeof bqQueryResponseSchema>>(url, {
+    if (request.method === 'POST') {
+      const res = await this.post<BqQueryResponse>(request.url, {
         resource,
         headers,
-        body: JSON.stringify(body),
+        body: request.body,
         signal,
       });
       return res.body;
     }
-
-    if (jobReference === undefined) {
-      throw new Error(
-        `${this.id}: cannot fetch the next page of BigQuery results without a jobReference`,
-      );
-    }
-
-    const params = new URLSearchParams({
-      pageToken,
-      maxResults: String(PAGE_SIZE),
-      timeoutMs: '30000',
-    });
-    const location = jobReference.location ?? this.settings.bqLocation;
-    if (location !== undefined) {
-      params.set('location', location);
-    }
-    const url = `${BQ_API_BASE}/projects/${encodeURIComponent(
-      jobReference.projectId,
-    )}/queries/${encodeURIComponent(jobReference.jobId)}?${params.toString()}`;
-    const res = await this.get<z.infer<typeof bqQueryResponseSchema>>(url, {
+    const res = await this.get<BqQueryResponse>(request.url, {
       resource,
       headers,
       signal,
@@ -446,134 +386,46 @@ export class FirebaseCrashlyticsConnector extends BaseConnector<
     return { done: true };
   }
 
+  private jobIncompleteMessage(): string {
+    return `${this.id}: BigQuery query did not complete within the synchronous timeout (jobComplete=false). Narrow the lookbackDays so the query finishes faster.`;
+  }
+
   private async collectSamples(
     sql: string,
     signal?: AbortSignal,
   ): Promise<MetricSample[]> {
-    const samples: MetricSample[] = [];
-    let pageToken: string | undefined;
-    let jobReference: BqJobReference | undefined;
-    let page = 0;
-    const phaseStart = Date.now();
-
-    do {
-      if (signal?.aborted) {
-        break;
-      }
-      const accessToken = await this.getAccessToken(signal);
-      let response: z.infer<typeof bqQueryResponseSchema>;
-      try {
-        response = await this.runQuery(
-          accessToken,
-          CRASHES_METRIC_NAME,
-          sql,
-          pageToken,
-          jobReference,
-          signal,
-        );
-      } catch (err) {
-        this.logger.warn('fetch page failed', {
-          resource: CRASHES_METRIC_NAME,
-          page: page + 1,
-          error: err instanceof Error ? err.message : String(err),
-        });
-        throw err;
-      }
-      if (response.jobComplete === false) {
-        throw new Error(
-          `${this.id}: BigQuery query did not complete within the synchronous timeout (jobComplete=false). Narrow the lookbackDays so the query finishes faster.`,
-        );
-      }
-      if (response.jobReference !== undefined) {
-        jobReference = response.jobReference;
-      }
-      const pageSamples = buildCrashesSamplesFromBqResponse(response);
-      samples.push(...pageSamples);
-      pageToken =
-        typeof response.pageToken === 'string' && response.pageToken.length > 0
-          ? response.pageToken
-          : undefined;
-      page += 1;
-      this.logger.info('fetched page', {
-        resource: CRASHES_METRIC_NAME,
-        page,
-        items: pageSamples.length,
-        next: pageToken ?? null,
-      });
-    } while (pageToken !== undefined);
-
-    this.logger.info('resource done', {
+    const { rows } = await collectBigQueryPages<MetricSample>({
+      projectId: this.settings.projectId,
+      sql,
       resource: CRASHES_METRIC_NAME,
-      pages: page,
-      items: samples.length,
-      duration_ms: Date.now() - phaseStart,
+      location: this.settings.bqLocation,
+      signal,
+      logger: this.logger,
+      mapRows: buildCrashesSamplesFromBqResponse,
+      jobIncompleteMessage: this.jobIncompleteMessage(),
+      fetchPage: (request, sig) =>
+        this.fetchBigQueryPage(CRASHES_METRIC_NAME, request, sig),
     });
-    return samples;
+    return rows;
   }
 
   private async collectIssues(
     sql: string,
     signal?: AbortSignal,
   ): Promise<Entity[]> {
-    const entities: Entity[] = [];
-    let pageToken: string | undefined;
-    let jobReference: BqJobReference | undefined;
-    let page = 0;
-    const phaseStart = Date.now();
-
-    do {
-      if (signal?.aborted) {
-        break;
-      }
-      const accessToken = await this.getAccessToken(signal);
-      let response: z.infer<typeof bqQueryResponseSchema>;
-      try {
-        response = await this.runQuery(
-          accessToken,
-          'top_issues',
-          sql,
-          pageToken,
-          jobReference,
-          signal,
-        );
-      } catch (err) {
-        this.logger.warn('fetch page failed', {
-          resource: 'top_issues',
-          page: page + 1,
-          error: err instanceof Error ? err.message : String(err),
-        });
-        throw err;
-      }
-      if (response.jobComplete === false) {
-        throw new Error(
-          `${this.id}: BigQuery query did not complete within the synchronous timeout (jobComplete=false). Narrow the lookbackDays so the query finishes faster.`,
-        );
-      }
-      if (response.jobReference !== undefined) {
-        jobReference = response.jobReference;
-      }
-      const pageEntities = buildTopIssuesEntitiesFromBqResponse(response);
-      entities.push(...pageEntities);
-      pageToken =
-        typeof response.pageToken === 'string' && response.pageToken.length > 0
-          ? response.pageToken
-          : undefined;
-      page += 1;
-      this.logger.info('fetched page', {
-        resource: 'top_issues',
-        page,
-        items: pageEntities.length,
-        next: pageToken ?? null,
-      });
-    } while (pageToken !== undefined);
-
-    this.logger.info('resource done', {
+    const { rows } = await collectBigQueryPages<Entity>({
+      projectId: this.settings.projectId,
+      sql,
       resource: 'top_issues',
-      pages: page,
-      items: entities.length,
-      duration_ms: Date.now() - phaseStart,
+      location: this.settings.bqLocation,
+      signal,
+      logger: this.logger,
+      mapRows: buildTopIssuesEntitiesFromBqResponse,
+      jobIncompleteMessage: this.jobIncompleteMessage(),
+      fetchPage: (request, sig) =>
+        this.fetchBigQueryPage('top_issues', request, sig),
     });
-    return entities;
+    return rows;
   }
 }
 
