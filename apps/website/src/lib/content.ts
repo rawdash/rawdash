@@ -13,6 +13,14 @@ export interface SectionMeta {
 }
 
 export const SECTIONS = {
+  dashboards: {
+    pageType: 'dashboard',
+    basePath: '/dashboards',
+    title: 'Dashboards',
+    description:
+      'Outcome dashboards built on Rawdash — wired to your tools, ready to ship.',
+    label: 'Dashboards',
+  },
   blog: {
     pageType: 'blog',
     basePath: '/blog',

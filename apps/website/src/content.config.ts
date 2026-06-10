@@ -7,7 +7,13 @@ import { contentFeedLoader } from './lib/content-feed';
 const content = defineCollection({
   loader: contentFeedLoader(),
   schema: z.object({
-    pageType: z.enum(['blog', 'integration', 'compare', 'alternative']),
+    pageType: z.enum([
+      'blog',
+      'integration',
+      'compare',
+      'alternative',
+      'dashboard',
+    ]),
     slug: z.string(),
     title: z.string(),
     metaTitle: z.string().optional(),
@@ -16,6 +22,9 @@ const content = defineCollection({
     body: z.string(),
     targetKeyword: z.string().optional(),
     connectors: z.array(z.string()).default([]),
+    faq: z
+      .array(z.object({ question: z.string(), answer: z.string() }))
+      .default([]),
     cta: z.object({ label: z.string(), href: z.string() }).optional(),
     competitor: z.string().optional(),
     author: z.string().optional(),

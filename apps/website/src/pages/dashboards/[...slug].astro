@@ -1,0 +1,39 @@
+---
+import type { GetStaticPaths } from 'astro';
+import ContentLayout from '../../layouts/ContentLayout.astro';
+import DashboardArticle from '../../components/content/DashboardArticle.astro';
+import { SECTIONS, getSectionEntries } from '../../lib/content';
+import { articleMeta, faqPageJsonLd } from '../../lib/seo';
+
+const section = SECTIONS.dashboards;
+
+export const getStaticPaths = (async () => {
+  const entries = await getSectionEntries(SECTIONS.dashboards.pageType);
+  return entries.map((entry) => ({
+    params: { slug: entry.data.slug },
+    props: { entry },
+  }));
+}) satisfies GetStaticPaths;
+
+const { entry } = Astro.props;
+const { path, metaTitle, jsonLd } = articleMeta(entry, section, Astro.site);
+
+const blocks =
+  entry.data.faq.length > 0
+    ? [...jsonLd, faqPageJsonLd(entry.data.faq)]
+    : jsonLd;
+---
+
+<ContentLayout
+  title={metaTitle}
+  description={entry.data.metaDescription}
+  path={path}
+  ogType="article"
+  jsonLd={blocks}
+>
+  <DashboardArticle
+    entry={entry}
+    sectionLabel={section.label}
+    basePath={section.basePath}
+  />
+</ContentLayout>
