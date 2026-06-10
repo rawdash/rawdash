@@ -231,41 +231,16 @@ describe('FirebaseCrashlyticsConnector sync', () => {
     expect(calls[1]).toContain('LIMIT 50');
   });
 
-  it('follows pageToken across pages for crashes_per_day', async () => {
-    let crashCall = 0;
+  it('follows pageToken across pages via jobs.getQueryResults for crashes_per_day', async () => {
+    let call = 0;
+    const bqRequests: Array<{ url: string; method: string }> = [];
     installFetch((url, init) => {
       if (url.startsWith('https://oauth2.googleapis.com/token')) {
         return { body: { access_token: 'tok' } };
       }
-      const parsed = JSON.parse(String(init.body)) as {
-        query: string;
-        pageToken?: string;
-      };
-      if (parsed.query.includes('crashes,')) {
-        crashCall += 1;
-        if (crashCall === 1) {
-          return {
-            body: {
-              jobComplete: true,
-              schema: CRASH_SCHEMA,
-              rows: [
-                {
-                  f: [
-                    { v: '2024-01-01' },
-                    { v: 'app' },
-                    { v: 'android' },
-                    { v: '1.0' },
-                    { v: '1' },
-                    { v: '1' },
-                    { v: '100' },
-                  ],
-                },
-              ],
-              pageToken: 'page-2',
-            },
-          };
-        }
-        expect(parsed.pageToken).toBe('page-2');
+      bqRequests.push({ url, method: init.method ?? 'GET' });
+      call += 1;
+      if (call === 1) {
         return {
           body: {
             jobComplete: true,
@@ -273,68 +248,75 @@ describe('FirebaseCrashlyticsConnector sync', () => {
             rows: [
               {
                 f: [
-                  { v: '2024-01-02' },
+                  { v: '2024-01-01' },
                   { v: 'app' },
                   { v: 'android' },
                   { v: '1.0' },
-                  { v: '2' },
-                  { v: '2' },
-                  { v: '200' },
+                  { v: '1' },
+                  { v: '1' },
+                  { v: '100' },
                 ],
               },
             ],
+            pageToken: 'page-2',
+            jobReference: {
+              projectId: 'my-firebase-project',
+              jobId: 'job-1',
+              location: 'US',
+            },
           },
         };
       }
       return {
-        body: { jobComplete: true, schema: ISSUE_SCHEMA, rows: [] },
+        body: {
+          jobComplete: true,
+          schema: CRASH_SCHEMA,
+          rows: [
+            {
+              f: [
+                { v: '2024-01-02' },
+                { v: 'app' },
+                { v: 'android' },
+                { v: '1.0' },
+                { v: '2' },
+                { v: '2' },
+                { v: '200' },
+              ],
+            },
+          ],
+        },
       };
     });
 
     const storage = new InMemoryStorage();
     await makeConnector().sync(
-      { mode: 'full' },
+      { mode: 'full', resources: new Set(['crashes_per_day']) },
       storage.getStorageHandle(CONNECTOR_ID),
     );
     expect(metricsFor(storage).map((m) => m.value)).toEqual([1, 2]);
+
+    expect(bqRequests[0]!.method).toBe('POST');
+    expect(bqRequests[0]!.url).toContain(
+      'projects/my-firebase-project/queries',
+    );
+    expect(bqRequests[1]!.method).toBe('GET');
+    expect(bqRequests[1]!.url).toContain(
+      'projects/my-firebase-project/queries/job-1',
+    );
+    expect(bqRequests[1]!.url).toContain('pageToken=page-2');
+    expect(bqRequests[1]!.url).toContain('location=US');
   });
 
-  it('follows pageToken across pages for top_issues', async () => {
-    let issueCall = 0;
+  it('follows pageToken across pages via jobs.getQueryResults for top_issues', async () => {
+    let call = 0;
+    const bqRequests: Array<{ url: string; method: string }> = [];
     installFetch((url, init) => {
       if (url.startsWith('https://oauth2.googleapis.com/token')) {
         return { body: { access_token: 'tok' } };
       }
-      const parsed = JSON.parse(String(init.body)) as {
-        query: string;
-        pageToken?: string;
-      };
-      if (parsed.query.includes('ORDER BY event_count DESC')) {
-        issueCall += 1;
-        if (issueCall === 1) {
-          return {
-            body: {
-              jobComplete: true,
-              schema: ISSUE_SCHEMA,
-              rows: [
-                {
-                  f: [
-                    { v: 'issue-1' },
-                    { v: 't1' },
-                    { v: 's1' },
-                    { v: 'app' },
-                    { v: 'ios' },
-                    { v: '2' },
-                    { v: '1' },
-                    { v: '1704067200000000' },
-                  ],
-                },
-              ],
-              pageToken: 'issue-page-2',
-            },
-          };
-        }
-        expect(parsed.pageToken).toBe('issue-page-2');
+      bqRequests.push({ url, method: init.method ?? 'GET' });
+      call += 1;
+      if (call === 1) {
         return {
           body: {
             jobComplete: true,
@@ -342,21 +324,46 @@ describe('FirebaseCrashlyticsConnector sync', () => {
             rows: [
               {
                 f: [
-                  { v: 'issue-2' },
-                  { v: 't2' },
-                  { v: 's2' },
+                  { v: 'issue-1' },
+                  { v: 't1' },
+                  { v: 's1' },
                   { v: 'app' },
                   { v: 'ios' },
-                  { v: '5' },
-                  { v: '3' },
-                  { v: '1704153600000000' },
+                  { v: '2' },
+                  { v: '1' },
+                  { v: '1704067200000000' },
                 ],
               },
             ],
+            pageToken: 'issue-page-2',
+            jobReference: {
+              projectId: 'my-firebase-project',
+              jobId: 'job-9',
+              location: 'US',
+            },
           },
         };
       }
-      return { body: { jobComplete: true, schema: CRASH_SCHEMA, rows: [] } };
+      return {
+        body: {
+          jobComplete: true,
+          schema: ISSUE_SCHEMA,
+          rows: [
+            {
+              f: [
+                { v: 'issue-2' },
+                { v: 't2' },
+                { v: 's2' },
+                { v: 'app' },
+                { v: 'ios' },
+                { v: '5' },
+                { v: '3' },
+                { v: '1704153600000000' },
+              ],
+            },
+          ],
+        },
+      };
     });
 
     const storage = new InMemoryStorage();
@@ -369,6 +376,13 @@ describe('FirebaseCrashlyticsConnector sync', () => {
         .map((e) => e.id)
         .sort(),
     ).toEqual(['issue-1', 'issue-2']);
+
+    expect(bqRequests[0]!.method).toBe('POST');
+    expect(bqRequests[1]!.method).toBe('GET');
+    expect(bqRequests[1]!.url).toContain(
+      'projects/my-firebase-project/queries/job-9',
+    );
+    expect(bqRequests[1]!.url).toContain('pageToken=issue-page-2');
   });
 
   it('drops crash rows with no count', async () => {
