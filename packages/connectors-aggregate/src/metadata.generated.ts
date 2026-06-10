@@ -168,6 +168,12 @@ import {
   resources as posthogResources,
 } from '@rawdash/connector-posthog';
 import {
+  configFields as revenuecatConfigFields,
+  doc as revenuecatDoc,
+  id as revenuecatId,
+  resources as revenuecatResources,
+} from '@rawdash/connector-revenuecat';
+import {
   configFields as salesforceConfigFields,
   doc as salesforceDoc,
   id as salesforceId,
@@ -401,6 +407,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: posthogDoc,
     configFields: posthogConfigFields,
     resources: posthogResources,
+  },
+  {
+    id: revenuecatId,
+    packageName: '@rawdash/connector-revenuecat',
+    doc: revenuecatDoc,
+    configFields: revenuecatConfigFields,
+    resources: revenuecatResources,
   },
   {
     id: salesforceId,

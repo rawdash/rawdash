@@ -2279,17 +2279,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     requestIssue: 'RAW-216',
   },
   {
-    id: 'revenuecat',
-    name: 'RevenueCat',
-    category: 'finance',
-    tagline:
-      'Sync mobile MRR, churn, trial conversion, and active subscribers from RevenueCat.',
-    icon: 'revenuecat',
-    brandColor: '#F44CA1',
-    domain: 'revenuecat.com',
-    requestIssue: 'RAW-407',
-  },
-  {
     id: 'sage-intacct',
     name: 'Sage Intacct',
     category: 'finance',
