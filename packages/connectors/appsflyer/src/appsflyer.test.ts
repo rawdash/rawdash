@@ -229,7 +229,7 @@ function makeStorage() {
   };
 }
 
-const TOKEN = 'APPSFLYER_TOKEN' as unknown as { $secret: string };
+const TOKEN = 'APPSFLYER_TOKEN';
 
 function connector(overrides?: {
   resources?: string[];
