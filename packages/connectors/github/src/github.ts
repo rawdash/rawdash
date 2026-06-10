@@ -12,6 +12,8 @@ import {
   type ConnectorDoc,
   type CredentialsSchema,
   type FetchPageResult,
+  type FetchSpec,
+  type FilterClause,
   type StorageHandle,
   type SyncOptions,
   type SyncResult,
@@ -21,6 +23,7 @@ import {
   makeChunkedCursorGuard,
   paginateChunked,
   resolveBackfillCutoff,
+  resolveSpecCutoff,
   schemasFromResources,
 } from '@rawdash/core';
 import { z } from 'zod';
@@ -202,6 +205,26 @@ const PHASE_RESOURCES: Record<GitHubSyncPhase, readonly string[]> = {
   releases: ['release'],
   contributors: ['contributor'],
 };
+
+const SINGLE_SPEC_PHASES: ReadonlySet<GitHubSyncPhase> = new Set([
+  'repo_stats',
+  'contributors',
+]);
+
+function pushableState(filter: FilterClause[] | undefined): string | null {
+  if (!filter) {
+    return null;
+  }
+  for (const clause of filter) {
+    if ('field' in clause && clause.field === 'state' && clause.op === 'eq') {
+      const { value } = clause;
+      if (value === 'open' || value === 'closed') {
+        return value;
+      }
+    }
+  }
+  return null;
+}
 
 function selectPhases(
   allowlist: ReadonlySet<string> | undefined,
@@ -521,6 +544,9 @@ export const githubResources = defineResources({
     endpoint: 'GET /repos/{owner}/{repo}/pulls',
     notes:
       'Review state is folded in from GET /repos/{owner}/{repo}/pulls/{number}/reviews per PR.',
+    filterable: [
+      { field: 'state', ops: ['eq'], values: ['open', 'closed', 'merged'] },
+    ],
     responses: {
       pull_requests: pullRequestsSchema,
       pull_request_reviews: reviewsSchema,
@@ -531,6 +557,7 @@ export const githubResources = defineResources({
     description:
       'Open and closed issues with labels, assignees, and author (pull requests excluded).',
     endpoint: 'GET /repos/{owner}/{repo}/issues',
+    filterable: [{ field: 'state', ops: ['eq'], values: ['open', 'closed'] }],
     responses: { issues: issuesSchema },
   },
   deployment: {
@@ -684,7 +711,28 @@ export class GitHubConnector extends BaseConnector<
     return {
       phase: cursor.phase,
       page: this.sanitizePageUrl(cursor.phase, cursor.page),
+      spec: cursor.spec,
     };
+  }
+
+  private specsForResource(
+    options: SyncOptions,
+    resource: string,
+  ): FetchSpec[] {
+    const specs = options.fetchSpecs?.[resource];
+    return specs && specs.length > 0 ? specs : [{}];
+  }
+
+  private specCutoff(
+    options: SyncOptions,
+    resource: string,
+    spec: FetchSpec,
+    now: number,
+  ): number | null {
+    if (options.fetchSpecs?.[resource]) {
+      return resolveSpecCutoff(spec.requiredWindowMs, now);
+    }
+    return resolveBackfillCutoff(options, resource, now);
   }
 
   private async fetchRepoStats(
@@ -713,9 +761,9 @@ export class GitHubConnector extends BaseConnector<
   }
 
   private async fetchWorkflowRunsFull(
-    options: SyncOptions,
     page: string | null,
     signal: AbortSignal | undefined,
+    cutoff: number | null,
   ): Promise<FetchPageResult<string>> {
     const { owner, repo } = this.settings;
     const url =
@@ -728,7 +776,6 @@ export class GitHubConnector extends BaseConnector<
     );
     const nextLink = parseLinkHeader(res.headers.get('link'))['next'] ?? null;
     const runs = res.body.workflow_runs;
-    const cutoff = resolveBackfillCutoff(options, 'workflow_run', Date.now());
 
     const filtered = runs.filter((run) => {
       if (cutoff === null) {
@@ -756,15 +803,17 @@ export class GitHubConnector extends BaseConnector<
     options: SyncOptions,
     page: string | null,
     signal: AbortSignal | undefined,
+    spec: FetchSpec,
+    cutoff: number | null,
   ): Promise<FetchPageResult<string>> {
     const { owner, repo } = this.settings;
+    const state = pushableState(spec.filter) ?? 'all';
     const url =
       page ??
-      `https://api.github.com/repos/${owner}/${repo}/pulls?state=all&sort=updated&direction=desc&per_page=100`;
+      `https://api.github.com/repos/${owner}/${repo}/pulls?state=${state}&sort=updated&direction=desc&per_page=100`;
     const res = await this.fetch<GitHubPR[]>(url, 'pull_requests', signal);
     const nextLink = parseLinkHeader(res.headers.get('link'))['next'] ?? null;
     const prs = res.body;
-    const cutoff = resolveBackfillCutoff(options, 'pull_request', Date.now());
     const filteredPrs =
       cutoff !== null
         ? prs.filter((pr) => new Date(pr.updated_at).getTime() >= cutoff)
@@ -793,9 +842,10 @@ export class GitHubConnector extends BaseConnector<
   }
 
   private async fetchIssues(
-    options: SyncOptions,
     page: string | null,
     signal: AbortSignal | undefined,
+    spec: FetchSpec,
+    cutoff: number | null,
   ): Promise<FetchPageResult<string>> {
     const { owner, repo } = this.settings;
     let url: string;
@@ -803,9 +853,8 @@ export class GitHubConnector extends BaseConnector<
       url = page;
     } else {
       const u = new URL(`https://api.github.com/repos/${owner}/${repo}/issues`);
-      u.searchParams.set('state', 'all');
+      u.searchParams.set('state', pushableState(spec.filter) ?? 'all');
       u.searchParams.set('per_page', '100');
-      const cutoff = resolveBackfillCutoff(options, 'issue', Date.now());
       if (cutoff !== null) {
         u.searchParams.set('since', new Date(cutoff).toISOString());
       }
@@ -820,6 +869,7 @@ export class GitHubConnector extends BaseConnector<
     options: SyncOptions,
     page: string | null,
     signal: AbortSignal | undefined,
+    cutoff: number | null,
   ): Promise<FetchPageResult<string>> {
     const { owner, repo } = this.settings;
     const url =
@@ -832,7 +882,6 @@ export class GitHubConnector extends BaseConnector<
     );
     const nextLink = parseLinkHeader(res.headers.get('link'))['next'] ?? null;
     const deployments = res.body;
-    const cutoff = resolveBackfillCutoff(options, 'deployment', Date.now());
     const filteredDeployments =
       cutoff !== null
         ? deployments.filter((d) => new Date(d.created_at).getTime() >= cutoff)
@@ -863,9 +912,9 @@ export class GitHubConnector extends BaseConnector<
   }
 
   private async fetchReleases(
-    options: SyncOptions,
     page: string | null,
     signal: AbortSignal | undefined,
+    cutoff: number | null,
   ): Promise<FetchPageResult<string>> {
     const { owner, repo } = this.settings;
     const url =
@@ -874,7 +923,6 @@ export class GitHubConnector extends BaseConnector<
     const res = await this.fetch<GitHubRelease[]>(url, 'releases', signal);
     const nextLink = parseLinkHeader(res.headers.get('link'))['next'] ?? null;
     const releases = res.body;
-    const cutoff = resolveBackfillCutoff(options, 'release', Date.now());
     const filtered =
       cutoff !== null
         ? releases.filter((r) => {
@@ -978,8 +1026,9 @@ export class GitHubConnector extends BaseConnector<
     storage: StorageHandle,
     items: unknown[],
     page: string | null,
+    spec: number,
   ): Promise<void> {
-    if (page === null) {
+    if (page === null && spec === 0) {
       await storage.events([], { names: ['workflow_run'] });
       this.seenWorkflowRunIds.clear();
     }
@@ -1026,13 +1075,14 @@ export class GitHubConnector extends BaseConnector<
     storage: StorageHandle,
     items: unknown[],
     page: string | null,
+    spec: number,
     options: SyncOptions,
   ): Promise<void> {
     const reviewsAllowed = this.isResourceAllowed(
       options,
       'pull_request_reviews',
     );
-    if (page === null) {
+    if (page === null && spec === 0) {
       await storage.entities([], { types: ['pull_request'] });
       if (reviewsAllowed) {
         await storage.edges([], { kinds: ['reviewed_by'] });
@@ -1086,8 +1136,9 @@ export class GitHubConnector extends BaseConnector<
     storage: StorageHandle,
     items: unknown[],
     page: string | null,
+    spec: number,
   ): Promise<void> {
-    if (page === null) {
+    if (page === null && spec === 0) {
       await storage.entities([], { types: ['issue'] });
     }
     const issues = dedupeByKey(
@@ -1121,13 +1172,14 @@ export class GitHubConnector extends BaseConnector<
     storage: StorageHandle,
     items: unknown[],
     page: string | null,
+    spec: number,
     options: SyncOptions,
   ): Promise<void> {
     const statusesAllowed = this.isResourceAllowed(
       options,
       'deployment_statuses',
     );
-    if (page === null) {
+    if (page === null && spec === 0) {
       if (!statusesAllowed) {
         const existing = await storage.queryEntities({ type: 'deployment' });
         for (const entity of existing) {
@@ -1182,8 +1234,9 @@ export class GitHubConnector extends BaseConnector<
     storage: StorageHandle,
     items: unknown[],
     page: string | null,
+    spec: number,
   ): Promise<void> {
-    if (page === null) {
+    if (page === null && spec === 0) {
       await storage.entities([], { types: ['release'] });
     }
     const releases = dedupeByKey(
@@ -1253,47 +1306,86 @@ export class GitHubConnector extends BaseConnector<
   ): Promise<SyncResult> {
     const cursor = this.resolveCursor(options.cursor);
     const phases = selectPhases(options.resources);
+    const specCount = (phase: GitHubSyncPhase): number => {
+      if (options.mode === 'latest' || SINGLE_SPEC_PHASES.has(phase)) {
+        return 1;
+      }
+      return this.specsForResource(options, PHASE_RESOURCES[phase][0]!).length;
+    };
+    const specFor = (phase: GitHubSyncPhase, specIndex: number): FetchSpec =>
+      this.specsForResource(options, PHASE_RESOURCES[phase][0]!)[specIndex] ??
+      {};
+    const cutoffFor = (
+      phase: GitHubSyncPhase,
+      spec: FetchSpec,
+    ): number | null =>
+      this.specCutoff(options, PHASE_RESOURCES[phase][0]!, spec, Date.now());
     return paginateChunked<GitHubSyncPhase, string>({
       phases,
       cursor,
       signal,
+      specCount,
       logger: this.logger,
-      fetchPage: async (phase, page, sig) => {
+      fetchPage: async (phase, page, sig, specIndex) => {
+        const spec = specFor(phase, specIndex);
         switch (phase) {
           case 'repo_stats':
             return this.fetchRepoStats(sig);
           case 'workflow_runs':
             return options.mode === 'latest'
               ? this.fetchWorkflowRunsLatest(sig)
-              : this.fetchWorkflowRunsFull(options, page, sig);
+              : this.fetchWorkflowRunsFull(page, sig, cutoffFor(phase, spec));
           case 'pull_requests':
-            return this.fetchPullRequests(options, page, sig);
+            return this.fetchPullRequests(
+              options,
+              page,
+              sig,
+              spec,
+              cutoffFor(phase, spec),
+            );
           case 'issues':
-            return this.fetchIssues(options, page, sig);
+            return this.fetchIssues(page, sig, spec, cutoffFor(phase, spec));
           case 'deployments':
-            return this.fetchDeployments(options, page, sig);
+            return this.fetchDeployments(
+              options,
+              page,
+              sig,
+              cutoffFor(phase, spec),
+            );
           case 'releases':
-            return this.fetchReleases(options, page, sig);
+            return this.fetchReleases(page, sig, cutoffFor(phase, spec));
           case 'contributors':
             return this.fetchContributors(sig);
         }
       },
-      writeBatch: async (phase, items, page) => {
+      writeBatch: async (phase, items, page, specIndex) => {
         switch (phase) {
           case 'repo_stats':
             return this.writeRepoStats(storage, items);
           case 'workflow_runs':
             return options.mode === 'latest'
               ? this.writeWorkflowRunsLatest(storage, items)
-              : this.writeWorkflowRunsFull(storage, items, page);
+              : this.writeWorkflowRunsFull(storage, items, page, specIndex);
           case 'pull_requests':
-            return this.writePullRequests(storage, items, page, options);
+            return this.writePullRequests(
+              storage,
+              items,
+              page,
+              specIndex,
+              options,
+            );
           case 'issues':
-            return this.writeIssues(storage, items, page);
+            return this.writeIssues(storage, items, page, specIndex);
           case 'deployments':
-            return this.writeDeployments(storage, items, page, options);
+            return this.writeDeployments(
+              storage,
+              items,
+              page,
+              specIndex,
+              options,
+            );
           case 'releases':
-            return this.writeReleases(storage, items, page);
+            return this.writeReleases(storage, items, page, specIndex);
           case 'contributors':
             return this.writeContributors(storage, items);
         }

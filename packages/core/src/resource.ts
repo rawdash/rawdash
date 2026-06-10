@@ -1,6 +1,7 @@
 import type { z } from 'zod';
 
 import type { Shape } from './config';
+import type { FilterOperator } from './filters';
 import type { ConnectorSchemas } from './registry';
 
 export interface ResourceField {
@@ -8,11 +9,18 @@ export interface ResourceField {
   description: string;
 }
 
+export interface ResourceFilterField {
+  field: string;
+  ops: FilterOperator[];
+  values?: (string | number)[];
+}
+
 interface ResourceDefBase {
   description: string;
   endpoint?: string;
   notes?: string;
   dynamic?: boolean;
+  filterable?: ResourceFilterField[];
   responses?: Readonly<Record<string, z.ZodType>>;
 }
 

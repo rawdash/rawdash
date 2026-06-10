@@ -22,6 +22,7 @@ function isNonRetryableError(err: unknown): boolean {
 export interface ChunkedSyncCursor<TPhase extends string, TPage> {
   phase: TPhase;
   page: TPage | null;
+  spec?: number;
 }
 
 export function selectActivePhases<R extends string, P extends string>(
@@ -47,11 +48,17 @@ export function makeChunkedCursorGuard<TPhase extends string>(
     if (typeof value !== 'object' || value === null) {
       return false;
     }
-    const v = value as { phase?: unknown; page?: unknown };
+    const v = value as { phase?: unknown; page?: unknown; spec?: unknown };
     if (typeof v.phase !== 'string' || !phaseSet.has(v.phase)) {
       return false;
     }
     if (v.page !== null && typeof v.page !== 'string') {
+      return false;
+    }
+    if (
+      v.spec !== undefined &&
+      (typeof v.spec !== 'number' || !Number.isInteger(v.spec) || v.spec < 0)
+    ) {
       return false;
     }
     return true;
@@ -71,16 +78,38 @@ export interface ChunkedSyncOptions<TPhase extends string, TPage> {
     phase: TPhase,
     page: TPage | null,
     signal: AbortSignal | undefined,
+    spec: number,
   ) => Promise<FetchPageResult<TPage>>;
   writeBatch: (
     phase: TPhase,
     items: unknown[],
     page: TPage | null,
+    spec: number,
   ) => Promise<void>;
+  specCount?: (phase: TPhase) => number;
   logger?: ConnectorLogger;
   maxChunkMs?: number;
   pipeline?: boolean;
   now?: () => number;
+}
+
+interface Step<TPhase extends string> {
+  phase: TPhase;
+  spec: number;
+}
+
+function expandSteps<TPhase extends string, TPage>(
+  phases: readonly TPhase[],
+  specCount: ChunkedSyncOptions<TPhase, TPage>['specCount'],
+): Step<TPhase>[] {
+  const steps: Step<TPhase>[] = [];
+  for (const phase of phases) {
+    const count = specCount ? Math.max(1, specCount(phase)) : 1;
+    for (let spec = 0; spec < count; spec++) {
+      steps.push({ phase, spec });
+    }
+  }
+  return steps;
 }
 
 function truncateCursor(page: unknown): string | undefined {
@@ -106,47 +135,62 @@ function swallow(p: Promise<unknown> | null): void {
   }
 }
 
+function cursorFor<TPhase extends string, TPage>(
+  step: Step<TPhase>,
+  page: TPage | null,
+): ChunkedSyncCursor<TPhase, TPage> {
+  return step.spec === 0
+    ? { phase: step.phase, page }
+    : { phase: step.phase, page, spec: step.spec };
+}
+
 export async function paginateChunked<TPhase extends string, TPage>(
   opts: ChunkedSyncOptions<TPhase, TPage>,
 ): Promise<SyncResult> {
   const {
     phases,
     cursor,
+    specCount,
     maxChunkMs = DEFAULT_MAX_CHUNK_MS,
     pipeline,
     now = Date.now,
   } = opts;
 
-  if (phases.length === 0) {
+  const steps = expandSteps<TPhase, TPage>(phases, specCount);
+  if (steps.length === 0) {
     return { done: true };
   }
 
-  const resumeIdx = cursor ? phases.indexOf(cursor.phase) : -1;
-  const hasKnownResumePhase = resumeIdx >= 0;
-  const startIdx = hasKnownResumePhase ? resumeIdx : 0;
+  const resumeIdx = cursor
+    ? steps.findIndex(
+        (s) => s.phase === cursor.phase && s.spec === (cursor.spec ?? 0),
+      )
+    : -1;
+  const hasKnownResumeStep = resumeIdx >= 0;
+  const startIdx = hasKnownResumeStep ? resumeIdx : 0;
   const chunkStart = now();
 
   const resumeAfter = (
     i: number,
-    phase: TPhase,
     next: TPage | null,
   ): ChunkedSyncCursor<TPhase, TPage> | null => {
+    const step = steps[i]!;
     if (next !== null) {
-      return { phase, page: next };
+      return cursorFor(step, next);
     }
-    const nextPhase = phases[i + 1];
-    return nextPhase ? { phase: nextPhase, page: null } : null;
+    const nextStep = steps[i + 1];
+    return nextStep ? cursorFor<TPhase, TPage>(nextStep, null) : null;
   };
 
   const budgetReached = (): boolean => now() - chunkStart >= maxChunkMs;
 
   return pipeline
-    ? runPipelined(opts, startIdx, hasKnownResumePhase, {
+    ? runPipelined(opts, steps, startIdx, hasKnownResumeStep, {
         resumeAfter,
         budgetReached,
         now,
       })
-    : runSequential(opts, startIdx, hasKnownResumePhase, {
+    : runSequential(opts, steps, startIdx, hasKnownResumeStep, {
         resumeAfter,
         budgetReached,
         now,
@@ -156,7 +200,6 @@ export async function paginateChunked<TPhase extends string, TPage>(
 interface LoopHelpers<TPhase extends string, TPage> {
   resumeAfter: (
     i: number,
-    phase: TPhase,
     next: TPage | null,
   ) => ChunkedSyncCursor<TPhase, TPage> | null;
   budgetReached: () => boolean;
@@ -165,35 +208,37 @@ interface LoopHelpers<TPhase extends string, TPage> {
 
 async function runSequential<TPhase extends string, TPage>(
   opts: ChunkedSyncOptions<TPhase, TPage>,
+  steps: Step<TPhase>[],
   startIdx: number,
-  hasKnownResumePhase: boolean,
+  hasKnownResumeStep: boolean,
   { resumeAfter, budgetReached, now }: LoopHelpers<TPhase, TPage>,
 ): Promise<SyncResult> {
-  const { phases, cursor, signal, fetchPage, writeBatch, logger } = opts;
+  const { cursor, signal, fetchPage, writeBatch, logger } = opts;
 
-  for (let i = startIdx; i < phases.length; i++) {
-    const phase = phases[i]!;
+  for (let i = startIdx; i < steps.length; i++) {
+    const { phase, spec } = steps[i]!;
     let page: TPage | null =
-      i === startIdx && hasKnownResumePhase ? cursor!.page : null;
+      i === startIdx && hasKnownResumeStep ? cursor!.page : null;
     let pageCount = 0;
     let itemCount = 0;
     const phaseStart = now();
 
     while (true) {
       if (signal?.aborted) {
-        return { done: false, cursor: { phase, page } };
+        return { done: false, cursor: cursorFor(steps[i]!, page) };
       }
       pageCount += 1;
       let items: unknown[];
       let next: TPage | null;
       try {
-        ({ items, next } = await fetchPage(phase, page, signal));
+        ({ items, next } = await fetchPage(phase, page, signal, spec));
       } catch (err) {
         if (isAbort(signal, err)) {
-          return { done: false, cursor: { phase, page } };
+          return { done: false, cursor: cursorFor(steps[i]!, page) };
         }
         logger?.warn('fetch page failed', {
           resource: phase,
+          spec,
           page: pageCount,
           cursor: truncateCursor(page),
           error: err instanceof Error ? err.message : String(err),
@@ -201,24 +246,30 @@ async function runSequential<TPhase extends string, TPage>(
         if (isNonRetryableError(err)) {
           throw err;
         }
-        return { done: false, cursor: { phase, page }, transientError: err };
+        return {
+          done: false,
+          cursor: cursorFor(steps[i]!, page),
+          transientError: err,
+        };
       }
       itemCount += items.length;
       logger?.info('fetched page', {
         resource: phase,
+        spec,
         page: pageCount,
         items: items.length,
         cursor: truncateCursor(page),
         next: truncateCursor(next),
       });
       try {
-        await writeBatch(phase, items, page);
+        await writeBatch(phase, items, page, spec);
       } catch (err) {
         if (isAbort(signal, err)) {
-          return { done: false, cursor: { phase, page } };
+          return { done: false, cursor: cursorFor(steps[i]!, page) };
         }
         logger?.warn('write batch failed', {
           resource: phase,
+          spec,
           page: pageCount,
           cursor: truncateCursor(page),
           error: err instanceof Error ? err.message : String(err),
@@ -226,12 +277,17 @@ async function runSequential<TPhase extends string, TPage>(
         if (isNonRetryableError(err)) {
           throw err;
         }
-        return { done: false, cursor: { phase, page }, transientError: err };
+        return {
+          done: false,
+          cursor: cursorFor(steps[i]!, page),
+          transientError: err,
+        };
       }
-      const resume = resumeAfter(i, phase, next);
+      const resume = resumeAfter(i, next);
       if (resume && budgetReached()) {
         logger?.info('chunk budget reached', {
           resource: phase,
+          spec,
           pages: pageCount,
           duration_ms: now() - phaseStart,
         });
@@ -244,6 +300,7 @@ async function runSequential<TPhase extends string, TPage>(
     }
     logger?.info('resource done', {
       resource: phase,
+      spec,
       pages: pageCount,
       items: itemCount,
       duration_ms: now() - phaseStart,
@@ -255,18 +312,19 @@ async function runSequential<TPhase extends string, TPage>(
 
 async function runPipelined<TPhase extends string, TPage>(
   opts: ChunkedSyncOptions<TPhase, TPage>,
+  steps: Step<TPhase>[],
   startIdx: number,
-  hasKnownResumePhase: boolean,
+  hasKnownResumeStep: boolean,
   { resumeAfter, budgetReached, now }: LoopHelpers<TPhase, TPage>,
 ): Promise<SyncResult> {
-  const { phases, cursor, signal, fetchPage, writeBatch, logger } = opts;
+  const { cursor, signal, fetchPage, writeBatch, logger } = opts;
 
-  for (let i = startIdx; i < phases.length; i++) {
-    const phase = phases[i]!;
+  for (let i = startIdx; i < steps.length; i++) {
+    const { phase, spec } = steps[i]!;
     let page: TPage | null =
-      i === startIdx && hasKnownResumePhase ? cursor!.page : null;
+      i === startIdx && hasKnownResumeStep ? cursor!.page : null;
     if (signal?.aborted) {
-      return { done: false, cursor: { phase, page } };
+      return { done: false, cursor: cursorFor(steps[i]!, page) };
     }
     let pageCount = 0;
     let itemCount = 0;
@@ -275,12 +333,13 @@ async function runPipelined<TPhase extends string, TPage>(
       phase,
       page,
       signal,
+      spec,
     );
 
     while (true) {
       if (signal?.aborted) {
         swallow(inflight);
-        return { done: false, cursor: { phase, page } };
+        return { done: false, cursor: cursorFor(steps[i]!, page) };
       }
       let items: unknown[];
       let next: TPage | null;
@@ -288,10 +347,11 @@ async function runPipelined<TPhase extends string, TPage>(
         ({ items, next } = await inflight);
       } catch (err) {
         if (isAbort(signal, err)) {
-          return { done: false, cursor: { phase, page } };
+          return { done: false, cursor: cursorFor(steps[i]!, page) };
         }
         logger?.warn('fetch page failed', {
           resource: phase,
+          spec,
           page: pageCount + 1,
           cursor: truncateCursor(page),
           error: err instanceof Error ? err.message : String(err),
@@ -299,27 +359,34 @@ async function runPipelined<TPhase extends string, TPage>(
         if (isNonRetryableError(err)) {
           throw err;
         }
-        return { done: false, cursor: { phase, page }, transientError: err };
+        return {
+          done: false,
+          cursor: cursorFor(steps[i]!, page),
+          transientError: err,
+        };
       }
       pageCount += 1;
       itemCount += items.length;
       logger?.info('fetched page', {
         resource: phase,
+        spec,
         page: pageCount,
         items: items.length,
         cursor: truncateCursor(page),
         next: truncateCursor(next),
       });
-      const prefetch = next !== null ? fetchPage(phase, next, signal) : null;
+      const prefetch =
+        next !== null ? fetchPage(phase, next, signal, spec) : null;
       try {
-        await writeBatch(phase, items, page);
+        await writeBatch(phase, items, page, spec);
       } catch (err) {
         swallow(prefetch);
         if (isAbort(signal, err)) {
-          return { done: false, cursor: { phase, page } };
+          return { done: false, cursor: cursorFor(steps[i]!, page) };
         }
         logger?.warn('write batch failed', {
           resource: phase,
+          spec,
           page: pageCount,
           cursor: truncateCursor(page),
           error: err instanceof Error ? err.message : String(err),
@@ -327,13 +394,18 @@ async function runPipelined<TPhase extends string, TPage>(
         if (isNonRetryableError(err)) {
           throw err;
         }
-        return { done: false, cursor: { phase, page }, transientError: err };
+        return {
+          done: false,
+          cursor: cursorFor(steps[i]!, page),
+          transientError: err,
+        };
       }
-      const resume = resumeAfter(i, phase, next);
+      const resume = resumeAfter(i, next);
       if (resume && budgetReached()) {
         swallow(prefetch);
         logger?.info('chunk budget reached', {
           resource: phase,
+          spec,
           pages: pageCount,
           duration_ms: now() - phaseStart,
         });
@@ -347,6 +419,7 @@ async function runPipelined<TPhase extends string, TPage>(
     }
     logger?.info('resource done', {
       resource: phase,
+      spec,
       pages: pageCount,
       items: itemCount,
       duration_ms: now() - phaseStart,
