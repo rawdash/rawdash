@@ -355,6 +355,7 @@ const tokenResponseSchema = z.object({
 export const googleAnalyticsResources = defineResources({
   ga4_traffic_by_day: {
     shape: 'metric',
+    filterable: [],
     description:
       'Daily site traffic totals - sessions, total users, new users, page views, and engagement rate.',
     unit: 'sessions',
@@ -370,6 +371,7 @@ export const googleAnalyticsResources = defineResources({
   },
   ga4_traffic_by_source: {
     shape: 'metric',
+    filterable: [],
     description:
       'Daily sessions and conversions broken down by acquisition source and medium.',
     unit: 'sessions',
@@ -391,6 +393,7 @@ export const googleAnalyticsResources = defineResources({
   },
   ga4_top_pages: {
     shape: 'metric',
+    filterable: [],
     description:
       'Daily page views and average session duration bucketed by page path.',
     unit: 'page_views',
@@ -407,6 +410,7 @@ export const googleAnalyticsResources = defineResources({
   },
   ga4_events: {
     shape: 'metric',
+    filterable: [],
     description:
       'Daily event counts and the users that triggered them, bucketed by event name.',
     unit: 'events',
@@ -423,6 +427,7 @@ export const googleAnalyticsResources = defineResources({
   },
   ga4_conversions: {
     shape: 'metric',
+    filterable: [],
     description:
       'Daily conversion counts and total revenue bucketed by conversion event name.',
     unit: 'conversions',
@@ -440,6 +445,7 @@ export const googleAnalyticsResources = defineResources({
   },
   ga4_geo: {
     shape: 'metric',
+    filterable: [],
     description: 'Daily sessions and total users bucketed by visitor country.',
     unit: 'sessions',
     granularity: 'day',
