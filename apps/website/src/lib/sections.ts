@@ -60,3 +60,15 @@ export const SECTIONS = {
 } satisfies Record<string, SectionMeta>;
 
 export const SECTION_LIST: SectionMeta[] = Object.values(SECTIONS);
+
+const PRODUCT_HUB_KEYS = [
+  'dashboards',
+  'integrations',
+  'metrics',
+  'compare',
+  'alternatives',
+] as const satisfies readonly (keyof typeof SECTIONS)[];
+
+export const PRODUCT_HUB_SECTIONS: SectionMeta[] = PRODUCT_HUB_KEYS.map(
+  (key) => SECTIONS[key],
+);

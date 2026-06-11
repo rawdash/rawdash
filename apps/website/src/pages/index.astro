@@ -2,6 +2,7 @@
 import { connectors, connectorPlaceholders } from '../generated/connectors';
 import Analytics from '../components/Analytics.astro';
 import SiteNav from '../components/site/SiteNav.astro';
+import SiteFooter from '../components/site/SiteFooter.astro';
 import {
   faqPageJsonLd,
   serializeJsonLd,
@@ -81,7 +82,6 @@ const jsonLd = [
     <Analytics />
   </head>
   <body>
-    <!-- Nav -->
     <SiteNav />
 
     <!-- Hero -->
@@ -295,14 +295,6 @@ const jsonLd = [
       </div>
     </div>
 
-    <!-- Footer -->
-    <footer>
-      <span>© {new Date().getFullYear()} Rawdash. Apache 2.0 licensed.</span>
-      <ul class="footer-links">
-        <li><a href="/docs/getting-started/">Docs</a></li>
-        <li><a href="https://github.com/rawdash/rawdash">GitHub</a></li>
-        <li><a href="https://cloud.rawdash.dev">Cloud</a></li>
-      </ul>
-    </footer>
+    <SiteFooter />
   </body>
 </html>

@@ -112,9 +112,7 @@ const planned = connectorPlaceholders.filter((c) => c.category === category);
 </div>
 
 <script>
-  function normalize(value: string): string {
-    return value.trim().toLowerCase();
-  }
+  import { normalize, debounce, syncQueryParam } from '../lib/connector-search';
 
   for (const root of document.querySelectorAll<HTMLElement>(
     '[data-connector-grid]',
@@ -165,7 +163,21 @@ const planned = connectorPlaceholders.filter((c) => c.category === category);
       }
     };
 
-    input?.addEventListener('input', apply);
+    if (input) {
+      const initial = new URL(window.location.href).searchParams.get('q');
+      if (initial) {
+        input.value = initial;
+        syncQueryParam(normalize(initial));
+      }
+    }
+
+    input?.addEventListener(
+      'input',
+      debounce(() => {
+        apply();
+        syncQueryParam(normalize(input?.value ?? ''));
+      }, 120),
+    );
     apply();
   }
 </script>

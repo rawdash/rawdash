@@ -1,7 +1,11 @@
 ---
-import { getPublishedSections } from '../../lib/content';
+import {
+  getPublishedProductHubs,
+  hasPublishedSection,
+} from '../../lib/content';
 
-const sections = await getPublishedSections();
+const productHubs = await getPublishedProductHubs();
+const showBlog = await hasPublishedSection('blog');
 ---
 
 <nav>
@@ -30,12 +34,28 @@ const sections = await getPublishedSections();
   </a>
   <ul class="nav-links">
     {
-      sections.map((section) => (
-        <li>
-          <a href={`${section.basePath}/`}>{section.label}</a>
+      productHubs.length > 0 && (
+        <li class="nav-dropdown">
+          <button
+            type="button"
+            class="nav-trigger"
+            popovertarget="product-menu"
+          >
+            Product
+          </button>
+          <div id="product-menu" popover class="nav-menu">
+            {productHubs.map((hub) => (
+              <a href={hub.href}>{hub.label}</a>
+            ))}
+          </div>
         </li>
-      ))
+      )
     }
+    {showBlog && (
+      <li>
+        <a href="/blog/">Blog</a>
+      </li>
+    )}
     <li><a href="/docs/getting-started/">Docs</a></li>
     <li><a href="https://github.com/rawdash/rawdash">GitHub</a></li>
     <li>
