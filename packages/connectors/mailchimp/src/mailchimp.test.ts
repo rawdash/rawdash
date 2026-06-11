@@ -570,6 +570,86 @@ describe('MailchimpConnector.sync', () => {
   });
 });
 
+describe('MailchimpConnector filter pushdown', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function campaignsUrl(spy: ReturnType<typeof vi.fn>): URL {
+    const call = recordCalls(spy).find((c) => c.url.includes('/campaigns'));
+    expect(call).toBeDefined();
+    return new URL(call!.url);
+  }
+
+  function automationsUrl(spy: ReturnType<typeof vi.fn>): URL {
+    const call = recordCalls(spy).find((c) => c.url.includes('/automations'));
+    expect(call).toBeDefined();
+    return new URL(call!.url);
+  }
+
+  async function syncWith(
+    resources: string[],
+    fetchSpecs: Record<string, { filter: unknown[] }[]>,
+  ): Promise<ReturnType<typeof vi.fn>> {
+    const fetchSpy = makeFetch(() => undefined);
+    vi.stubGlobal('fetch', fetchSpy);
+    await connector({ resources }).sync(
+      { mode: 'full', fetchSpecs: fetchSpecs as never },
+      makeStorage(),
+    );
+    return fetchSpy;
+  }
+
+  it('pushes a single campaign status filter to the campaigns query', async () => {
+    const spy = await syncWith(['campaigns'], {
+      mailchimp_campaign: [
+        { filter: [{ field: 'status', op: 'eq', value: 'sent' }] },
+      ],
+    });
+    expect(campaignsUrl(spy).searchParams.get('status')).toBe('sent');
+  });
+
+  it('pushes a single campaign type filter to the campaigns query', async () => {
+    const spy = await syncWith(['campaigns'], {
+      mailchimp_campaign: [
+        { filter: [{ field: 'type', op: 'eq', value: 'regular' }] },
+      ],
+    });
+    expect(campaignsUrl(spy).searchParams.get('type')).toBe('regular');
+  });
+
+  it('does not push campaign filters when multiple specs target the resource', async () => {
+    const spy = await syncWith(['campaigns'], {
+      mailchimp_campaign: [
+        { filter: [{ field: 'status', op: 'eq', value: 'sent' }] },
+        { filter: [{ field: 'status', op: 'eq', value: 'paused' }] },
+      ],
+    });
+    const url = campaignsUrl(spy);
+    expect(url.searchParams.get('status')).toBeNull();
+    expect(url.searchParams.get('type')).toBeNull();
+  });
+
+  it('pushes a single automation status filter to the automations query', async () => {
+    const spy = await syncWith(['automations'], {
+      mailchimp_automation: [
+        { filter: [{ field: 'status', op: 'eq', value: 'sending' }] },
+      ],
+    });
+    expect(automationsUrl(spy).searchParams.get('status')).toBe('sending');
+  });
+
+  it('does not push automation filters when multiple specs target the resource', async () => {
+    const spy = await syncWith(['automations'], {
+      mailchimp_automation: [
+        { filter: [{ field: 'status', op: 'eq', value: 'sending' }] },
+        { filter: [{ field: 'status', op: 'eq', value: 'paused' }] },
+      ],
+    });
+    expect(automationsUrl(spy).searchParams.get('status')).toBeNull();
+  });
+});
+
 describe('MailchimpConnector.create', () => {
   afterEach(() => {
     vi.unstubAllEnvs();

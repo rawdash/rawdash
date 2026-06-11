@@ -4,6 +4,8 @@ import {
   type ConnectorContext,
   type ConnectorDoc,
   type CredentialsSchema,
+  type FetchSpec,
+  type FilterClause,
   type JSONValue,
   type StorageHandle,
   type SyncOptions,
@@ -339,7 +341,18 @@ const reportSchema = z.object({
 export const mailchimpResources = defineResources({
   [CAMPAIGN_ENTITY]: {
     shape: 'entity',
-    filterable: [],
+    filterable: [
+      {
+        field: 'status',
+        ops: ['eq'],
+        values: ['save', 'paused', 'schedule', 'sending', 'sent'],
+      },
+      {
+        field: 'type',
+        ops: ['eq'],
+        values: ['regular', 'plaintext', 'absplit', 'rss', 'variate'],
+      },
+    ],
     description:
       'Campaigns (regular, plaintext, A/B, RSS, etc.) with status, type, subject line, sender, audience, send time, and total emails sent.',
     endpoint: 'GET /campaigns',
@@ -409,7 +422,13 @@ export const mailchimpResources = defineResources({
   },
   [AUTOMATION_ENTITY]: {
     shape: 'entity',
-    filterable: [],
+    filterable: [
+      {
+        field: 'status',
+        ops: ['eq'],
+        values: ['save', 'paused', 'sending'],
+      },
+    ],
     description:
       'Automations (classic email workflows) with status, title, sender, audience, and lifetime emails sent.',
     endpoint: 'GET /automations',
@@ -537,6 +556,26 @@ function offsetFromPage(page: string | null): number {
   return Number.isFinite(n) && n >= 0 ? n : 0;
 }
 
+function pushableEq(
+  filter: FilterClause[] | undefined,
+  field: string,
+): string | null {
+  if (!filter) {
+    return null;
+  }
+  for (const clause of filter) {
+    if (
+      'field' in clause &&
+      clause.field === field &&
+      clause.op === 'eq' &&
+      typeof clause.value === 'string'
+    ) {
+      return clause.value;
+    }
+  }
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // MailchimpConnector
 // ---------------------------------------------------------------------------
@@ -579,6 +618,14 @@ export class MailchimpConnector extends BaseConnector<
     };
   }
 
+  private singleSpec(
+    options: SyncOptions,
+    resource: string,
+  ): FetchSpec | undefined {
+    const specs = options.fetchSpecs?.[resource];
+    return specs && specs.length === 1 ? specs[0] : undefined;
+  }
+
   private async fetchList<T>(
     path: string,
     resource: string,
@@ -610,6 +657,9 @@ export class MailchimpConnector extends BaseConnector<
     signal?: AbortSignal,
   ): Promise<{ items: unknown[]; next: string | null }> {
     const offset = offsetFromPage(page);
+    const spec = this.singleSpec(options, CAMPAIGN_ENTITY);
+    const status = pushableEq(spec?.filter, 'status');
+    const type = pushableEq(spec?.filter, 'type');
     const body = await this.fetchList<CampaignsListResponse>(
       '/campaigns',
       'campaigns',
@@ -620,6 +670,8 @@ export class MailchimpConnector extends BaseConnector<
         sort_field: 'send_time',
         sort_dir: 'ASC',
         ...(options.since ? { since_send_time: options.since } : {}),
+        ...(status !== null ? { status } : {}),
+        ...(type !== null ? { type } : {}),
       },
       signal,
     );
@@ -724,15 +776,21 @@ export class MailchimpConnector extends BaseConnector<
 
   private async fetchAutomationsPage(
     page: string | null,
+    options: SyncOptions,
     signal?: AbortSignal,
   ): Promise<{ items: unknown[]; next: string | null }> {
     const offset = offsetFromPage(page);
+    const status = pushableEq(
+      this.singleSpec(options, AUTOMATION_ENTITY)?.filter,
+      'status',
+    );
     const body = await this.fetchList<AutomationsListResponse>(
       '/automations',
       'automations',
       {
         count: PAGE_SIZE,
         offset,
+        ...(status !== null ? { status } : {}),
       },
       signal,
     );
@@ -916,7 +974,7 @@ export class MailchimpConnector extends BaseConnector<
           case 'lists':
             return this.fetchListsPage(page, options, sig);
           case 'automations':
-            return this.fetchAutomationsPage(page, sig);
+            return this.fetchAutomationsPage(page, options, sig);
           case 'campaign_stats':
             return this.fetchReportsPage(page, sig);
         }
