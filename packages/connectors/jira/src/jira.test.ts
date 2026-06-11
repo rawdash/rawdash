@@ -478,6 +478,68 @@ describe('JiraConnector.sync', () => {
   });
 });
 
+describe('JiraConnector filter pushdown', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function issuesJql(spy: ReturnType<typeof vi.fn>): string {
+    const url = urlsFor(spy).find((u) => u.includes('/search/jql'));
+    expect(url).toBeDefined();
+    return new URL(url!).searchParams.get('jql') ?? '';
+  }
+
+  async function syncWith(
+    fetchSpecs: Record<string, { filter: unknown[] }[]>,
+  ): Promise<ReturnType<typeof vi.fn>> {
+    const spy = mockFetch();
+    await makeConnector().sync(
+      {
+        mode: 'full',
+        resources: new Set(['issues']),
+        fetchSpecs: fetchSpecs as never,
+      },
+      makeStorage(),
+    );
+    return spy;
+  }
+
+  it('pushes a declared status filter into the JQL', async () => {
+    const spy = await syncWith({
+      jira_issue: [
+        { filter: [{ field: 'statusName', op: 'eq', value: 'In Progress' }] },
+      ],
+    });
+    expect(issuesJql(spy)).toContain('status = "In Progress"');
+  });
+
+  it('pushes priority and issue type filters into the JQL', async () => {
+    const spy = await syncWith({
+      jira_issue: [
+        {
+          filter: [
+            { field: 'priority', op: 'eq', value: 'High' },
+            { field: 'issueType', op: 'eq', value: 'Bug' },
+          ],
+        },
+      ],
+    });
+    const jql = issuesJql(spy);
+    expect(jql).toContain('priority = "High"');
+    expect(jql).toContain('issuetype = "Bug"');
+  });
+
+  it('does not push when multiple specs target the resource', async () => {
+    const spy = await syncWith({
+      jira_issue: [
+        { filter: [{ field: 'statusName', op: 'eq', value: 'Done' }] },
+        { filter: [{ field: 'statusName', op: 'eq', value: 'To Do' }] },
+      ],
+    });
+    expect(issuesJql(spy)).not.toContain('status =');
+  });
+});
+
 describe('JiraConnector.create', () => {
   afterEach(() => {
     vi.unstubAllEnvs();

@@ -8,6 +8,8 @@ import {
   type ConnectorContext,
   type ConnectorDoc,
   type CredentialsSchema,
+  type FetchSpec,
+  type FilterClause,
   type JSONValue,
   type StorageHandle,
   type SyncOptions,
@@ -383,7 +385,11 @@ export const jiraResources = defineResources({
   },
   jira_issue: {
     shape: 'entity',
-    filterable: [],
+    filterable: [
+      { field: 'statusName', ops: ['eq'] },
+      { field: 'priority', ops: ['eq'] },
+      { field: 'issueType', ops: ['eq'] },
+    ],
     description:
       'Issues with status, priority, type, assignee, reporter, project, sprint, story points, and resolution date.',
     endpoint: 'GET /rest/api/3/search/jql',
@@ -457,6 +463,30 @@ function formatJqlDate(iso: string): string | null {
     `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ` +
     `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`
   );
+}
+
+function jqlQuote(value: string): string {
+  return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+}
+
+function pushableEq(
+  filter: FilterClause[] | undefined,
+  field: string,
+): string | null {
+  if (!filter) {
+    return null;
+  }
+  for (const clause of filter) {
+    if (
+      'field' in clause &&
+      clause.field === field &&
+      clause.op === 'eq' &&
+      typeof clause.value === 'string'
+    ) {
+      return clause.value;
+    }
+  }
+  return null;
 }
 
 export const id = 'jira';
@@ -545,13 +575,19 @@ export class JiraConnector extends BaseConnector<
     );
   }
 
+  private singleSpec(
+    options: SyncOptions,
+    resource: string,
+  ): FetchSpec | undefined {
+    const specs = options.fetchSpecs?.[resource];
+    return specs && specs.length === 1 ? specs[0] : undefined;
+  }
+
   private buildJql(options: SyncOptions): string {
     const clauses: string[] = [];
     const keys = this.settings.projectKeys;
     if (keys && keys.length > 0) {
-      const quoted = keys.map(
-        (k) => `"${k.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`,
-      );
+      const quoted = keys.map((k) => jqlQuote(k));
       clauses.push(`project in (${quoted.join(',')})`);
     }
     if (options.mode === 'latest' && options.since) {
@@ -559,6 +595,19 @@ export class JiraConnector extends BaseConnector<
       if (formatted !== null) {
         clauses.push(`updated >= "${formatted}"`);
       }
+    }
+    const filter = this.singleSpec(options, 'jira_issue')?.filter;
+    const status = pushableEq(filter, 'statusName');
+    if (status !== null) {
+      clauses.push(`status = ${jqlQuote(status)}`);
+    }
+    const priority = pushableEq(filter, 'priority');
+    if (priority !== null) {
+      clauses.push(`priority = ${jqlQuote(priority)}`);
+    }
+    const issueType = pushableEq(filter, 'issueType');
+    if (issueType !== null) {
+      clauses.push(`issuetype = ${jqlQuote(issueType)}`);
     }
     const where = clauses.join(' AND ');
     return where.length > 0
