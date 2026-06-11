@@ -299,6 +299,7 @@ function csatScore(ticket: TicketRecord): string | null {
 export const zendeskResources = defineResources({
   [USER_ENTITY]: {
     shape: 'entity',
+    filterable: [],
     description:
       'Zendesk users (agents, admins, and end-users) with role and activity flags.',
     endpoint: 'GET /api/v2/users.json',
@@ -324,6 +325,7 @@ export const zendeskResources = defineResources({
   },
   [GROUP_ENTITY]: {
     shape: 'entity',
+    filterable: [],
     description: 'Agent groups used to route tickets.',
     endpoint: 'GET /api/v2/groups.json',
     fields: [
@@ -342,6 +344,7 @@ export const zendeskResources = defineResources({
   },
   [TICKET_ENTITY]: {
     shape: 'entity',
+    filterable: [],
     description:
       'Tickets with status, priority, assignment, channel, and tags.',
     endpoint: 'GET /api/v2/incremental/tickets/cursor.json',
@@ -392,6 +395,7 @@ export const zendeskResources = defineResources({
   },
   [TICKET_STATE_EVENT]: {
     shape: 'event',
+    filterable: [],
     description:
       'Ticket state-change events (created / solved) derived from each ticket.',
     endpoint: 'GET /api/v2/incremental/tickets/cursor.json',
@@ -428,6 +432,7 @@ export const zendeskResources = defineResources({
   },
   [SATISFACTION_RATING_ENTITY]: {
     shape: 'entity',
+    filterable: [],
     description:
       'Per-ticket customer satisfaction (CSAT) ratings with score and free-text comment.',
     endpoint: 'GET /api/v2/satisfaction_ratings.json',
