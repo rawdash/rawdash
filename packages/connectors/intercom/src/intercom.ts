@@ -314,6 +314,7 @@ function epochSecToMsOrZero(value: number | null | undefined): number {
 export const intercomResources = defineResources({
   [ADMIN_ENTITY]: {
     shape: 'entity',
+    filterable: [],
     description: 'Intercom teammates (admins) with seat and away state.',
     endpoint: 'GET /admins',
     fields: [
@@ -330,6 +331,7 @@ export const intercomResources = defineResources({
   },
   [TEAM_ENTITY]: {
     shape: 'entity',
+    filterable: [],
     description: 'Inbox teams and their admin membership counts.',
     endpoint: 'GET /teams',
     fields: [
@@ -340,6 +342,7 @@ export const intercomResources = defineResources({
   },
   [CONTACT_ENTITY]: {
     shape: 'entity',
+    filterable: [],
     description: 'Contacts (users and leads) with role and last-seen time.',
     endpoint: 'POST /contacts/search',
     fields: [
@@ -362,6 +365,7 @@ export const intercomResources = defineResources({
   },
   [CONVERSATION_ENTITY]: {
     shape: 'entity',
+    filterable: [],
     description:
       'Conversations with state, priority, assignment, reply-time statistics, and tags.',
     endpoint: 'POST /conversations/search',
@@ -410,6 +414,7 @@ export const intercomResources = defineResources({
   },
   [CONVERSATION_STATE_EVENT]: {
     shape: 'event',
+    filterable: [],
     description:
       'State-change events (created / assigned / closed / snoozed) derived from each conversation.',
     endpoint: 'POST /conversations/search',
