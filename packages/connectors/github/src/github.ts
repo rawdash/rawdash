@@ -226,6 +226,30 @@ function pushableState(filter: FilterClause[] | undefined): string | null {
   return null;
 }
 
+function pushableEq(
+  filter: FilterClause[] | undefined,
+  field: string,
+): string | null {
+  if (!filter) {
+    return null;
+  }
+  for (const clause of filter) {
+    if ('field' in clause && clause.field === field && clause.op === 'eq') {
+      const { value } = clause;
+      if (typeof value === 'string') {
+        return value;
+      }
+    }
+  }
+  return null;
+}
+
+function pushableWorkflowRunStatus(
+  filter: FilterClause[] | undefined,
+): string | null {
+  return pushableEq(filter, 'status') ?? pushableEq(filter, 'conclusion');
+}
+
 function selectPhases(
   allowlist: ReadonlySet<string> | undefined,
 ): readonly GitHubSyncPhase[] {
@@ -534,7 +558,35 @@ export const githubResources = defineResources({
   },
   workflow_run: {
     shape: 'event',
-    filterable: [],
+    filterable: [
+      {
+        field: 'status',
+        ops: ['eq'],
+        values: [
+          'queued',
+          'in_progress',
+          'completed',
+          'requested',
+          'waiting',
+          'pending',
+        ],
+      },
+      {
+        field: 'conclusion',
+        ops: ['eq'],
+        values: [
+          'success',
+          'failure',
+          'cancelled',
+          'neutral',
+          'skipped',
+          'stale',
+          'timed_out',
+          'action_required',
+        ],
+      },
+      { field: 'branch', ops: ['eq'] },
+    ],
     description: 'GitHub Actions CI pipeline executions.',
     endpoint: 'GET /repos/{owner}/{repo}/actions/runs',
     responses: { workflow_runs: workflowRunsResponseSchema },
@@ -564,7 +616,7 @@ export const githubResources = defineResources({
   },
   deployment: {
     shape: 'entity',
-    filterable: [],
+    filterable: [{ field: 'environment', ops: ['eq'] }],
     description:
       'Deployments with their latest status, keyed by environment and ref.',
     endpoint: 'GET /repos/{owner}/{repo}/deployments',
@@ -768,12 +820,28 @@ export class GitHubConnector extends BaseConnector<
   private async fetchWorkflowRunsFull(
     page: string | null,
     signal: AbortSignal | undefined,
+    spec: FetchSpec,
     cutoff: number | null,
   ): Promise<FetchPageResult<string>> {
     const { owner, repo } = this.settings;
-    const url =
-      page ??
-      `https://api.github.com/repos/${owner}/${repo}/actions/runs?per_page=100`;
+    let url: string;
+    if (page) {
+      url = page;
+    } else {
+      const u = new URL(
+        `https://api.github.com/repos/${owner}/${repo}/actions/runs`,
+      );
+      u.searchParams.set('per_page', '100');
+      const status = pushableWorkflowRunStatus(spec.filter);
+      if (status !== null) {
+        u.searchParams.set('status', status);
+      }
+      const branch = pushableEq(spec.filter, 'branch');
+      if (branch !== null) {
+        u.searchParams.set('branch', branch);
+      }
+      url = u.toString();
+    }
     const res = await this.fetch<GitHubRunsResponse>(
       url,
       'workflow_runs',
@@ -874,12 +942,24 @@ export class GitHubConnector extends BaseConnector<
     options: SyncOptions,
     page: string | null,
     signal: AbortSignal | undefined,
+    spec: FetchSpec,
     cutoff: number | null,
   ): Promise<FetchPageResult<string>> {
     const { owner, repo } = this.settings;
-    const url =
-      page ??
-      `https://api.github.com/repos/${owner}/${repo}/deployments?per_page=100`;
+    let url: string;
+    if (page) {
+      url = page;
+    } else {
+      const u = new URL(
+        `https://api.github.com/repos/${owner}/${repo}/deployments`,
+      );
+      u.searchParams.set('per_page', '100');
+      const environment = pushableEq(spec.filter, 'environment');
+      if (environment !== null) {
+        u.searchParams.set('environment', environment);
+      }
+      url = u.toString();
+    }
     const res = await this.fetch<GitHubDeployment[]>(
       url,
       'deployments',
@@ -1339,7 +1419,12 @@ export class GitHubConnector extends BaseConnector<
           case 'workflow_runs':
             return options.mode === 'latest'
               ? this.fetchWorkflowRunsLatest(sig)
-              : this.fetchWorkflowRunsFull(page, sig, cutoffFor(phase, spec));
+              : this.fetchWorkflowRunsFull(
+                  page,
+                  sig,
+                  spec,
+                  cutoffFor(phase, spec),
+                );
           case 'pull_requests':
             return this.fetchPullRequests(
               options,
@@ -1355,6 +1440,7 @@ export class GitHubConnector extends BaseConnector<
               options,
               page,
               sig,
+              spec,
               cutoffFor(phase, spec),
             );
           case 'releases':
