@@ -181,6 +181,7 @@ const retentionResponseSchema = z.object({
 export const appsflyerResources = defineResources({
   [INSTALL_METRIC_NAME]: {
     shape: 'metric',
+    filterable: [],
     description:
       'Daily AppsFlyer install metrics bucketed by media source and campaign. Primary value is `installs`; cost, revenue, and conversions are carried as attributes.',
     endpoint: 'GET /api/master-agg-data/v4/app/{app_id}',
@@ -207,6 +208,7 @@ export const appsflyerResources = defineResources({
   },
   [RETENTION_METRIC_NAME]: {
     shape: 'metric',
+    filterable: [],
     description:
       'Cohort retention from AppsFlyer, bucketed by cohort date and media source for retention day 1, 7, and 30. Primary value is `retainedUsers`.',
     endpoint: 'GET /api/master-agg-data/v4/app/{app_id}',
