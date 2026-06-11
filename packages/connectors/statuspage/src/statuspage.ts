@@ -247,6 +247,7 @@ const incidentsResponseSchema = z.array(incidentSchema);
 export const statuspageResources = defineResources({
   statuspage_component: {
     shape: 'entity',
+    filterable: [],
     description:
       'Statuspage components (the things on a status page that turn red), with current status, group membership, and whether they are hidden until degraded.',
     endpoint: 'GET /v1/pages/{page_id}/components',
@@ -284,6 +285,7 @@ export const statuspageResources = defineResources({
   },
   statuspage_incident: {
     shape: 'entity',
+    filterable: [],
     description:
       'Statuspage incidents (realtime outages plus maintenance windows) with status, impact, affected components, and the created / monitoring / resolved timestamps.',
     endpoint: 'GET /v1/pages/{page_id}/incidents',
@@ -323,6 +325,7 @@ export const statuspageResources = defineResources({
   },
   statuspage_incident_update: {
     shape: 'event',
+    filterable: [],
     description:
       'Per-update transitions inside an incident timeline (each comment / status flip). Emitted at display_at (falling back to created_at).',
     endpoint: 'GET /v1/pages/{page_id}/incidents',
