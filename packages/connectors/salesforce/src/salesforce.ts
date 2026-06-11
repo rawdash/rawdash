@@ -286,6 +286,7 @@ const fieldHistorySchema = z.object({
 export const salesforceResources = defineResources({
   salesforce_user: {
     shape: 'entity',
+    filterable: [],
     description:
       'Salesforce users, keyed by user id, with name, email, and active state. Used to attribute opportunities, accounts, and stage changes to owners.',
     endpoint: 'GET /services/data/v{version}/query (SOQL: FROM User)',
@@ -302,6 +303,7 @@ export const salesforceResources = defineResources({
   },
   salesforce_account: {
     shape: 'entity',
+    filterable: [],
     description:
       'Accounts (companies), keyed by account id, with industry, annual revenue, owner, and creation time.',
     endpoint: 'GET /services/data/v{version}/query (SOQL: FROM Account)',
@@ -323,6 +325,7 @@ export const salesforceResources = defineResources({
   },
   salesforce_lead: {
     shape: 'entity',
+    filterable: [],
     description:
       'Leads, keyed by lead id, with email, status, source, and conversion time.',
     endpoint: 'GET /services/data/v{version}/query (SOQL: FROM Lead)',
@@ -341,6 +344,7 @@ export const salesforceResources = defineResources({
   },
   salesforce_opportunity: {
     shape: 'entity',
+    filterable: [],
     description:
       'Opportunities, keyed by opportunity id, with stage, amount, close date, owner, probability, forecast category, and closed/won flags.',
     endpoint: 'GET /services/data/v{version}/query (SOQL: FROM Opportunity)',
@@ -367,6 +371,7 @@ export const salesforceResources = defineResources({
   },
   salesforce_opportunity_stage_change: {
     shape: 'event',
+    filterable: [],
     description:
       'Opportunity stage transitions derived from OpportunityFieldHistory rows where Field = StageName. One event per transition, timestamped at the change CreatedDate.',
     endpoint:
