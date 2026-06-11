@@ -657,3 +657,47 @@ describe('DatadogConnector.sync', () => {
     );
   });
 });
+
+describe('DatadogConnector filter pushdown', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function monitorSearchUrl(calls: string[]): URL {
+    const url = calls.find((u) => u.includes('/api/v1/monitor/search'));
+    expect(url).toBeDefined();
+    return new URL(url!);
+  }
+
+  async function syncWith(
+    fetchSpecs: Record<string, { filter: unknown[] }[]>,
+  ): Promise<string[]> {
+    const { calls } = installRouter(routeAllEmpty);
+    await makeConnector({ resources: ['monitors'] }).sync(
+      { mode: 'full', fetchSpecs: fetchSpecs as never },
+      makeStorage(),
+    );
+    return calls;
+  }
+
+  it('pushes a declared status filter into the monitor search query', async () => {
+    const calls = await syncWith({
+      datadog_monitor: [
+        { filter: [{ field: 'status', op: 'eq', value: 'Alert' }] },
+      ],
+    });
+    expect(monitorSearchUrl(calls).searchParams.get('query')).toBe(
+      'status:"Alert"',
+    );
+  });
+
+  it('does not push when multiple specs target the resource', async () => {
+    const calls = await syncWith({
+      datadog_monitor: [
+        { filter: [{ field: 'status', op: 'eq', value: 'Alert' }] },
+        { filter: [{ field: 'status', op: 'eq', value: 'OK' }] },
+      ],
+    });
+    expect(monitorSearchUrl(calls).searchParams.get('query')).toBeNull();
+  });
+});
