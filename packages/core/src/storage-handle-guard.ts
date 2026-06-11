@@ -99,6 +99,37 @@ export function withAbortSignal(
     queryMetrics: (q) => handle.queryMetrics(q),
     traverse: (q) => handle.traverse(q),
     queryDistributions: (q) => handle.queryDistributions(q),
+    ...(handle.writeRollups
+      ? {
+          writeRollups: async (buckets) => {
+            if (signal.aborted) {
+              warnOnce('writeRollups');
+              return;
+            }
+            await handle.writeRollups!(buckets);
+          },
+        }
+      : {}),
+    ...(handle.queryRollups
+      ? { queryRollups: (q) => handle.queryRollups!(q) }
+      : {}),
+    ...(handle.getRollupWatermark
+      ? {
+          getRollupWatermark: (resource) =>
+            handle.getRollupWatermark!(resource),
+        }
+      : {}),
+    ...(handle.setRollupWatermark
+      ? {
+          setRollupWatermark: async (resource, tsUnixMs) => {
+            if (signal.aborted) {
+              warnOnce('setRollupWatermark');
+              return;
+            }
+            await handle.setRollupWatermark!(resource, tsUnixMs);
+          },
+        }
+      : {}),
     ...(handle.getHealth ? { getHealth: handle.getHealth.bind(handle) } : {}),
   };
 }

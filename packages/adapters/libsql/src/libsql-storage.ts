@@ -9,14 +9,18 @@ import type {
   Event,
   EventQuery,
   GetStorageHandleOptions,
+  Granularity,
   JSONValue,
   MetricQuery,
   MetricSample,
+  RollupBucket,
+  RollupPartials,
+  RollupQuery,
   ServerStorage,
   StorageHandle,
   SyncState,
 } from '@rawdash/core';
-import { withAbortSignal } from '@rawdash/core';
+import { dimsKey, withAbortSignal } from '@rawdash/core';
 import { type CompiledQuery, type Insertable, Kysely } from 'kysely';
 import { LibsqlDialect } from 'kysely-libsql';
 
@@ -26,6 +30,7 @@ import type {
   EntitiesTable,
   EventsTable,
   MetricsTable,
+  RollupsTable,
 } from './db-schema';
 import { applyMigrations } from './migrate';
 
@@ -148,6 +153,17 @@ export class LibsqlStorage implements ServerStorage {
       kind: d.kind,
       data: JSON.stringify(d.data),
       attributes: JSON.stringify(d.attributes),
+    });
+
+    const rollupRow = (b: RollupBucket): Insertable<RollupsTable> => ({
+      connector_id: connectorId,
+      resource: b.resource,
+      field: b.field,
+      granularity: b.granularity,
+      dims_key: dimsKey(b.dims),
+      dims: JSON.stringify(b.dims),
+      bucket_start: b.bucketStart,
+      partials: JSON.stringify(b.partials),
     });
 
     return {
@@ -582,6 +598,111 @@ export class LibsqlStorage implements ServerStorage {
         throw new Error(
           `Unsupported shape for deleteOlderThan: ${String(shape)}`,
         );
+      },
+
+      writeRollups: async (buckets) => {
+        await ready;
+        if (buckets.length === 0) {
+          return;
+        }
+        const stmts = buckets.map((b) =>
+          toBatchStmt(
+            db
+              .insertInto('rollups')
+              .values(rollupRow(b))
+              .onConflict((oc) =>
+                oc
+                  .columns([
+                    'connector_id',
+                    'resource',
+                    'field',
+                    'granularity',
+                    'dims_key',
+                    'bucket_start',
+                  ])
+                  .doUpdateSet({
+                    dims: (eb) => eb.ref('excluded.dims'),
+                    partials: (eb) => eb.ref('excluded.partials'),
+                  }),
+              )
+              .compile(),
+          ),
+        );
+        await client.batch(stmts, 'write');
+      },
+
+      queryRollups: async (q: RollupQuery) => {
+        await ready;
+        let qb = db
+          .selectFrom('rollups')
+          .select([
+            'resource',
+            'field',
+            'granularity',
+            'dims',
+            'bucket_start',
+            'partials',
+          ])
+          .where('connector_id', '=', connectorId)
+          .where('resource', '=', q.resource);
+        if (q.field !== undefined) {
+          qb = qb.where('field', '=', q.field);
+        }
+        if (q.granularity !== undefined) {
+          qb = qb.where('granularity', '=', q.granularity);
+        }
+        if (q.start !== undefined) {
+          qb = qb.where('bucket_start', '>=', q.start);
+        }
+        if (q.end !== undefined) {
+          qb = qb.where('bucket_start', '<', q.end);
+        }
+        const rows = await qb.execute();
+        return rows.map(
+          (r): RollupBucket => ({
+            resource: r.resource,
+            field: r.field,
+            granularity: r.granularity as Granularity,
+            dims: parseJson<Record<string, JSONValue>>(r.dims, {}),
+            bucketStart: Number(r.bucket_start),
+            partials: parseJson<RollupPartials>(r.partials, {
+              count: 0,
+              numericCount: 0,
+              sum: 0,
+              min: null,
+              max: null,
+              firstTs: null,
+              firstValue: null,
+              latestTs: null,
+              latestValue: null,
+            }),
+          }),
+        );
+      },
+
+      getRollupWatermark: async (resource: string) => {
+        await ready;
+        const r = await db
+          .selectFrom('rollup_watermarks')
+          .select(['watermark'])
+          .where('connector_id', '=', connectorId)
+          .where('resource', '=', resource)
+          .limit(1)
+          .executeTakeFirst();
+        return r ? Number(r.watermark) : null;
+      },
+
+      setRollupWatermark: async (resource: string, tsUnixMs: number) => {
+        await ready;
+        await db
+          .insertInto('rollup_watermarks')
+          .values({ connector_id: connectorId, resource, watermark: tsUnixMs })
+          .onConflict((oc) =>
+            oc.columns(['connector_id', 'resource']).doUpdateSet({
+              watermark: (eb) => eb.ref('excluded.watermark'),
+            }),
+          )
+          .execute();
       },
     };
   }

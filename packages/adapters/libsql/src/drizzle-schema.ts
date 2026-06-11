@@ -111,3 +111,46 @@ export const distributions = sqliteTable(
   },
   (t) => [index('distributions_conn_name_ts').on(t.connector_id, t.name, t.ts)],
 );
+
+export const rollups = sqliteTable(
+  'rollups',
+  {
+    connector_id: text('connector_id').notNull(),
+    resource: text('resource').notNull(),
+    field: text('field').notNull().default(''),
+    granularity: text('granularity').notNull(),
+    dims_key: text('dims_key').notNull().default(''),
+    dims: text('dims', { mode: 'json' })
+      .notNull()
+      .default(sql`'{}'`),
+    bucket_start: integer('bucket_start').notNull(),
+    partials: text('partials', { mode: 'json' }).notNull(),
+  },
+  (t) => [
+    primaryKey({
+      columns: [
+        t.connector_id,
+        t.resource,
+        t.field,
+        t.granularity,
+        t.dims_key,
+        t.bucket_start,
+      ],
+    }),
+    index('rollups_conn_resource_field').on(
+      t.connector_id,
+      t.resource,
+      t.field,
+    ),
+  ],
+);
+
+export const rollupWatermarks = sqliteTable(
+  'rollup_watermarks',
+  {
+    connector_id: text('connector_id').notNull(),
+    resource: text('resource').notNull(),
+    watermark: integer('watermark').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.connector_id, t.resource] })],
+);

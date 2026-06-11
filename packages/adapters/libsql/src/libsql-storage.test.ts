@@ -330,6 +330,77 @@ describe('LibsqlStorage — deleteOlderThan (distributions)', () => {
   });
 });
 
+describe('LibsqlStorage — rollups', () => {
+  const bucket = (
+    bucketStart: number,
+    count: number,
+    extra: Partial<import('@rawdash/core').RollupBucket> = {},
+  ): import('@rawdash/core').RollupBucket => ({
+    resource: 'run',
+    field: '',
+    granularity: 'day',
+    dims: {},
+    bucketStart,
+    partials: {
+      count,
+      numericCount: 0,
+      sum: 0,
+      min: null,
+      max: null,
+      firstTs: null,
+      firstValue: null,
+      latestTs: null,
+      latestValue: null,
+    },
+    ...extra,
+  });
+
+  it('round-trips buckets and filters by field and bucket range', async () => {
+    const { storage: s } = makeStorage();
+    const h = s.getStorageHandle('c');
+    await h.writeRollups!([
+      bucket(1000, 2),
+      bucket(2000, 5),
+      bucket(1000, 9, { field: 'value', dims: { status: 'open' } }),
+    ]);
+    const all = await h.queryRollups!({ resource: 'run', field: '' });
+    expect(all.map((b) => b.partials.count).sort()).toEqual([2, 5]);
+    const ranged = await h.queryRollups!({
+      resource: 'run',
+      field: '',
+      start: 1500,
+    });
+    expect(ranged).toHaveLength(1);
+    expect(ranged[0]!.bucketStart).toBe(2000);
+    const valued = await h.queryRollups!({ resource: 'run', field: 'value' });
+    expect(valued[0]!.dims).toEqual({ status: 'open' });
+    await s.close();
+  });
+
+  it('replaces partials on conflict rather than duplicating', async () => {
+    const { storage: s } = makeStorage();
+    const h = s.getStorageHandle('c');
+    await h.writeRollups!([bucket(1000, 2)]);
+    await h.writeRollups!([bucket(1000, 7)]);
+    const all = await h.queryRollups!({ resource: 'run' });
+    expect(all).toHaveLength(1);
+    expect(all[0]!.partials.count).toBe(7);
+    await s.close();
+  });
+
+  it('reads and upserts the watermark, scoped per connector', async () => {
+    const { storage: s } = makeStorage();
+    const h1 = s.getStorageHandle('c1');
+    const h2 = s.getStorageHandle('c2');
+    expect(await h1.getRollupWatermark!('run')).toBeNull();
+    await h1.setRollupWatermark!('run', 5000);
+    await h1.setRollupWatermark!('run', 8000);
+    expect(await h1.getRollupWatermark!('run')).toBe(8000);
+    expect(await h2.getRollupWatermark!('run')).toBeNull();
+    await s.close();
+  });
+});
+
 describe('LibsqlStorage — isolation + sync state', () => {
   it('isolates connectors', async () => {
     const { storage: s } = makeStorage();

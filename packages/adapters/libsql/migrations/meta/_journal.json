@@ -22,6 +22,13 @@
       "when": 1779427904807,
       "tag": "0002_milky_echo",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1781148513026,
+      "tag": "0003_milky_morbius",
+      "breakpoints": true
     }
   ]
 }

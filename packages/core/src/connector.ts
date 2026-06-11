@@ -14,6 +14,7 @@ import {
   type SecretsResolver,
   resolveSecrets,
 } from './secrets';
+import type { Granularity } from './time-buckets';
 
 export type JSONValue =
   | string
@@ -108,6 +109,35 @@ export interface DistributionQuery {
   end?: number;
 }
 
+export interface RollupPartials {
+  count: number;
+  numericCount: number;
+  sum: number;
+  min: number | null;
+  max: number | null;
+  firstTs: number | null;
+  firstValue: JSONValue;
+  latestTs: number | null;
+  latestValue: JSONValue;
+}
+
+export interface RollupBucket {
+  resource: string;
+  field: string;
+  granularity: Granularity;
+  dims: Record<string, JSONValue>;
+  bucketStart: number;
+  partials: RollupPartials;
+}
+
+export interface RollupQuery {
+  resource: string;
+  field?: string;
+  granularity?: Granularity;
+  start?: number;
+  end?: number;
+}
+
 export interface StorageHandle {
   event(e: Event): Promise<void>;
   entity(e: Entity): Promise<void>;
@@ -135,6 +165,11 @@ export interface StorageHandle {
     shape: 'events' | 'metrics' | 'distributions',
     tsUnixMs: number,
   ): Promise<{ rowsDeleted: number }>;
+
+  writeRollups?(buckets: RollupBucket[]): Promise<void>;
+  queryRollups?(q: RollupQuery): Promise<RollupBucket[]>;
+  getRollupWatermark?(resource: string): Promise<number | null>;
+  setRollupWatermark?(resource: string, tsUnixMs: number): Promise<void>;
 
   getHealth?(): Promise<ConnectorHealth | null>;
 }

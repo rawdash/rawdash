@@ -36,4 +36,12 @@ export const MIGRATIONS: readonly BundledMigration[] = [
       'ALTER TABLE `sync_state` ADD `started_at` text;',
     ],
   },
+  {
+    tag: '0003_milky_morbius',
+    statements: [
+      'CREATE TABLE `rollup_watermarks` (\n\t`connector_id` text NOT NULL,\n\t`resource` text NOT NULL,\n\t`watermark` integer NOT NULL,\n\tPRIMARY KEY(`connector_id`, `resource`)\n);',
+      "CREATE TABLE `rollups` (\n\t`connector_id` text NOT NULL,\n\t`resource` text NOT NULL,\n\t`field` text DEFAULT '' NOT NULL,\n\t`granularity` text NOT NULL,\n\t`dims_key` text DEFAULT '' NOT NULL,\n\t`dims` text DEFAULT '{}' NOT NULL,\n\t`bucket_start` integer NOT NULL,\n\t`partials` text NOT NULL,\n\tPRIMARY KEY(`connector_id`, `resource`, `field`, `granularity`, `dims_key`, `bucket_start`)\n);",
+      'CREATE INDEX `rollups_conn_resource_field` ON `rollups` (`connector_id`,`resource`,`field`);',
+    ],
+  },
 ] as const;

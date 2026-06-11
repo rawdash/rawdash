@@ -10,11 +10,18 @@ import type {
   EventQuery,
   MetricQuery,
   MetricSample,
+  RollupBucket,
+  RollupQuery,
   StorageHandle,
 } from './connector';
 import type { SyncState } from './engine';
+import { dimsKey } from './rollup';
 import type { GetStorageHandleOptions, ServerStorage } from './server-storage';
 import { withAbortSignal } from './storage-handle-guard';
+
+function rollupBucketKey(b: RollupBucket): string {
+  return `${b.resource}|${b.field}|${b.granularity}|${dimsKey(b.dims)}|${b.bucketStart}`;
+}
 
 export class InMemoryStorage implements ServerStorage {
   private eventStore = new Map<string, Event[]>();
@@ -22,6 +29,8 @@ export class InMemoryStorage implements ServerStorage {
   private metricStore = new Map<string, MetricSample[]>();
   private edgeStore = new Map<string, Edge[]>();
   private distributionStore = new Map<string, Distribution[]>();
+  private rollupStore = new Map<string, Map<string, RollupBucket>>();
+  private rollupWatermark = new Map<string, number>();
   private lastWriteAt = new Map<string, string>();
   private syncState: SyncState = {
     status: 'idle',
@@ -260,6 +269,58 @@ export class InMemoryStorage implements ServerStorage {
             `Unsupported shape for deleteOlderThan: ${String(shape)}`,
           );
         }
+      },
+
+      writeRollups: async (buckets) => {
+        let store = this.rollupStore.get(connectorId);
+        if (!store) {
+          store = new Map();
+          this.rollupStore.set(connectorId, store);
+        }
+        for (const b of buckets) {
+          store.set(rollupBucketKey(b), {
+            ...b,
+            dims: { ...b.dims },
+            partials: { ...b.partials },
+          });
+        }
+        touch();
+      },
+
+      queryRollups: async (q: RollupQuery) => {
+        const store = this.rollupStore.get(connectorId);
+        if (!store) {
+          return [];
+        }
+        let results = [...store.values()].filter(
+          (b) => b.resource === q.resource,
+        );
+        if (q.field !== undefined) {
+          results = results.filter((b) => b.field === q.field);
+        }
+        if (q.granularity !== undefined) {
+          results = results.filter((b) => b.granularity === q.granularity);
+        }
+        if (q.start !== undefined) {
+          results = results.filter((b) => b.bucketStart >= q.start!);
+        }
+        if (q.end !== undefined) {
+          results = results.filter((b) => b.bucketStart < q.end!);
+        }
+        return results.map((b) => ({
+          ...b,
+          dims: { ...b.dims },
+          partials: { ...b.partials },
+        }));
+      },
+
+      getRollupWatermark: async (resource: string) => {
+        return this.rollupWatermark.get(`${connectorId}:${resource}`) ?? null;
+      },
+
+      setRollupWatermark: async (resource: string, tsUnixMs: number) => {
+        this.rollupWatermark.set(`${connectorId}:${resource}`, tsUnixMs);
+        touch();
       },
 
       getHealth: async (): Promise<ConnectorHealth> => {
