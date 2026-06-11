@@ -284,6 +284,7 @@ const jobsResponseSchema = z.object({
 export const circleciResources = defineResources({
   circleci_pipeline: {
     shape: 'entity',
+    filterable: [],
     description:
       'CircleCI pipelines with state, trigger, git ref, project slug, and create/update timestamps.',
     endpoint: 'GET /api/v2/project/{project_slug}/pipeline',
@@ -293,6 +294,7 @@ export const circleciResources = defineResources({
   },
   circleci_workflow: {
     shape: 'entity',
+    filterable: [],
     description:
       'Workflows belonging to each pipeline, including status, name, and start/stop timestamps. Fetched per pipeline with one extra API call.',
     endpoint: 'GET /api/v2/pipeline/{pipeline_id}/workflow',
@@ -300,6 +302,7 @@ export const circleciResources = defineResources({
   },
   circleci_job: {
     shape: 'entity',
+    filterable: [],
     description:
       'Jobs belonging to each workflow, including status, type, and start/stop timestamps. Off by default; enable via `resources` because it adds an API call per workflow.',
     endpoint: 'GET /api/v2/workflow/{workflow_id}/job',
@@ -307,6 +310,7 @@ export const circleciResources = defineResources({
   },
   circleci_pipeline_event: {
     shape: 'event',
+    filterable: [],
     description:
       'Each workflow emitted as a time-bounded event spanning its created_at to stopped_at, carrying the same status, project, and pipeline attributes.',
     endpoint: 'GET /api/v2/pipeline/{pipeline_id}/workflow',
