@@ -465,6 +465,195 @@ describe('GreenhouseConnector.sync', () => {
   });
 });
 
+describe('GreenhouseConnector filter pushdown', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function urlsFor(spy: ReturnType<typeof vi.fn>, path: string): string[] {
+    return recordCalls(spy)
+      .map((c) => c.url)
+      .filter((u) => u.includes(path));
+  }
+
+  it('pushes greenhouse_job status when exactly one spec is provided', async () => {
+    const fetchSpy = makeFetch(() => undefined);
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await connector({ resources: ['jobs'] }).sync(
+      {
+        mode: 'full',
+        fetchSpecs: {
+          greenhouse_job: [
+            { filter: [{ field: 'status', op: 'eq', value: 'open' }] },
+          ],
+        },
+      },
+      makeStorage(),
+    );
+
+    const url = urlsFor(fetchSpy, '/v1/jobs')[0]!;
+    expect(url).toContain('status=open');
+  });
+
+  it('does not push greenhouse_job status when two specs target the resource', async () => {
+    const fetchSpy = makeFetch(() => undefined);
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await connector({ resources: ['jobs'] }).sync(
+      {
+        mode: 'full',
+        fetchSpecs: {
+          greenhouse_job: [
+            { filter: [{ field: 'status', op: 'eq', value: 'open' }] },
+            { filter: [{ field: 'status', op: 'eq', value: 'closed' }] },
+          ],
+        },
+      },
+      makeStorage(),
+    );
+
+    const url = urlsFor(fetchSpy, '/v1/jobs')[0]!;
+    expect(url).not.toContain('status=');
+  });
+
+  it('pushes greenhouse_application status and job_id from a single spec', async () => {
+    const fetchSpy = makeFetch(() => undefined);
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await connector({ resources: ['applications'] }).sync(
+      {
+        mode: 'full',
+        fetchSpecs: {
+          greenhouse_application: [
+            {
+              filter: [
+                { field: 'status', op: 'eq', value: 'active' },
+                { field: 'jobId', op: 'eq', value: '42' },
+              ],
+            },
+          ],
+        },
+      },
+      makeStorage(),
+    );
+
+    const url = urlsFor(fetchSpy, '/v1/applications')[0]!;
+    expect(url).toContain('status=active');
+    expect(url).toContain('job_id=42');
+  });
+
+  it('does not push greenhouse_application filters when two specs target the resource', async () => {
+    const fetchSpy = makeFetch(() => undefined);
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await connector({ resources: ['applications'] }).sync(
+      {
+        mode: 'full',
+        fetchSpecs: {
+          greenhouse_application: [
+            { filter: [{ field: 'status', op: 'eq', value: 'active' }] },
+            { filter: [{ field: 'jobId', op: 'eq', value: '42' }] },
+          ],
+        },
+      },
+      makeStorage(),
+    );
+
+    const url = urlsFor(fetchSpy, '/v1/applications')[0]!;
+    expect(url).not.toContain('status=');
+    expect(url).not.toContain('job_id=');
+  });
+
+  it('pushes only job_id for greenhouse_application_event', async () => {
+    const fetchSpy = makeFetch(() => undefined);
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await connector({ resources: ['application_events'] }).sync(
+      {
+        mode: 'full',
+        fetchSpecs: {
+          greenhouse_application_event: [
+            {
+              filter: [
+                { field: 'jobId', op: 'eq', value: '42' },
+                { field: 'status', op: 'eq', value: 'active' },
+              ],
+            },
+          ],
+        },
+      },
+      makeStorage(),
+    );
+
+    const url = urlsFor(fetchSpy, '/v1/applications')[0]!;
+    expect(url).toContain('job_id=42');
+    expect(url).not.toContain('status=');
+  });
+
+  it('does not push greenhouse_application_event job_id when two specs target it', async () => {
+    const fetchSpy = makeFetch(() => undefined);
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await connector({ resources: ['application_events'] }).sync(
+      {
+        mode: 'full',
+        fetchSpecs: {
+          greenhouse_application_event: [
+            { filter: [{ field: 'jobId', op: 'eq', value: '42' }] },
+            { filter: [{ field: 'jobId', op: 'eq', value: '7' }] },
+          ],
+        },
+      },
+      makeStorage(),
+    );
+
+    const url = urlsFor(fetchSpy, '/v1/applications')[0]!;
+    expect(url).not.toContain('job_id=');
+  });
+
+  it('pushes greenhouse_offer status from a single spec', async () => {
+    const fetchSpy = makeFetch(() => undefined);
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await connector({ resources: ['offers'] }).sync(
+      {
+        mode: 'full',
+        fetchSpecs: {
+          greenhouse_offer: [
+            { filter: [{ field: 'status', op: 'eq', value: 'accepted' }] },
+          ],
+        },
+      },
+      makeStorage(),
+    );
+
+    const url = urlsFor(fetchSpy, '/v1/offers')[0]!;
+    expect(url).toContain('status=accepted');
+  });
+
+  it('does not push greenhouse_offer status when two specs target the resource', async () => {
+    const fetchSpy = makeFetch(() => undefined);
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await connector({ resources: ['offers'] }).sync(
+      {
+        mode: 'full',
+        fetchSpecs: {
+          greenhouse_offer: [
+            { filter: [{ field: 'status', op: 'eq', value: 'accepted' }] },
+            { filter: [{ field: 'status', op: 'eq', value: 'rejected' }] },
+          ],
+        },
+      },
+      makeStorage(),
+    );
+
+    const url = urlsFor(fetchSpy, '/v1/offers')[0]!;
+    expect(url).not.toContain('status=');
+  });
+});
+
 describe('GreenhouseConnector.create', () => {
   afterEach(() => {
     vi.unstubAllEnvs();

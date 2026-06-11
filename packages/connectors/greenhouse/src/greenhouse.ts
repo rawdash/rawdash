@@ -13,6 +13,8 @@ import {
   type ConnectorDoc,
   type CredentialsSchema,
   type FetchPageResult,
+  type FetchSpec,
+  type FilterClause,
   type JSONValue,
   type StorageHandle,
   type SyncOptions,
@@ -273,7 +275,9 @@ const offerSchema = z.object({
 export const greenhouseResources = defineResources({
   [JOB_ENTITY]: {
     shape: 'entity',
-    filterable: [],
+    filterable: [
+      { field: 'status', ops: ['eq'], values: ['open', 'closed', 'draft'] },
+    ],
     description:
       'Open, draft, and closed requisitions with department, office, and timestamps for opened / closed transitions.',
     endpoint: 'GET /v1/jobs',
@@ -331,7 +335,14 @@ export const greenhouseResources = defineResources({
   },
   [APPLICATION_ENTITY]: {
     shape: 'entity',
-    filterable: [],
+    filterable: [
+      {
+        field: 'status',
+        ops: ['eq'],
+        values: ['active', 'converted', 'hired', 'rejected'],
+      },
+      { field: 'jobId', ops: ['eq'] },
+    ],
     description:
       'Applications with status (active / hired / rejected), current stage, source, and the linked candidate / job.',
     endpoint: 'GET /v1/applications',
@@ -377,7 +388,7 @@ export const greenhouseResources = defineResources({
   },
   [APPLICATION_EVENT]: {
     shape: 'event',
-    filterable: [],
+    filterable: [{ field: 'jobId', ops: ['eq'] }],
     description:
       'Application lifecycle events (applied / hired / rejected) derived from each application timestamps. The scope is cleared and rewritten on every sync (including incremental runs).',
     endpoint: 'GET /v1/applications',
@@ -403,7 +414,13 @@ export const greenhouseResources = defineResources({
   },
   [OFFER_ENTITY]: {
     shape: 'entity',
-    filterable: [],
+    filterable: [
+      {
+        field: 'status',
+        ops: ['eq'],
+        values: ['unresolved', 'accepted', 'rejected', 'deprecated'],
+      },
+    ],
     description:
       'Offers with status (pending / accepted / rejected), linked to their application, candidate, and job.',
     endpoint: 'GET /v1/offers',
@@ -474,6 +491,26 @@ function hiredAtMs(app: ApplicationRecord): number | null {
     return null;
   }
   return isoToMs(app.last_activity_at);
+}
+
+function pushableEq(
+  filter: FilterClause[] | undefined,
+  field: string,
+): string | null {
+  if (!filter) {
+    return null;
+  }
+  for (const clause of filter) {
+    if (
+      'field' in clause &&
+      clause.field === field &&
+      clause.op === 'eq' &&
+      typeof clause.value === 'string'
+    ) {
+      return clause.value;
+    }
+  }
+  return null;
 }
 
 export const id = 'greenhouse';
@@ -562,6 +599,67 @@ export class GreenhouseConnector extends BaseConnector<
     };
   }
 
+  private singleSpec(
+    options: SyncOptions,
+    resource: string,
+  ): FetchSpec | undefined {
+    const specs = options.fetchSpecs?.[resource];
+    return specs && specs.length === 1 ? specs[0] : undefined;
+  }
+
+  private applyPushdown(
+    url: URL,
+    phase: GreenhousePhase,
+    options: SyncOptions,
+  ): void {
+    switch (phase) {
+      case 'jobs': {
+        const status = pushableEq(
+          this.singleSpec(options, JOB_ENTITY)?.filter,
+          'status',
+        );
+        if (status !== null) {
+          url.searchParams.set('status', status);
+        }
+        return;
+      }
+      case 'applications': {
+        const spec = this.singleSpec(options, APPLICATION_ENTITY);
+        const status = pushableEq(spec?.filter, 'status');
+        if (status !== null) {
+          url.searchParams.set('status', status);
+        }
+        const jobId = pushableEq(spec?.filter, 'jobId');
+        if (jobId !== null) {
+          url.searchParams.set('job_id', jobId);
+        }
+        return;
+      }
+      case 'application_events': {
+        const jobId = pushableEq(
+          this.singleSpec(options, APPLICATION_EVENT)?.filter,
+          'jobId',
+        );
+        if (jobId !== null) {
+          url.searchParams.set('job_id', jobId);
+        }
+        return;
+      }
+      case 'offers': {
+        const status = pushableEq(
+          this.singleSpec(options, OFFER_ENTITY)?.filter,
+          'status',
+        );
+        if (status !== null) {
+          url.searchParams.set('status', status);
+        }
+        return;
+      }
+      case 'candidates':
+        return;
+    }
+  }
+
   private buildInitialUrl(
     phase: GreenhousePhase,
     options: SyncOptions,
@@ -571,6 +669,7 @@ export class GreenhouseConnector extends BaseConnector<
     if (phase !== 'application_events' && options.since) {
       url.searchParams.set('updated_after', options.since);
     }
+    this.applyPushdown(url, phase, options);
     return url.toString();
   }
 
