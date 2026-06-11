@@ -1,5 +1,5 @@
 ---
-// Shared top navigation for the marketing / content surface (matches index.astro).
+import { PRODUCT_HUBS } from '../../lib/content';
 ---
 
 <nav>
@@ -32,11 +32,7 @@
         Product
       </button>
       <div id="product-menu" popover class="nav-menu">
-        <a href="/dashboards/">Dashboards</a>
-        <a href="/integrations/">Integrations</a>
-        <a href="/metrics/">Metrics</a>
-        <a href="/compare/">Compare</a>
-        <a href="/alternatives/">Alternatives</a>
+        {PRODUCT_HUBS.map((hub) => <a href={hub.href}>{hub.label}</a>)}
       </div>
     </li>
     <li><a href="/blog/">Blog</a></li>
