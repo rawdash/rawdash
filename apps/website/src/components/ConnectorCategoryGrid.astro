@@ -132,6 +132,27 @@ for (const c of [...connectors, ...connectorPlaceholders]) {
     return value.trim().toLowerCase();
   }
 
+  function debounce<Args extends unknown[]>(
+    fn: (...args: Args) => void,
+    delay: number,
+  ): (...args: Args) => void {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    return (...args: Args) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => fn(...args), delay);
+    };
+  }
+
+  function syncQueryParam(value: string): void {
+    const url = new URL(window.location.href);
+    if (value) {
+      url.searchParams.set('q', value);
+    } else {
+      url.searchParams.delete('q');
+    }
+    history.replaceState(null, '', url);
+  }
+
   for (const root of document.querySelectorAll<HTMLElement>(
     '[data-category-catalog]',
   )) {
@@ -168,7 +189,18 @@ for (const c of [...connectors, ...connectorPlaceholders]) {
       }
     };
 
-    input?.addEventListener('input', apply);
+    if (input) {
+      const initial = new URL(window.location.href).searchParams.get('q');
+      if (initial) input.value = initial;
+    }
+
+    input?.addEventListener(
+      'input',
+      debounce(() => {
+        apply();
+        syncQueryParam(normalize(input?.value ?? ''));
+      }, 120),
+    );
     apply();
   }
 </script>
