@@ -27,10 +27,19 @@
     rawdash
   </a>
   <ul class="nav-links">
-    <li><a href="/dashboards/">Dashboards</a></li>
-    <li><a href="/metrics/">Metrics</a></li>
+    <li class="nav-dropdown">
+      <button type="button" class="nav-trigger" popovertarget="product-menu">
+        Product
+      </button>
+      <div id="product-menu" popover class="nav-menu">
+        <a href="/dashboards/">Dashboards</a>
+        <a href="/integrations/">Integrations</a>
+        <a href="/metrics/">Metrics</a>
+        <a href="/compare/">Compare</a>
+        <a href="/alternatives/">Alternatives</a>
+      </div>
+    </li>
     <li><a href="/blog/">Blog</a></li>
-    <li><a href="/integrations/">Integrations</a></li>
     <li><a href="/docs/getting-started/">Docs</a></li>
     <li><a href="https://github.com/rawdash/rawdash">GitHub</a></li>
     <li>
