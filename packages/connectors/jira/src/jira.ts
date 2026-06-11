@@ -377,7 +377,9 @@ export const jiraResources = defineResources({
   },
   jira_sprint: {
     shape: 'entity',
-    filterable: [],
+    filterable: [
+      { field: 'state', ops: ['eq'], values: ['future', 'active', 'closed'] },
+    ],
     description:
       'Sprints from scrum boards with state, start/end/complete dates, and owning board.',
     endpoint: 'GET /rest/agile/1.0/board/{boardId}/sprint',
@@ -669,8 +671,13 @@ export class JiraConnector extends BaseConnector<
 
   private async fetchSprintsForBoard(
     boardId: number,
+    options: SyncOptions,
     signal: AbortSignal | undefined,
   ): Promise<JiraSprint[]> {
+    const state = pushableEq(
+      this.singleSpec(options, 'jira_sprint')?.filter,
+      'state',
+    );
     const out: JiraSprint[] = [];
     let startAt = 0;
     while (true) {
@@ -680,6 +687,9 @@ export class JiraConnector extends BaseConnector<
       );
       u.searchParams.set('startAt', String(startAt));
       u.searchParams.set('maxResults', String(SPRINTS_PAGE_SIZE));
+      if (state !== null) {
+        u.searchParams.set('state', state);
+      }
       const res = await this.fetch<JiraAgilePage<JiraSprint>>(
         u.toString(),
         'sprints',
@@ -698,6 +708,7 @@ export class JiraConnector extends BaseConnector<
 
   private async fetchSprintsPage(
     page: string | null,
+    options: SyncOptions,
     signal: AbortSignal | undefined,
   ): Promise<{ items: JiraSprintWithBoard[]; next: string | null }> {
     const startAt = parseOffset(page);
@@ -708,7 +719,11 @@ export class JiraConnector extends BaseConnector<
       if (board.type !== 'scrum') {
         continue;
       }
-      const boardSprints = await this.fetchSprintsForBoard(board.id, signal);
+      const boardSprints = await this.fetchSprintsForBoard(
+        board.id,
+        options,
+        signal,
+      );
       for (const s of boardSprints) {
         sprints.push({ ...s, boardId: board.id });
       }
@@ -920,7 +935,7 @@ export class JiraConnector extends BaseConnector<
           case 'users':
             return this.fetchUsersPage(page, sig);
           case 'sprints':
-            return this.fetchSprintsPage(page, sig);
+            return this.fetchSprintsPage(page, options, sig);
           case 'issues':
             return this.fetchIssuesPage(page, options, sig);
         }

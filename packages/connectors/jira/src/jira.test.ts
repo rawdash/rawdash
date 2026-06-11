@@ -540,6 +540,64 @@ describe('JiraConnector filter pushdown', () => {
   });
 });
 
+describe('JiraConnector sprint state pushdown', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function mockScrumBoard(): ReturnType<typeof vi.fn> {
+    return mockFetch({
+      boards: {
+        values: [{ id: 1, name: 'Scrum', type: 'scrum' }],
+        isLast: true,
+        startAt: 0,
+        maxResults: 50,
+      },
+    });
+  }
+
+  async function syncSprintsWith(
+    spy: ReturnType<typeof vi.fn>,
+    fetchSpecs: Record<string, { filter: unknown[] }[]>,
+  ): Promise<void> {
+    await makeConnector({ resources: ['sprints'] }).sync(
+      {
+        mode: 'full',
+        resources: new Set(['sprints']),
+        fetchSpecs: fetchSpecs as never,
+      },
+      makeStorage(),
+    );
+  }
+
+  function sprintUrl(spy: ReturnType<typeof vi.fn>): string {
+    const url = urlsFor(spy).find((u) => u.includes('/board/1/sprint'));
+    expect(url).toBeDefined();
+    return url!;
+  }
+
+  it('pushes a declared state filter into the board sprint request', async () => {
+    const spy = mockScrumBoard();
+    await syncSprintsWith(spy, {
+      jira_sprint: [
+        { filter: [{ field: 'state', op: 'eq', value: 'active' }] },
+      ],
+    });
+    expect(new URL(sprintUrl(spy)).searchParams.get('state')).toBe('active');
+  });
+
+  it('does not push state when multiple specs target the resource', async () => {
+    const spy = mockScrumBoard();
+    await syncSprintsWith(spy, {
+      jira_sprint: [
+        { filter: [{ field: 'state', op: 'eq', value: 'active' }] },
+        { filter: [{ field: 'state', op: 'eq', value: 'closed' }] },
+      ],
+    });
+    expect(new URL(sprintUrl(spy)).searchParams.has('state')).toBe(false);
+  });
+});
+
 describe('JiraConnector.create', () => {
   afterEach(() => {
     vi.unstubAllEnvs();
