@@ -320,6 +320,7 @@ const campaignsSchema = z.array(campaignDetailSchema);
 export const hubspotResources = defineResources({
   hubspot_contact: {
     shape: 'entity',
+    filterable: [],
     description:
       'CRM contacts with email, lifecycle stage, lead status, owner, and creation time.',
     endpoint: 'POST /crm/v3/objects/contacts/search',
@@ -327,6 +328,7 @@ export const hubspotResources = defineResources({
   },
   hubspot_company: {
     shape: 'entity',
+    filterable: [],
     description:
       'CRM companies with name, domain, industry, lifecycle stage, and creation time.',
     endpoint: 'POST /crm/v3/objects/companies/search',
@@ -334,6 +336,7 @@ export const hubspotResources = defineResources({
   },
   hubspot_deal: {
     shape: 'entity',
+    filterable: [],
     description:
       'CRM deals with name, stage, pipeline, amount, close date, owner, and creation time.',
     endpoint: 'POST /crm/v3/objects/deals/search',
@@ -341,6 +344,7 @@ export const hubspotResources = defineResources({
   },
   hubspot_deal_stage_change: {
     shape: 'event',
+    filterable: [],
     description:
       'Deal stage-change events derived from deal property history, one event per stage transition.',
     endpoint: 'GET /crm/v3/objects/deals?propertiesWithHistory=dealstage',
@@ -348,6 +352,7 @@ export const hubspotResources = defineResources({
   },
   hubspot_email_campaign: {
     shape: 'entity',
+    filterable: [],
     description:
       'Marketing email campaigns with name, subject, sender, type, send date, and recipient count.',
     endpoint: 'GET /email/public/v1/campaigns',
@@ -355,6 +360,7 @@ export const hubspotResources = defineResources({
   },
   hubspot_email_stats: {
     shape: 'metric',
+    filterable: [],
     description:
       'Per-campaign marketing email engagement stats (sent, delivered, opened, clicked, bounced, unsubscribed) timestamped at the campaign send time.',
     endpoint: 'GET /email/public/v1/campaigns/{id}',
