@@ -704,6 +704,70 @@ describe('SentryConnector.sync', () => {
   });
 });
 
+describe('SentryConnector filter pushdown', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function issuesQuery(calls: string[]): string | null {
+    const issuesCall = calls.find((u) =>
+      u.includes('/organizations/acme/issues/'),
+    );
+    expect(issuesCall).toBeDefined();
+    return new URL(issuesCall!).searchParams.get('query');
+  }
+
+  it('pushes a declared status filter to the issues query', async () => {
+    const { calls } = installRouter(() => ({ body: [] }));
+    await makeConnector({ resources: ['issues'] }).sync(
+      {
+        mode: 'full',
+        fetchSpecs: {
+          sentry_issue: [
+            { filter: [{ field: 'status', op: 'eq', value: 'unresolved' }] },
+          ],
+        },
+      },
+      makeStorage(),
+    );
+    expect(issuesQuery(calls)).toContain('is:unresolved');
+  });
+
+  it('pushes a declared level filter to the issues query', async () => {
+    const { calls } = installRouter(() => ({ body: [] }));
+    await makeConnector({ resources: ['issues'] }).sync(
+      {
+        mode: 'full',
+        fetchSpecs: {
+          sentry_issue: [
+            { filter: [{ field: 'level', op: 'eq', value: 'error' }] },
+          ],
+        },
+      },
+      makeStorage(),
+    );
+    expect(issuesQuery(calls)).toContain('level:error');
+  });
+
+  it('does not push a filter when multiple specs target the resource', async () => {
+    const { calls } = installRouter(() => ({ body: [] }));
+    await makeConnector({ resources: ['issues'] }).sync(
+      {
+        mode: 'full',
+        fetchSpecs: {
+          sentry_issue: [
+            { filter: [{ field: 'status', op: 'eq', value: 'unresolved' }] },
+            { filter: [{ field: 'status', op: 'eq', value: 'resolved' }] },
+          ],
+        },
+      },
+      makeStorage(),
+    );
+    const query = issuesQuery(calls);
+    expect(query == null || !query.includes('is:')).toBe(true);
+  });
+});
+
 describe('SentryConnector.create', () => {
   afterEach(() => {
     vi.unstubAllEnvs();
