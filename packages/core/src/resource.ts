@@ -20,7 +20,7 @@ interface ResourceDefBase {
   endpoint?: string;
   notes?: string;
   dynamic?: boolean;
-  filterable?: ResourceFilterField[];
+  filterable: ResourceFilterField[];
   responses?: Readonly<Record<string, z.ZodType>>;
 }
 
@@ -64,6 +64,23 @@ export function defineResources<const T extends ResourceDefinitions>(
     }
     if (!def.description || def.description.trim().length === 0) {
       throw new Error(`Resource "${name}" must have a non-empty description.`);
+    }
+    if (!Array.isArray(def.filterable)) {
+      throw new Error(
+        `Resource "${name}" must declare a "filterable" array (use [] for no server-side filters).`,
+      );
+    }
+    for (const entry of def.filterable) {
+      if (!entry.field || entry.field.trim().length === 0) {
+        throw new Error(
+          `Resource "${name}" has a filterable entry with an empty "field".`,
+        );
+      }
+      if (!Array.isArray(entry.ops) || entry.ops.length === 0) {
+        throw new Error(
+          `Resource "${name}" filterable field "${entry.field}" must declare at least one operator.`,
+        );
+      }
     }
   }
   return defs;

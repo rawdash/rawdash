@@ -526,6 +526,7 @@ const repoStatsSchema = z.object({
 export const githubResources = defineResources({
   repo: {
     shape: 'entity',
+    filterable: [],
     description:
       'Top-level repository stats (stars, forks, and watchers) as a single entity.',
     endpoint: 'GET /repos/{owner}/{repo}',
@@ -533,6 +534,7 @@ export const githubResources = defineResources({
   },
   workflow_run: {
     shape: 'event',
+    filterable: [],
     description: 'GitHub Actions CI pipeline executions.',
     endpoint: 'GET /repos/{owner}/{repo}/actions/runs',
     responses: { workflow_runs: workflowRunsResponseSchema },
@@ -562,6 +564,7 @@ export const githubResources = defineResources({
   },
   deployment: {
     shape: 'entity',
+    filterable: [],
     description:
       'Deployments with their latest status, keyed by environment and ref.',
     endpoint: 'GET /repos/{owner}/{repo}/deployments',
@@ -574,12 +577,14 @@ export const githubResources = defineResources({
   },
   release: {
     shape: 'entity',
+    filterable: [],
     description: 'Published, draft, and prerelease GitHub releases.',
     endpoint: 'GET /repos/{owner}/{repo}/releases',
     responses: { releases: releasesSchema },
   },
   contributor: {
     shape: 'entity',
+    filterable: [],
     description:
       'Per-author commit activity (commits, additions, deletions) for the repository.',
     endpoint: 'GET /repos/{owner}/{repo}/stats/contributors',
