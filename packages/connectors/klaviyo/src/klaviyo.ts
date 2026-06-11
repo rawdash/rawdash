@@ -255,6 +255,7 @@ const flowsResponseSchema = jsonApiList(
 export const klaviyoResources = defineResources({
   [LIST_ENTITY]: {
     shape: 'entity',
+    filterable: [],
     description:
       'Klaviyo lists (manually managed subscriber collections) with opt-in process and created/updated timestamps.',
     endpoint: 'GET /api/lists',
@@ -273,6 +274,7 @@ export const klaviyoResources = defineResources({
   },
   [SEGMENT_ENTITY]: {
     shape: 'entity',
+    filterable: [],
     description:
       'Klaviyo segments (rule-based dynamic groups) with active, starred, and processing flags.',
     endpoint: 'GET /api/segments',
@@ -293,6 +295,7 @@ export const klaviyoResources = defineResources({
   },
   [CAMPAIGN_ENTITY]: {
     shape: 'entity',
+    filterable: [],
     description:
       'Klaviyo campaigns for the configured channel, with status, archived flag, send strategy, and send time.',
     endpoint: 'GET /api/campaigns',
@@ -323,6 +326,7 @@ export const klaviyoResources = defineResources({
   },
   [FLOW_ENTITY]: {
     shape: 'entity',
+    filterable: [],
     description:
       'Klaviyo flows (automation series) with status, trigger type, and archived flag.',
     endpoint: 'GET /api/flows',
