@@ -631,6 +631,47 @@ describe('IntercomConnector.sync', () => {
   });
 });
 
+describe('IntercomConnector filter pushdown', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  async function conversationSearchQuery(
+    fetchSpecs: Record<string, { filter: unknown[] }[]>,
+  ): Promise<unknown> {
+    const fetchSpy = makeFetch(() => undefined);
+    vi.stubGlobal('fetch', fetchSpy);
+    await connector({ resources: ['conversations'] }).sync(
+      { mode: 'full', fetchSpecs: fetchSpecs as never },
+      makeStorage(),
+    );
+    const call = recordCalls(fetchSpy).find(
+      (c) => c.method === 'POST' && c.url.endsWith('/conversations/search'),
+    );
+    expect(call).toBeDefined();
+    return (call!.body as { query?: unknown }).query;
+  }
+
+  it('pushes a declared state filter into the conversation search query', async () => {
+    const query = await conversationSearchQuery({
+      intercom_conversation: [
+        { filter: [{ field: 'state', op: 'eq', value: 'open' }] },
+      ],
+    });
+    expect(query).toEqual({ field: 'state', operator: '=', value: 'open' });
+  });
+
+  it('does not push when multiple specs target the resource', async () => {
+    const query = await conversationSearchQuery({
+      intercom_conversation: [
+        { filter: [{ field: 'state', op: 'eq', value: 'open' }] },
+        { filter: [{ field: 'state', op: 'eq', value: 'closed' }] },
+      ],
+    });
+    expect(query).toBeUndefined();
+  });
+});
+
 describe('IntercomConnector.create', () => {
   afterEach(() => {
     vi.unstubAllEnvs();

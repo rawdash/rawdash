@@ -8,6 +8,8 @@ import {
   type ConnectorContext,
   type ConnectorDoc,
   type CredentialsSchema,
+  type FetchSpec,
+  type FilterClause,
   type JSONValue,
   type StorageHandle,
   type SyncOptions,
@@ -365,7 +367,13 @@ export const intercomResources = defineResources({
   },
   [CONVERSATION_ENTITY]: {
     shape: 'entity',
-    filterable: [],
+    filterable: [
+      {
+        field: 'state',
+        ops: ['eq'],
+        values: ['open', 'snoozed', 'closed'],
+      },
+    ],
     description:
       'Conversations with state, priority, assignment, reply-time statistics, and tags.',
     endpoint: 'POST /conversations/search',
@@ -445,6 +453,26 @@ export const intercomResources = defineResources({
 });
 
 export const id = 'intercom';
+
+function pushableEq(
+  filter: FilterClause[] | undefined,
+  field: string,
+): string | null {
+  if (!filter) {
+    return null;
+  }
+  for (const clause of filter) {
+    if (
+      'field' in clause &&
+      clause.field === field &&
+      clause.op === 'eq' &&
+      typeof clause.value === 'string'
+    ) {
+      return clause.value;
+    }
+  }
+  return null;
+}
 
 export class IntercomConnector extends BaseConnector<
   IntercomSettings,
@@ -640,8 +668,17 @@ export class IntercomConnector extends BaseConnector<
     }
   }
 
+  private singleSpec(
+    options: SyncOptions,
+    resource: string,
+  ): FetchSpec | undefined {
+    const specs = options.fetchSpecs?.[resource];
+    return specs && specs.length === 1 ? specs[0] : undefined;
+  }
+
   private buildConversationSearchBody(
     startingAfter: string | null,
+    resource: 'conversations' | 'conversation_events',
     options: SyncOptions,
   ): Record<string, unknown> {
     const sinceSec = sinceUnixSec(options);
@@ -652,12 +689,23 @@ export class IntercomConnector extends BaseConnector<
       },
       sort: { field: 'updated_at', order: 'ascending' },
     };
+    const conditions: Record<string, unknown>[] = [];
     if (sinceSec !== null) {
-      body['query'] = {
-        field: 'updated_at',
-        operator: '>',
-        value: sinceSec,
-      };
+      conditions.push({ field: 'updated_at', operator: '>', value: sinceSec });
+    }
+    if (resource === 'conversations') {
+      const state = pushableEq(
+        this.singleSpec(options, CONVERSATION_ENTITY)?.filter,
+        'state',
+      );
+      if (state !== null) {
+        conditions.push({ field: 'state', operator: '=', value: state });
+      }
+    }
+    if (conditions.length === 1) {
+      body['query'] = conditions[0];
+    } else if (conditions.length > 1) {
+      body['query'] = { operator: 'AND', value: conditions };
     }
     return body;
   }
@@ -675,7 +723,7 @@ export class IntercomConnector extends BaseConnector<
     const res = await this.apiPost<ConversationSearchResponse>(
       `${this.baseUrl}/conversations/search`,
       resource,
-      this.buildConversationSearchBody(page, fetchOptions),
+      this.buildConversationSearchBody(page, resource, fetchOptions),
       signal,
     );
     return {
