@@ -84,7 +84,14 @@ export async function fetchPublishedFeedItems(
     );
   }
 
-  const payload = (await response.json()) as ContentFeedResponse;
+  let payload: ContentFeedResponse;
+  try {
+    payload = (await response.json()) as ContentFeedResponse;
+  } catch (error) {
+    throw new Error(
+      `Content feed response from ${url} returned invalid JSON: ${(error as Error).message}`,
+    );
+  }
   const items = Array.isArray(payload.items) ? payload.items : [];
 
   return items.filter((item) => {
