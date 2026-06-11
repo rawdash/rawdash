@@ -593,6 +593,102 @@ describe('GoogleAdsConnector.sync', () => {
   });
 });
 
+describe('GoogleAdsConnector campaign filter pushdown', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function campaignQueries(spy: ReturnType<typeof vi.fn>): string[] {
+    return spy.mock.calls
+      .filter((c: unknown[]) =>
+        String(c[0]).includes('googleads.googleapis.com'),
+      )
+      .map(
+        (c) =>
+          JSON.parse(String((c as [string, { body: string }])[1].body)) as {
+            query: string;
+          },
+      )
+      .map((b) => b.query)
+      .filter(
+        (q) => q.includes('FROM campaign') && !q.includes('segments.date'),
+      );
+  }
+
+  it('pushes a single status spec into the campaign GAQL WHERE clause', async () => {
+    const spy = mockFetch({ access_token: 'tok', expires_in: 3600 }, {});
+    vi.stubGlobal('fetch', spy);
+
+    const storage = makeStorage();
+    await makeConnector({ resources: ['campaigns'] }).sync(
+      {
+        mode: 'full',
+        fetchSpecs: {
+          google_ads_campaign: [
+            { filter: [{ field: 'status', op: 'eq', value: 'PAUSED' }] },
+          ],
+        },
+      },
+      storage,
+    );
+
+    const queries = campaignQueries(spy);
+    expect(queries.length).toBeGreaterThan(0);
+    for (const q of queries) {
+      expect(q).toContain("campaign.status = 'PAUSED'");
+    }
+  });
+
+  it('does NOT push when more than one spec is provided', async () => {
+    const spy = mockFetch({ access_token: 'tok', expires_in: 3600 }, {});
+    vi.stubGlobal('fetch', spy);
+
+    const storage = makeStorage();
+    await makeConnector({ resources: ['campaigns'] }).sync(
+      {
+        mode: 'full',
+        fetchSpecs: {
+          google_ads_campaign: [
+            { filter: [{ field: 'status', op: 'eq', value: 'PAUSED' }] },
+            { filter: [{ field: 'status', op: 'eq', value: 'ENABLED' }] },
+          ],
+        },
+      },
+      storage,
+    );
+
+    const queries = campaignQueries(spy);
+    expect(queries.length).toBeGreaterThan(0);
+    for (const q of queries) {
+      expect(q).not.toContain('campaign.status =');
+    }
+  });
+
+  it('does not push an unknown status value', async () => {
+    const spy = mockFetch({ access_token: 'tok', expires_in: 3600 }, {});
+    vi.stubGlobal('fetch', spy);
+
+    const storage = makeStorage();
+    await makeConnector({ resources: ['campaigns'] }).sync(
+      {
+        mode: 'full',
+        fetchSpecs: {
+          google_ads_campaign: [
+            { filter: [{ field: 'status', op: 'eq', value: 'BOGUS' }] },
+          ],
+        },
+      },
+      storage,
+    );
+
+    const queries = campaignQueries(spy);
+    expect(queries.length).toBeGreaterThan(0);
+    for (const q of queries) {
+      expect(q).not.toContain('campaign.status =');
+    }
+  });
+});
+
 describe('GoogleAdsConnector.create', () => {
   afterEach(() => {
     vi.unstubAllEnvs();
