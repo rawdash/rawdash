@@ -248,6 +248,7 @@ export const appStoreConnectResources = defineResources({
     description:
       'Apps registered in the team, with bundle id, SKU, and primary locale. Synced from /v1/apps.',
     endpoint: 'GET /v1/apps',
+    filterable: [],
     fields: [
       { name: 'name', description: 'App display name.' },
       {
@@ -289,6 +290,7 @@ export const appStoreConnectResources = defineResources({
           'Apple product type, e.g. 1 (paid app), 1F (universal app), IA1 (in-app purchase).',
       },
     ],
+    filterable: [],
     responses: { sales_installs_report: z.string() },
   },
   [APP_REVENUE_METRIC]: {
@@ -319,6 +321,7 @@ export const appStoreConnectResources = defineResources({
         description: 'Apple product type code (same as app_installs).',
       },
     ],
+    filterable: [],
     responses: { sales_revenue_report: z.string() },
   },
   [APP_RATINGS_METRIC]: {
@@ -338,6 +341,7 @@ export const appStoreConnectResources = defineResources({
         description: 'Two-letter ISO country code where the review was filed.',
       },
     ],
+    filterable: [],
     responses: { customer_reviews: reviewsResponseSchema },
   },
 });
