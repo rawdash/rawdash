@@ -365,7 +365,6 @@ export const hubspotResources = defineResources({
   },
   hubspot_email_stats: {
     shape: 'metric',
-    filterable: [],
     description:
       'Per-campaign marketing email engagement stats (sent, delivered, opened, clicked, bounced, unsubscribed) timestamped at the campaign send time.',
     endpoint: 'GET /email/public/v1/campaigns/{id}',

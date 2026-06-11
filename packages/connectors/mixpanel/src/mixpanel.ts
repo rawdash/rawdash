@@ -349,7 +349,6 @@ const METRIC_NOTES =
 export const mixpanelResources = defineResources({
   mixpanel_dau: {
     shape: 'metric',
-    filterable: [],
     description:
       'Daily active users - unique-user counts for the active-user event, one sample per day.',
     endpoint: 'GET /api/2.0/segmentation (type=unique, unit=day)',
@@ -367,7 +366,6 @@ export const mixpanelResources = defineResources({
   },
   mixpanel_wau: {
     shape: 'metric',
-    filterable: [],
     description:
       'Weekly active users - unique-user counts for the active-user event, one sample per week.',
     endpoint: 'GET /api/2.0/segmentation (type=unique, unit=week)',
@@ -385,7 +383,6 @@ export const mixpanelResources = defineResources({
   },
   mixpanel_mau: {
     shape: 'metric',
-    filterable: [],
     description:
       'Monthly active users - unique-user counts for the active-user event, one sample per month.',
     endpoint: 'GET /api/2.0/segmentation (type=unique, unit=month)',
@@ -403,7 +400,6 @@ export const mixpanelResources = defineResources({
   },
   mixpanel_events_per_day: {
     shape: 'metric',
-    filterable: [],
     description:
       'Per-day volume for each configured event. The sample value is the total event count; unique-user count is carried as an attribute.',
     endpoint: 'GET /api/2.0/segmentation (type=general and type=unique)',
@@ -425,7 +421,6 @@ export const mixpanelResources = defineResources({
   },
   mixpanel_funnel_results: {
     shape: 'metric',
-    filterable: [],
     description:
       'Per-day funnel conversion. One sample per (date, step); the value is the user count reaching that step.',
     endpoint: 'GET /api/2.0/funnels (unit=day)',
@@ -457,7 +452,6 @@ export const mixpanelResources = defineResources({
   },
   mixpanel_retention: {
     shape: 'metric',
-    filterable: [],
     description:
       'Cohort retention for the retention event. One sample per (cohort date, period); the value is the retained user count.',
     endpoint: 'GET /api/2.0/retention (retention_type=birth, unit=day)',

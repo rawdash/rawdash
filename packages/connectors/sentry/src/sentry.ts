@@ -411,7 +411,6 @@ export const sentryResources = defineResources({
     dimensions: [
       { name: 'project', description: 'Sentry project slug or id.' },
     ],
-    filterable: [],
     responses: { error_stats: errorStatsResponseSchema },
   },
 });

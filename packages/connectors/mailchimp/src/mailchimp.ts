@@ -443,7 +443,6 @@ export const mailchimpResources = defineResources({
   },
   [CAMPAIGN_STATS_METRIC]: {
     shape: 'metric',
-    filterable: [],
     description:
       'Per-campaign engagement stats (sent, opens, clicks, bounces, unsubscribes) timestamped at the campaign send time.',
     endpoint: 'GET /reports',

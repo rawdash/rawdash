@@ -298,7 +298,6 @@ export const googleAdsResources = defineResources({
   },
   google_ads_campaign_metrics: {
     shape: 'metric',
-    filterable: [],
     description:
       'Daily campaign performance - impressions, clicks, cost, conversions, and conversion value per (date, campaignId).',
     endpoint: 'POST /v18/customers/{customerId}/googleAds:search',
@@ -337,7 +336,6 @@ export const googleAdsResources = defineResources({
   },
   google_ads_ad_group_metrics: {
     shape: 'metric',
-    filterable: [],
     description:
       'Daily ad-group performance - impressions, clicks, cost, and conversions per (date, adGroupId).',
     endpoint: 'POST /v18/customers/{customerId}/googleAds:search',
@@ -367,7 +365,6 @@ export const googleAdsResources = defineResources({
   },
   google_ads_keyword_metrics: {
     shape: 'metric',
-    filterable: [],
     description:
       'Daily keyword performance - impressions, clicks, cost, and historical quality score per (date, criterionId).',
     endpoint: 'POST /v18/customers/{customerId}/googleAds:search',

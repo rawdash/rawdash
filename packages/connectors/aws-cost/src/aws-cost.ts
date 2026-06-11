@@ -494,7 +494,6 @@ function isAwsCostCursor(value: unknown): value is AwsCostCursor {
 export const awsCostResources = defineResources({
   aws_cost_daily: {
     shape: 'metric',
-    filterable: [],
     description:
       'Historical unblended AWS cost per time bucket, optionally split across the configured group-by dimensions. The current bucket is estimated and overwritten on later syncs as it finalizes.',
     endpoint: 'POST GetCostAndUsage',
@@ -526,7 +525,6 @@ export const awsCostResources = defineResources({
   },
   aws_cost_forecast: {
     shape: 'metric',
-    filterable: [],
     description:
       'Projected future unblended AWS cost (mean value) with optional lower and upper prediction-interval bounds. Empty when the account has insufficient history to forecast.',
     endpoint: 'POST GetCostForecast',

@@ -139,7 +139,6 @@ const metricDataResponseSchema = z.object({
 export const awsCloudwatchResources = defineResources({
   '<namespace>/<metric>': {
     shape: 'metric',
-    filterable: [],
     dynamic: true,
     description:
       'One metric series per declared metric query. The series name is the query namespace/metric (e.g. `AWS/EC2/CPUUtilization`), so the actual keys depend on the configured `metricQueries`. Each sample carries the query statistic, period, query id, the upstream status code, and label as attributes.',

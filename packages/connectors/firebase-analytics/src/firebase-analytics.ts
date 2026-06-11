@@ -366,7 +366,6 @@ const tokenResponseSchema = z.object({
 export const firebaseAnalyticsResources = defineResources({
   firebase_dau_wau_mau: {
     shape: 'metric',
-    filterable: [],
     description:
       'Daily active, weekly active, and monthly active user counts for the linked GA4 property.',
     unit: 'users',
@@ -382,7 +381,6 @@ export const firebaseAnalyticsResources = defineResources({
   },
   firebase_events_per_day: {
     shape: 'metric',
-    filterable: [],
     description:
       'Daily event counts and the active users that triggered them, bucketed by event name.',
     unit: 'events',
@@ -399,7 +397,6 @@ export const firebaseAnalyticsResources = defineResources({
   },
   firebase_retention: {
     shape: 'metric',
-    filterable: [],
     description:
       'Active users on each day grouped by the date of their first session (cohort retention).',
     unit: 'users',

@@ -196,7 +196,6 @@ const DAILY_METRIC_NAME = 'azure_cost_daily';
 export const azureCostResources = defineResources({
   azure_cost_daily: {
     shape: 'metric',
-    filterable: [],
     description:
       'Daily Azure actual cost per time bucket, optionally split across the configured group-by dimensions.',
     endpoint:

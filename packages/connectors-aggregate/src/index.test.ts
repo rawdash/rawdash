@@ -26,10 +26,17 @@ describe('@rawdash/connectors metadata', () => {
     }
   });
 
-  it('declares a well-formed filterable array on every resource', () => {
+  it('declares a well-formed filterable array on every entity/event resource', () => {
     for (const c of connectorMetadata) {
       for (const [name, def] of Object.entries(c.resources)) {
         const where = `${c.id}.${name}`;
+        if (def.shape !== 'entity' && def.shape !== 'event') {
+          expect(
+            'filterable' in def,
+            `${where} (${def.shape}) must not declare filterable`,
+          ).toBe(false);
+          continue;
+        }
         expect(Array.isArray(def.filterable), `${where} filterable`).toBe(true);
         for (const entry of def.filterable) {
           expect(entry.field?.trim(), `${where} field`).toBeTruthy();

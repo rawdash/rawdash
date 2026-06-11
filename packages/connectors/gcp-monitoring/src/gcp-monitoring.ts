@@ -219,7 +219,6 @@ const listTimeSeriesResponseSchema = z.object({
 export const gcpMonitoringResources = defineResources({
   '<metricType>': {
     shape: 'metric',
-    filterable: [],
     dynamic: true,
     description:
       'One metric series per declared metric query. The series name is the configured metric type (e.g. `compute.googleapis.com/instance/cpu/utilization`), so the actual keys depend on the configured `metricQueries`. Each sample carries the aligner, alignment period, query id, and metric/resource labels as attributes.',

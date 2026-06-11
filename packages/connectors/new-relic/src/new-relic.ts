@@ -343,7 +343,6 @@ export const newRelicResources = defineResources({
   },
   newrelic_nrql_metric: {
     shape: 'metric',
-    filterable: [],
     dynamic: true,
     description:
       'User-declared NRQL metric samples, stored as `newrelic_nrql_metric.<query name>`. Each NRQL result row is mapped to a single sample using the first numeric, non-timestamp/facet field as the value.',

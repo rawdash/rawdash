@@ -332,7 +332,6 @@ const tokenResponseSchema = z.object({
 export const googleSearchConsoleResources = defineResources({
   gsc_search_analytics_by_day: {
     shape: 'metric',
-    filterable: [],
     description:
       'Daily site totals - clicks, impressions, CTR, and average position across all queries and pages.',
     unit: 'clicks',
@@ -348,7 +347,6 @@ export const googleSearchConsoleResources = defineResources({
   },
   gsc_top_queries: {
     shape: 'metric',
-    filterable: [],
     description:
       'Daily clicks, impressions, CTR, and average position broken down by search query.',
     unit: 'clicks',
@@ -365,7 +363,6 @@ export const googleSearchConsoleResources = defineResources({
   },
   gsc_top_pages: {
     shape: 'metric',
-    filterable: [],
     description:
       'Daily clicks, impressions, CTR, and average position broken down by landing page URL.',
     unit: 'clicks',
@@ -382,7 +379,6 @@ export const googleSearchConsoleResources = defineResources({
   },
   gsc_top_countries: {
     shape: 'metric',
-    filterable: [],
     description:
       'Daily clicks, impressions, CTR, and average position broken down by visitor country.',
     unit: 'clicks',

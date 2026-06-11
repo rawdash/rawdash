@@ -362,7 +362,6 @@ const ALERT_ENTITY = 'azure_alert';
 export const azureMonitorResources = defineResources({
   '<metricNamespace>/<metric>': {
     shape: 'metric',
-    filterable: [],
     dynamic: true,
     description:
       'One metric series per declared Azure Monitor metric query. The series name is the query metric namespace/metric (e.g. `Microsoft.Compute/virtualMachines/Percentage CPU`), so the actual keys depend on the configured `metricQueries`. Each sample carries the query aggregation, interval, query id, the metric unit, and any series metadata as attributes.',

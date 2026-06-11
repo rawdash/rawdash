@@ -383,7 +383,6 @@ export const revenuecatResources = defineResources({
   },
   revenuecat_metric_snapshot: {
     shape: 'metric',
-    filterable: [],
     description:
       'Point-in-time snapshot of RevenueCat overview metrics (MRR, active subscriptions, active trials, trial conversion rate, etc.). Each metric is emitted as one sample per sync, tagged with the metric id under the `metric` dimension.',
     endpoint: 'GET /v2/projects/{project_id}/metrics/overview',

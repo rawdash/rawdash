@@ -17,7 +17,6 @@ describe('defineResources', () => {
         unit: 'count',
         granularity: 'day',
         dimensions: [{ name: 'region', description: 'Region.' }],
-        filterable: [],
       },
     });
     expect(defs.thing.shape).toBe('entity');
@@ -90,11 +89,7 @@ describe('schemasFromResources', () => {
         filterable: [],
         responses: { repo: c },
       },
-      derived: {
-        shape: 'metric',
-        description: 'No response schema.',
-        filterable: [],
-      },
+      derived: { shape: 'metric', description: 'No response schema.' },
     });
     const schemas = schemasFromResources(defs);
     expect(Object.keys(schemas).sort()).toEqual([

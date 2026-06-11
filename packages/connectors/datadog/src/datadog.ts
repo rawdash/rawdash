@@ -438,7 +438,6 @@ export const datadogResources = defineResources({
   },
   datadog_slo_sli: {
     shape: 'metric',
-    filterable: [],
     description:
       'SLI value samples per SLO, one per overall_status snapshot reported by Datadog.',
     unit: 'percent',
@@ -449,7 +448,6 @@ export const datadogResources = defineResources({
   },
   datadog_metric: {
     shape: 'metric',
-    filterable: [],
     dynamic: true,
     description:
       'User-declared metric timeseries samples, stored as `datadog_metric.<query name>`, from the Datadog Metrics Query API.',

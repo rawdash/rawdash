@@ -143,7 +143,6 @@ type FirebaseCrashlyticsCredentials = typeof firebaseCrashlyticsCredentials;
 export const firebaseCrashlyticsResources = defineResources({
   [CRASHES_METRIC_NAME]: {
     shape: 'metric',
-    filterable: [],
     description:
       'Daily crash counts and approximate crash-free user rate per (date, application version, platform). One sample per day per app/version/platform combination present in the Crashlytics BigQuery export.',
     endpoint: 'POST /bigquery/v2/projects/{projectId}/queries',

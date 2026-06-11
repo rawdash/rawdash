@@ -498,7 +498,6 @@ export const googlePlayConsoleResources = defineResources({
   },
   gplay_crash_rate_by_day: {
     shape: 'metric',
-    filterable: [],
     description:
       'Daily crash rate reported by the Play Developer Reporting API. Primary value is the crashRate metric (fraction of distinct users that experienced a crash).',
     unit: 'crashRate',
@@ -516,7 +515,6 @@ export const googlePlayConsoleResources = defineResources({
   },
   gplay_anr_rate_by_day: {
     shape: 'metric',
-    filterable: [],
     description:
       'Daily ANR (Application Not Responding) rate. Primary value is the anrRate metric (fraction of distinct users that experienced an ANR).',
     unit: 'anrRate',
@@ -534,7 +532,6 @@ export const googlePlayConsoleResources = defineResources({
   },
   gplay_ratings_by_day: {
     shape: 'metric',
-    filterable: [],
     description:
       'Daily average user rating and rating count from the Play Developer Reporting API.',
     unit: 'stars',
@@ -552,7 +549,6 @@ export const googlePlayConsoleResources = defineResources({
   },
   gplay_error_count_by_day: {
     shape: 'metric',
-    filterable: [],
     description:
       'Daily count of error reports (crashes + ANRs + handled errors) from the Play Developer Reporting API.',
     unit: 'reports',
