@@ -251,6 +251,7 @@ const overviewResponseSchema = z.object({
 export const revenuecatResources = defineResources({
   revenuecat_product: {
     shape: 'entity',
+    filterable: [],
     description:
       'Products configured in RevenueCat, including their store identifier (App Store / Play Store SKU), type, and display name.',
     endpoint: 'GET /v2/projects/{project_id}/products',
@@ -274,6 +275,7 @@ export const revenuecatResources = defineResources({
   },
   revenuecat_entitlement: {
     shape: 'entity',
+    filterable: [],
     description:
       'Entitlements (logical features) configured in the project, keyed by lookup_key.',
     endpoint: 'GET /v2/projects/{project_id}/entitlements',
@@ -292,6 +294,7 @@ export const revenuecatResources = defineResources({
   },
   revenuecat_customer: {
     shape: 'entity',
+    filterable: [],
     description:
       'RevenueCat customers (app users) with first-seen / last-seen timestamps and a list of currently active entitlement lookup keys.',
     endpoint: 'GET /v2/projects/{project_id}/customers',
@@ -316,6 +319,7 @@ export const revenuecatResources = defineResources({
   },
   revenuecat_subscription: {
     shape: 'entity',
+    filterable: [],
     description:
       'Subscriptions, one row per (customer, product, original transaction). Extracted from the embedded `subscriptions.items` array in each customer response.',
     endpoint: 'GET /v2/projects/{project_id}/customers',
@@ -352,6 +356,7 @@ export const revenuecatResources = defineResources({
   },
   revenuecat_event: {
     shape: 'event',
+    filterable: [],
     description:
       'Subscription lifecycle events (initial purchase, renewal, cancellation, billing issue, refund, trial start, conversion, ...).',
     endpoint: 'GET /v2/projects/{project_id}/events',
@@ -378,6 +383,7 @@ export const revenuecatResources = defineResources({
   },
   revenuecat_metric_snapshot: {
     shape: 'metric',
+    filterable: [],
     description:
       'Point-in-time snapshot of RevenueCat overview metrics (MRR, active subscriptions, active trials, trial conversion rate, etc.). Each metric is emitted as one sample per sync, tagged with the metric id under the `metric` dimension.',
     endpoint: 'GET /v2/projects/{project_id}/metrics/overview',
