@@ -461,6 +461,77 @@ describe('HubSpotConnector.sync', () => {
   });
 });
 
+describe('HubSpotConnector filter pushdown', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  interface SearchFilter {
+    propertyName: string;
+    operator: string;
+    value: string;
+  }
+
+  async function dealsSearchFilters(
+    fetchSpecs: Record<string, { filter: unknown[] }[]>,
+  ): Promise<SearchFilter[]> {
+    const fetchSpy = makeFetch((url, method) =>
+      method === 'POST' && url.includes('/deals/search')
+        ? { total: 0, results: [] }
+        : undefined,
+    );
+    vi.stubGlobal('fetch', fetchSpy);
+    await connector(['deals']).sync(
+      { mode: 'full', fetchSpecs: fetchSpecs as never },
+      makeStorage(),
+    );
+    const call = recordCalls(fetchSpy).find(
+      (c) => c.method === 'POST' && c.url.includes('/deals/search'),
+    );
+    expect(call).toBeDefined();
+    const groups = (
+      call!.body as { filterGroups: { filters: SearchFilter[] }[] }
+    ).filterGroups;
+    return groups.flatMap((g) => g.filters);
+  }
+
+  it('pushes a declared deal stage filter into the search body', async () => {
+    const filters = await dealsSearchFilters({
+      hubspot_deal: [
+        { filter: [{ field: 'dealStage', op: 'eq', value: 'closedwon' }] },
+      ],
+    });
+    expect(filters).toContainEqual({
+      propertyName: 'dealstage',
+      operator: 'EQ',
+      value: 'closedwon',
+    });
+  });
+
+  it('pushes a declared pipeline filter into the search body', async () => {
+    const filters = await dealsSearchFilters({
+      hubspot_deal: [
+        { filter: [{ field: 'pipeline', op: 'eq', value: 'default' }] },
+      ],
+    });
+    expect(filters).toContainEqual({
+      propertyName: 'pipeline',
+      operator: 'EQ',
+      value: 'default',
+    });
+  });
+
+  it('does not push when multiple specs target the resource', async () => {
+    const filters = await dealsSearchFilters({
+      hubspot_deal: [
+        { filter: [{ field: 'dealStage', op: 'eq', value: 'closedwon' }] },
+        { filter: [{ field: 'dealStage', op: 'eq', value: 'closedlost' }] },
+      ],
+    });
+    expect(filters.some((f) => f.propertyName === 'dealstage')).toBe(false);
+  });
+});
+
 describe('HubSpotConnector.create', () => {
   afterEach(() => {
     vi.unstubAllEnvs();

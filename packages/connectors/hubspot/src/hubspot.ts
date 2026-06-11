@@ -8,6 +8,8 @@ import {
   type ConnectorContext,
   type ConnectorDoc,
   type CredentialsSchema,
+  type FetchSpec,
+  type FilterClause,
   type StorageHandle,
   type SyncOptions,
   type SyncResult,
@@ -336,7 +338,10 @@ export const hubspotResources = defineResources({
   },
   hubspot_deal: {
     shape: 'entity',
-    filterable: [],
+    filterable: [
+      { field: 'dealStage', ops: ['eq'] },
+      { field: 'pipeline', ops: ['eq'] },
+    ],
     description:
       'CRM deals with name, stage, pipeline, amount, close date, owner, and creation time.',
     endpoint: 'POST /crm/v3/objects/deals/search',
@@ -384,6 +389,26 @@ export const hubspotResources = defineResources({
 });
 
 export const id = 'hubspot';
+
+function pushableEq(
+  filter: FilterClause[] | undefined,
+  field: string,
+): string | null {
+  if (!filter) {
+    return null;
+  }
+  for (const clause of filter) {
+    if (
+      'field' in clause &&
+      clause.field === field &&
+      clause.op === 'eq' &&
+      typeof clause.value === 'string'
+    ) {
+      return clause.value;
+    }
+  }
+  return null;
+}
 
 export class HubSpotConnector extends BaseConnector<
   HubSpotSettings,
@@ -441,27 +466,51 @@ export class HubSpotConnector extends BaseConnector<
     });
   }
 
+  private singleSpec(
+    options: SyncOptions,
+    resource: string,
+  ): FetchSpec | undefined {
+    const specs = options.fetchSpecs?.[resource];
+    return specs && specs.length === 1 ? specs[0] : undefined;
+  }
+
   private buildSearchBody(
     phase: CrmObjectPhase,
     after: string | null,
     options: SyncOptions,
   ): Record<string, unknown> {
     const modifiedProperty = MODIFIED_PROPERTY[phase];
-    const filterGroups: unknown[] = [];
+    const filters: unknown[] = [];
     if (options.since) {
       const sinceMs = new Date(options.since).getTime();
       if (Number.isFinite(sinceMs)) {
-        filterGroups.push({
-          filters: [
-            {
-              propertyName: modifiedProperty,
-              operator: 'GTE',
-              value: String(sinceMs),
-            },
-          ],
+        filters.push({
+          propertyName: modifiedProperty,
+          operator: 'GTE',
+          value: String(sinceMs),
         });
       }
     }
+    if (phase === 'deals') {
+      const filter = this.singleSpec(options, 'hubspot_deal')?.filter;
+      const stage = pushableEq(filter, 'dealStage');
+      if (stage !== null) {
+        filters.push({
+          propertyName: 'dealstage',
+          operator: 'EQ',
+          value: stage,
+        });
+      }
+      const pipeline = pushableEq(filter, 'pipeline');
+      if (pipeline !== null) {
+        filters.push({
+          propertyName: 'pipeline',
+          operator: 'EQ',
+          value: pipeline,
+        });
+      }
+    }
+    const filterGroups = filters.length > 0 ? [{ filters }] : [];
     return {
       filterGroups,
       sorts: [{ propertyName: modifiedProperty, direction: 'ASCENDING' }],
