@@ -478,6 +478,126 @@ describe('JiraConnector.sync', () => {
   });
 });
 
+describe('JiraConnector filter pushdown', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function issuesJql(spy: ReturnType<typeof vi.fn>): string {
+    const url = urlsFor(spy).find((u) => u.includes('/search/jql'));
+    expect(url).toBeDefined();
+    return new URL(url!).searchParams.get('jql') ?? '';
+  }
+
+  async function syncWith(
+    fetchSpecs: Record<string, { filter: unknown[] }[]>,
+  ): Promise<ReturnType<typeof vi.fn>> {
+    const spy = mockFetch();
+    await makeConnector().sync(
+      {
+        mode: 'full',
+        resources: new Set(['issues']),
+        fetchSpecs: fetchSpecs as never,
+      },
+      makeStorage(),
+    );
+    return spy;
+  }
+
+  it('pushes a declared status filter into the JQL', async () => {
+    const spy = await syncWith({
+      jira_issue: [
+        { filter: [{ field: 'statusName', op: 'eq', value: 'In Progress' }] },
+      ],
+    });
+    expect(issuesJql(spy)).toContain('status = "In Progress"');
+  });
+
+  it('pushes priority and issue type filters into the JQL', async () => {
+    const spy = await syncWith({
+      jira_issue: [
+        {
+          filter: [
+            { field: 'priority', op: 'eq', value: 'High' },
+            { field: 'issueType', op: 'eq', value: 'Bug' },
+          ],
+        },
+      ],
+    });
+    const jql = issuesJql(spy);
+    expect(jql).toContain('priority = "High"');
+    expect(jql).toContain('issuetype = "Bug"');
+  });
+
+  it('does not push when multiple specs target the resource', async () => {
+    const spy = await syncWith({
+      jira_issue: [
+        { filter: [{ field: 'statusName', op: 'eq', value: 'Done' }] },
+        { filter: [{ field: 'statusName', op: 'eq', value: 'To Do' }] },
+      ],
+    });
+    expect(issuesJql(spy)).not.toContain('status =');
+  });
+});
+
+describe('JiraConnector sprint state pushdown', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function mockScrumBoard(): ReturnType<typeof vi.fn> {
+    return mockFetch({
+      boards: {
+        values: [{ id: 1, name: 'Scrum', type: 'scrum' }],
+        isLast: true,
+        startAt: 0,
+        maxResults: 50,
+      },
+    });
+  }
+
+  async function syncSprintsWith(
+    spy: ReturnType<typeof vi.fn>,
+    fetchSpecs: Record<string, { filter: unknown[] }[]>,
+  ): Promise<void> {
+    await makeConnector({ resources: ['sprints'] }).sync(
+      {
+        mode: 'full',
+        resources: new Set(['sprints']),
+        fetchSpecs: fetchSpecs as never,
+      },
+      makeStorage(),
+    );
+  }
+
+  function sprintUrl(spy: ReturnType<typeof vi.fn>): string {
+    const url = urlsFor(spy).find((u) => u.includes('/board/1/sprint'));
+    expect(url).toBeDefined();
+    return url!;
+  }
+
+  it('pushes a declared state filter into the board sprint request', async () => {
+    const spy = mockScrumBoard();
+    await syncSprintsWith(spy, {
+      jira_sprint: [
+        { filter: [{ field: 'state', op: 'eq', value: 'active' }] },
+      ],
+    });
+    expect(new URL(sprintUrl(spy)).searchParams.get('state')).toBe('active');
+  });
+
+  it('does not push state when multiple specs target the resource', async () => {
+    const spy = mockScrumBoard();
+    await syncSprintsWith(spy, {
+      jira_sprint: [
+        { filter: [{ field: 'state', op: 'eq', value: 'active' }] },
+        { filter: [{ field: 'state', op: 'eq', value: 'closed' }] },
+      ],
+    });
+    expect(new URL(sprintUrl(spy)).searchParams.has('state')).toBe(false);
+  });
+});
+
 describe('JiraConnector.create', () => {
   afterEach(() => {
     vi.unstubAllEnvs();

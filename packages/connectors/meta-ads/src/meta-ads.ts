@@ -4,6 +4,8 @@ import {
   type ConnectorContext,
   type ConnectorDoc,
   type CredentialsSchema,
+  type FetchSpec,
+  type FilterClause,
   type StorageHandle,
   type SyncOptions,
   type SyncResult,
@@ -314,6 +316,20 @@ const adInsightsSchema = z.array(adInsightSchema);
 export const metaAdsResources = defineResources({
   meta_campaign: {
     shape: 'entity',
+    filterable: [
+      {
+        field: 'effectiveStatus',
+        ops: ['eq'],
+        values: [
+          'ACTIVE',
+          'PAUSED',
+          'DELETED',
+          'ARCHIVED',
+          'IN_PROCESS',
+          'WITH_ISSUES',
+        ],
+      },
+    ],
     description:
       'Meta ad campaigns with name, objective, status, and budget. Upserted by id; one row per campaign in the ad account.',
     endpoint: 'GET /{ad_account_id}/campaigns',
@@ -576,6 +592,26 @@ const INSIGHT_FIELDS: Record<
 
 export const id = 'meta-ads';
 
+function pushableEq(
+  filter: FilterClause[] | undefined,
+  field: string,
+): string | null {
+  if (!filter) {
+    return null;
+  }
+  for (const clause of filter) {
+    if (
+      'field' in clause &&
+      clause.field === field &&
+      clause.op === 'eq' &&
+      typeof clause.value === 'string'
+    ) {
+      return clause.value;
+    }
+  }
+  return null;
+}
+
 export class MetaAdsConnector extends BaseConnector<
   MetaAdsSettings,
   MetaAdsCredentials
@@ -618,13 +654,30 @@ export class MetaAdsConnector extends BaseConnector<
     return `${BASE_URL}/${this.apiVersion()}/${this.settings.adAccountId}`;
   }
 
+  private singleSpec(
+    options: SyncOptions,
+    resource: string,
+  ): FetchSpec | undefined {
+    const specs = options.fetchSpecs?.[resource];
+    return specs && specs.length === 1 ? specs[0] : undefined;
+  }
+
   private async fetchCampaignsPage(
     after: string | null,
+    options: SyncOptions,
     signal: AbortSignal | undefined,
   ): Promise<{ items: unknown[]; next: string | null }> {
     const url = new URL(`${this.accountBase()}/campaigns`);
     url.searchParams.set('fields', CAMPAIGN_FIELDS);
     url.searchParams.set('limit', String(PAGE_LIMIT));
+    const filter = this.singleSpec(options, CAMPAIGN_ENTITY_TYPE)?.filter;
+    const effectiveStatus = pushableEq(filter, 'effectiveStatus');
+    if (effectiveStatus !== null) {
+      url.searchParams.set(
+        'effective_status',
+        JSON.stringify([effectiveStatus]),
+      );
+    }
     if (after) {
       url.searchParams.set('after', after);
     }
@@ -730,7 +783,7 @@ export class MetaAdsConnector extends BaseConnector<
       logger: this.logger,
       fetchPage: async (phase, page, sig) => {
         if (phase === 'campaigns') {
-          return this.fetchCampaignsPage(page, sig);
+          return this.fetchCampaignsPage(page, options, sig);
         }
         return this.fetchInsightsPage(phase, dateRange, page, sig);
       },

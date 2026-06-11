@@ -623,3 +623,45 @@ describe('NetlifyConnector.create', () => {
     expect(connector.id).toBe('netlify');
   });
 });
+
+describe('NetlifyConnector filter pushdown', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function deploysUrl(calls: string[]): URL {
+    const url = calls.find((u) => u.includes('/deploys'));
+    expect(url).toBeDefined();
+    return new URL(url!);
+  }
+
+  async function syncWith(
+    fetchSpecs: Record<string, { filter: unknown[] }[]>,
+  ): Promise<string[]> {
+    const { calls } = installRouter(() => ({ body: [] }));
+    await makeConnector({ siteIds: ['site_1'], resources: ['deploys'] }).sync(
+      { mode: 'full', fetchSpecs: fetchSpecs as never },
+      makeStorage(),
+    );
+    return calls;
+  }
+
+  it('pushes a declared state filter to the deploys query', async () => {
+    const calls = await syncWith({
+      netlify_deploy: [
+        { filter: [{ field: 'state', op: 'eq', value: 'error' }] },
+      ],
+    });
+    expect(deploysUrl(calls).searchParams.get('state')).toBe('error');
+  });
+
+  it('does not push when multiple specs target the resource', async () => {
+    const calls = await syncWith({
+      netlify_deploy: [
+        { filter: [{ field: 'state', op: 'eq', value: 'error' }] },
+        { filter: [{ field: 'state', op: 'eq', value: 'ready' }] },
+      ],
+    });
+    expect(deploysUrl(calls).searchParams.get('state')).toBeNull();
+  });
+});

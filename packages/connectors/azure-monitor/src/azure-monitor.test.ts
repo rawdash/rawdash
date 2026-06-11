@@ -596,6 +596,73 @@ describe('AzureMonitorConnector.sync', () => {
     expect(storage.entities).not.toHaveBeenCalled();
   });
 
+  it('pushes a single alerts spec onto the request URL', async () => {
+    const fetchSpy = routeFetch({
+      '/providers/Microsoft.AlertsManagement/alerts': () => ({
+        body: { value: [] },
+      }),
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await connector({ resources: ['alerts'] }).sync(
+      {
+        mode: 'full',
+        fetchSpecs: {
+          azure_alert: [
+            {
+              filter: [
+                { field: 'severity', op: 'eq', value: 'Sev1' },
+                { field: 'state', op: 'eq', value: 'Acknowledged' },
+                { field: 'monitorCondition', op: 'eq', value: 'Fired' },
+              ],
+            },
+          ],
+        },
+      },
+      makeStorage(),
+    );
+
+    const alertsCall = recordCalls(fetchSpy).find((c) =>
+      c.url.includes('/providers/Microsoft.AlertsManagement/alerts'),
+    );
+    expect(alertsCall).toBeDefined();
+    const url = new URL(alertsCall!.url);
+    expect(url.searchParams.get('severity')).toBe('Sev1');
+    expect(url.searchParams.get('alertState')).toBe('Acknowledged');
+    expect(url.searchParams.get('monitorCondition')).toBe('Fired');
+  });
+
+  it('does not push alerts filters when more than one spec is provided', async () => {
+    const fetchSpy = routeFetch({
+      '/providers/Microsoft.AlertsManagement/alerts': () => ({
+        body: { value: [] },
+      }),
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await connector({ resources: ['alerts'] }).sync(
+      {
+        mode: 'full',
+        fetchSpecs: {
+          azure_alert: [
+            { filter: [{ field: 'severity', op: 'eq', value: 'Sev1' }] },
+            { filter: [{ field: 'state', op: 'eq', value: 'Closed' }] },
+          ],
+        },
+      },
+      makeStorage(),
+    );
+
+    const alertsCall = recordCalls(fetchSpy).find((c) =>
+      c.url.includes('/providers/Microsoft.AlertsManagement/alerts'),
+    );
+    expect(alertsCall).toBeDefined();
+    const url = new URL(alertsCall!.url);
+    expect(url.searchParams.get('severity')).toBeNull();
+    expect(url.searchParams.get('alertState')).toBeNull();
+    expect(url.searchParams.get('monitorCondition')).toBeNull();
+  });
+
   it('returns done:true at end of sync', async () => {
     const fetchSpy = routeFetch({
       '/providers/Microsoft.Insights/metrics': () => ({

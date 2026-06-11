@@ -8,6 +8,7 @@ import {
   type ConnectorContext,
   type ConnectorDoc,
   type CredentialsSchema,
+  type FetchSpec,
   type StorageHandle,
   type SyncOptions,
   type SyncResult,
@@ -370,12 +371,14 @@ const issueSchema = z.object({
 export const linearResources = defineResources({
   linear_team: {
     shape: 'entity',
+    filterable: [],
     description: 'Workspace teams with their name and key.',
     endpoint: 'GraphQL query: teams { nodes { ... } }',
     responses: { teams: z.array(teamSchema) },
   },
   linear_user: {
     shape: 'entity',
+    filterable: [],
     description:
       'Workspace members, including name, email, display name, and active state.',
     endpoint: 'GraphQL query: users { nodes { ... } }',
@@ -383,6 +386,7 @@ export const linearResources = defineResources({
   },
   linear_cycle: {
     shape: 'entity',
+    filterable: [],
     description:
       'Team cycles with their number, dates, progress, and final scope / completed-scope figures.',
     endpoint: 'GraphQL query: cycles { nodes { ... } }',
@@ -390,6 +394,15 @@ export const linearResources = defineResources({
   },
   linear_issue: {
     shape: 'entity',
+    filterable: [
+      {
+        field: 'stateType',
+        ops: ['eq'],
+        values: ['backlog', 'unstarted', 'started', 'completed', 'canceled'],
+      },
+      { field: 'stateName', ops: ['eq'] },
+      { field: 'priority', ops: ['eq'], values: [0, 1, 2, 3, 4] },
+    ],
     description:
       'Issues with their state, priority, assignee, team, project, cycle, labels, estimate, and lifecycle timestamps.',
     endpoint: 'GraphQL query: issues { nodes { ... } }',
@@ -397,6 +410,7 @@ export const linearResources = defineResources({
   },
   linear_issue_state_change: {
     shape: 'event',
+    filterable: [],
     description:
       'State-transition events derived from each issue’s history (from-state to to-state), keyed by the originating actor.',
     endpoint: 'GraphQL query: issues { nodes { history { nodes { ... } } } }',
@@ -503,6 +517,47 @@ export class LinearConnector extends BaseConnector<
     return { team: { id: { in: [...ids] } } };
   }
 
+  private singleSpec(
+    options: SyncOptions,
+    resource: string,
+  ): FetchSpec | undefined {
+    const specs = options.fetchSpecs?.[resource];
+    return specs && specs.length === 1 ? specs[0] : undefined;
+  }
+
+  private issuePushFilter(
+    options: SyncOptions,
+  ): Record<string, unknown> | undefined {
+    const filter = this.singleSpec(options, 'linear_issue')?.filter;
+    if (!filter) {
+      return undefined;
+    }
+    const out: Record<string, unknown> = {};
+    const state: Record<string, unknown> = {};
+    for (const clause of filter) {
+      if (!('field' in clause) || clause.op !== 'eq') {
+        continue;
+      }
+      if (clause.field === 'stateType' && typeof clause.value === 'string') {
+        state.type = { eq: clause.value };
+      } else if (
+        clause.field === 'stateName' &&
+        typeof clause.value === 'string'
+      ) {
+        state.name = { eq: clause.value };
+      } else if (
+        clause.field === 'priority' &&
+        typeof clause.value === 'number'
+      ) {
+        out.priority = { eq: clause.value };
+      }
+    }
+    if (Object.keys(state).length > 0) {
+      out.state = state;
+    }
+    return Object.keys(out).length > 0 ? out : undefined;
+  }
+
   private mergeFilters(
     ...filters: Array<Record<string, unknown> | undefined>
   ): Record<string, unknown> | undefined {
@@ -601,6 +656,7 @@ export class LinearConnector extends BaseConnector<
     const filter = this.mergeFilters(
       this.issueTeamFilter(),
       this.issueSinceFilter(options),
+      this.issuePushFilter(options),
     );
     const historyFirst =
       this.settings.historyPerIssue ?? DEFAULT_HISTORY_PER_ISSUE;

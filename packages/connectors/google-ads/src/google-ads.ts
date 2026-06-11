@@ -5,6 +5,8 @@ import {
   type ConnectorContext,
   type ConnectorDoc,
   type CredentialsSchema,
+  type FetchSpec,
+  type FilterClause,
   type StorageHandle,
   type SyncOptions,
   type SyncResult,
@@ -265,6 +267,13 @@ type KeywordMetricRow = z.infer<typeof keywordMetricRowSchema>;
 export const googleAdsResources = defineResources({
   [ENTITY_TYPE_CAMPAIGN]: {
     shape: 'entity',
+    filterable: [
+      {
+        field: 'status',
+        ops: ['eq'],
+        values: ['ENABLED', 'PAUSED', 'REMOVED'],
+      },
+    ],
     description:
       'Google Ads campaigns with id, name, status, bidding strategy type, and start / end dates.',
     endpoint: 'POST /v18/customers/{customerId}/googleAds:search',
@@ -469,8 +478,36 @@ function microsToUnits(micros: unknown): number {
   return coerceInt(micros) / MICROS_PER_UNIT;
 }
 
-function campaignsQuery(): string {
-  return [
+const CAMPAIGN_STATUS_VALUES = new Set(['ENABLED', 'PAUSED', 'REMOVED']);
+
+function singleSpec(specs: FetchSpec[] | undefined): FetchSpec | undefined {
+  return specs && specs.length === 1 ? specs[0] : undefined;
+}
+
+function gaqlStringLiteral(value: string): string {
+  return `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+}
+
+function pushableEq(
+  filter: FilterClause[] | undefined,
+  field: string,
+): string | undefined {
+  if (!filter) {
+    return undefined;
+  }
+  for (const clause of filter) {
+    if (!('field' in clause) || clause.field !== field || clause.op !== 'eq') {
+      continue;
+    }
+    if (typeof clause.value === 'string') {
+      return clause.value;
+    }
+  }
+  return undefined;
+}
+
+function campaignsQuery(spec?: FetchSpec): string {
+  const parts = [
     'SELECT',
     '  campaign.id,',
     '  campaign.name,',
@@ -479,7 +516,12 @@ function campaignsQuery(): string {
     '  campaign.start_date,',
     '  campaign.end_date',
     'FROM campaign',
-  ].join(' ');
+  ];
+  const status = pushableEq(spec?.filter, 'status');
+  if (status && CAMPAIGN_STATUS_VALUES.has(status)) {
+    parts.push(`WHERE campaign.status = ${gaqlStringLiteral(status)}`);
+  }
+  return parts.join(' ');
 }
 
 function campaignMetricsQuery(range: DateRange): string {
@@ -531,10 +573,14 @@ function keywordMetricsQuery(range: DateRange): string {
   ].join(' ');
 }
 
-function queryForPhase(phase: GoogleAdsPhase, range: DateRange): string {
+function queryForPhase(
+  phase: GoogleAdsPhase,
+  range: DateRange,
+  campaignSpec?: FetchSpec,
+): string {
   switch (phase) {
     case 'campaigns':
-      return campaignsQuery();
+      return campaignsQuery(campaignSpec);
     case 'campaign_metrics':
       return campaignMetricsQuery(range);
     case 'ad_group_metrics':
@@ -721,12 +767,13 @@ export class GoogleAdsConnector extends BaseConnector<
     phase: GoogleAdsPhase,
     range: DateRange,
     pageToken: string | null,
+    campaignSpec: FetchSpec | undefined,
     signal?: AbortSignal,
   ): Promise<{ items: TRow[]; next: string | null }> {
     const token = await this.getAccessToken(signal);
     const url = `https://googleads.googleapis.com/${API_VERSION}/customers/${this.settings.customerId}/googleAds:search`;
     const body: Record<string, unknown> = {
-      query: queryForPhase(phase, range),
+      query: queryForPhase(phase, range, campaignSpec),
       pageSize: PAGE_SIZE,
     };
     if (pageToken) {
@@ -819,13 +866,15 @@ export class GoogleAdsConnector extends BaseConnector<
       ? options.cursor
       : undefined;
 
+    const campaignSpec = singleSpec(options.fetchSpecs?.[ENTITY_TYPE_CAMPAIGN]);
+
     return paginateChunked<GoogleAdsPhase, string>({
       phases,
       cursor,
       signal,
       logger: this.logger,
       fetchPage: (phase, page, sig) =>
-        this.searchPage<unknown>(phase, range, page, sig),
+        this.searchPage<unknown>(phase, range, page, campaignSpec, sig),
       writeBatch: async (phase, items, page) => {
         if (page === null) {
           await this.clearScopeOnFirstPage(phase, storage, isFull);

@@ -248,6 +248,7 @@ export const appStoreConnectResources = defineResources({
     description:
       'Apps registered in the team, with bundle id, SKU, and primary locale. Synced from /v1/apps.',
     endpoint: 'GET /v1/apps',
+    filterable: [],
     fields: [
       { name: 'name', description: 'App display name.' },
       {

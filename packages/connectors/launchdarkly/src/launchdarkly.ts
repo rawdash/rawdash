@@ -11,6 +11,8 @@ import {
   type ConnectorContext,
   type ConnectorDoc,
   type CredentialsSchema,
+  type FetchSpec,
+  type FilterClause,
   type JSONValue,
   type StorageHandle,
   type SyncOptions,
@@ -292,6 +294,7 @@ const auditLogResponseSchema = z.object({
 export const launchdarklyResources = defineResources({
   launchdarkly_project: {
     shape: 'entity',
+    filterable: [{ field: 'tags', ops: ['eq'] }],
     description:
       'LaunchDarkly projects, with their key, display name, and tags.',
     endpoint: 'GET /api/v2/projects',
@@ -304,6 +307,7 @@ export const launchdarklyResources = defineResources({
   },
   launchdarkly_feature_flag: {
     shape: 'entity',
+    filterable: [{ field: 'tags', ops: ['eq'] }],
     description:
       'Feature flags across one or more projects, including kind (boolean | multivariate | other), archived state, tags, variations, and per-environment on/off + last-modified.',
     endpoint: 'GET /api/v2/flags/{projectKey}',
@@ -338,6 +342,7 @@ export const launchdarklyResources = defineResources({
   },
   launchdarkly_flag_event: {
     shape: 'event',
+    filterable: [],
     description:
       'Audit-log entries for flag-related changes (flag created / modified / toggled / archived), with the acting member and target resources.',
     endpoint: 'GET /api/v2/auditlog',
@@ -384,6 +389,26 @@ export const id = 'launchdarkly';
 interface FlagsPageItem {
   projectKey: string;
   flags: LDFlag[];
+}
+
+function pushableEq(
+  filter: FilterClause[] | undefined,
+  field: string,
+): string | null {
+  if (!filter) {
+    return null;
+  }
+  for (const clause of filter) {
+    if (
+      'field' in clause &&
+      clause.field === field &&
+      clause.op === 'eq' &&
+      typeof clause.value === 'string'
+    ) {
+      return clause.value;
+    }
+  }
+  return null;
 }
 
 export class LaunchDarklyConnector extends BaseConnector<
@@ -519,16 +544,45 @@ export class LaunchDarklyConnector extends BaseConnector<
     return this.sanitizePageUrl(phase, abs);
   }
 
-  private buildInitialProjectsUrl(): string {
+  private singleSpec(
+    options: SyncOptions,
+    resource: string,
+  ): FetchSpec | undefined {
+    const specs = options.fetchSpecs?.[resource];
+    return specs && specs.length === 1 ? specs[0] : undefined;
+  }
+
+  private buildInitialProjectsUrl(options?: SyncOptions): string {
     const u = new URL(`${LD_API_BASE}/api/v2/projects`);
     u.searchParams.set('limit', String(PROJECTS_PAGE_SIZE));
+    if (options) {
+      const tag = pushableEq(
+        this.singleSpec(options, 'launchdarkly_project')?.filter,
+        'tags',
+      );
+      if (tag !== null) {
+        u.searchParams.set('filter', `tags:${tag}`);
+      }
+    }
     return u.toString();
   }
 
-  private buildInitialFlagsUrl(projectKey: string): string {
+  private buildInitialFlagsUrl(
+    projectKey: string,
+    options?: SyncOptions,
+  ): string {
     const u = new URL(`${LD_API_BASE}/api/v2/flags/${projectKey}`);
     u.searchParams.set('limit', String(FLAGS_PAGE_SIZE));
     u.searchParams.set('summary', 'false');
+    if (options) {
+      const tag = pushableEq(
+        this.singleSpec(options, 'launchdarkly_feature_flag')?.filter,
+        'tags',
+      );
+      if (tag !== null) {
+        u.searchParams.set('filter', `tags:${tag}`);
+      }
+    }
     return u.toString();
   }
 
@@ -585,9 +639,10 @@ export class LaunchDarklyConnector extends BaseConnector<
 
   private async fetchProjectsPage(
     page: string | null,
+    options: SyncOptions,
     signal: AbortSignal | undefined,
   ): Promise<{ items: LDProject[]; next: string | null }> {
-    const url = page ?? this.buildInitialProjectsUrl();
+    const url = page ?? this.buildInitialProjectsUrl(options);
     const res = await this.fetch<LDProjectsResponse>(url, 'projects', signal);
     if (page === null) {
       this.discoveredProjectKeys = [];
@@ -613,6 +668,7 @@ export class LaunchDarklyConnector extends BaseConnector<
 
   private async fetchFlagsPage(
     page: string | null,
+    options: SyncOptions,
     signal: AbortSignal | undefined,
   ): Promise<{ items: FlagsPageItem[]; next: string | null }> {
     if (page === null) {
@@ -621,7 +677,13 @@ export class LaunchDarklyConnector extends BaseConnector<
         return { items: [], next: null };
       }
       const firstKey = projectKeys[0]!;
-      return this.fetchFlagsPageInProject(firstKey, null, projectKeys, signal);
+      return this.fetchFlagsPageInProject(
+        firstKey,
+        null,
+        projectKeys,
+        options,
+        signal,
+      );
     }
     let projectKey: string | null = null;
     try {
@@ -637,16 +699,23 @@ export class LaunchDarklyConnector extends BaseConnector<
       return { items: [], next: null };
     }
     const projectKeys = await this.resolveProjectKeysForFlags(signal);
-    return this.fetchFlagsPageInProject(projectKey, page, projectKeys, signal);
+    return this.fetchFlagsPageInProject(
+      projectKey,
+      page,
+      projectKeys,
+      options,
+      signal,
+    );
   }
 
   private async fetchFlagsPageInProject(
     projectKey: string,
     page: string | null,
     projectKeys: string[],
+    options: SyncOptions,
     signal: AbortSignal | undefined,
   ): Promise<{ items: FlagsPageItem[]; next: string | null }> {
-    const url = page ?? this.buildInitialFlagsUrl(projectKey);
+    const url = page ?? this.buildInitialFlagsUrl(projectKey, options);
     const res = await this.fetch<LDFlagsResponse>(url, 'feature_flags', signal);
     const nextInProject = this.resolveNextHref(
       'feature_flags',
@@ -664,7 +733,7 @@ export class LaunchDarklyConnector extends BaseConnector<
       nextProject !== undefined
         ? this.sanitizePageUrl(
             'feature_flags',
-            this.buildInitialFlagsUrl(nextProject),
+            this.buildInitialFlagsUrl(nextProject, options),
           )
         : null;
     return {
@@ -813,9 +882,9 @@ export class LaunchDarklyConnector extends BaseConnector<
       fetchPage: async (phase, page, sig) => {
         switch (phase) {
           case 'projects':
-            return this.fetchProjectsPage(page, sig);
+            return this.fetchProjectsPage(page, options, sig);
           case 'feature_flags':
-            return this.fetchFlagsPage(page, sig);
+            return this.fetchFlagsPage(page, options, sig);
           case 'audit_log':
             return this.fetchAuditLogPage(page, options, sig);
         }

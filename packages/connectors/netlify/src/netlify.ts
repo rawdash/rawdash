@@ -13,6 +13,8 @@ import {
   type CredentialsSchema,
   type Event,
   type FetchPageResult,
+  type FetchSpec,
+  type FilterClause,
   type JSONValue,
   type StorageHandle,
   type SyncOptions,
@@ -264,6 +266,7 @@ export const netlifyResources = defineResources({
     description:
       'Netlify sites with name, primary URL, owning account, linked git repo, and create/update timestamps.',
     endpoint: 'GET /api/v1/sites',
+    filterable: [],
     responses: { sites: sitesResponseSchema },
   },
   netlify_deploy: {
@@ -273,6 +276,13 @@ export const netlifyResources = defineResources({
     endpoint: 'GET /api/v1/sites/{site_id}/deploys',
     notes:
       'deployTimeMs comes from the API `deploy_time` field (seconds) when present, otherwise null. gitRef prefers `commit_ref`, falling back to `branch`.',
+    filterable: [
+      {
+        field: 'state',
+        ops: ['eq'],
+        values: ['new', 'building', 'ready', 'error', 'processing', 'enqueued'],
+      },
+    ],
     responses: { deploys: deploysResponseSchema },
   },
   netlify_deploy_event: {
@@ -280,6 +290,7 @@ export const netlifyResources = defineResources({
     description:
       'Each deploy emitted as a time-bounded event spanning creation to publish, carrying the same attributes as the deploy entity.',
     endpoint: 'GET /api/v1/sites/{site_id}/deploys',
+    filterable: [],
   },
 });
 
@@ -297,6 +308,26 @@ export const id = 'netlify';
 interface SiteDeploysBatch {
   siteId: string;
   items: NetlifyDeploy[];
+}
+
+function pushableEq(
+  filter: FilterClause[] | undefined,
+  field: string,
+): string | null {
+  if (!filter) {
+    return null;
+  }
+  for (const clause of filter) {
+    if (
+      'field' in clause &&
+      clause.field === field &&
+      clause.op === 'eq' &&
+      typeof clause.value === 'string'
+    ) {
+      return clause.value;
+    }
+  }
+  return null;
 }
 
 export class NetlifyConnector extends BaseConnector<
@@ -447,9 +478,24 @@ export class NetlifyConnector extends BaseConnector<
   // Deploys: paginated per-site fetch
   // -------------------------------------------------------------------------
 
-  private buildInitialDeploysUrl(siteId: string): string {
+  private singleSpec(
+    options: SyncOptions,
+    resource: string,
+  ): FetchSpec | undefined {
+    const specs = options.fetchSpecs?.[resource];
+    return specs && specs.length === 1 ? specs[0] : undefined;
+  }
+
+  private buildInitialDeploysUrl(siteId: string, options: SyncOptions): string {
     const u = new URL(`${NETLIFY_API_BASE}/sites/${siteId}/deploys`);
     u.searchParams.set('per_page', String(PAGE_SIZE));
+    const state = pushableEq(
+      this.singleSpec(options, 'netlify_deploy')?.filter,
+      'state',
+    );
+    if (state !== null) {
+      u.searchParams.set('state', state);
+    }
     return u.toString();
   }
 
@@ -497,7 +543,7 @@ export class NetlifyConnector extends BaseConnector<
     const expectedPath = `/api/v1/sites/${siteId}/deploys`;
     const fetchUrl =
       this.sanitizeUrl(rawPageUrl, expectedPath) ??
-      this.buildInitialDeploysUrl(siteId);
+      this.buildInitialDeploysUrl(siteId, options);
     const res = await this.fetch<NetlifyDeploy[]>(fetchUrl, 'deploys', signal);
     const rawNext = parseLinkHeader(res.headers.get('link'))['next'] ?? null;
     const safeNext = this.sanitizeUrl(rawNext, expectedPath);

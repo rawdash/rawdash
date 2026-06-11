@@ -12,6 +12,8 @@ import {
   type CredentialsSchema,
   type Event,
   type FetchPageResult,
+  type FetchSpec,
+  type FilterClause,
   type StorageHandle,
   type SyncOptions,
   type SyncResult,
@@ -365,6 +367,7 @@ export const gitlabResources = defineResources({
     endpoint: 'GET /api/v4/projects/{id}',
     notes:
       'Discovered from configured `projectIds` and from `groupIds` via GET /api/v4/groups/{id}/projects?include_subgroups=true.',
+    filterable: [],
     responses: { projects: projectsResponseSchema },
   },
   merge_request: {
@@ -372,6 +375,13 @@ export const gitlabResources = defineResources({
     description:
       'Open, merged, and closed merge requests with author, source/target branches, and merge timestamps.',
     endpoint: 'GET /api/v4/projects/{id}/merge_requests',
+    filterable: [
+      {
+        field: 'state',
+        ops: ['eq'],
+        values: ['opened', 'closed', 'merged', 'locked'],
+      },
+    ],
     responses: { merge_requests: mergeRequestsResponseSchema },
   },
   pipeline: {
@@ -379,6 +389,7 @@ export const gitlabResources = defineResources({
     description:
       'CI/CD pipelines with status, ref, commit sha, source, duration, and start/finish timestamps.',
     endpoint: 'GET /api/v4/projects/{id}/pipelines',
+    filterable: [{ field: 'status', ops: ['eq'] }],
     responses: { pipelines: pipelinesResponseSchema },
   },
   pipeline_event: {
@@ -388,12 +399,14 @@ export const gitlabResources = defineResources({
     endpoint: 'GET /api/v4/projects/{id}/pipelines',
     notes:
       'Derived from the same pipelines response that builds the `pipeline` resource; the GitLab API does not expose an intermediate state-transition history endpoint.',
+    filterable: [],
   },
   issue: {
     shape: 'entity',
     description:
       'Open and closed issues with labels, author, assignees, and close timestamp.',
     endpoint: 'GET /api/v4/projects/{id}/issues',
+    filterable: [{ field: 'state', ops: ['eq'], values: ['opened', 'closed'] }],
     responses: { issues: issuesResponseSchema },
   },
   release: {
@@ -401,11 +414,42 @@ export const gitlabResources = defineResources({
     description:
       'Project releases keyed by tag name, including released_at and the publishing author.',
     endpoint: 'GET /api/v4/projects/{id}/releases',
+    filterable: [],
     responses: { releases: releasesResponseSchema },
   },
 });
 
 export const id = 'gitlab';
+
+const LIST_RESOURCE_DEF_KEY: Record<
+  'merge_requests' | 'pipelines' | 'issues' | 'releases',
+  string
+> = {
+  merge_requests: 'merge_request',
+  pipelines: 'pipeline',
+  issues: 'issue',
+  releases: 'release',
+};
+
+function pushableEq(
+  filter: FilterClause[] | undefined,
+  field: string,
+): string | null {
+  if (!filter) {
+    return null;
+  }
+  for (const clause of filter) {
+    if (
+      'field' in clause &&
+      clause.field === field &&
+      clause.op === 'eq' &&
+      typeof clause.value === 'string'
+    ) {
+      return clause.value;
+    }
+  }
+  return null;
+}
 
 interface ProjectBatch<T> {
   projectId: number;
@@ -639,16 +683,25 @@ export class GitLabConnector extends BaseConnector<
     return { items: project ? [project] : [], next };
   }
 
+  private singleSpec(
+    options: SyncOptions,
+    resource: string,
+  ): FetchSpec | undefined {
+    const specs = options.fetchSpecs?.[resource];
+    return specs && specs.length === 1 ? specs[0] : undefined;
+  }
+
   private buildListPageUrl(
     projectId: number,
     resource: 'merge_requests' | 'pipelines' | 'issues' | 'releases',
     options: SyncOptions,
+    spec?: FetchSpec,
   ): string {
     const u = new URL(`${this.apiBase()}/projects/${projectId}/${resource}`);
     u.searchParams.set('per_page', String(PAGE_SIZE));
     switch (resource) {
       case 'merge_requests':
-        u.searchParams.set('state', 'all');
+        u.searchParams.set('state', pushableEq(spec?.filter, 'state') ?? 'all');
         u.searchParams.set('order_by', 'updated_at');
         u.searchParams.set('sort', 'desc');
         u.searchParams.set('scope', 'all');
@@ -656,15 +709,20 @@ export class GitLabConnector extends BaseConnector<
           u.searchParams.set('updated_after', options.since);
         }
         break;
-      case 'pipelines':
+      case 'pipelines': {
+        const status = pushableEq(spec?.filter, 'status');
+        if (status !== null) {
+          u.searchParams.set('status', status);
+        }
         u.searchParams.set('order_by', 'updated_at');
         u.searchParams.set('sort', 'desc');
         if (options.since) {
           u.searchParams.set('updated_after', options.since);
         }
         break;
+      }
       case 'issues':
-        u.searchParams.set('state', 'all');
+        u.searchParams.set('state', pushableEq(spec?.filter, 'state') ?? 'all');
         u.searchParams.set('order_by', 'updated_at');
         u.searchParams.set('sort', 'desc');
         u.searchParams.set('scope', 'all');
@@ -699,7 +757,12 @@ export class GitLabConnector extends BaseConnector<
     const expectedPath = `/api/v4/projects/${projectId}/${resource}`;
     const fetchUrl =
       this.sanitizeUrl(rawPageUrl, expectedPath) ??
-      this.buildListPageUrl(projectId, resource, options);
+      this.buildListPageUrl(
+        projectId,
+        resource,
+        options,
+        this.singleSpec(options, LIST_RESOURCE_DEF_KEY[resource]),
+      );
     const res = await this.fetch<T[]>(fetchUrl, resource, signal);
     const rawNext = parseLinkHeader(res.headers.get('link'))['next'] ?? null;
     const safeNext = this.sanitizeUrl(rawNext, expectedPath);

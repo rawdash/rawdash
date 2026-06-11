@@ -11,6 +11,8 @@ import {
   type ConnectorContext,
   type ConnectorDoc,
   type CredentialsSchema,
+  type FetchSpec,
+  type FilterClause,
   type JSONValue,
   type StorageHandle,
   type SyncOptions,
@@ -258,6 +260,7 @@ export const vercelResources = defineResources({
     description:
       'Vercel projects with name, framework, owning account, and create/update timestamps.',
     endpoint: 'GET /v9/projects',
+    filterable: [],
     responses: { projects: projectsResponseSchema },
   },
   vercel_deployment: {
@@ -267,6 +270,25 @@ export const vercelResources = defineResources({
     endpoint: 'GET /v6/deployments',
     notes:
       'buildDurationMs is ready minus buildingAt when both are present, otherwise null. gitRef prefers meta.githubCommitRef, falling back to gitlabCommitRef, bitbucketCommitRef, then meta.branch.',
+    filterable: [
+      {
+        field: 'state',
+        ops: ['eq'],
+        values: [
+          'BUILDING',
+          'ERROR',
+          'INITIALIZING',
+          'QUEUED',
+          'READY',
+          'CANCELED',
+        ],
+      },
+      {
+        field: 'target',
+        ops: ['eq'],
+        values: ['production', 'staging', 'preview'],
+      },
+    ],
     responses: { deployments: deploymentsResponseSchema },
   },
   vercel_deployment_event: {
@@ -274,6 +296,7 @@ export const vercelResources = defineResources({
     description:
       'Each deployment emitted as a time-bounded event spanning creation to ready, carrying the same attributes as the deployment entity.',
     endpoint: 'GET /v6/deployments',
+    filterable: [],
   },
 });
 
@@ -285,6 +308,26 @@ const DEFAULT_LOOKBACK_DAYS = 30;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export const id = 'vercel';
+
+function pushableEq(
+  filter: FilterClause[] | undefined,
+  field: string,
+): string | null {
+  if (!filter) {
+    return null;
+  }
+  for (const clause of filter) {
+    if (
+      'field' in clause &&
+      clause.field === field &&
+      clause.op === 'eq' &&
+      typeof clause.value === 'string'
+    ) {
+      return clause.value;
+    }
+  }
+  return null;
+}
 
 export class VercelConnector extends BaseConnector<
   VercelSettings,
@@ -385,11 +428,28 @@ export class VercelConnector extends BaseConnector<
     return u.toString();
   }
 
+  private singleSpec(
+    options: SyncOptions,
+    resource: string,
+  ): FetchSpec | undefined {
+    const specs = options.fetchSpecs?.[resource];
+    return specs && specs.length === 1 ? specs[0] : undefined;
+  }
+
   private buildInitialDeploymentsUrl(options: SyncOptions): string {
     const u = new URL(`${VERCEL_API_BASE}/v6/deployments`);
     u.searchParams.set('limit', String(DEPLOYMENTS_PAGE_SIZE));
     for (const project of this.settings.projects ?? []) {
       u.searchParams.append('projectId', project);
+    }
+    const filter = this.singleSpec(options, 'vercel_deployment')?.filter;
+    const state = pushableEq(filter, 'state');
+    if (state !== null) {
+      u.searchParams.set('state', state);
+    }
+    const target = pushableEq(filter, 'target');
+    if (target !== null) {
+      u.searchParams.set('target', target);
     }
     const sinceMs = this.computeDeploymentsSinceMs(options);
     if (sinceMs !== null) {

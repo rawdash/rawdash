@@ -10,6 +10,8 @@ import {
   type ConnectorContext,
   type ConnectorDoc,
   type CredentialsSchema,
+  type FetchSpec,
+  type FilterClause,
   type StorageHandle,
   type SyncOptions,
   type SyncResult,
@@ -255,6 +257,7 @@ const flowsResponseSchema = jsonApiList(
 export const klaviyoResources = defineResources({
   [LIST_ENTITY]: {
     shape: 'entity',
+    filterable: [],
     description:
       'Klaviyo lists (manually managed subscriber collections) with opt-in process and created/updated timestamps.',
     endpoint: 'GET /api/lists',
@@ -273,6 +276,10 @@ export const klaviyoResources = defineResources({
   },
   [SEGMENT_ENTITY]: {
     shape: 'entity',
+    filterable: [
+      { field: 'isActive', ops: ['eq'], values: ['true', 'false'] },
+      { field: 'isStarred', ops: ['eq'], values: ['true', 'false'] },
+    ],
     description:
       'Klaviyo segments (rule-based dynamic groups) with active, starred, and processing flags.',
     endpoint: 'GET /api/segments',
@@ -293,6 +300,10 @@ export const klaviyoResources = defineResources({
   },
   [CAMPAIGN_ENTITY]: {
     shape: 'entity',
+    filterable: [
+      { field: 'status', ops: ['eq'] },
+      { field: 'archived', ops: ['eq'], values: ['true', 'false'] },
+    ],
     description:
       'Klaviyo campaigns for the configured channel, with status, archived flag, send strategy, and send time.',
     endpoint: 'GET /api/campaigns',
@@ -323,6 +334,11 @@ export const klaviyoResources = defineResources({
   },
   [FLOW_ENTITY]: {
     shape: 'entity',
+    filterable: [
+      { field: 'status', ops: ['eq'], values: ['draft', 'manual', 'live'] },
+      { field: 'archived', ops: ['eq'], values: ['true', 'false'] },
+      { field: 'triggerType', ops: ['eq'] },
+    ],
     description:
       'Klaviyo flows (automation series) with status, trigger type, and archived flag.',
     endpoint: 'GET /api/flows',
@@ -344,6 +360,78 @@ export const klaviyoResources = defineResources({
 });
 
 export const id = 'klaviyo';
+
+interface KlaviyoFilterField {
+  klaviyoField: string;
+  boolean: boolean;
+}
+
+const PUSHABLE_FIELDS_BY_PHASE: Record<
+  KlaviyoPhase,
+  Record<string, KlaviyoFilterField>
+> = {
+  lists: {},
+  segments: {
+    isActive: { klaviyoField: 'is_active', boolean: true },
+    isStarred: { klaviyoField: 'is_starred', boolean: true },
+  },
+  campaigns: {
+    status: { klaviyoField: 'status', boolean: false },
+    archived: { klaviyoField: 'archived', boolean: true },
+  },
+  flows: {
+    status: { klaviyoField: 'status', boolean: false },
+    archived: { klaviyoField: 'archived', boolean: true },
+    triggerType: { klaviyoField: 'trigger_type', boolean: false },
+  },
+};
+
+function pushableEq(
+  filter: FilterClause[] | undefined,
+  field: string,
+): string | null {
+  if (!filter) {
+    return null;
+  }
+  for (const clause of filter) {
+    if (
+      'field' in clause &&
+      clause.field === field &&
+      clause.op === 'eq' &&
+      (typeof clause.value === 'string' ||
+        typeof clause.value === 'boolean' ||
+        typeof clause.value === 'number')
+    ) {
+      return String(clause.value);
+    }
+  }
+  return null;
+}
+
+function pushableFilters(
+  phase: KlaviyoPhase,
+  filter: FilterClause[] | undefined,
+): string[] {
+  const fields = PUSHABLE_FIELDS_BY_PHASE[phase];
+  const terms: string[] = [];
+  for (const [ourField, { klaviyoField, boolean }] of Object.entries(fields)) {
+    const value = pushableEq(filter, ourField);
+    if (value === null) {
+      continue;
+    }
+    if (boolean) {
+      const bool =
+        value === 'true' ? 'true' : value === 'false' ? 'false' : null;
+      if (bool === null) {
+        continue;
+      }
+      terms.push(`equals(${klaviyoField},${bool})`);
+    } else {
+      terms.push(`equals(${klaviyoField},'${value}')`);
+    }
+  }
+  return terms;
+}
 
 export class KlaviyoConnector extends BaseConnector<
   KlaviyoSettings,
@@ -426,6 +514,14 @@ export class KlaviyoConnector extends BaseConnector<
     };
   }
 
+  private singleSpec(
+    options: SyncOptions,
+    resource: string,
+  ): FetchSpec | undefined {
+    const specs = options.fetchSpecs?.[resource];
+    return specs && specs.length === 1 ? specs[0] : undefined;
+  }
+
   private buildInitialUrl(phase: KlaviyoPhase, options: SyncOptions): string {
     const u = new URL(`${KLAVIYO_API_BASE}${this.allowedPagePath(phase)}`);
     u.searchParams.set('page[size]', String(PAGE_SIZE));
@@ -442,6 +538,8 @@ export class KlaviyoConnector extends BaseConnector<
         );
       }
     }
+    const spec = this.singleSpec(options, ENTITY_TYPE_BY_PHASE[phase]);
+    filters.push(...pushableFilters(phase, spec?.filter));
     if (filters.length > 0) {
       u.searchParams.set('filter', filters.join(','));
     }

@@ -530,3 +530,54 @@ describe('VercelConnector.create', () => {
     expect(connector.id).toBe('vercel');
   });
 });
+
+describe('VercelConnector filter pushdown', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function deploymentsUrl(calls: string[]): URL {
+    const url = calls.find((u) => u.includes('/v6/deployments'));
+    expect(url).toBeDefined();
+    return new URL(url!);
+  }
+
+  async function syncWith(
+    fetchSpecs: Record<string, { filter: unknown[] }[]>,
+  ): Promise<string[]> {
+    const { calls } = installRouter(() => emptyDeploymentsResponse());
+    await makeConnector({ resources: ['deployments'] }).sync(
+      { mode: 'full', fetchSpecs: fetchSpecs as never },
+      makeStorage(),
+    );
+    return calls;
+  }
+
+  it('pushes a declared state filter to the deployments query', async () => {
+    const calls = await syncWith({
+      vercel_deployment: [
+        { filter: [{ field: 'state', op: 'eq', value: 'READY' }] },
+      ],
+    });
+    expect(deploymentsUrl(calls).searchParams.get('state')).toBe('READY');
+  });
+
+  it('pushes a declared target filter to the deployments query', async () => {
+    const calls = await syncWith({
+      vercel_deployment: [
+        { filter: [{ field: 'target', op: 'eq', value: 'production' }] },
+      ],
+    });
+    expect(deploymentsUrl(calls).searchParams.get('target')).toBe('production');
+  });
+
+  it('does not push when multiple specs target the resource', async () => {
+    const calls = await syncWith({
+      vercel_deployment: [
+        { filter: [{ field: 'state', op: 'eq', value: 'READY' }] },
+        { filter: [{ field: 'state', op: 'eq', value: 'ERROR' }] },
+      ],
+    });
+    expect(deploymentsUrl(calls).searchParams.get('state')).toBeNull();
+  });
+});

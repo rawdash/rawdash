@@ -502,6 +502,62 @@ describe('MetaAdsConnector.sync', () => {
     expect(calls.find((c) => c.url.includes('level=adset&'))).toBeDefined();
     expect(calls.find((c) => c.url.includes('level=ad&'))).toBeDefined();
   });
+
+  it('pushes effective_status when a single campaign fetch spec carries an eq filter', async () => {
+    const fetchSpy = makeFetch(() => undefined);
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await connector({ resources: ['campaigns'] }).sync(
+      {
+        mode: 'full',
+        fetchSpecs: {
+          meta_campaign: [
+            {
+              filter: [{ field: 'effectiveStatus', op: 'eq', value: 'ACTIVE' }],
+            },
+          ],
+        },
+      },
+      makeStorage(),
+    );
+
+    const calls = recordCalls(fetchSpy);
+    const campaignsCall = calls.find((c) => c.url.includes('/campaigns'));
+    expect(campaignsCall).toBeDefined();
+    const param = new URL(campaignsCall!.url).searchParams.get(
+      'effective_status',
+    );
+    expect(param).toBe('["ACTIVE"]');
+  });
+
+  it('does not push effective_status when two campaign fetch specs are provided', async () => {
+    const fetchSpy = makeFetch(() => undefined);
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await connector({ resources: ['campaigns'] }).sync(
+      {
+        mode: 'full',
+        fetchSpecs: {
+          meta_campaign: [
+            {
+              filter: [{ field: 'effectiveStatus', op: 'eq', value: 'ACTIVE' }],
+            },
+            {
+              filter: [{ field: 'effectiveStatus', op: 'eq', value: 'PAUSED' }],
+            },
+          ],
+        },
+      },
+      makeStorage(),
+    );
+
+    const calls = recordCalls(fetchSpy);
+    const campaignsCall = calls.find((c) => c.url.includes('/campaigns'));
+    expect(campaignsCall).toBeDefined();
+    expect(
+      new URL(campaignsCall!.url).searchParams.has('effective_status'),
+    ).toBe(false);
+  });
 });
 
 describe('MetaAdsConnector.create', () => {

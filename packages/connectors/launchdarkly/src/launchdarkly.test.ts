@@ -551,6 +551,86 @@ describe('LaunchDarklyConnector.sync', () => {
   });
 });
 
+describe('LaunchDarklyConnector filter pushdown', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function findUrl(calls: string[], fragment: string): URL {
+    const url = calls.find((u) => u.includes(fragment));
+    expect(url).toBeDefined();
+    return new URL(url!);
+  }
+
+  async function syncFlagsWith(
+    fetchSpecs: Record<string, { filter: unknown[] }[]>,
+  ): Promise<string[]> {
+    const { calls } = installRouter(routeDefault);
+    await makeConnector({
+      resources: ['feature_flags'],
+      projects: ['proj-1'],
+    }).sync({ mode: 'full', fetchSpecs: fetchSpecs as never }, makeStorage());
+    return calls;
+  }
+
+  async function syncProjectsWith(
+    fetchSpecs: Record<string, { filter: unknown[] }[]>,
+  ): Promise<string[]> {
+    const { calls } = installRouter(routeDefault);
+    await makeConnector({ resources: ['projects'] }).sync(
+      { mode: 'full', fetchSpecs: fetchSpecs as never },
+      makeStorage(),
+    );
+    return calls;
+  }
+
+  it('pushes a single tags eq filter to the flags query', async () => {
+    const calls = await syncFlagsWith({
+      launchdarkly_feature_flag: [
+        { filter: [{ field: 'tags', op: 'eq', value: 'beta' }] },
+      ],
+    });
+    expect(
+      findUrl(calls, '/api/v2/flags/proj-1').searchParams.get('filter'),
+    ).toBe('tags:beta');
+  });
+
+  it('does not push to the flags query when multiple specs target the resource', async () => {
+    const calls = await syncFlagsWith({
+      launchdarkly_feature_flag: [
+        { filter: [{ field: 'tags', op: 'eq', value: 'beta' }] },
+        { filter: [{ field: 'tags', op: 'eq', value: 'gamma' }] },
+      ],
+    });
+    expect(
+      findUrl(calls, '/api/v2/flags/proj-1').searchParams.get('filter'),
+    ).toBeNull();
+  });
+
+  it('pushes a single tags eq filter to the projects query', async () => {
+    const calls = await syncProjectsWith({
+      launchdarkly_project: [
+        { filter: [{ field: 'tags', op: 'eq', value: 'beta' }] },
+      ],
+    });
+    expect(findUrl(calls, '/api/v2/projects').searchParams.get('filter')).toBe(
+      'tags:beta',
+    );
+  });
+
+  it('does not push to the projects query when multiple specs target the resource', async () => {
+    const calls = await syncProjectsWith({
+      launchdarkly_project: [
+        { filter: [{ field: 'tags', op: 'eq', value: 'beta' }] },
+        { filter: [{ field: 'tags', op: 'eq', value: 'gamma' }] },
+      ],
+    });
+    expect(
+      findUrl(calls, '/api/v2/projects').searchParams.get('filter'),
+    ).toBeNull();
+  });
+});
+
 describe('LaunchDarklyConnector.create', () => {
   afterEach(() => {
     vi.unstubAllEnvs();

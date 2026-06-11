@@ -12,6 +12,8 @@ import {
   type ConnectorDoc,
   type CredentialsSchema,
   type Entity,
+  type FetchSpec,
+  type FilterClause,
   type JSONValue,
   type StorageHandle,
   type SyncOptions,
@@ -398,6 +400,13 @@ const DEFAULT_INTERVAL_MS = INTERVAL_MS['1h'];
 export const datadogResources = defineResources({
   datadog_monitor: {
     shape: 'entity',
+    filterable: [
+      {
+        field: 'status',
+        ops: ['eq'],
+        values: ['OK', 'Alert', 'Warn', 'No Data', 'Ignored'],
+      },
+    ],
     description:
       'Datadog monitors with name, type, current status (OK / Alert / Warn / No Data), priority, and tags.',
     endpoint: 'GET /api/v1/monitor/search',
@@ -405,6 +414,7 @@ export const datadogResources = defineResources({
   },
   datadog_monitor_event: {
     shape: 'event',
+    filterable: [],
     description:
       "Monitor state-transition events, emitted whenever a monitor's status changes from its previously-stored value.",
     notes:
@@ -412,6 +422,7 @@ export const datadogResources = defineResources({
   },
   datadog_incident: {
     shape: 'entity',
+    filterable: [],
     description:
       'Datadog incidents with title, severity, state, and created / resolved timestamps.',
     endpoint: 'GET /api/v2/incidents',
@@ -419,6 +430,7 @@ export const datadogResources = defineResources({
   },
   datadog_slo: {
     shape: 'entity',
+    filterable: [],
     description:
       'Service Level Objectives with type, thresholds, primary target, and latest SLI value.',
     endpoint: 'GET /api/v1/slo',
@@ -454,6 +466,26 @@ export const datadogResources = defineResources({
 });
 
 export const id = 'datadog';
+
+function pushableEq(
+  filter: FilterClause[] | undefined,
+  field: string,
+): string | null {
+  if (!filter) {
+    return null;
+  }
+  for (const clause of filter) {
+    if (
+      'field' in clause &&
+      clause.field === field &&
+      clause.op === 'eq' &&
+      typeof clause.value === 'string'
+    ) {
+      return clause.value;
+    }
+  }
+  return null;
+}
 
 export class DatadogConnector extends BaseConnector<
   DatadogSettings,
@@ -583,11 +615,26 @@ export class DatadogConnector extends BaseConnector<
     };
   }
 
-  private buildInitialMonitorsUrl(): string {
+  private singleSpec(
+    options: SyncOptions,
+    resource: string,
+  ): FetchSpec | undefined {
+    const specs = options.fetchSpecs?.[resource];
+    return specs && specs.length === 1 ? specs[0] : undefined;
+  }
+
+  private buildInitialMonitorsUrl(options: SyncOptions): string {
     const u = new URL(`${this.apiBase}/api/v1/monitor/search`);
     u.searchParams.set('per_page', String(MONITORS_PAGE_SIZE));
     u.searchParams.set('page', '0');
     u.searchParams.set('sort', 'status,desc');
+    const status = pushableEq(
+      this.singleSpec(options, 'datadog_monitor')?.filter,
+      'status',
+    );
+    if (status !== null) {
+      u.searchParams.set('query', `status:"${status}"`);
+    }
     return u.toString();
   }
 
@@ -630,9 +677,10 @@ export class DatadogConnector extends BaseConnector<
 
   private async fetchMonitorsPage(
     page: string | null,
+    options: SyncOptions,
     signal: AbortSignal | undefined,
   ): Promise<{ items: MonitorsBatchItem[]; next: string | null }> {
-    const url = page ?? this.buildInitialMonitorsUrl();
+    const url = page ?? this.buildInitialMonitorsUrl(options);
     const res = await this.fetch<DatadogMonitorSearchResponse>(
       url,
       'monitors',
@@ -1030,7 +1078,7 @@ export class DatadogConnector extends BaseConnector<
       fetchPage: async (phase, page, sig) => {
         switch (phase) {
           case 'monitors':
-            return this.fetchMonitorsPage(page, sig);
+            return this.fetchMonitorsPage(page, options, sig);
           case 'incidents':
             return this.fetchIncidentsPage(page, options, sig);
           case 'slos':

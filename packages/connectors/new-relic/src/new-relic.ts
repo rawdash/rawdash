@@ -323,6 +323,7 @@ const FACET_FIELDS = new Set(['facet']);
 export const newRelicResources = defineResources({
   newrelic_alert_condition: {
     shape: 'entity',
+    filterable: [],
     description:
       'NRQL alert conditions with name, enabled state, policy id, type, and the underlying NRQL query string.',
     endpoint:
@@ -331,6 +332,7 @@ export const newRelicResources = defineResources({
   },
   newrelic_alert_violation: {
     shape: 'event',
+    filterable: [],
     description:
       'AI alert violation events. Each row from the NrAiIncident event type becomes one event with openedAt / closedAt and the underlying condition / policy metadata.',
     endpoint:
