@@ -59,6 +59,12 @@ import {
   resources as bitbucketResources,
 } from '@rawdash/connector-bitbucket';
 import {
+  configFields as branchConfigFields,
+  doc as branchDoc,
+  id as branchId,
+  resources as branchResources,
+} from '@rawdash/connector-branch';
+import {
   configFields as circleciConfigFields,
   doc as circleciDoc,
   id as circleciId,
@@ -336,6 +342,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: bitbucketDoc,
     configFields: bitbucketConfigFields,
     resources: bitbucketResources,
+  },
+  {
+    id: branchId,
+    packageName: '@rawdash/connector-branch',
+    doc: branchDoc,
+    configFields: branchConfigFields,
+    resources: branchResources,
   },
   {
     id: circleciId,

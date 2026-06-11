@@ -51,6 +51,7 @@
       "@rawdash/connector-firebase-analytics",
       "@rawdash/connector-openai",
       "@rawdash/connector-langfuse",
+      "@rawdash/connector-branch",
       "@rawdash/connectors",
       "@rawdash/adapter-libsql",
       "@rawdash/adapter-sqlite",
