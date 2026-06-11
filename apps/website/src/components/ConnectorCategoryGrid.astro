@@ -128,9 +128,7 @@ for (const c of [...connectors, ...connectorPlaceholders]) {
 </div>
 
 <script>
-  function normalize(value: string): string {
-    return value.trim().toLowerCase();
-  }
+  import { normalize, debounce, syncQueryParam } from '../lib/connector-search';
 
   for (const root of document.querySelectorAll<HTMLElement>(
     '[data-category-catalog]',
@@ -168,7 +166,21 @@ for (const c of [...connectors, ...connectorPlaceholders]) {
       }
     };
 
-    input?.addEventListener('input', apply);
+    if (input) {
+      const initial = new URL(window.location.href).searchParams.get('q');
+      if (initial) {
+        input.value = initial;
+        syncQueryParam(normalize(initial));
+      }
+    }
+
+    input?.addEventListener(
+      'input',
+      debounce(() => {
+        apply();
+        syncQueryParam(normalize(input?.value ?? ''));
+      }, 120),
+    );
     apply();
   }
 </script>
