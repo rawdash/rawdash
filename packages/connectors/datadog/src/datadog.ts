@@ -398,6 +398,7 @@ const DEFAULT_INTERVAL_MS = INTERVAL_MS['1h'];
 export const datadogResources = defineResources({
   datadog_monitor: {
     shape: 'entity',
+    filterable: [],
     description:
       'Datadog monitors with name, type, current status (OK / Alert / Warn / No Data), priority, and tags.',
     endpoint: 'GET /api/v1/monitor/search',
@@ -405,6 +406,7 @@ export const datadogResources = defineResources({
   },
   datadog_monitor_event: {
     shape: 'event',
+    filterable: [],
     description:
       "Monitor state-transition events, emitted whenever a monitor's status changes from its previously-stored value.",
     notes:
@@ -412,6 +414,7 @@ export const datadogResources = defineResources({
   },
   datadog_incident: {
     shape: 'entity',
+    filterable: [],
     description:
       'Datadog incidents with title, severity, state, and created / resolved timestamps.',
     endpoint: 'GET /api/v2/incidents',
@@ -419,6 +422,7 @@ export const datadogResources = defineResources({
   },
   datadog_slo: {
     shape: 'entity',
+    filterable: [],
     description:
       'Service Level Objectives with type, thresholds, primary target, and latest SLI value.',
     endpoint: 'GET /api/v1/slo',
@@ -426,6 +430,7 @@ export const datadogResources = defineResources({
   },
   datadog_slo_sli: {
     shape: 'metric',
+    filterable: [],
     description:
       'SLI value samples per SLO, one per overall_status snapshot reported by Datadog.',
     unit: 'percent',
@@ -436,6 +441,7 @@ export const datadogResources = defineResources({
   },
   datadog_metric: {
     shape: 'metric',
+    filterable: [],
     dynamic: true,
     description:
       'User-declared metric timeseries samples, stored as `datadog_metric.<query name>`, from the Datadog Metrics Query API.',
