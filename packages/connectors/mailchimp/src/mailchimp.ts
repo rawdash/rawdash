@@ -339,6 +339,7 @@ const reportSchema = z.object({
 export const mailchimpResources = defineResources({
   [CAMPAIGN_ENTITY]: {
     shape: 'entity',
+    filterable: [],
     description:
       'Campaigns (regular, plaintext, A/B, RSS, etc.) with status, type, subject line, sender, audience, send time, and total emails sent.',
     endpoint: 'GET /campaigns',
@@ -374,6 +375,7 @@ export const mailchimpResources = defineResources({
   },
   [LIST_ENTITY]: {
     shape: 'entity',
+    filterable: [],
     description:
       'Audiences (lists) with member counts, engagement rates, and lifetime campaign count.',
     endpoint: 'GET /lists',
@@ -407,6 +409,7 @@ export const mailchimpResources = defineResources({
   },
   [AUTOMATION_ENTITY]: {
     shape: 'entity',
+    filterable: [],
     description:
       'Automations (classic email workflows) with status, title, sender, audience, and lifetime emails sent.',
     endpoint: 'GET /automations',
@@ -440,6 +443,7 @@ export const mailchimpResources = defineResources({
   },
   [CAMPAIGN_STATS_METRIC]: {
     shape: 'metric',
+    filterable: [],
     description:
       'Per-campaign engagement stats (sent, opens, clicks, bounces, unsubscribes) timestamped at the campaign send time.',
     endpoint: 'GET /reports',
