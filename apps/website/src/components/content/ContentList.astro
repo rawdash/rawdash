@@ -25,35 +25,27 @@ const dateFmt = new Intl.DateTimeFormat('en-US', {
 </section>
 
 <section class="section content-section">
-  {
-    entries.length === 0 ? (
-      <p class="content-empty">
-        Nothing here yet — check back soon.
-      </p>
-    ) : (
-      <div class="content-list">
-        {entries.map((entry) => {
-          const date = entry.data.publishedAt ?? entry.data.updatedAt;
-          return (
-            <a class="content-card" href={`${basePath}/${entry.data.slug}/`}>
-              <h2>{entry.data.title}</h2>
-              <p>{entry.data.description ?? entry.data.metaDescription}</p>
-              <div class="content-card-meta">
-                {date && (
-                  <time datetime={date.toISOString()}>
-                    {dateFmt.format(date)}
-                  </time>
-                )}
-                {entry.data.tags.length > 0 && (
-                  <span class="content-card-tags">
-                    {entry.data.tags.slice(0, 3).join(' · ')}
-                  </span>
-                )}
-              </div>
-            </a>
-          );
-        })}
-      </div>
-    )
-  }
+  <div class="content-list">
+    {
+      entries.map((entry) => {
+        const date = entry.data.publishedAt ?? entry.data.updatedAt;
+        return (
+          <a class="content-card" href={`${basePath}/${entry.data.slug}/`}>
+            <h2>{entry.data.title}</h2>
+            <p>{entry.data.description ?? entry.data.metaDescription}</p>
+            <div class="content-card-meta">
+              {date && (
+                <time datetime={date.toISOString()}>{dateFmt.format(date)}</time>
+              )}
+              {entry.data.tags.length > 0 && (
+                <span class="content-card-tags">
+                  {entry.data.tags.slice(0, 3).join(' · ')}
+                </span>
+              )}
+            </div>
+          </a>
+        );
+      })
+    }
+  </div>
 </section>

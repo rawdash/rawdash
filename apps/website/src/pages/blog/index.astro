@@ -1,10 +1,15 @@
 ---
 import ContentLayout from '../../layouts/ContentLayout.astro';
 import ContentList from '../../components/content/ContentList.astro';
-import { SECTIONS, getSectionEntries } from '../../lib/content';
+import { getSectionEntries } from '../../lib/content';
+import { SECTIONS } from '../../lib/sections';
 
 const section = SECTIONS.blog;
 const entries = await getSectionEntries(section.pageType);
+
+if (entries.length === 0) {
+  return new Response(null, { status: 404 });
+}
 ---
 
 <ContentLayout

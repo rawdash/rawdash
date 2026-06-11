@@ -1,5 +1,11 @@
 ---
-import { PRODUCT_HUBS } from '../../lib/content';
+import {
+  getPublishedProductHubs,
+  hasPublishedSection,
+} from '../../lib/content';
+
+const productHubs = await getPublishedProductHubs();
+const showBlog = await hasPublishedSection('blog');
 ---
 
 <nav>
@@ -27,15 +33,29 @@ import { PRODUCT_HUBS } from '../../lib/content';
     rawdash
   </a>
   <ul class="nav-links">
-    <li class="nav-dropdown">
-      <button type="button" class="nav-trigger" popovertarget="product-menu">
-        Product
-      </button>
-      <div id="product-menu" popover class="nav-menu">
-        {PRODUCT_HUBS.map((hub) => <a href={hub.href}>{hub.label}</a>)}
-      </div>
-    </li>
-    <li><a href="/blog/">Blog</a></li>
+    {
+      productHubs.length > 0 && (
+        <li class="nav-dropdown">
+          <button
+            type="button"
+            class="nav-trigger"
+            popovertarget="product-menu"
+          >
+            Product
+          </button>
+          <div id="product-menu" popover class="nav-menu">
+            {productHubs.map((hub) => (
+              <a href={hub.href}>{hub.label}</a>
+            ))}
+          </div>
+        </li>
+      )
+    }
+    {showBlog && (
+      <li>
+        <a href="/blog/">Blog</a>
+      </li>
+    )}
     <li><a href="/docs/getting-started/">Docs</a></li>
     <li><a href="https://github.com/rawdash/rawdash">GitHub</a></li>
     <li>
