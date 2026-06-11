@@ -7,6 +7,8 @@ import {
   type ConnectorContext,
   type ConnectorDoc,
   type CredentialsSchema,
+  type FetchSpec,
+  type FilterClause,
   type StorageHandle,
   type SyncOptions,
   type SyncResult,
@@ -286,7 +288,7 @@ const fieldHistorySchema = z.object({
 export const salesforceResources = defineResources({
   salesforce_user: {
     shape: 'entity',
-    filterable: [],
+    filterable: [{ field: 'isActive', ops: ['eq'], values: ['true', 'false'] }],
     description:
       'Salesforce users, keyed by user id, with name, email, and active state. Used to attribute opportunities, accounts, and stage changes to owners.',
     endpoint: 'GET /services/data/v{version}/query (SOQL: FROM User)',
@@ -303,7 +305,7 @@ export const salesforceResources = defineResources({
   },
   salesforce_account: {
     shape: 'entity',
-    filterable: [],
+    filterable: [{ field: 'industry', ops: ['eq'] }],
     description:
       'Accounts (companies), keyed by account id, with industry, annual revenue, owner, and creation time.',
     endpoint: 'GET /services/data/v{version}/query (SOQL: FROM Account)',
@@ -325,7 +327,10 @@ export const salesforceResources = defineResources({
   },
   salesforce_lead: {
     shape: 'entity',
-    filterable: [],
+    filterable: [
+      { field: 'status', ops: ['eq'] },
+      { field: 'source', ops: ['eq'] },
+    ],
     description:
       'Leads, keyed by lead id, with email, status, source, and conversion time.',
     endpoint: 'GET /services/data/v{version}/query (SOQL: FROM Lead)',
@@ -344,7 +349,12 @@ export const salesforceResources = defineResources({
   },
   salesforce_opportunity: {
     shape: 'entity',
-    filterable: [],
+    filterable: [
+      { field: 'stage', ops: ['eq'] },
+      { field: 'isClosed', ops: ['eq'], values: ['true', 'false'] },
+      { field: 'isWon', ops: ['eq'], values: ['true', 'false'] },
+      { field: 'forecastCategory', ops: ['eq'] },
+    ],
     description:
       'Opportunities, keyed by opportunity id, with stage, amount, close date, owner, probability, forecast category, and closed/won flags.',
     endpoint: 'GET /services/data/v{version}/query (SOQL: FROM Opportunity)',
@@ -426,20 +436,78 @@ function soqlDateLiteral(iso: string): string {
   return `${d.toISOString().replace(/\.\d{3}Z$/, 'Z')}`;
 }
 
+interface SoqlPushField {
+  soqlField: string;
+  type: 'string' | 'bool';
+}
+
+const SOQL_PUSH_FIELDS: Partial<
+  Record<SalesforcePhase, Record<string, SoqlPushField>>
+> = {
+  users: { isActive: { soqlField: 'IsActive', type: 'bool' } },
+  accounts: { industry: { soqlField: 'Industry', type: 'string' } },
+  leads: {
+    status: { soqlField: 'Status', type: 'string' },
+    source: { soqlField: 'LeadSource', type: 'string' },
+  },
+  opportunities: {
+    stage: { soqlField: 'StageName', type: 'string' },
+    isClosed: { soqlField: 'IsClosed', type: 'bool' },
+    isWon: { soqlField: 'IsWon', type: 'bool' },
+    forecastCategory: { soqlField: 'ForecastCategoryName', type: 'string' },
+  },
+};
+
+function soqlStringLiteral(value: string): string {
+  return `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+}
+
+function soqlPushConditions(
+  phase: SalesforcePhase,
+  filter: FilterClause[] | undefined,
+): string[] {
+  const fields = SOQL_PUSH_FIELDS[phase];
+  if (!fields || !filter) {
+    return [];
+  }
+  const conditions: string[] = [];
+  for (const clause of filter) {
+    if (!('field' in clause) || clause.op !== 'eq') {
+      continue;
+    }
+    const mapping = fields[clause.field];
+    if (!mapping) {
+      continue;
+    }
+    if (mapping.type === 'bool') {
+      const truthy = clause.value === true || clause.value === 'true';
+      conditions.push(`${mapping.soqlField} = ${truthy ? 'true' : 'false'}`);
+    } else if (typeof clause.value === 'string') {
+      conditions.push(
+        `${mapping.soqlField} = ${soqlStringLiteral(clause.value)}`,
+      );
+    }
+  }
+  return conditions;
+}
+
 function buildPhaseSoql(
   phase: SalesforcePhase,
   since: string | undefined,
+  pushConditions: string[] = [],
 ): string {
   const base = PHASE_SOQL[phase];
   const timestampField = PHASE_TIMESTAMP[phase];
-  if (!timestampField || !since) {
-    return timestampField
-      ? `${base} ORDER BY ${timestampField} ASC`
-      : `${base} ORDER BY Id ASC`;
+  const conditions = [...pushConditions];
+  if (timestampField && since) {
+    conditions.push(`${timestampField} >= ${soqlDateLiteral(since)}`);
   }
-  const literal = soqlDateLiteral(since);
-  const connector = base.includes('WHERE') ? 'AND' : 'WHERE';
-  return `${base} ${connector} ${timestampField} >= ${literal} ORDER BY ${timestampField} ASC`;
+  let soql = base;
+  if (conditions.length > 0) {
+    const keyword = base.includes('WHERE') ? 'AND' : 'WHERE';
+    soql += ` ${keyword} ${conditions.join(' AND ')}`;
+  }
+  return `${soql} ORDER BY ${timestampField || 'Id'} ASC`;
 }
 
 function parseDateMs(value: string | null | undefined): number | null {
@@ -573,7 +641,15 @@ export class SalesforceConnector extends BaseConnector<
       }
       path = safePage;
     } else {
-      const soql = buildPhaseSoql(phase, options.since);
+      const resource = ENTITY_TYPE_BY_PHASE[phase];
+      const specs = resource ? options.fetchSpecs?.[resource] : undefined;
+      const spec: FetchSpec | undefined =
+        specs && specs.length === 1 ? specs[0] : undefined;
+      const soql = buildPhaseSoql(
+        phase,
+        options.since,
+        soqlPushConditions(phase, spec?.filter),
+      );
       const url = new URL(
         `${this.baseUrl()}/services/data/v${this.apiVersion()}/query`,
       );
