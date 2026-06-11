@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import { computeMetric } from './compute';
 import type { ComputedMetric, DashboardConfig } from './config';
-import type { Event, MetricSample, StorageHandle } from './connector';
+import type {
+  Event,
+  MetricSample,
+  RollupBucket,
+  StorageHandle,
+} from './connector';
 import { InMemoryStorage } from './in-memory-storage';
 import {
   type RollupSpec,
@@ -141,6 +146,36 @@ describe('computeRollupSpecs', () => {
     );
     expect(specs.get('gh')?.has('pr')).toBe(false);
     expect(specs.get('gh')?.get('latency')?.dimFields).toEqual([]);
+  });
+
+  it('throws when one resource name is used by two shapes on a connector', () => {
+    expect(() =>
+      computeRollupSpecs(
+        configWith({
+          a: {
+            kind: 'stat',
+            title: 'a',
+            metric: {
+              connectorId: 'gh',
+              shape: 'event',
+              name: 'x',
+              fn: 'count',
+            },
+          },
+          b: {
+            kind: 'stat',
+            title: 'b',
+            metric: {
+              connectorId: 'gh',
+              shape: 'metric',
+              name: 'x',
+              field: 'value',
+              fn: 'sum',
+            },
+          },
+        }),
+      ),
+    ).toThrow(/multiple shapes/);
   });
 });
 
@@ -319,5 +354,38 @@ describe('computeMetric read-merge', () => {
       filter: [{ field: 'value', op: 'gt', value: 100 }],
     };
     expect(await computeMetric(h, metric)).toBe(1);
+  });
+
+  it('falls back to raw when a stored bucket lacks a required dim field', async () => {
+    const h = handle();
+    const bucket: RollupBucket = {
+      resource: 'run',
+      field: '',
+      granularity: 'day',
+      dims: {},
+      bucketStart: dayN(0),
+      partials: { ...emptyPartials(), count: 99 },
+    };
+    await h.writeRollups!([bucket]);
+    await h.setRollupWatermark!('run', dayN(1));
+    await h.events([ev(dayN(2), { status: 'open' })]);
+
+    const metric: ComputedMetric = {
+      connectorId: 'c',
+      shape: 'event',
+      name: 'run',
+      fn: 'count',
+      filter: [{ field: 'status', op: 'eq', value: 'open' }],
+    };
+    expect(await computeMetric(h, metric)).toBe(1);
+  });
+});
+
+describe('watermark monotonicity', () => {
+  it('never regresses to an older value', async () => {
+    const h = handle();
+    await h.setRollupWatermark!('run', 8000);
+    await h.setRollupWatermark!('run', 5000);
+    expect(await h.getRollupWatermark!('run')).toBe(8000);
   });
 });

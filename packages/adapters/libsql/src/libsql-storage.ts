@@ -21,7 +21,7 @@ import type {
   SyncState,
 } from '@rawdash/core';
 import { dimsKey, withAbortSignal } from '@rawdash/core';
-import { type CompiledQuery, type Insertable, Kysely } from 'kysely';
+import { type CompiledQuery, type Insertable, Kysely, sql } from 'kysely';
 import { LibsqlDialect } from 'kysely-libsql';
 
 import type {
@@ -699,7 +699,7 @@ export class LibsqlStorage implements ServerStorage {
           .values({ connector_id: connectorId, resource, watermark: tsUnixMs })
           .onConflict((oc) =>
             oc.columns(['connector_id', 'resource']).doUpdateSet({
-              watermark: (eb) => eb.ref('excluded.watermark'),
+              watermark: sql<number>`max(rollup_watermarks.watermark, excluded.watermark)`,
             }),
           )
           .execute();

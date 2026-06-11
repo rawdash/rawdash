@@ -31,6 +31,9 @@ export function matchesCondition(
       }
       return val <= cond.value;
     case 'contains':
+      if (val === undefined || val === null) {
+        return false;
+      }
       return String(val).includes(String(cond.value));
     default:
       return false;

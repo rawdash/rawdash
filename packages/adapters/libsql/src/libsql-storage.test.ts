@@ -396,6 +396,8 @@ describe('LibsqlStorage — rollups', () => {
     await h1.setRollupWatermark!('run', 5000);
     await h1.setRollupWatermark!('run', 8000);
     expect(await h1.getRollupWatermark!('run')).toBe(8000);
+    await h1.setRollupWatermark!('run', 6000);
+    expect(await h1.getRollupWatermark!('run')).toBe(8000);
     expect(await h2.getRollupWatermark!('run')).toBeNull();
     await s.close();
   });

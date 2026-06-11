@@ -319,7 +319,12 @@ export class InMemoryStorage implements ServerStorage {
       },
 
       setRollupWatermark: async (resource: string, tsUnixMs: number) => {
-        this.rollupWatermark.set(`${connectorId}:${resource}`, tsUnixMs);
+        const key = `${connectorId}:${resource}`;
+        const prev = this.rollupWatermark.get(key);
+        this.rollupWatermark.set(
+          key,
+          prev === undefined ? tsUnixMs : Math.max(prev, tsUnixMs),
+        );
         touch();
       },
 

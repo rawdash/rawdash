@@ -269,6 +269,11 @@ export function computeRollupSpecs(
         };
         resources.set(resource, entry);
       } else {
+        if (entry.shape !== metric.shape) {
+          throw new Error(
+            `computeRollupSpecs: resource "${resource}" on connector "${metric.connectorId}" is used by multiple shapes (${entry.shape}, ${metric.shape})`,
+          );
+        }
         entry.granularity = finerGranularity(
           entry.granularity,
           widgetGranularity(widget),
@@ -451,6 +456,20 @@ function isDimCondition(cond: FilterCondition): boolean {
   return cond.op === 'eq' || cond.op === 'neq';
 }
 
+function requiredDimFields(filter: FilterClause[] | undefined): string[] {
+  const fields = new Set<string>();
+  for (const clause of filter ?? []) {
+    if ('or' in clause) {
+      for (const cond of clause.or) {
+        fields.add(cond.field);
+      }
+    } else {
+      fields.add(clause.field);
+    }
+  }
+  return [...fields];
+}
+
 function foldRecordsIntoPartials(
   records: Record<string, unknown>[],
   field: string | undefined,
@@ -509,6 +528,11 @@ export async function tryComputeMetricFromRollups(
       isGranularityCoarserOrEqual(metric.groupBy!.granularity, b.granularity),
     )
   ) {
+    return { used: false };
+  }
+
+  const required = requiredDimFields(metric.filter);
+  if (required.some((field) => buckets.some((b) => !(field in b.dims)))) {
     return { used: false };
   }
 
