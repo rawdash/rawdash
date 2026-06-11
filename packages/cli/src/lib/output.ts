@@ -42,3 +42,7 @@ export function printError(message: string): void {
 export function printSuccess(message: string): void {
   console.log(pc.green(`✓ ${message}`));
 }
+
+export function printWarning(message: string): void {
+  console.warn(pc.yellow(`⚠ ${message}`));
+}

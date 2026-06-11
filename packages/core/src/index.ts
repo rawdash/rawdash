@@ -142,6 +142,15 @@ export type {
 
 export { defineResources, schemasFromResources } from './resource';
 
+export type {
+  MetricIssueSeverity,
+  MetricValidationIssue,
+  MetricValidationResult,
+  ResourcesByConnectorId,
+} from './validate-metrics';
+
+export { formatMetricIssues, validateConfigMetrics } from './validate-metrics';
+
 export { computeMetric } from './compute';
 
 export type {

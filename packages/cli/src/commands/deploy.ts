@@ -4,6 +4,7 @@ import { Command } from 'commander';
 import { postConfig } from '../lib/api-client';
 import { findConfigFile, loadConfig } from '../lib/config-loader';
 import { requireApiKey } from '../lib/env';
+import { validateMetricsOrThrow } from '../lib/metric-validation';
 import { printDiff, printError, printSuccess } from '../lib/output';
 
 export const deployCommand = new Command('deploy')
@@ -31,6 +32,16 @@ export const deployCommand = new Command('deploy')
         process.exit(2);
       });
       s.stop('Config loaded');
+
+      s.start('Validating metrics...');
+      try {
+        await validateMetricsOrThrow(config);
+        s.stop('Metrics valid');
+      } catch (err) {
+        s.stop('Metric validation failed');
+        printError(err instanceof Error ? err.message : String(err));
+        process.exit(2);
+      }
 
       s.start('Fetching diff...');
       const previewResult = await postConfig(config, true);

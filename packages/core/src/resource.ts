@@ -7,6 +7,7 @@ import type { ConnectorSchemas } from './registry';
 export interface ResourceField {
   name: string;
   description: string;
+  unit?: string;
 }
 
 export interface ResourceFilterField {
