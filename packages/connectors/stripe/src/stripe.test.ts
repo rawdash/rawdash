@@ -516,6 +516,52 @@ describe('StripeConnector filter pushdown', () => {
     expect(urlFor(spy, '/v1/invoices').searchParams.get('status')).toBe('open');
   });
 
+  it('pushes a product active filter', async () => {
+    const connector = new StripeConnector(
+      { resources: ['products'] },
+      { apiKey: 'sk_test_abc' as unknown as { $secret: string } },
+    );
+    const fetchSpy = mockFetch({});
+    vi.stubGlobal('fetch', fetchSpy);
+    await connector.sync(
+      {
+        mode: 'full',
+        fetchSpecs: {
+          stripe_product: [
+            { filter: [{ field: 'active', op: 'eq', value: 'true' }] },
+          ],
+        } as never,
+      },
+      makeStorage(),
+    );
+    expect(urlFor(fetchSpy, '/v1/products').searchParams.get('active')).toBe(
+      'true',
+    );
+  });
+
+  it('pushes a price active filter', async () => {
+    const connector = new StripeConnector(
+      { resources: ['prices'] },
+      { apiKey: 'sk_test_abc' as unknown as { $secret: string } },
+    );
+    const fetchSpy = mockFetch({});
+    vi.stubGlobal('fetch', fetchSpy);
+    await connector.sync(
+      {
+        mode: 'full',
+        fetchSpecs: {
+          stripe_price: [
+            { filter: [{ field: 'active', op: 'eq', value: 'false' }] },
+          ],
+        } as never,
+      },
+      makeStorage(),
+    );
+    expect(urlFor(fetchSpy, '/v1/prices').searchParams.get('active')).toBe(
+      'false',
+    );
+  });
+
   it('does not push when multiple specs target subscriptions', async () => {
     const spy = await syncWith('subscriptions', {
       stripe_subscription: [

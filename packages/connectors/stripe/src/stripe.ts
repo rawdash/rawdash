@@ -430,14 +430,14 @@ export const stripeResources = defineResources({
   },
   stripe_product: {
     shape: 'entity',
-    filterable: [],
+    filterable: [{ field: 'active', ops: ['eq'], values: ['true', 'false'] }],
     description: 'Products in your catalog, including active state.',
     endpoint: 'GET /v1/products',
     responses: { products: z.array(productSchema) },
   },
   stripe_price: {
     shape: 'entity',
-    filterable: [],
+    filterable: [{ field: 'active', ops: ['eq'], values: ['true', 'false'] }],
     description:
       'Prices with unit amount, currency, and recurring interval, linked to their product.',
     endpoint: 'GET /v1/prices',
@@ -618,15 +618,21 @@ export class StripeConnector extends BaseConnector<
     const startingAfter = page ?? undefined;
     if (phase in ENTITY_TYPE_BY_PHASE) {
       const extra: Record<string, string | undefined> = {};
+      const filter = this.singleSpec(
+        options,
+        ENTITY_TYPE_BY_PHASE[phase]!,
+      )?.filter;
       if (phase === 'subscriptions' || phase === 'invoices') {
-        const status = pushableEq(
-          this.singleSpec(options, ENTITY_TYPE_BY_PHASE[phase]!)?.filter,
-          'status',
-        );
+        const status = pushableEq(filter, 'status');
         if (phase === 'subscriptions') {
           extra.status = status ?? 'all';
         } else if (status !== null) {
           extra.status = status;
+        }
+      } else if (phase === 'products' || phase === 'prices') {
+        const active = pushableEq(filter, 'active');
+        if (active !== null) {
+          extra.active = active;
         }
       }
       return this.buildListUrl(phase, {
