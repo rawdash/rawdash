@@ -1,5 +1,11 @@
 // This file is generated from the connector packages by scripts/generate-connectors-package.ts. Do not edit by hand.
 import {
+  configFields as anthropicConfigFields,
+  doc as anthropicDoc,
+  id as anthropicId,
+  resources as anthropicResources,
+} from '@rawdash/connector-anthropic';
+import {
   configFields as appStoreConnectConfigFields,
   cost as appStoreConnectCost,
   doc as appStoreConnectDoc,
@@ -244,6 +250,13 @@ import {
 import type { ConnectorMetadata } from './types';
 
 export const connectorMetadata: ConnectorMetadata[] = [
+  {
+    id: anthropicId,
+    packageName: '@rawdash/connector-anthropic',
+    doc: anthropicDoc,
+    configFields: anthropicConfigFields,
+    resources: anthropicResources,
+  },
   {
     id: appStoreConnectId,
     packageName: '@rawdash/connector-app-store-connect',

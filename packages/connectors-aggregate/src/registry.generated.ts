@@ -2,6 +2,8 @@
 import type { ConnectorClass } from '@rawdash/core';
 
 export const connectorLoaders: Record<string, () => Promise<ConnectorClass>> = {
+  anthropic: () =>
+    import('@rawdash/connector-anthropic').then((m) => m.default),
   'app-store-connect': () =>
     import('@rawdash/connector-app-store-connect').then((m) => m.default),
   appsflyer: () =>
