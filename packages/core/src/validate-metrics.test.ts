@@ -133,6 +133,85 @@ describe('validateConfigMetrics', () => {
     expect(warnings[0]?.message).toContain('100x');
   });
 
+  it.each(['avg', 'min', 'max'] as const)(
+    'warns when %sing a cents field without conversion',
+    (fn) => {
+      const config = configWith(
+        defineMetric({
+          connector: acme,
+          shape: 'event',
+          name: 'acme_charge',
+          field: 'amount',
+          fn,
+        }),
+      );
+      const { warnings } = validateConfigMetrics(
+        config,
+        resourcesByConnectorId,
+      );
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]?.message).toContain('cents');
+    },
+  );
+
+  it('rejects an invalid filter field', () => {
+    const config = configWith(
+      defineMetric({
+        connector: acme,
+        shape: 'event',
+        name: 'acme_charge',
+        fn: 'count',
+        filter: [{ field: 'nope', op: 'eq', value: 'x' }],
+      }),
+    );
+    const { errors } = validateConfigMetrics(config, resourcesByConnectorId);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]?.message).toContain('filter field "nope"');
+  });
+
+  it('rejects an invalid groupBy field', () => {
+    const config = configWith(
+      defineMetric({
+        connector: acme,
+        shape: 'event',
+        name: 'acme_charge',
+        field: 'amount',
+        fn: 'count',
+        groupBy: { field: 'nope', granularity: 'day' },
+      }),
+    );
+    const { errors } = validateConfigMetrics(config, resourcesByConnectorId);
+    expect(errors.some((e) => e.message.includes('groupBy field "nope"'))).toBe(
+      true,
+    );
+  });
+
+  it('warns when a windowed-looking metric has groupBy but no window', () => {
+    const config = defineConfig({
+      connectors: [acme],
+      dashboards: {
+        main: defineDashboard({
+          widgets: {
+            charges_30d: {
+              kind: 'stat',
+              title: 'Charges (30d)',
+              metric: defineMetric({
+                connector: acme,
+                shape: 'event',
+                name: 'acme_charge',
+                field: 'amount',
+                fn: 'count',
+                groupBy: { field: 'start_ts', granularity: 'day' },
+              }),
+            },
+          },
+        }),
+      },
+    });
+    const { warnings } = validateConfigMetrics(config, resourcesByConnectorId);
+    expect(warnings.some((w) => w.message.includes('time window'))).toBe(true);
+  });
+
   it('does not warn on count over a cents field', () => {
     const config = configWith(
       defineMetric({
@@ -181,7 +260,6 @@ describe('validateConfigMetrics', () => {
             charges_30d: {
               kind: 'stat',
               title: 'Charges (30d)',
-              window: '30d',
               metric: defineMetric({
                 connector: acme,
                 shape: 'event',

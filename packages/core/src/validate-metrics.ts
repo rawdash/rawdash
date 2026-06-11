@@ -123,11 +123,7 @@ function validateMetric(
   const windowHint = [widget.title, widgetKey, metric.name].find(
     (s): s is string => typeof s === 'string' && WINDOW_HINT_RE.test(s),
   );
-  if (
-    windowHint !== undefined &&
-    !effectiveWindow(widget, metric) &&
-    !metric.groupBy
-  ) {
+  if (windowHint !== undefined && !effectiveWindow(widget, metric)) {
     warnings.push({
       ref,
       severity: 'warning',
