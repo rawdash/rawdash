@@ -153,6 +153,7 @@ type GcpBillingCredentials = typeof gcpBillingCredentials;
 export const gcpBillingResources = defineResources({
   [COST_METRIC_NAME]: {
     shape: 'metric',
+    filterable: [],
     description:
       'Historical GCP cost per day, summed over the dimensions in `groupBy`. One sample per (date, dimension tuple). Pulls from the gcp_billing_export_v1_* tables in BigQuery.',
     endpoint: 'POST /bigquery/v2/projects/{bqProject}/queries',
