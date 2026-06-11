@@ -370,12 +370,14 @@ const issueSchema = z.object({
 export const linearResources = defineResources({
   linear_team: {
     shape: 'entity',
+    filterable: [],
     description: 'Workspace teams with their name and key.',
     endpoint: 'GraphQL query: teams { nodes { ... } }',
     responses: { teams: z.array(teamSchema) },
   },
   linear_user: {
     shape: 'entity',
+    filterable: [],
     description:
       'Workspace members, including name, email, display name, and active state.',
     endpoint: 'GraphQL query: users { nodes { ... } }',
@@ -383,6 +385,7 @@ export const linearResources = defineResources({
   },
   linear_cycle: {
     shape: 'entity',
+    filterable: [],
     description:
       'Team cycles with their number, dates, progress, and final scope / completed-scope figures.',
     endpoint: 'GraphQL query: cycles { nodes { ... } }',
@@ -390,6 +393,7 @@ export const linearResources = defineResources({
   },
   linear_issue: {
     shape: 'entity',
+    filterable: [],
     description:
       'Issues with their state, priority, assignee, team, project, cycle, labels, estimate, and lifecycle timestamps.',
     endpoint: 'GraphQL query: issues { nodes { ... } }',
@@ -397,6 +401,7 @@ export const linearResources = defineResources({
   },
   linear_issue_state_change: {
     shape: 'event',
+    filterable: [],
     description:
       'State-transition events derived from each issue’s history (from-state to to-state), keyed by the originating actor.',
     endpoint: 'GraphQL query: issues { nodes { history { nodes { ... } } } }',
