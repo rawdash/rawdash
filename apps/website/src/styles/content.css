@@ -13,11 +13,6 @@
   padding-top: 0;
 }
 
-.content-empty {
-  color: var(--text-dim);
-  font-size: 1rem;
-}
-
 .content-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));

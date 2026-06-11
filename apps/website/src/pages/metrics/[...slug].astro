@@ -2,7 +2,8 @@
 import type { GetStaticPaths } from 'astro';
 import ContentLayout from '../../layouts/ContentLayout.astro';
 import MetricArticle from '../../components/content/MetricArticle.astro';
-import { SECTIONS, getSectionEntries } from '../../lib/content';
+import { getSectionEntries } from '../../lib/content';
+import { SECTIONS } from '../../lib/sections';
 import { articleMeta, definedTermJsonLd, faqPageJsonLd } from '../../lib/seo';
 
 const section = SECTIONS.metrics;

@@ -1,5 +1,7 @@
 ---
-// Shared top navigation for the marketing / content surface (matches index.astro).
+import { getPublishedSections } from '../../lib/content';
+
+const sections = await getPublishedSections();
 ---
 
 <nav>
@@ -27,10 +29,13 @@
     rawdash
   </a>
   <ul class="nav-links">
-    <li><a href="/dashboards/">Dashboards</a></li>
-    <li><a href="/metrics/">Metrics</a></li>
-    <li><a href="/blog/">Blog</a></li>
-    <li><a href="/integrations/">Integrations</a></li>
+    {
+      sections.map((section) => (
+        <li>
+          <a href={`${section.basePath}/`}>{section.label}</a>
+        </li>
+      ))
+    }
     <li><a href="/docs/getting-started/">Docs</a></li>
     <li><a href="https://github.com/rawdash/rawdash">GitHub</a></li>
     <li>

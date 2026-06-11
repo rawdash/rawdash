@@ -2,7 +2,8 @@
 import type { GetStaticPaths } from 'astro';
 import ContentLayout from '../../layouts/ContentLayout.astro';
 import ContentArticle from '../../components/content/ContentArticle.astro';
-import { SECTIONS, getSectionEntries } from '../../lib/content';
+import { getSectionEntries } from '../../lib/content';
+import { SECTIONS } from '../../lib/sections';
 import { articleMeta } from '../../lib/seo';
 
 const section = SECTIONS.alternatives;

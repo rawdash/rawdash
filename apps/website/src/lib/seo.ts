@@ -1,4 +1,5 @@
-import type { ContentEntry, SectionMeta } from './content';
+import type { ContentEntry } from './content';
+import type { SectionMeta } from './sections';
 
 const ORG = {
   '@type': 'Organization',

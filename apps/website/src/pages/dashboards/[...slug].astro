@@ -2,7 +2,8 @@
 import type { GetStaticPaths } from 'astro';
 import ContentLayout from '../../layouts/ContentLayout.astro';
 import DashboardArticle from '../../components/content/DashboardArticle.astro';
-import { SECTIONS, getSectionEntries } from '../../lib/content';
+import { getSectionEntries } from '../../lib/content';
+import { SECTIONS } from '../../lib/sections';
 import { articleMeta, faqPageJsonLd } from '../../lib/seo';
 
 const section = SECTIONS.dashboards;

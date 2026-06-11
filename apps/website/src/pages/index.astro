@@ -1,6 +1,7 @@
 ---
 import { connectors, connectorPlaceholders } from '../generated/connectors';
 import Analytics from '../components/Analytics.astro';
+import SiteNav from '../components/site/SiteNav.astro';
 import {
   faqPageJsonLd,
   serializeJsonLd,
@@ -81,27 +82,7 @@ const jsonLd = [
   </head>
   <body>
     <!-- Nav -->
-    <nav>
-      <a href="/" class="nav-logo">
-        <svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
-          <rect width="32" height="32" rx="6" fill="#7C3AED"/>
-          <rect x="6" y="8" width="7" height="16" rx="1.5" fill="white"/>
-          <rect x="16" y="12" width="7" height="12" rx="1.5" fill="white" opacity="0.85"/>
-        </svg>
-        rawdash
-      </a>
-      <ul class="nav-links">
-        <li><a href="/blog/">Blog</a></li>
-        <li><a href="/integrations/">Integrations</a></li>
-        <li><a href="/docs/getting-started/">Docs</a></li>
-        <li><a href="https://github.com/rawdash/rawdash">GitHub</a></li>
-        <li>
-          <a href="https://cloud.rawdash.dev" class="nav-cta">
-            Cloud ↗
-          </a>
-        </li>
-      </ul>
-    </nav>
+    <SiteNav />
 
     <!-- Hero -->
     <section class="hero">

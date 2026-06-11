@@ -2,6 +2,18 @@ import sitemap from '@astrojs/sitemap';
 import starlight from '@astrojs/starlight';
 import { defineConfig } from 'astro/config';
 
+import { fetchPublishedFeedItems } from './src/lib/content-feed';
+import { SECTION_LIST } from './src/lib/sections';
+
+const publishedPageTypes = new Set(
+  (await fetchPublishedFeedItems()).map((item) => item.pageType),
+);
+const hiddenSectionPaths = new Set(
+  SECTION_LIST.filter(
+    (section) => !publishedPageTypes.has(section.pageType),
+  ).map((section) => `${section.basePath}/`),
+);
+
 const ga4Id = process.env.PUBLIC_GA4_ID?.trim();
 const ga4Head = ga4Id
   ? [
@@ -22,7 +34,9 @@ const ga4Head = ga4Id
 export default defineConfig({
   site: 'https://rawdash.dev',
   integrations: [
-    sitemap(),
+    sitemap({
+      filter: (page) => !hiddenSectionPaths.has(new URL(page).pathname),
+    }),
     starlight({
       title: 'Rawdash',
       description: 'Headless dashboard backend for any team.',
