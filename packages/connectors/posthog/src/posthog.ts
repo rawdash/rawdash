@@ -4,6 +4,8 @@ import {
   type ConnectorContext,
   type ConnectorDoc,
   type CredentialsSchema,
+  type FetchSpec,
+  type FilterClause,
   type StorageHandle,
   type SyncOptions,
   type SyncResult,
@@ -279,6 +281,26 @@ function quoteHogQLString(value: string): string {
   return `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
 }
 
+function pushableEq(
+  filter: FilterClause[] | undefined,
+  field: string,
+): string | null {
+  if (!filter) {
+    return null;
+  }
+  for (const clause of filter) {
+    if (
+      'field' in clause &&
+      clause.field === field &&
+      clause.op === 'eq' &&
+      typeof clause.value === 'string'
+    ) {
+      return clause.value;
+    }
+  }
+  return null;
+}
+
 const featureFlagSchema = z.object({
   id: z.number(),
   key: z.string().min(1),
@@ -320,7 +342,7 @@ const funnelSchema = z.object({
 export const posthogResources = defineResources({
   posthog_feature_flag: {
     shape: 'entity',
-    filterable: [],
+    filterable: [{ field: 'active', ops: ['eq'], values: ['true', 'false'] }],
     description:
       'Feature flags in the project, keyed by flag id, with key, name, active state, rollout percentage, and a JSON snapshot of the flag filters.',
     endpoint: 'GET /api/projects/{projectId}/feature_flags/',
@@ -487,7 +509,16 @@ export class PostHogConnector extends BaseConnector<
     ).then((res) => res.body);
   }
 
+  private singleSpec(
+    options: SyncOptions,
+    resource: string,
+  ): FetchSpec | undefined {
+    const specs = options.fetchSpecs?.[resource];
+    return specs && specs.length === 1 ? specs[0] : undefined;
+  }
+
   private async fetchFeatureFlagsPage(
+    options: SyncOptions,
     page: string | null,
     pageSize: number,
     signal?: AbortSignal,
@@ -498,6 +529,13 @@ export class PostHogConnector extends BaseConnector<
     );
     url.searchParams.set('limit', String(pageSize));
     url.searchParams.set('offset', String(offset));
+    const active = pushableEq(
+      this.singleSpec(options, FEATURE_FLAG_ENTITY)?.filter,
+      'active',
+    );
+    if (active !== null) {
+      url.searchParams.set('active', active);
+    }
     const res = await this.get<FeatureFlagListResponse>(url.toString(), {
       resource: 'feature_flags',
       headers: this.buildHeaders(),
@@ -820,7 +858,12 @@ export class PostHogConnector extends BaseConnector<
       fetchPage: async (phase, page, sig) => {
         switch (phase) {
           case 'feature_flags':
-            return this.fetchFeatureFlagsPage(page, flagsPageSize, sig);
+            return this.fetchFeatureFlagsPage(
+              options,
+              page,
+              flagsPageSize,
+              sig,
+            );
           case 'events_per_day':
             return this.fetchEventsPerDay(startDate, page, sig);
           case 'feature_flag_usage':
