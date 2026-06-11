@@ -612,6 +612,64 @@ describe('LinearConnector.sync', () => {
   });
 });
 
+describe('LinearConnector filter pushdown', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  async function issuesFilter(
+    fetchSpecs: Record<string, { filter: unknown[] }[]>,
+  ): Promise<Record<string, unknown> | undefined> {
+    const connector = new LinearConnector(
+      {},
+      { apiKey: 'lin_api_test' as unknown as { $secret: string } },
+    );
+    const { spy, calls } = mockGraphql(() => ({
+      teams: emptyConn(),
+      users: emptyConn(),
+      cycles: emptyConn(),
+      issues: emptyConn(),
+    }));
+    vi.stubGlobal('fetch', spy);
+    await connector.sync(
+      {
+        mode: 'full',
+        resources: new Set(['issues']),
+        fetchSpecs: fetchSpecs as never,
+      },
+      makeStorage(),
+    );
+    const issues = calls.find((c) => operationName(c.query) === 'Issues')!;
+    return issues.variables.filter as Record<string, unknown> | undefined;
+  }
+
+  it('pushes a declared state type filter into the issue filter', async () => {
+    const filter = await issuesFilter({
+      linear_issue: [
+        { filter: [{ field: 'stateType', op: 'eq', value: 'started' }] },
+      ],
+    });
+    expect(filter?.state).toEqual({ type: { eq: 'started' } });
+  });
+
+  it('pushes a declared priority filter into the issue filter', async () => {
+    const filter = await issuesFilter({
+      linear_issue: [{ filter: [{ field: 'priority', op: 'eq', value: 2 }] }],
+    });
+    expect(filter?.priority).toEqual({ eq: 2 });
+  });
+
+  it('does not push when multiple specs target the resource', async () => {
+    const filter = await issuesFilter({
+      linear_issue: [
+        { filter: [{ field: 'stateType', op: 'eq', value: 'started' }] },
+        { filter: [{ field: 'stateType', op: 'eq', value: 'completed' }] },
+      ],
+    });
+    expect(filter?.state).toBeUndefined();
+  });
+});
+
 describe('LinearConnector.create', () => {
   afterEach(() => {
     vi.unstubAllEnvs();
