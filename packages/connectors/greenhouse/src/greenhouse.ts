@@ -273,6 +273,7 @@ const offerSchema = z.object({
 export const greenhouseResources = defineResources({
   [JOB_ENTITY]: {
     shape: 'entity',
+    filterable: [],
     description:
       'Open, draft, and closed requisitions with department, office, and timestamps for opened / closed transitions.',
     endpoint: 'GET /v1/jobs',
@@ -299,6 +300,7 @@ export const greenhouseResources = defineResources({
   },
   [CANDIDATE_ENTITY]: {
     shape: 'entity',
+    filterable: [],
     description:
       'Candidate records with name, title, company, and the count of attached applications.',
     endpoint: 'GET /v1/candidates',
@@ -329,6 +331,7 @@ export const greenhouseResources = defineResources({
   },
   [APPLICATION_ENTITY]: {
     shape: 'entity',
+    filterable: [],
     description:
       'Applications with status (active / hired / rejected), current stage, source, and the linked candidate / job.',
     endpoint: 'GET /v1/applications',
@@ -374,6 +377,7 @@ export const greenhouseResources = defineResources({
   },
   [APPLICATION_EVENT]: {
     shape: 'event',
+    filterable: [],
     description:
       'Application lifecycle events (applied / hired / rejected) derived from each application timestamps. The scope is cleared and rewritten on every sync (including incremental runs).',
     endpoint: 'GET /v1/applications',
@@ -399,6 +403,7 @@ export const greenhouseResources = defineResources({
   },
   [OFFER_ENTITY]: {
     shape: 'entity',
+    filterable: [],
     description:
       'Offers with status (pending / accepted / rejected), linked to their application, candidate, and job.',
     endpoint: 'GET /v1/offers',
