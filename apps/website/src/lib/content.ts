@@ -63,6 +63,19 @@ export const SECTIONS = {
   },
 } satisfies Record<string, SectionMeta>;
 
+const PRODUCT_HUB_KEYS = [
+  'dashboards',
+  'integrations',
+  'metrics',
+  'compare',
+  'alternatives',
+] as const satisfies readonly (keyof typeof SECTIONS)[];
+
+export const PRODUCT_HUBS = PRODUCT_HUB_KEYS.map((key) => ({
+  href: `${SECTIONS[key].basePath}/`,
+  label: SECTIONS[key].label,
+}));
+
 function publishedTime(entry: ContentEntry): number {
   const date = entry.data.publishedAt ?? entry.data.updatedAt;
   return date ? date.getTime() : 0;

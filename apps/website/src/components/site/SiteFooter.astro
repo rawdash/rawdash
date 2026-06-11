@@ -1,10 +1,17 @@
 ---
+import { PRODUCT_HUBS } from '../../lib/content';
+
 const year = new Date().getFullYear();
 ---
 
 <footer>
   <span>© {year} Rawdash. Apache 2.0 licensed.</span>
   <ul class="footer-links">
+    {PRODUCT_HUBS.map((hub) => (
+      <li>
+        <a href={hub.href}>{hub.label}</a>
+      </li>
+    ))}
     <li><a href="/blog/">Blog</a></li>
     <li><a href="/docs/getting-started/">Docs</a></li>
     <li><a href="https://github.com/rawdash/rawdash">GitHub</a></li>

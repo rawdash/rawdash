@@ -1,5 +1,5 @@
 ---
-// Shared top navigation for the marketing / content surface (matches index.astro).
+import { PRODUCT_HUBS } from '../../lib/content';
 ---
 
 <nav>
@@ -27,10 +27,15 @@
     rawdash
   </a>
   <ul class="nav-links">
-    <li><a href="/dashboards/">Dashboards</a></li>
-    <li><a href="/metrics/">Metrics</a></li>
+    <li class="nav-dropdown">
+      <button type="button" class="nav-trigger" popovertarget="product-menu">
+        Product
+      </button>
+      <div id="product-menu" popover class="nav-menu">
+        {PRODUCT_HUBS.map((hub) => <a href={hub.href}>{hub.label}</a>)}
+      </div>
+    </li>
     <li><a href="/blog/">Blog</a></li>
-    <li><a href="/integrations/">Integrations</a></li>
     <li><a href="/docs/getting-started/">Docs</a></li>
     <li><a href="https://github.com/rawdash/rawdash">GitHub</a></li>
     <li>

@@ -98,6 +98,82 @@ nav {
   background: #6d28d9 !important;
 }
 
+.nav-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  anchor-name: --product-trigger;
+  transition: color 0.15s;
+}
+
+.nav-trigger::after {
+  content: '▾';
+  font-size: 0.7em;
+  transition: transform 0.15s;
+}
+
+.nav-trigger:hover,
+.nav-trigger:has(+ .nav-menu:popover-open) {
+  color: var(--text);
+}
+
+.nav-trigger:has(+ .nav-menu:popover-open)::after {
+  transform: rotate(180deg);
+}
+
+.nav-menu {
+  position: fixed;
+  position-anchor: --product-trigger;
+  position-area: bottom span-right;
+  inset: auto;
+  margin: 0;
+  margin-top: 0.75rem;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 12rem;
+  padding: 0.5rem;
+  background: rgba(13, 6, 24, 0.97);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--bg-card-border);
+  border-radius: var(--radius);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+}
+
+.nav-menu:popover-open {
+  display: flex;
+}
+
+@supports not (anchor-name: --x) {
+  .nav-menu {
+    position: fixed;
+    top: 3.75rem;
+    right: 8rem;
+  }
+}
+
+.nav-menu a {
+  display: block;
+  padding: 0.4rem 0.6rem;
+  border-radius: calc(var(--radius) - 4px);
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  transition:
+    color 0.15s,
+    background 0.15s;
+}
+
+.nav-menu a:hover {
+  color: var(--text);
+  background: var(--bg-card-border);
+}
+
 .hero {
   display: flex;
   flex-direction: column;
@@ -490,7 +566,8 @@ footer {
 
 .footer-links {
   display: flex;
-  gap: 1.5rem;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
   list-style: none;
 }
 
