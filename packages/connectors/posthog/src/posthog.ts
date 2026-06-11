@@ -320,6 +320,7 @@ const funnelSchema = z.object({
 export const posthogResources = defineResources({
   posthog_feature_flag: {
     shape: 'entity',
+    filterable: [],
     description:
       'Feature flags in the project, keyed by flag id, with key, name, active state, rollout percentage, and a JSON snapshot of the flag filters.',
     endpoint: 'GET /api/projects/{projectId}/feature_flags/',
@@ -328,6 +329,7 @@ export const posthogResources = defineResources({
   },
   posthog_events_per_day: {
     shape: 'metric',
+    filterable: [],
     description:
       'Daily event volume rolled up by event name via HogQL. One sample per (day, event) over the lookback window. Restricted to the configured `events` list when provided, otherwise every event.',
     endpoint: 'POST /api/projects/{projectId}/query (HogQLQuery)',
@@ -346,6 +348,7 @@ export const posthogResources = defineResources({
   },
   posthog_feature_flag_usage: {
     shape: 'metric',
+    filterable: [],
     description:
       'Daily `$feature_flag_called` volume rolled up by flag key via HogQL. One sample per (day, flag) over the lookback window.',
     endpoint: 'POST /api/projects/{projectId}/query (HogQLQuery)',
@@ -370,6 +373,7 @@ export const posthogResources = defineResources({
   },
   posthog_active_users: {
     shape: 'metric',
+    filterable: [],
     description:
       'Daily active-user counts from a TrendsQuery, with one sample per day per rolling window (daily, weekly, and monthly active users).',
     endpoint: 'POST /api/projects/{projectId}/query (TrendsQuery)',
@@ -387,6 +391,7 @@ export const posthogResources = defineResources({
   },
   posthog_funnel: {
     shape: 'metric',
+    filterable: [],
     description:
       'Funnel conversion snapshot. One sample per declared funnel step, stamped at the start of the current UTC day, carrying the step user count and conversion rate relative to the first step. Only written when `funnels` are configured.',
     endpoint: 'POST /api/projects/{projectId}/query (FunnelsQuery)',
