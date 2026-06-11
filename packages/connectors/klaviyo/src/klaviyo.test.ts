@@ -470,6 +470,131 @@ describe('KlaviyoConnector.sync', () => {
     expect(headers['accept']).toBe('application/vnd.api+json');
   });
 
+  it('pushes a single status spec onto the flows filter', async () => {
+    const fetchSpy = makeFetch(() => undefined);
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await connector({ resources: ['flows'] }).sync(
+      {
+        mode: 'full',
+        fetchSpecs: {
+          klaviyo_flow: [
+            { filter: [{ field: 'status', op: 'eq', value: 'live' }] },
+          ],
+        },
+      },
+      makeStorage(),
+    );
+
+    const call = recordCalls(fetchSpy).find((c) =>
+      c.url.includes('/api/flows'),
+    );
+    expect(call).toBeDefined();
+    expect(decodeURIComponent(call!.url)).toContain(`equals(status,'live')`);
+  });
+
+  it('pushes an unquoted boolean for archived on flows', async () => {
+    const fetchSpy = makeFetch(() => undefined);
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await connector({ resources: ['flows'] }).sync(
+      {
+        mode: 'full',
+        fetchSpecs: {
+          klaviyo_flow: [
+            { filter: [{ field: 'archived', op: 'eq', value: true }] },
+          ],
+        },
+      },
+      makeStorage(),
+    );
+
+    const call = recordCalls(fetchSpy).find((c) =>
+      c.url.includes('/api/flows'),
+    );
+    expect(call).toBeDefined();
+    expect(decodeURIComponent(call!.url)).toContain('equals(archived,true)');
+  });
+
+  it('pushes is_active / is_starred booleans for segments', async () => {
+    const fetchSpy = makeFetch(() => undefined);
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await connector({ resources: ['segments'] }).sync(
+      {
+        mode: 'full',
+        fetchSpecs: {
+          klaviyo_segment: [
+            {
+              filter: [
+                { field: 'isActive', op: 'eq', value: false },
+                { field: 'isStarred', op: 'eq', value: true },
+              ],
+            },
+          ],
+        },
+      },
+      makeStorage(),
+    );
+
+    const call = recordCalls(fetchSpy).find((c) =>
+      c.url.includes('/api/segments'),
+    );
+    expect(call).toBeDefined();
+    const decoded = decodeURIComponent(call!.url);
+    expect(decoded).toContain('equals(is_active,false)');
+    expect(decoded).toContain('equals(is_starred,true)');
+  });
+
+  it('ANDs a pushed campaign filter with the mandatory channel filter', async () => {
+    const fetchSpy = makeFetch(() => undefined);
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await connector({ resources: ['campaigns'], channel: 'sms' }).sync(
+      {
+        mode: 'full',
+        fetchSpecs: {
+          klaviyo_campaign: [
+            { filter: [{ field: 'status', op: 'eq', value: 'Sent' }] },
+          ],
+        },
+      },
+      makeStorage(),
+    );
+
+    const call = recordCalls(fetchSpy).find((c) =>
+      c.url.includes('/api/campaigns'),
+    );
+    expect(call).toBeDefined();
+    const decoded = decodeURIComponent(call!.url);
+    expect(decoded).toContain(`equals(messages.channel,'sms')`);
+    expect(decoded).toContain(`equals(status,'Sent')`);
+  });
+
+  it('does not push a filter when two specs are present', async () => {
+    const fetchSpy = makeFetch(() => undefined);
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await connector({ resources: ['flows'] }).sync(
+      {
+        mode: 'full',
+        fetchSpecs: {
+          klaviyo_flow: [
+            { filter: [{ field: 'status', op: 'eq', value: 'live' }] },
+            { filter: [{ field: 'status', op: 'eq', value: 'draft' }] },
+          ],
+        },
+      },
+      makeStorage(),
+    );
+
+    const call = recordCalls(fetchSpy).find((c) =>
+      c.url.includes('/api/flows'),
+    );
+    expect(call).toBeDefined();
+    expect(decodeURIComponent(call!.url)).not.toContain('equals(status');
+  });
+
   it('resumes from a saved cursor, skipping earlier phases', async () => {
     const fetchSpy = makeFetch(() => undefined);
     vi.stubGlobal('fetch', fetchSpy);
