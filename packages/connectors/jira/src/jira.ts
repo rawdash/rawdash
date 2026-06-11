@@ -359,6 +359,7 @@ const issuesResponseSchema = z.object({
 export const jiraResources = defineResources({
   jira_project: {
     shape: 'entity',
+    filterable: [],
     description:
       'Jira projects with key, name, type, and project lead. Restrict via projectKeys to limit the sync.',
     endpoint: 'GET /rest/api/3/project/search',
@@ -366,6 +367,7 @@ export const jiraResources = defineResources({
   },
   jira_user: {
     shape: 'entity',
+    filterable: [],
     description:
       'Atlassian accounts visible to the connector, including display name, email, account type, and active state.',
     endpoint: 'GET /rest/api/3/users/search',
@@ -373,6 +375,7 @@ export const jiraResources = defineResources({
   },
   jira_sprint: {
     shape: 'entity',
+    filterable: [],
     description:
       'Sprints from scrum boards with state, start/end/complete dates, and owning board.',
     endpoint: 'GET /rest/agile/1.0/board/{boardId}/sprint',
@@ -380,6 +383,7 @@ export const jiraResources = defineResources({
   },
   jira_issue: {
     shape: 'entity',
+    filterable: [],
     description:
       'Issues with status, priority, type, assignee, reporter, project, sprint, story points, and resolution date.',
     endpoint: 'GET /rest/api/3/search/jql',
@@ -389,6 +393,7 @@ export const jiraResources = defineResources({
   },
   jira_issue_status_change: {
     shape: 'event',
+    filterable: [],
     description:
       'Status transition events derived from issue changelogs, capturing the from/to status, author, and project.',
     endpoint: 'GET /rest/api/3/search/jql (expand=changelog)',
