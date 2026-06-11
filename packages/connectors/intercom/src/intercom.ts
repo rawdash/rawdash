@@ -344,7 +344,13 @@ export const intercomResources = defineResources({
   },
   [CONTACT_ENTITY]: {
     shape: 'entity',
-    filterable: [],
+    filterable: [
+      {
+        field: 'role',
+        ops: ['eq'],
+        values: ['user', 'lead'],
+      },
+    ],
     description: 'Contacts (users and leads) with role and last-seen time.',
     endpoint: 'POST /contacts/search',
     fields: [
@@ -619,12 +625,21 @@ export class IntercomConnector extends BaseConnector<
       },
       sort: { field: 'updated_at', order: 'ascending' },
     };
+    const conditions: Record<string, unknown>[] = [];
     if (sinceSec !== null) {
-      body['query'] = {
-        field: 'updated_at',
-        operator: '>',
-        value: sinceSec,
-      };
+      conditions.push({ field: 'updated_at', operator: '>', value: sinceSec });
+    }
+    const role = pushableEq(
+      this.singleSpec(options, CONTACT_ENTITY)?.filter,
+      'role',
+    );
+    if (role !== null) {
+      conditions.push({ field: 'role', operator: '=', value: role });
+    }
+    if (conditions.length === 1) {
+      body['query'] = conditions[0];
+    } else if (conditions.length > 1) {
+      body['query'] = { operator: 'AND', value: conditions };
     }
     return body;
   }
