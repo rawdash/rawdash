@@ -314,6 +314,7 @@ const adInsightsSchema = z.array(adInsightSchema);
 export const metaAdsResources = defineResources({
   meta_campaign: {
     shape: 'entity',
+    filterable: [],
     description:
       'Meta ad campaigns with name, objective, status, and budget. Upserted by id; one row per campaign in the ad account.',
     endpoint: 'GET /{ad_account_id}/campaigns',
@@ -321,6 +322,7 @@ export const metaAdsResources = defineResources({
   },
   meta_campaign_insights: {
     shape: 'metric',
+    filterable: [],
     description:
       'Daily campaign-level Meta Ads insights - spend (primary value), impressions, clicks, reach, conversions, and conversion value bucketed by campaign.',
     endpoint: 'GET /{ad_account_id}/insights?level=campaign&time_increment=1',
@@ -346,6 +348,7 @@ export const metaAdsResources = defineResources({
   },
   meta_adset_insights: {
     shape: 'metric',
+    filterable: [],
     description:
       'Daily adset-level Meta Ads insights - same fields as the campaign roll-up, bucketed by adset.',
     endpoint: 'GET /{ad_account_id}/insights?level=adset&time_increment=1',
@@ -373,6 +376,7 @@ export const metaAdsResources = defineResources({
   },
   meta_ad_insights: {
     shape: 'metric',
+    filterable: [],
     description:
       'Daily ad-level Meta Ads insights - same fields as the adset roll-up, bucketed by ad.',
     endpoint: 'GET /{ad_account_id}/insights?level=ad&time_increment=1',
