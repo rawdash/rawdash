@@ -292,6 +292,7 @@ const auditLogResponseSchema = z.object({
 export const launchdarklyResources = defineResources({
   launchdarkly_project: {
     shape: 'entity',
+    filterable: [],
     description:
       'LaunchDarkly projects, with their key, display name, and tags.',
     endpoint: 'GET /api/v2/projects',
@@ -304,6 +305,7 @@ export const launchdarklyResources = defineResources({
   },
   launchdarkly_feature_flag: {
     shape: 'entity',
+    filterable: [],
     description:
       'Feature flags across one or more projects, including kind (boolean | multivariate | other), archived state, tags, variations, and per-environment on/off + last-modified.',
     endpoint: 'GET /api/v2/flags/{projectKey}',
@@ -338,6 +340,7 @@ export const launchdarklyResources = defineResources({
   },
   launchdarkly_flag_event: {
     shape: 'event',
+    filterable: [],
     description:
       'Audit-log entries for flag-related changes (flag created / modified / toggled / archived), with the acting member and target resources.',
     endpoint: 'GET /api/v2/auditlog',
