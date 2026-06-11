@@ -472,21 +472,23 @@ describe('HubSpotConnector filter pushdown', () => {
     value: string;
   }
 
-  async function dealsSearchFilters(
+  async function searchFilters(
+    object: 'deals' | 'contacts' | 'companies',
     fetchSpecs: Record<string, { filter: unknown[] }[]>,
   ): Promise<SearchFilter[]> {
+    const path = `/${object}/search`;
     const fetchSpy = makeFetch((url, method) =>
-      method === 'POST' && url.includes('/deals/search')
+      method === 'POST' && url.includes(path)
         ? { total: 0, results: [] }
         : undefined,
     );
     vi.stubGlobal('fetch', fetchSpy);
-    await connector(['deals']).sync(
+    await connector([object]).sync(
       { mode: 'full', fetchSpecs: fetchSpecs as never },
       makeStorage(),
     );
     const call = recordCalls(fetchSpy).find(
-      (c) => c.method === 'POST' && c.url.includes('/deals/search'),
+      (c) => c.method === 'POST' && c.url.includes(path),
     );
     expect(call).toBeDefined();
     const groups = (
@@ -494,6 +496,40 @@ describe('HubSpotConnector filter pushdown', () => {
     ).filterGroups;
     return groups.flatMap((g) => g.filters);
   }
+
+  function dealsSearchFilters(
+    fetchSpecs: Record<string, { filter: unknown[] }[]>,
+  ): Promise<SearchFilter[]> {
+    return searchFilters('deals', fetchSpecs);
+  }
+
+  it('pushes a contact lifecycle stage filter into the search body', async () => {
+    const filters = await searchFilters('contacts', {
+      hubspot_contact: [
+        { filter: [{ field: 'lifecycleStage', op: 'eq', value: 'customer' }] },
+      ],
+    });
+    expect(filters).toContainEqual({
+      propertyName: 'lifecyclestage',
+      operator: 'EQ',
+      value: 'customer',
+    });
+  });
+
+  it('pushes a company industry filter into the search body', async () => {
+    const filters = await searchFilters('companies', {
+      hubspot_company: [
+        {
+          filter: [{ field: 'industry', op: 'eq', value: 'COMPUTER_SOFTWARE' }],
+        },
+      ],
+    });
+    expect(filters).toContainEqual({
+      propertyName: 'industry',
+      operator: 'EQ',
+      value: 'COMPUTER_SOFTWARE',
+    });
+  });
 
   it('pushes a declared deal stage filter into the search body', async () => {
     const filters = await dealsSearchFilters({

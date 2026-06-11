@@ -220,6 +220,14 @@ const ENTITY_TYPE_BY_PHASE: Partial<Record<HubSpotPhase, string>> = {
   email_campaigns: 'hubspot_email_campaign',
 };
 
+const SEARCH_PUSH_FIELDS: Partial<
+  Record<CrmObjectPhase, Record<string, string>>
+> = {
+  contacts: { lifecycleStage: 'lifecyclestage', leadStatus: 'hs_lead_status' },
+  companies: { lifecycleStage: 'lifecyclestage', industry: 'industry' },
+  deals: { dealStage: 'dealstage', pipeline: 'pipeline' },
+};
+
 const DEAL_STAGE_EVENT = 'hubspot_deal_stage_change';
 const EMAIL_STATS_METRIC = 'hubspot_email_stats';
 
@@ -322,7 +330,10 @@ const campaignsSchema = z.array(campaignDetailSchema);
 export const hubspotResources = defineResources({
   hubspot_contact: {
     shape: 'entity',
-    filterable: [],
+    filterable: [
+      { field: 'lifecycleStage', ops: ['eq'] },
+      { field: 'leadStatus', ops: ['eq'] },
+    ],
     description:
       'CRM contacts with email, lifecycle stage, lead status, owner, and creation time.',
     endpoint: 'POST /crm/v3/objects/contacts/search',
@@ -330,7 +341,10 @@ export const hubspotResources = defineResources({
   },
   hubspot_company: {
     shape: 'entity',
-    filterable: [],
+    filterable: [
+      { field: 'lifecycleStage', ops: ['eq'] },
+      { field: 'industry', ops: ['eq'] },
+    ],
     description:
       'CRM companies with name, domain, industry, lifecycle stage, and creation time.',
     endpoint: 'POST /crm/v3/objects/companies/search',
@@ -490,23 +504,17 @@ export class HubSpotConnector extends BaseConnector<
         });
       }
     }
-    if (phase === 'deals') {
-      const filter = this.singleSpec(options, 'hubspot_deal')?.filter;
-      const stage = pushableEq(filter, 'dealStage');
-      if (stage !== null) {
-        filters.push({
-          propertyName: 'dealstage',
-          operator: 'EQ',
-          value: stage,
-        });
-      }
-      const pipeline = pushableEq(filter, 'pipeline');
-      if (pipeline !== null) {
-        filters.push({
-          propertyName: 'pipeline',
-          operator: 'EQ',
-          value: pipeline,
-        });
+    const pushMap = SEARCH_PUSH_FIELDS[phase];
+    if (pushMap) {
+      const filter = this.singleSpec(
+        options,
+        ENTITY_TYPE_BY_PHASE[phase]!,
+      )?.filter;
+      for (const [ourField, propertyName] of Object.entries(pushMap)) {
+        const value = pushableEq(filter, ourField);
+        if (value !== null) {
+          filters.push({ propertyName, operator: 'EQ', value });
+        }
       }
     }
     const filterGroups = filters.length > 0 ? [{ filters }] : [];
