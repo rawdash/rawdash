@@ -193,6 +193,12 @@ import {
   resources as newRelicResources,
 } from '@rawdash/connector-new-relic';
 import {
+  configFields as openaiConfigFields,
+  doc as openaiDoc,
+  id as openaiId,
+  resources as openaiResources,
+} from '@rawdash/connector-openai';
+import {
   configFields as posthogConfigFields,
   doc as posthogDoc,
   id as posthogId,
@@ -467,6 +473,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: newRelicDoc,
     configFields: newRelicConfigFields,
     resources: newRelicResources,
+  },
+  {
+    id: openaiId,
+    packageName: '@rawdash/connector-openai',
+    doc: openaiDoc,
+    configFields: openaiConfigFields,
+    resources: openaiResources,
   },
   {
     id: posthogId,
