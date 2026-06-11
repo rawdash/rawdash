@@ -1,108 +1,8 @@
 import type { ComputedMetric } from './config';
 import type { StorageHandle } from './connector';
-
-type FilterClause = NonNullable<ComputedMetric['filter']>[number];
-type FilterCondition = Exclude<FilterClause, { or: unknown[] }>;
-
-function matchesCondition(
-  record: Record<string, unknown>,
-  cond: FilterCondition,
-): boolean {
-  const val = record[cond.field];
-  switch (cond.op) {
-    case 'eq':
-      return val === cond.value;
-    case 'neq':
-      return val !== cond.value;
-    case 'gt':
-      if (typeof val !== 'number' || typeof cond.value !== 'number') {
-        return false;
-      }
-      return val > cond.value;
-    case 'gte':
-      if (typeof val !== 'number' || typeof cond.value !== 'number') {
-        return false;
-      }
-      return val >= cond.value;
-    case 'lt':
-      if (typeof val !== 'number' || typeof cond.value !== 'number') {
-        return false;
-      }
-      return val < cond.value;
-    case 'lte':
-      if (typeof val !== 'number' || typeof cond.value !== 'number') {
-        return false;
-      }
-      return val <= cond.value;
-    case 'contains':
-      return String(val).includes(String(cond.value));
-    default:
-      return false;
-  }
-}
-
-function applyFilter(
-  record: Record<string, unknown>,
-  filter: ComputedMetric['filter'],
-): boolean {
-  if (!filter) {
-    return true;
-  }
-  for (const clause of filter) {
-    if ('or' in clause) {
-      if (!clause.or.some((cond) => matchesCondition(record, cond))) {
-        return false;
-      }
-    } else {
-      if (!matchesCondition(record, clause)) {
-        return false;
-      }
-    }
-  }
-  return true;
-}
-
-const WINDOW_MS: Record<string, number> = {
-  h: 3_600_000,
-  d: 86_400_000,
-  w: 604_800_000,
-  m: 2_592_000_000,
-};
-
-function parseWindowMs(window: string): number | null {
-  const match = /^(\d+)(h|d|w|m)$/.exec(window);
-  if (!match) {
-    return null;
-  }
-  const unitMs = WINDOW_MS[match[2]!];
-  if (unitMs === undefined) {
-    return null;
-  }
-  return parseInt(match[1]!) * unitMs;
-}
-
-function truncateToGranularity(ts: number, granularity: string): string {
-  const d = new Date(ts);
-  switch (granularity) {
-    case 'hour':
-      d.setUTCMinutes(0, 0, 0);
-      return d.toISOString();
-    case 'day':
-      d.setUTCHours(0, 0, 0, 0);
-      return d.toISOString().slice(0, 10);
-    case 'week': {
-      d.setUTCDate(d.getUTCDate() - d.getUTCDay());
-      d.setUTCHours(0, 0, 0, 0);
-      return d.toISOString().slice(0, 10);
-    }
-    case 'month':
-      d.setUTCDate(1);
-      d.setUTCHours(0, 0, 0, 0);
-      return d.toISOString().slice(0, 7);
-    default:
-      return d.toISOString().slice(0, 10);
-  }
-}
+import { applyFilter } from './filter-match';
+import { tryComputeMetricFromRollups } from './rollup';
+import { parseWindowMs, truncateToGranularity } from './time-buckets';
 
 function computeAgg(
   records: Record<string, unknown>[],
@@ -212,6 +112,11 @@ export async function computeMetric(
   storage: StorageHandle,
   metric: ComputedMetric,
 ): Promise<unknown> {
+  const rollupResult = await tryComputeMetricFromRollups(storage, metric);
+  if (rollupResult.used) {
+    return rollupResult.value;
+  }
+
   const tsField = getTimestampField(metric.shape);
 
   const windowMs = metric.window ? parseWindowMs(metric.window) : null;

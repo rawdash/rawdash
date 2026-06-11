@@ -18,6 +18,9 @@ export type {
   JSONValue,
   MetricSample,
   MetricQuery,
+  RollupBucket,
+  RollupPartials,
+  RollupQuery,
   StorageHandle,
   SyncOptions,
   SyncResult,
@@ -143,6 +146,37 @@ export type {
 export { defineResources, schemasFromResources } from './resource';
 
 export { computeMetric } from './compute';
+
+export type {
+  ConnectorRollupSpecs,
+  FoldResult,
+  RollupReadResult,
+  RollupSignature,
+  RollupSpec,
+} from './rollup';
+
+export {
+  aggFromPartials,
+  computeRollupSpecs,
+  dimsKey,
+  emptyPartials,
+  foldConnectorRollups,
+  foldResourceRollups,
+  foldValueIntoPartials,
+  isRollupShape,
+  mergePartials,
+  tryComputeMetricFromRollups,
+} from './rollup';
+
+export type { Granularity } from './time-buckets';
+
+export {
+  bucketStartMs,
+  finerGranularity,
+  nextBucketStartMs,
+  parseWindowMs,
+  truncateToGranularity,
+} from './time-buckets';
 
 export type {
   ConnectorBackfill,
