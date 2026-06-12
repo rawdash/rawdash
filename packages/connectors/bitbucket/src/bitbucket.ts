@@ -10,6 +10,8 @@ import {
   type ConnectorDoc,
   type CredentialsSchema,
   type FetchPageResult,
+  type FetchSpec,
+  type FilterClause,
   type StorageHandle,
   type SyncOptions,
   type SyncResult,
@@ -369,6 +371,13 @@ export const bitbucketResources = defineResources({
       'GET /2.0/repositories/{workspace}/{repo_slug}/pullrequests?state=OPEN,MERGED,DECLINED,SUPERSEDED',
     notes:
       'Paginated newest-first by `updated_on`; the connector stops once a page is entirely older than `options.since`.',
+    filterable: [
+      {
+        field: 'state',
+        ops: ['eq'],
+        values: ['OPEN', 'MERGED', 'DECLINED', 'SUPERSEDED'],
+      },
+    ],
     responses: { pull_requests: pullRequestsResponseSchema },
   },
   pipeline: {
@@ -378,6 +387,7 @@ export const bitbucketResources = defineResources({
     endpoint: 'GET /2.0/repositories/{workspace}/{repo_slug}/pipelines/',
     notes:
       'Paginated newest-first by `created_on`; the connector stops once a page is entirely older than `options.since`.',
+    filterable: [],
     responses: { pipelines: pipelinesResponseSchema },
   },
   pipeline_event: {
@@ -387,6 +397,7 @@ export const bitbucketResources = defineResources({
     endpoint: 'GET /2.0/repositories/{workspace}/{repo_slug}/pipelines/',
     notes:
       'Derived from the same pipelines response that builds the `pipeline` resource; the Bitbucket API does not expose an intermediate state-transition history endpoint.',
+    filterable: [],
   },
 });
 
@@ -399,6 +410,33 @@ export const id = 'bitbucket';
 interface RepoBatch<T> {
   repoSlug: string;
   items: T[];
+}
+
+const PULL_REQUEST_STATES = new Set([
+  'OPEN',
+  'MERGED',
+  'DECLINED',
+  'SUPERSEDED',
+]);
+
+function pushablePullRequestState(
+  filter: FilterClause[] | undefined,
+): string | null {
+  if (!filter) {
+    return null;
+  }
+  for (const clause of filter) {
+    if (
+      'field' in clause &&
+      clause.field === 'state' &&
+      clause.op === 'eq' &&
+      typeof clause.value === 'string' &&
+      PULL_REQUEST_STATES.has(clause.value)
+    ) {
+      return clause.value;
+    }
+  }
+  return null;
 }
 
 export class BitbucketConnector extends BaseConnector<
@@ -525,17 +563,30 @@ export class BitbucketConnector extends BaseConnector<
   private buildPullRequestsUrl(
     repoSlugValue: string,
     options: SyncOptions,
+    spec?: FetchSpec,
   ): string {
     const u = new URL(
       `${API_BASE}/2.0/repositories/${encodeURIComponent(this.settings.workspace)}/${encodeURIComponent(repoSlugValue)}/pullrequests`,
     );
     u.searchParams.set('pagelen', String(PAGE_SIZE));
     u.searchParams.set('sort', '-updated_on');
-    u.searchParams.set('state', 'OPEN,MERGED,DECLINED,SUPERSEDED');
+    u.searchParams.set(
+      'state',
+      pushablePullRequestState(spec?.filter) ??
+        'OPEN,MERGED,DECLINED,SUPERSEDED',
+    );
     if (options.since) {
       u.searchParams.set('q', `updated_on >= ${options.since}`);
     }
     return u.toString();
+  }
+
+  private singleSpec(
+    options: SyncOptions,
+    resource: string,
+  ): FetchSpec | undefined {
+    const specs = options.fetchSpecs?.[resource];
+    return specs && specs.length === 1 ? specs[0] : undefined;
   }
 
   private buildPipelinesUrl(
@@ -582,7 +633,11 @@ export class BitbucketConnector extends BaseConnector<
     const expectedPath = this.pullRequestsPath(slug);
     const fetchUrl =
       this.sanitizeUrl(rawPageUrl, expectedPath) ??
-      this.buildPullRequestsUrl(slug, options);
+      this.buildPullRequestsUrl(
+        slug,
+        options,
+        this.singleSpec(options, 'pull_request'),
+      );
     const res = await this.fetch<BitbucketPullRequestsResponse>(
       fetchUrl,
       'pull_requests',

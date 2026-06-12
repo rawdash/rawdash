@@ -8,6 +8,8 @@ import {
   type ConnectorContext,
   type ConnectorDoc,
   type CredentialsSchema,
+  type FetchSpec,
+  type FilterClause,
   type StorageHandle,
   type SyncOptions,
   type SyncResult,
@@ -218,6 +220,14 @@ const ENTITY_TYPE_BY_PHASE: Partial<Record<HubSpotPhase, string>> = {
   email_campaigns: 'hubspot_email_campaign',
 };
 
+const SEARCH_PUSH_FIELDS: Partial<
+  Record<CrmObjectPhase, Record<string, string>>
+> = {
+  contacts: { lifecycleStage: 'lifecyclestage', leadStatus: 'hs_lead_status' },
+  companies: { lifecycleStage: 'lifecyclestage', industry: 'industry' },
+  deals: { dealStage: 'dealstage', pipeline: 'pipeline' },
+};
+
 const DEAL_STAGE_EVENT = 'hubspot_deal_stage_change';
 const EMAIL_STATS_METRIC = 'hubspot_email_stats';
 
@@ -320,6 +330,10 @@ const campaignsSchema = z.array(campaignDetailSchema);
 export const hubspotResources = defineResources({
   hubspot_contact: {
     shape: 'entity',
+    filterable: [
+      { field: 'lifecycleStage', ops: ['eq'] },
+      { field: 'leadStatus', ops: ['eq'] },
+    ],
     description:
       'CRM contacts with email, lifecycle stage, lead status, owner, and creation time.',
     endpoint: 'POST /crm/v3/objects/contacts/search',
@@ -327,6 +341,10 @@ export const hubspotResources = defineResources({
   },
   hubspot_company: {
     shape: 'entity',
+    filterable: [
+      { field: 'lifecycleStage', ops: ['eq'] },
+      { field: 'industry', ops: ['eq'] },
+    ],
     description:
       'CRM companies with name, domain, industry, lifecycle stage, and creation time.',
     endpoint: 'POST /crm/v3/objects/companies/search',
@@ -334,6 +352,10 @@ export const hubspotResources = defineResources({
   },
   hubspot_deal: {
     shape: 'entity',
+    filterable: [
+      { field: 'dealStage', ops: ['eq'] },
+      { field: 'pipeline', ops: ['eq'] },
+    ],
     description:
       'CRM deals with name, stage, pipeline, amount, close date, owner, and creation time.',
     endpoint: 'POST /crm/v3/objects/deals/search',
@@ -341,6 +363,7 @@ export const hubspotResources = defineResources({
   },
   hubspot_deal_stage_change: {
     shape: 'event',
+    filterable: [],
     description:
       'Deal stage-change events derived from deal property history, one event per stage transition.',
     endpoint: 'GET /crm/v3/objects/deals?propertiesWithHistory=dealstage',
@@ -348,6 +371,7 @@ export const hubspotResources = defineResources({
   },
   hubspot_email_campaign: {
     shape: 'entity',
+    filterable: [],
     description:
       'Marketing email campaigns with name, subject, sender, type, send date, and recipient count.',
     endpoint: 'GET /email/public/v1/campaigns',
@@ -378,6 +402,26 @@ export const hubspotResources = defineResources({
 });
 
 export const id = 'hubspot';
+
+function pushableEq(
+  filter: FilterClause[] | undefined,
+  field: string,
+): string | null {
+  if (!filter) {
+    return null;
+  }
+  for (const clause of filter) {
+    if (
+      'field' in clause &&
+      clause.field === field &&
+      clause.op === 'eq' &&
+      typeof clause.value === 'string'
+    ) {
+      return clause.value;
+    }
+  }
+  return null;
+}
 
 export class HubSpotConnector extends BaseConnector<
   HubSpotSettings,
@@ -435,27 +479,45 @@ export class HubSpotConnector extends BaseConnector<
     });
   }
 
+  private singleSpec(
+    options: SyncOptions,
+    resource: string,
+  ): FetchSpec | undefined {
+    const specs = options.fetchSpecs?.[resource];
+    return specs && specs.length === 1 ? specs[0] : undefined;
+  }
+
   private buildSearchBody(
     phase: CrmObjectPhase,
     after: string | null,
     options: SyncOptions,
   ): Record<string, unknown> {
     const modifiedProperty = MODIFIED_PROPERTY[phase];
-    const filterGroups: unknown[] = [];
+    const filters: unknown[] = [];
     if (options.since) {
       const sinceMs = new Date(options.since).getTime();
       if (Number.isFinite(sinceMs)) {
-        filterGroups.push({
-          filters: [
-            {
-              propertyName: modifiedProperty,
-              operator: 'GTE',
-              value: String(sinceMs),
-            },
-          ],
+        filters.push({
+          propertyName: modifiedProperty,
+          operator: 'GTE',
+          value: String(sinceMs),
         });
       }
     }
+    const pushMap = SEARCH_PUSH_FIELDS[phase];
+    if (pushMap) {
+      const filter = this.singleSpec(
+        options,
+        ENTITY_TYPE_BY_PHASE[phase]!,
+      )?.filter;
+      for (const [ourField, propertyName] of Object.entries(pushMap)) {
+        const value = pushableEq(filter, ourField);
+        if (value !== null) {
+          filters.push({ propertyName, operator: 'EQ', value });
+        }
+      }
+    }
+    const filterGroups = filters.length > 0 ? [{ filters }] : [];
     return {
       filterGroups,
       sorts: [{ propertyName: modifiedProperty, direction: 'ASCENDING' }],

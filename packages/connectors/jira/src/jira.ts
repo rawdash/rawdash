@@ -8,6 +8,8 @@ import {
   type ConnectorContext,
   type ConnectorDoc,
   type CredentialsSchema,
+  type FetchSpec,
+  type FilterClause,
   type JSONValue,
   type StorageHandle,
   type SyncOptions,
@@ -359,6 +361,7 @@ const issuesResponseSchema = z.object({
 export const jiraResources = defineResources({
   jira_project: {
     shape: 'entity',
+    filterable: [],
     description:
       'Jira projects with key, name, type, and project lead. Restrict via projectKeys to limit the sync.',
     endpoint: 'GET /rest/api/3/project/search',
@@ -366,6 +369,7 @@ export const jiraResources = defineResources({
   },
   jira_user: {
     shape: 'entity',
+    filterable: [],
     description:
       'Atlassian accounts visible to the connector, including display name, email, account type, and active state.',
     endpoint: 'GET /rest/api/3/users/search',
@@ -373,6 +377,9 @@ export const jiraResources = defineResources({
   },
   jira_sprint: {
     shape: 'entity',
+    filterable: [
+      { field: 'state', ops: ['eq'], values: ['future', 'active', 'closed'] },
+    ],
     description:
       'Sprints from scrum boards with state, start/end/complete dates, and owning board.',
     endpoint: 'GET /rest/agile/1.0/board/{boardId}/sprint',
@@ -380,6 +387,11 @@ export const jiraResources = defineResources({
   },
   jira_issue: {
     shape: 'entity',
+    filterable: [
+      { field: 'statusName', ops: ['eq'] },
+      { field: 'priority', ops: ['eq'] },
+      { field: 'issueType', ops: ['eq'] },
+    ],
     description:
       'Issues with status, priority, type, assignee, reporter, project, sprint, story points, and resolution date.',
     endpoint: 'GET /rest/api/3/search/jql',
@@ -389,6 +401,7 @@ export const jiraResources = defineResources({
   },
   jira_issue_status_change: {
     shape: 'event',
+    filterable: [],
     description:
       'Status transition events derived from issue changelogs, capturing the from/to status, author, and project.',
     endpoint: 'GET /rest/api/3/search/jql (expand=changelog)',
@@ -452,6 +465,30 @@ function formatJqlDate(iso: string): string | null {
     `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ` +
     `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`
   );
+}
+
+function jqlQuote(value: string): string {
+  return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+}
+
+function pushableEq(
+  filter: FilterClause[] | undefined,
+  field: string,
+): string | null {
+  if (!filter) {
+    return null;
+  }
+  for (const clause of filter) {
+    if (
+      'field' in clause &&
+      clause.field === field &&
+      clause.op === 'eq' &&
+      typeof clause.value === 'string'
+    ) {
+      return clause.value;
+    }
+  }
+  return null;
 }
 
 export const id = 'jira';
@@ -540,13 +577,19 @@ export class JiraConnector extends BaseConnector<
     );
   }
 
+  private singleSpec(
+    options: SyncOptions,
+    resource: string,
+  ): FetchSpec | undefined {
+    const specs = options.fetchSpecs?.[resource];
+    return specs && specs.length === 1 ? specs[0] : undefined;
+  }
+
   private buildJql(options: SyncOptions): string {
     const clauses: string[] = [];
     const keys = this.settings.projectKeys;
     if (keys && keys.length > 0) {
-      const quoted = keys.map(
-        (k) => `"${k.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`,
-      );
+      const quoted = keys.map((k) => jqlQuote(k));
       clauses.push(`project in (${quoted.join(',')})`);
     }
     if (options.mode === 'latest' && options.since) {
@@ -554,6 +597,19 @@ export class JiraConnector extends BaseConnector<
       if (formatted !== null) {
         clauses.push(`updated >= "${formatted}"`);
       }
+    }
+    const filter = this.singleSpec(options, 'jira_issue')?.filter;
+    const status = pushableEq(filter, 'statusName');
+    if (status !== null) {
+      clauses.push(`status = ${jqlQuote(status)}`);
+    }
+    const priority = pushableEq(filter, 'priority');
+    if (priority !== null) {
+      clauses.push(`priority = ${jqlQuote(priority)}`);
+    }
+    const issueType = pushableEq(filter, 'issueType');
+    if (issueType !== null) {
+      clauses.push(`issuetype = ${jqlQuote(issueType)}`);
     }
     const where = clauses.join(' AND ');
     return where.length > 0
@@ -615,8 +671,13 @@ export class JiraConnector extends BaseConnector<
 
   private async fetchSprintsForBoard(
     boardId: number,
+    options: SyncOptions,
     signal: AbortSignal | undefined,
   ): Promise<JiraSprint[]> {
+    const state = pushableEq(
+      this.singleSpec(options, 'jira_sprint')?.filter,
+      'state',
+    );
     const out: JiraSprint[] = [];
     let startAt = 0;
     while (true) {
@@ -626,6 +687,9 @@ export class JiraConnector extends BaseConnector<
       );
       u.searchParams.set('startAt', String(startAt));
       u.searchParams.set('maxResults', String(SPRINTS_PAGE_SIZE));
+      if (state !== null) {
+        u.searchParams.set('state', state);
+      }
       const res = await this.fetch<JiraAgilePage<JiraSprint>>(
         u.toString(),
         'sprints',
@@ -644,6 +708,7 @@ export class JiraConnector extends BaseConnector<
 
   private async fetchSprintsPage(
     page: string | null,
+    options: SyncOptions,
     signal: AbortSignal | undefined,
   ): Promise<{ items: JiraSprintWithBoard[]; next: string | null }> {
     const startAt = parseOffset(page);
@@ -654,7 +719,11 @@ export class JiraConnector extends BaseConnector<
       if (board.type !== 'scrum') {
         continue;
       }
-      const boardSprints = await this.fetchSprintsForBoard(board.id, signal);
+      const boardSprints = await this.fetchSprintsForBoard(
+        board.id,
+        options,
+        signal,
+      );
       for (const s of boardSprints) {
         sprints.push({ ...s, boardId: board.id });
       }
@@ -866,7 +935,7 @@ export class JiraConnector extends BaseConnector<
           case 'users':
             return this.fetchUsersPage(page, sig);
           case 'sprints':
-            return this.fetchSprintsPage(page, sig);
+            return this.fetchSprintsPage(page, options, sig);
           case 'issues':
             return this.fetchIssuesPage(page, options, sig);
         }

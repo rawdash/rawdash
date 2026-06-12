@@ -49,6 +49,23 @@ export interface DistributionsTable {
   attributes: JsonText;
 }
 
+export interface RollupsTable {
+  connector_id: string;
+  resource: string;
+  field: string;
+  granularity: string;
+  dims_key: string;
+  dims: JsonText;
+  bucket_start: number;
+  partials: JsonText;
+}
+
+export interface RollupWatermarksTable {
+  connector_id: string;
+  resource: string;
+  watermark: number;
+}
+
 export interface SyncStateTable {
   id: number;
   status: string;
@@ -70,6 +87,8 @@ export interface Database {
   metrics: MetricsTable;
   edges: EdgesTable;
   distributions: DistributionsTable;
+  rollups: RollupsTable;
+  rollup_watermarks: RollupWatermarksTable;
   sync_state: SyncStateTable;
   schema_migrations: SchemaMigrationsTable;
 }

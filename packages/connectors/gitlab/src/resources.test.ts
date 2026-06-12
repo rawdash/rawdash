@@ -239,3 +239,77 @@ describe('GitLabConnector — resource allowlist', () => {
     expect(stored.map((e) => e.id)).toEqual(['42:1']);
   });
 });
+
+describe('GitLabConnector — filter pushdown', () => {
+  let fetchSpy: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    fetchSpy = vi.fn().mockImplementation(() => Promise.resolve(mockJson([])));
+    vi.stubGlobal('fetch', fetchSpy);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  function listUrl(fragment: string): URL {
+    const url = fetchSpy.mock.calls
+      .map((c) => String(c[0]))
+      .find((u) => u.includes(fragment));
+    expect(url).toBeDefined();
+    return new URL(url!);
+  }
+
+  async function syncWith(
+    resource: string,
+    fetchSpecs: Record<string, { filter: unknown[] }[]>,
+  ): Promise<void> {
+    const connector = new GitLabConnector(
+      { host: 'gitlab.example.com', projectIds: [42] },
+      { apiToken: 'glpat-test' },
+    );
+    const handle = new InMemoryStorage().getStorageHandle('gitlab');
+    await connector.sync(
+      {
+        mode: 'full',
+        resources: new Set([resource]),
+        fetchSpecs: fetchSpecs as never,
+      },
+      handle,
+    );
+  }
+
+  it('pushes a merge request state filter', async () => {
+    await syncWith('merge_request', {
+      merge_request: [
+        { filter: [{ field: 'state', op: 'eq', value: 'merged' }] },
+      ],
+    });
+    expect(listUrl('/merge_requests').searchParams.get('state')).toBe('merged');
+  });
+
+  it('pushes an issue state filter', async () => {
+    await syncWith('issue', {
+      issue: [{ filter: [{ field: 'state', op: 'eq', value: 'closed' }] }],
+    });
+    expect(listUrl('/issues').searchParams.get('state')).toBe('closed');
+  });
+
+  it('pushes a pipeline status filter', async () => {
+    await syncWith('pipeline', {
+      pipeline: [{ filter: [{ field: 'status', op: 'eq', value: 'failed' }] }],
+    });
+    expect(listUrl('/pipelines').searchParams.get('status')).toBe('failed');
+  });
+
+  it('falls back to state=all when multiple specs target merge requests', async () => {
+    await syncWith('merge_request', {
+      merge_request: [
+        { filter: [{ field: 'state', op: 'eq', value: 'merged' }] },
+        { filter: [{ field: 'state', op: 'eq', value: 'opened' }] },
+      ],
+    });
+    expect(listUrl('/merge_requests').searchParams.get('state')).toBe('all');
+  });
+});

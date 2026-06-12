@@ -101,6 +101,45 @@ describe('PostHogConnector', () => {
     });
   });
 
+  it('pushes active=true to the feature_flags request for a single spec', async () => {
+    const spy = installFetchMock(() => ({ count: 0, next: null, results: [] }));
+    const storage = new InMemoryStorage();
+    await connector({ resources: ['feature_flags'] }).sync(
+      {
+        mode: 'full',
+        fetchSpecs: {
+          posthog_feature_flag: [
+            { filter: [{ field: 'active', op: 'eq', value: 'true' }] },
+          ],
+        },
+      },
+      storage.getStorageHandle(CONNECTOR_ID),
+    );
+
+    const url = String(spy.mock.calls[0]?.[0] ?? '');
+    expect(url).toContain('active=true');
+  });
+
+  it('omits the active filter when two feature_flag specs are provided', async () => {
+    const spy = installFetchMock(() => ({ count: 0, next: null, results: [] }));
+    const storage = new InMemoryStorage();
+    await connector({ resources: ['feature_flags'] }).sync(
+      {
+        mode: 'full',
+        fetchSpecs: {
+          posthog_feature_flag: [
+            { filter: [{ field: 'active', op: 'eq', value: 'true' }] },
+            { filter: [{ field: 'active', op: 'eq', value: 'false' }] },
+          ],
+        },
+      },
+      storage.getStorageHandle(CONNECTOR_ID),
+    );
+
+    const url = String(spy.mock.calls[0]?.[0] ?? '');
+    expect(url).not.toContain('active=');
+  });
+
   it('rolls up events per day from HogQL rows', async () => {
     installFetchMock(() => ({
       results: [

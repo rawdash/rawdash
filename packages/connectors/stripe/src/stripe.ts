@@ -7,6 +7,8 @@ import {
   type ConnectorContext,
   type ConnectorDoc,
   type CredentialsSchema,
+  type FetchSpec,
+  type FilterClause,
   type StorageHandle,
   type SyncOptions,
   type SyncResult,
@@ -247,6 +249,26 @@ const EVENT_NAME_BY_PHASE: Partial<Record<StripePhase, string>> = {
   refunds: 'stripe_refund',
 };
 
+function pushableEq(
+  filter: FilterClause[] | undefined,
+  field: string,
+): string | null {
+  if (!filter) {
+    return null;
+  }
+  for (const clause of filter) {
+    if (
+      'field' in clause &&
+      clause.field === field &&
+      clause.op === 'eq' &&
+      typeof clause.value === 'string'
+    ) {
+      return clause.value;
+    }
+  }
+  return null;
+}
+
 export function computeMrrAmountCents(
   subscription: StripeSubscription,
 ): number | null {
@@ -400,6 +422,7 @@ const refundSchema = z.object({
 export const stripeResources = defineResources({
   stripe_customer: {
     shape: 'entity',
+    filterable: [],
     description:
       'Customers with email, name, default currency, and delinquency state.',
     endpoint: 'GET /v1/customers',
@@ -407,12 +430,14 @@ export const stripeResources = defineResources({
   },
   stripe_product: {
     shape: 'entity',
+    filterable: [{ field: 'active', ops: ['eq'], values: ['true', 'false'] }],
     description: 'Products in your catalog, including active state.',
     endpoint: 'GET /v1/products',
     responses: { products: z.array(productSchema) },
   },
   stripe_price: {
     shape: 'entity',
+    filterable: [{ field: 'active', ops: ['eq'], values: ['true', 'false'] }],
     description:
       'Prices with unit amount, currency, and recurring interval, linked to their product.',
     endpoint: 'GET /v1/prices',
@@ -420,6 +445,22 @@ export const stripeResources = defineResources({
   },
   stripe_subscription: {
     shape: 'entity',
+    filterable: [
+      {
+        field: 'status',
+        ops: ['eq'],
+        values: [
+          'active',
+          'past_due',
+          'unpaid',
+          'canceled',
+          'incomplete',
+          'incomplete_expired',
+          'trialing',
+          'paused',
+        ],
+      },
+    ],
     description:
       'Subscriptions with status, current period, cancellation state, and computed monthly recurring revenue (mrrAmount, in the smallest currency unit).',
     endpoint: 'GET /v1/subscriptions',
@@ -470,6 +511,13 @@ export const stripeResources = defineResources({
   },
   stripe_invoice: {
     shape: 'entity',
+    filterable: [
+      {
+        field: 'status',
+        ops: ['eq'],
+        values: ['draft', 'open', 'paid', 'uncollectible', 'void'],
+      },
+    ],
     description:
       'Invoices with amount due, amount paid, status, and due date, linked to their customer and subscription.',
     endpoint: 'GET /v1/invoices',
@@ -502,6 +550,7 @@ export const stripeResources = defineResources({
   },
   stripe_charge: {
     shape: 'event',
+    filterable: [],
     description:
       'Charge attempts with amount, currency, status, and failure code, timestamped at creation.',
     endpoint: 'GET /v1/charges',
@@ -531,6 +580,7 @@ export const stripeResources = defineResources({
   },
   stripe_payment_intent: {
     shape: 'event',
+    filterable: [],
     description:
       'Payment intents with amount, currency, and status, timestamped at creation.',
     endpoint: 'GET /v1/payment_intents',
@@ -549,6 +599,7 @@ export const stripeResources = defineResources({
   },
   stripe_dispute: {
     shape: 'event',
+    filterable: [],
     description:
       'Disputes with amount, currency, reason, and status, linked to the disputed charge.',
     endpoint: 'GET /v1/disputes',
@@ -568,6 +619,7 @@ export const stripeResources = defineResources({
   },
   stripe_refund: {
     shape: 'event',
+    filterable: [],
     description:
       'Refunds with amount, currency, reason, and status, linked to the refunded charge.',
     endpoint: 'GET /v1/refunds',
@@ -673,6 +725,14 @@ export class StripeConnector extends BaseConnector<
     return String(Math.floor(new Date(options.since).getTime() / 1000));
   }
 
+  private singleSpec(
+    options: SyncOptions,
+    resource: string,
+  ): FetchSpec | undefined {
+    const specs = options.fetchSpecs?.[resource];
+    return specs && specs.length === 1 ? specs[0] : undefined;
+  }
+
   private buildPhaseUrl(
     phase: StripePhase,
     page: string | null,
@@ -680,8 +740,24 @@ export class StripeConnector extends BaseConnector<
   ): string {
     const startingAfter = page ?? undefined;
     if (phase in ENTITY_TYPE_BY_PHASE) {
-      const extra: Record<string, string | undefined> =
-        phase === 'subscriptions' ? { status: 'all' } : {};
+      const extra: Record<string, string | undefined> = {};
+      const filter = this.singleSpec(
+        options,
+        ENTITY_TYPE_BY_PHASE[phase]!,
+      )?.filter;
+      if (phase === 'subscriptions' || phase === 'invoices') {
+        const status = pushableEq(filter, 'status');
+        if (phase === 'subscriptions') {
+          extra.status = status ?? 'all';
+        } else if (status !== null) {
+          extra.status = status;
+        }
+      } else if (phase === 'products' || phase === 'prices') {
+        const active = pushableEq(filter, 'active');
+        if (active !== null) {
+          extra.active = active;
+        }
+      }
       return this.buildListUrl(phase, {
         ...extra,
         starting_after: startingAfter,

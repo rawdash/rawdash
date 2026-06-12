@@ -14,6 +14,8 @@ import {
   type ConnectorContext,
   type ConnectorDoc,
   type Entity,
+  type FetchSpec,
+  type FilterClause,
   type JSONValue,
   type MetricSample,
   type StorageHandle,
@@ -399,6 +401,23 @@ export const azureMonitorResources = defineResources({
   },
   [ALERT_ENTITY]: {
     shape: 'entity',
+    filterable: [
+      {
+        field: 'severity',
+        ops: ['eq'],
+        values: ['Sev0', 'Sev1', 'Sev2', 'Sev3', 'Sev4'],
+      },
+      {
+        field: 'state',
+        ops: ['eq'],
+        values: ['New', 'Acknowledged', 'Closed'],
+      },
+      {
+        field: 'monitorCondition',
+        ops: ['eq'],
+        values: ['Fired', 'Resolved'],
+      },
+    ],
     description:
       'Azure Monitor alerts at subscription scope. Upserted by alert id.',
     endpoint:
@@ -569,6 +588,26 @@ export function buildMetricSamples(
   return samples;
 }
 
+function pushableEq(
+  filter: FilterClause[] | undefined,
+  field: string,
+): string | null {
+  if (!filter) {
+    return null;
+  }
+  for (const clause of filter) {
+    if (
+      'field' in clause &&
+      clause.field === field &&
+      clause.op === 'eq' &&
+      typeof clause.value === 'string'
+    ) {
+      return clause.value;
+    }
+  }
+  return null;
+}
+
 export function buildAlertEntities(body: AlertsResponseBody): Entity[] {
   const entities: Entity[] = [];
   for (const alert of body.value ?? []) {
@@ -736,18 +775,40 @@ export class AzureMonitorConnector extends BaseAzureConnector<AzureMonitorSettin
   // alerts
   // -------------------------------------------------------------------------
 
-  private alertsUrl(): string {
+  private singleSpec(
+    options: SyncOptions,
+    resource: string,
+  ): FetchSpec | undefined {
+    const specs = options.fetchSpecs?.[resource];
+    return specs && specs.length === 1 ? specs[0] : undefined;
+  }
+
+  private alertsUrl(options: SyncOptions): string {
     const params = new URLSearchParams();
     params.set('api-version', ALERTS_API_VERSION);
+    const filter = this.singleSpec(options, ALERT_ENTITY)?.filter;
+    const severity = pushableEq(filter, 'severity');
+    if (severity !== null) {
+      params.set('severity', severity);
+    }
+    const state = pushableEq(filter, 'state');
+    if (state !== null) {
+      params.set('alertState', state);
+    }
+    const monitorCondition = pushableEq(filter, 'monitorCondition');
+    if (monitorCondition !== null) {
+      params.set('monitorCondition', monitorCondition);
+    }
     return `${ARM_HOST}/subscriptions/${encodeURIComponent(this.settings.subscriptionId)}/providers/Microsoft.AlertsManagement/alerts?${params.toString()}`;
   }
 
   private async syncAlerts(
+    options: SyncOptions,
     storage: StorageHandle,
     signal?: AbortSignal,
   ): Promise<boolean> {
     const phaseStart = Date.now();
-    let url: string | undefined = this.alertsUrl();
+    let url: string | undefined = this.alertsUrl(options);
     const collected: Entity[] = [];
     let pages = 0;
     while (url !== undefined) {
@@ -803,7 +864,7 @@ export class AzureMonitorConnector extends BaseAzureConnector<AzureMonitorSettin
       const completed =
         resource === 'metric_queries'
           ? await this.syncMetricQueries(options, storage, signal)
-          : await this.syncAlerts(storage, signal);
+          : await this.syncAlerts(options, storage, signal);
       if (!completed) {
         return { done: false };
       }

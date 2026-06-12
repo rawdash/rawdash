@@ -538,6 +538,100 @@ describe('ZendeskConnector.sync', () => {
     expect(ticketsCall!).toContain('cursor=OLD_CURSOR');
   });
 
+  it('pushes a single role filter onto the users request', async () => {
+    const fetchSpy = makeFetch(() => undefined);
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await connector({ resources: ['users'] }).sync(
+      {
+        mode: 'full',
+        fetchSpecs: {
+          zendesk_user: [
+            { filter: [{ field: 'role', op: 'eq', value: 'agent' }] },
+          ],
+        },
+      } as never,
+      makeStorage(),
+    );
+
+    const req = recordCalls(fetchSpy).find((c) =>
+      c.url.includes('/api/v2/users.json'),
+    );
+    expect(req).toBeDefined();
+    expect(req!.url).toContain('role=agent');
+  });
+
+  it('does not push a role filter when two user specs are provided', async () => {
+    const fetchSpy = makeFetch(() => undefined);
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await connector({ resources: ['users'] }).sync(
+      {
+        mode: 'full',
+        fetchSpecs: {
+          zendesk_user: [
+            { filter: [{ field: 'role', op: 'eq', value: 'agent' }] },
+            { filter: [{ field: 'role', op: 'eq', value: 'admin' }] },
+          ],
+        },
+      } as never,
+      makeStorage(),
+    );
+
+    const req = recordCalls(fetchSpy).find((c) =>
+      c.url.includes('/api/v2/users.json'),
+    );
+    expect(req).toBeDefined();
+    expect(req!.url).not.toContain('role=');
+  });
+
+  it('pushes a single score filter onto the satisfaction request', async () => {
+    const fetchSpy = makeFetch(() => undefined);
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await connector({ resources: ['satisfaction_ratings'] }).sync(
+      {
+        mode: 'full',
+        fetchSpecs: {
+          zendesk_satisfaction_rating: [
+            { filter: [{ field: 'score', op: 'eq', value: 'good' }] },
+          ],
+        },
+      } as never,
+      makeStorage(),
+    );
+
+    const req = recordCalls(fetchSpy).find((c) =>
+      c.url.includes('/api/v2/satisfaction_ratings.json'),
+    );
+    expect(req).toBeDefined();
+    expect(req!.url).toContain('score=good');
+  });
+
+  it('does not push a score filter when two satisfaction specs are provided', async () => {
+    const fetchSpy = makeFetch(() => undefined);
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await connector({ resources: ['satisfaction_ratings'] }).sync(
+      {
+        mode: 'full',
+        fetchSpecs: {
+          zendesk_satisfaction_rating: [
+            { filter: [{ field: 'score', op: 'eq', value: 'good' }] },
+            { filter: [{ field: 'score', op: 'eq', value: 'bad' }] },
+          ],
+        },
+      } as never,
+      makeStorage(),
+    );
+
+    const req = recordCalls(fetchSpy).find((c) =>
+      c.url.includes('/api/v2/satisfaction_ratings.json'),
+    );
+    expect(req).toBeDefined();
+    expect(req!.url).not.toContain('score=');
+  });
+
   it('sends basic auth and routes to the configured subdomain', async () => {
     const fetchSpy = makeFetch(() => undefined);
     vi.stubGlobal('fetch', fetchSpy);

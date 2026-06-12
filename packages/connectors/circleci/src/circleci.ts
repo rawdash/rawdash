@@ -9,6 +9,8 @@ import {
   type ConnectorContext,
   type ConnectorDoc,
   type CredentialsSchema,
+  type FetchSpec,
+  type FilterClause,
   type JSONValue,
   type StorageHandle,
   type SyncOptions,
@@ -284,6 +286,7 @@ const jobsResponseSchema = z.object({
 export const circleciResources = defineResources({
   circleci_pipeline: {
     shape: 'entity',
+    filterable: [{ field: 'branch', ops: ['eq'] }],
     description:
       'CircleCI pipelines with state, trigger, git ref, project slug, and create/update timestamps.',
     endpoint: 'GET /api/v2/project/{project_slug}/pipeline',
@@ -293,6 +296,7 @@ export const circleciResources = defineResources({
   },
   circleci_workflow: {
     shape: 'entity',
+    filterable: [],
     description:
       'Workflows belonging to each pipeline, including status, name, and start/stop timestamps. Fetched per pipeline with one extra API call.',
     endpoint: 'GET /api/v2/pipeline/{pipeline_id}/workflow',
@@ -300,6 +304,7 @@ export const circleciResources = defineResources({
   },
   circleci_job: {
     shape: 'entity',
+    filterable: [],
     description:
       'Jobs belonging to each workflow, including status, type, and start/stop timestamps. Off by default; enable via `resources` because it adds an API call per workflow.',
     endpoint: 'GET /api/v2/workflow/{workflow_id}/job',
@@ -307,6 +312,7 @@ export const circleciResources = defineResources({
   },
   circleci_pipeline_event: {
     shape: 'event',
+    filterable: [],
     description:
       'Each workflow emitted as a time-bounded event spanning its created_at to stopped_at, carrying the same status, project, and pipeline attributes.',
     endpoint: 'GET /api/v2/pipeline/{pipeline_id}/workflow',
@@ -323,6 +329,26 @@ const DEFAULT_LOOKBACK_DAYS = 30;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export const id = 'circleci';
+
+function pushableEq(
+  filter: FilterClause[] | undefined,
+  field: string,
+): string | null {
+  if (!filter) {
+    return null;
+  }
+  for (const clause of filter) {
+    if (
+      'field' in clause &&
+      clause.field === field &&
+      clause.op === 'eq' &&
+      typeof clause.value === 'string'
+    ) {
+      return clause.value;
+    }
+  }
+  return null;
+}
 
 export class CircleCIConnector extends BaseConnector<
   CircleCISettings,
@@ -391,6 +417,14 @@ export class CircleCIConnector extends BaseConnector<
     return new Set(this.settings.projectSlugs);
   }
 
+  private singleSpec(
+    options: SyncOptions,
+    resource: string,
+  ): FetchSpec | undefined {
+    const specs = options.fetchSpecs?.[resource];
+    return specs && specs.length === 1 ? specs[0] : undefined;
+  }
+
   private decodePageCursor(page: string | null): CirclePageCursor | null {
     if (page === null) {
       return null;
@@ -429,12 +463,23 @@ export class CircleCIConnector extends BaseConnector<
     return { phase: cursor.phase, page: this.encodePageCursor(decoded) };
   }
 
-  private buildPipelinesUrl(slug: string, token: string | null): string {
+  private buildPipelinesUrl(
+    slug: string,
+    token: string | null,
+    options: SyncOptions,
+  ): string {
     const u = new URL(
       `${CIRCLECI_API_BASE}/project/${encodeURI(slug)}/pipeline`,
     );
     if (this.settings.branch !== undefined) {
       u.searchParams.set('branch', this.settings.branch);
+    }
+    const pushedBranch = pushableEq(
+      this.singleSpec(options, 'circleci_pipeline')?.filter,
+      'branch',
+    );
+    if (pushedBranch !== null) {
+      u.searchParams.set('branch', pushedBranch);
     }
     if (token !== null) {
       u.searchParams.set('page-token', token);
@@ -524,7 +569,7 @@ export class CircleCIConnector extends BaseConnector<
     const decoded = page !== null ? this.decodePageCursor(page) : null;
     const slug = decoded?.slug ?? this.settings.projectSlugs[0]!;
     const token = decoded?.token ?? null;
-    const url = this.buildPipelinesUrl(slug, token);
+    const url = this.buildPipelinesUrl(slug, token, options);
     const res = await this.fetch<CircleCIPipelinesResponse>(
       url,
       'pipelines',

@@ -591,6 +591,66 @@ describe('SalesforceConnector.sync', () => {
   });
 });
 
+describe('SalesforceConnector filter pushdown', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  async function soqlFor(
+    phaseResource: string,
+    fromObject: string,
+    fetchSpecs: Record<string, { filter: unknown[] }[]>,
+  ): Promise<string> {
+    const fetchSpy = makeFetch(() => undefined);
+    vi.stubGlobal('fetch', fetchSpy);
+    await connector([phaseResource]).sync(
+      { mode: 'full', fetchSpecs: fetchSpecs as never },
+      makeStorage(),
+    );
+    const call = recordCalls(fetchSpy).find(
+      (c) => c.url.includes('/query') && c.url.includes(`FROM+${fromObject}`),
+    );
+    expect(call).toBeDefined();
+    return decodeURIComponent(new URL(call!.url).searchParams.get('q') ?? '');
+  }
+
+  it('pushes opportunity stage and boolean flags into SOQL WHERE', async () => {
+    const soql = await soqlFor('opportunities', 'Opportunity', {
+      salesforce_opportunity: [
+        {
+          filter: [
+            { field: 'stage', op: 'eq', value: 'Closed Won' },
+            { field: 'isWon', op: 'eq', value: true },
+          ],
+        },
+      ],
+    });
+    expect(soql).toContain("StageName = 'Closed Won'");
+    expect(soql).toContain('IsWon = true');
+  });
+
+  it('pushes a lead status filter into SOQL WHERE', async () => {
+    const soql = await soqlFor('leads', 'Lead', {
+      salesforce_lead: [
+        {
+          filter: [{ field: 'status', op: 'eq', value: 'Working - Contacted' }],
+        },
+      ],
+    });
+    expect(soql).toContain("Status = 'Working - Contacted'");
+  });
+
+  it('does not push when multiple specs target the resource', async () => {
+    const soql = await soqlFor('opportunities', 'Opportunity', {
+      salesforce_opportunity: [
+        { filter: [{ field: 'stage', op: 'eq', value: 'Closed Won' }] },
+        { filter: [{ field: 'stage', op: 'eq', value: 'Prospecting' }] },
+      ],
+    });
+    expect(soql).not.toContain('StageName =');
+  });
+});
+
 describe('SalesforceConnector.create', () => {
   afterEach(() => {
     vi.unstubAllEnvs();

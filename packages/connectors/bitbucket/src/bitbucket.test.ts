@@ -252,3 +252,73 @@ describe('BitbucketConnector — resource allowlist', () => {
     expect(stored.map((e) => e.id)).toEqual(['demo-ws/demo-repo:1']);
   });
 });
+
+describe('BitbucketConnector — filter pushdown', () => {
+  let fetchSpy: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    fetchSpy = vi
+      .fn()
+      .mockImplementation(() =>
+        Promise.resolve(mockJson({ values: [], next: null })),
+      );
+    vi.stubGlobal('fetch', fetchSpy);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  function pullRequestUrl(): string {
+    const urls = fetchSpy.mock.calls.map((c) => String(c[0]));
+    const url = urls.find((u) => u.includes('/pullrequests'));
+    expect(url).toBeDefined();
+    return url!;
+  }
+
+  it('pushes a declared state filter to the pull requests query', async () => {
+    const connector = new BitbucketConnector(
+      { workspace: 'demo-ws', repoSlugs: ['demo-repo'] },
+      { username: 'janedoe', appPassword: 'ATBB-test' },
+    );
+    const handle = new InMemoryStorage().getStorageHandle('bitbucket');
+    await connector.sync(
+      {
+        mode: 'full',
+        resources: new Set(['pull_request']),
+        fetchSpecs: {
+          pull_request: [
+            { filter: [{ field: 'state', op: 'eq', value: 'MERGED' }] },
+          ],
+        },
+      },
+      handle,
+    );
+    expect(new URL(pullRequestUrl()).searchParams.get('state')).toBe('MERGED');
+  });
+
+  it('fetches all states when multiple specs target the resource', async () => {
+    const connector = new BitbucketConnector(
+      { workspace: 'demo-ws', repoSlugs: ['demo-repo'] },
+      { username: 'janedoe', appPassword: 'ATBB-test' },
+    );
+    const handle = new InMemoryStorage().getStorageHandle('bitbucket');
+    await connector.sync(
+      {
+        mode: 'full',
+        resources: new Set(['pull_request']),
+        fetchSpecs: {
+          pull_request: [
+            { filter: [{ field: 'state', op: 'eq', value: 'MERGED' }] },
+            { filter: [{ field: 'state', op: 'eq', value: 'OPEN' }] },
+          ],
+        },
+      },
+      handle,
+    );
+    expect(new URL(pullRequestUrl()).searchParams.get('state')).toBe(
+      'OPEN,MERGED,DECLINED,SUPERSEDED',
+    );
+  });
+});

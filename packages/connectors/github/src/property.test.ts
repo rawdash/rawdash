@@ -987,6 +987,124 @@ describe('GitHubConnector property tests', () => {
         .filter((url) => url.match(/\/issues(\?|$)/));
       expect(issueCalls[0]).toContain('state=open');
     });
+
+    it('pushes ?status=completed for workflow_run when filtering on status', async () => {
+      const spy = installFetchMock((url) => {
+        if (url.includes('/actions/runs')) {
+          return { body: { workflow_runs: [] } };
+        }
+        return safeDefaultResponse(url);
+      });
+
+      const storage = new InMemoryStorage();
+      await buildConnector().sync(
+        {
+          mode: 'full',
+          resources: new Set(['workflow_run']),
+          fetchSpecs: {
+            workflow_run: [
+              { filter: [{ field: 'status', op: 'eq', value: 'completed' }] },
+            ],
+          },
+        },
+        storage.getStorageHandle(CONNECTOR_ID),
+      );
+
+      const runCalls = spy.mock.calls
+        .map(([url]) => String(url))
+        .filter((url) => url.includes('/actions/runs'));
+      expect(runCalls[0]).toContain('status=completed');
+    });
+
+    it('pushes ?status=success for workflow_run when filtering on conclusion', async () => {
+      const spy = installFetchMock((url) => {
+        if (url.includes('/actions/runs')) {
+          return { body: { workflow_runs: [] } };
+        }
+        return safeDefaultResponse(url);
+      });
+
+      const storage = new InMemoryStorage();
+      await buildConnector().sync(
+        {
+          mode: 'full',
+          resources: new Set(['workflow_run']),
+          fetchSpecs: {
+            workflow_run: [
+              {
+                filter: [{ field: 'conclusion', op: 'eq', value: 'success' }],
+              },
+            ],
+          },
+        },
+        storage.getStorageHandle(CONNECTOR_ID),
+      );
+
+      const runCalls = spy.mock.calls
+        .map(([url]) => String(url))
+        .filter((url) => url.includes('/actions/runs'));
+      expect(runCalls[0]).toContain('status=success');
+    });
+
+    it('pushes ?branch=main for workflow_run when filtering on branch', async () => {
+      const spy = installFetchMock((url) => {
+        if (url.includes('/actions/runs')) {
+          return { body: { workflow_runs: [] } };
+        }
+        return safeDefaultResponse(url);
+      });
+
+      const storage = new InMemoryStorage();
+      await buildConnector().sync(
+        {
+          mode: 'full',
+          resources: new Set(['workflow_run']),
+          fetchSpecs: {
+            workflow_run: [
+              { filter: [{ field: 'branch', op: 'eq', value: 'main' }] },
+            ],
+          },
+        },
+        storage.getStorageHandle(CONNECTOR_ID),
+      );
+
+      const runCalls = spy.mock.calls
+        .map(([url]) => String(url))
+        .filter((url) => url.includes('/actions/runs'));
+      expect(runCalls[0]).toContain('branch=main');
+    });
+
+    it('pushes ?environment=production for deployments', async () => {
+      const spy = installFetchMock((url) => {
+        if (url.match(/\/deployments(\?|$)/)) {
+          return { body: [] };
+        }
+        return safeDefaultResponse(url);
+      });
+
+      const storage = new InMemoryStorage();
+      await buildConnector().sync(
+        {
+          mode: 'full',
+          resources: new Set(['deployment']),
+          fetchSpecs: {
+            deployment: [
+              {
+                filter: [
+                  { field: 'environment', op: 'eq', value: 'production' },
+                ],
+              },
+            ],
+          },
+        },
+        storage.getStorageHandle(CONNECTOR_ID),
+      );
+
+      const deploymentCalls = spy.mock.calls
+        .map(([url]) => String(url))
+        .filter((url) => url.match(/\/deployments(\?|$)/));
+      expect(deploymentCalls[0]).toContain('environment=production');
+    });
   });
 
   it('repo_stats: sync upholds universal invariants for any valid API payload', async () => {

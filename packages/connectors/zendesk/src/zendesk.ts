@@ -8,6 +8,8 @@ import {
   type ConnectorContext,
   type ConnectorDoc,
   type CredentialsSchema,
+  type FetchSpec,
+  type FilterClause,
   type JSONValue,
   type StorageHandle,
   type SyncOptions,
@@ -299,6 +301,13 @@ function csatScore(ticket: TicketRecord): string | null {
 export const zendeskResources = defineResources({
   [USER_ENTITY]: {
     shape: 'entity',
+    filterable: [
+      {
+        field: 'role',
+        ops: ['eq'],
+        values: ['end-user', 'agent', 'admin'],
+      },
+    ],
     description:
       'Zendesk users (agents, admins, and end-users) with role and activity flags.',
     endpoint: 'GET /api/v2/users.json',
@@ -324,6 +333,7 @@ export const zendeskResources = defineResources({
   },
   [GROUP_ENTITY]: {
     shape: 'entity',
+    filterable: [],
     description: 'Agent groups used to route tickets.',
     endpoint: 'GET /api/v2/groups.json',
     fields: [
@@ -342,6 +352,7 @@ export const zendeskResources = defineResources({
   },
   [TICKET_ENTITY]: {
     shape: 'entity',
+    filterable: [],
     description:
       'Tickets with status, priority, assignment, channel, and tags.',
     endpoint: 'GET /api/v2/incremental/tickets/cursor.json',
@@ -392,6 +403,7 @@ export const zendeskResources = defineResources({
   },
   [TICKET_STATE_EVENT]: {
     shape: 'event',
+    filterable: [],
     description:
       'Ticket state-change events (created / solved) derived from each ticket.',
     endpoint: 'GET /api/v2/incremental/tickets/cursor.json',
@@ -428,6 +440,13 @@ export const zendeskResources = defineResources({
   },
   [SATISFACTION_RATING_ENTITY]: {
     shape: 'entity',
+    filterable: [
+      {
+        field: 'score',
+        ops: ['eq'],
+        values: ['good', 'bad', 'offered', 'unoffered', 'received'],
+      },
+    ],
     description:
       'Per-ticket customer satisfaction (CSAT) ratings with score and free-text comment.',
     endpoint: 'GET /api/v2/satisfaction_ratings.json',
@@ -484,6 +503,14 @@ export class ZendeskConnector extends BaseConnector<
     return `https://${this.settings.subdomain}.zendesk.com`;
   }
 
+  private singleSpec(
+    options: SyncOptions,
+    resource: string,
+  ): FetchSpec | undefined {
+    const specs = options.fetchSpecs?.[resource];
+    return specs && specs.length === 1 ? specs[0] : undefined;
+  }
+
   private buildHeaders(): Record<string, string> {
     return {
       Authorization: encodeBasicAuth(
@@ -507,20 +534,31 @@ export class ZendeskConnector extends BaseConnector<
     });
   }
 
-  private buildUserListUrl(cursor: string | null): string {
+  private buildUserListUrl(
+    cursor: string | null,
+    options: SyncOptions,
+  ): string {
     const params = new URLSearchParams({ 'page[size]': String(PAGE_SIZE) });
     if (cursor) {
       params.set('page[after]', cursor);
+    }
+    const role = pushableEq(
+      this.singleSpec(options, USER_ENTITY)?.filter,
+      'role',
+    );
+    if (role !== null) {
+      params.set('role', role);
     }
     return `${this.baseUrl}/api/v2/users.json?${params.toString()}`;
   }
 
   private async fetchUsers(
     page: string | null,
+    options: SyncOptions,
     signal?: AbortSignal,
   ): Promise<{ items: unknown[]; next: string | null }> {
     const res = await this.apiGet<UserListResponse>(
-      this.buildUserListUrl(page),
+      this.buildUserListUrl(page, options),
       'users',
       signal,
     );
@@ -715,6 +753,13 @@ export class ZendeskConnector extends BaseConnector<
         params.set('start_time', String(startTime));
       }
     }
+    const score = pushableEq(
+      this.singleSpec(options, SATISFACTION_RATING_ENTITY)?.filter,
+      'score',
+    );
+    if (score !== null) {
+      params.set('score', score);
+    }
     return `${this.baseUrl}/api/v2/satisfaction_ratings.json?${params.toString()}`;
   }
 
@@ -828,7 +873,7 @@ export class ZendeskConnector extends BaseConnector<
       fetchPage: async (phase, page, sig) => {
         switch (phase) {
           case 'users':
-            return this.fetchUsers(page, sig);
+            return this.fetchUsers(page, options, sig);
           case 'groups':
             return this.fetchGroups(page, sig);
           case 'tickets':
@@ -854,6 +899,26 @@ const ENTITY_TYPE_BY_PHASE: Partial<Record<ZendeskPhase, string>> = {
   tickets: TICKET_ENTITY,
   satisfaction_ratings: SATISFACTION_RATING_ENTITY,
 };
+
+function pushableEq(
+  filter: FilterClause[] | undefined,
+  field: string,
+): string | null {
+  if (!filter) {
+    return null;
+  }
+  for (const clause of filter) {
+    if (
+      'field' in clause &&
+      clause.field === field &&
+      clause.op === 'eq' &&
+      typeof clause.value === 'string'
+    ) {
+      return clause.value;
+    }
+  }
+  return null;
+}
 
 function sinceUnixSec(options: SyncOptions): number | null {
   if (!options.since) {

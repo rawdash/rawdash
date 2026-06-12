@@ -12,6 +12,8 @@ import {
   type ConnectorContext,
   type ConnectorDoc,
   type CredentialsSchema,
+  type FetchSpec,
+  type FilterClause,
   type StorageHandle,
   type SyncOptions,
   type SyncResult,
@@ -367,6 +369,18 @@ export const sentryResources = defineResources({
     description:
       'Sentry issues (error groups) with level, status, occurrence count, affected user count, and first/last seen timestamps.',
     endpoint: 'GET /api/0/organizations/{organization}/issues/',
+    filterable: [
+      {
+        field: 'status',
+        ops: ['eq'],
+        values: ['resolved', 'unresolved', 'ignored'],
+      },
+      {
+        field: 'level',
+        ops: ['eq'],
+        values: ['fatal', 'error', 'warning', 'info', 'debug', 'sample'],
+      },
+    ],
     responses: { issues: issueResponseSchema },
   },
   sentry_issue_event: {
@@ -376,6 +390,7 @@ export const sentryResources = defineResources({
     endpoint: 'GET /api/0/issues/{issueId}/events/',
     notes:
       'Events are sampled: at most eventsPerIssueCap recent events per issue per sync (Sentry caps a single events page at 100), so this is a representative sample, not a full audit trail.',
+    filterable: [],
     responses: { issue_events: issueEventResponseSchema },
   },
   sentry_release: {
@@ -383,6 +398,7 @@ export const sentryResources = defineResources({
     description:
       'Releases with their versions, associated project slugs, and creation/release/last-event timestamps.',
     endpoint: 'GET /api/0/organizations/{organization}/releases/',
+    filterable: [],
     responses: { releases: releaseResponseSchema },
   },
   sentry_errors_per_hour: {
@@ -400,6 +416,24 @@ export const sentryResources = defineResources({
 });
 
 export const id = 'sentry';
+
+function pushableIssueQueryTerms(filter: FilterClause[] | undefined): string[] {
+  if (!filter) {
+    return [];
+  }
+  const terms: string[] = [];
+  for (const clause of filter) {
+    if (!('field' in clause) || clause.op !== 'eq') {
+      continue;
+    }
+    if (clause.field === 'status' && typeof clause.value === 'string') {
+      terms.push(`is:${clause.value}`);
+    } else if (clause.field === 'level' && typeof clause.value === 'string') {
+      terms.push(`level:${clause.value}`);
+    }
+  }
+  return terms;
+}
 
 export class SentryConnector extends BaseConnector<
   SentrySettings,
@@ -504,7 +538,10 @@ export class SentryConnector extends BaseConnector<
     };
   }
 
-  private buildInitialIssuesUrl(options: SyncOptions): string {
+  private buildInitialIssuesUrl(
+    options: SyncOptions,
+    spec?: FetchSpec,
+  ): string {
     const u = new URL(
       `${SENTRY_API_BASE}/organizations/${this.settings.organization}/issues/`,
     );
@@ -516,10 +553,23 @@ export class SentryConnector extends BaseConnector<
     for (const project of this.settings.projects ?? []) {
       u.searchParams.append('project', project);
     }
+    const queryTerms: string[] = [];
     if (options.since) {
-      u.searchParams.set('query', `lastSeen:>${options.since}`);
+      queryTerms.push(`lastSeen:>${options.since}`);
+    }
+    queryTerms.push(...pushableIssueQueryTerms(spec?.filter));
+    if (queryTerms.length > 0) {
+      u.searchParams.set('query', queryTerms.join(' '));
     }
     return u.toString();
+  }
+
+  private singleSpec(
+    options: SyncOptions,
+    resource: string,
+  ): FetchSpec | undefined {
+    const specs = options.fetchSpecs?.[resource];
+    return specs && specs.length === 1 ? specs[0] : undefined;
   }
 
   private buildInitialReleasesUrl(options: SyncOptions): string {
@@ -568,7 +618,12 @@ export class SentryConnector extends BaseConnector<
     options: SyncOptions,
     signal: AbortSignal | undefined,
   ): Promise<{ items: IssuesPageItem[]; next: string | null }> {
-    const url = page ?? this.buildInitialIssuesUrl(options);
+    const url =
+      page ??
+      this.buildInitialIssuesUrl(
+        options,
+        this.singleSpec(options, 'sentry_issue'),
+      );
     const res = await this.fetch<SentryIssue[]>(url, 'issues', signal);
 
     const nextLink = parseSentryLink(res.headers.get('link'), 'next');

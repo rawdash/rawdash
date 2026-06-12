@@ -474,6 +474,7 @@ const publisherListingSchema = z.object({
 export const googlePlayConsoleResources = defineResources({
   apps: {
     shape: 'entity',
+    filterable: [],
     description:
       'Android app the connector is syncing. One entity per configured packageName.',
     endpoint: 'GET /androidpublisher/v3/applications/{packageName}/listings',

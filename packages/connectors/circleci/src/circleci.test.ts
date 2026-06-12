@@ -426,6 +426,43 @@ describe('CircleCIConnector.sync', () => {
     expect(new URL(pipelinesCall!).searchParams.get('branch')).toBe('release');
   });
 
+  it('pushes branch eq from a single fetch spec onto the pipeline request', async () => {
+    const { calls } = installRouter(() => emptyPipelinesResponse());
+    await makeConnector({ resources: ['pipelines'] }).sync(
+      {
+        mode: 'full',
+        fetchSpecs: {
+          circleci_pipeline: [
+            { filter: [{ field: 'branch', op: 'eq', value: 'main' }] },
+          ],
+        },
+      },
+      makeStorage(),
+    );
+    const pipelinesCall = calls.find((c) => c.includes('/project/'));
+    expect(pipelinesCall).toBeDefined();
+    expect(new URL(pipelinesCall!).searchParams.get('branch')).toBe('main');
+  });
+
+  it('does not push branch when more than one fetch spec is provided', async () => {
+    const { calls } = installRouter(() => emptyPipelinesResponse());
+    await makeConnector({ resources: ['pipelines'] }).sync(
+      {
+        mode: 'full',
+        fetchSpecs: {
+          circleci_pipeline: [
+            { filter: [{ field: 'branch', op: 'eq', value: 'main' }] },
+            { filter: [{ field: 'branch', op: 'eq', value: 'release' }] },
+          ],
+        },
+      },
+      makeStorage(),
+    );
+    const pipelinesCall = calls.find((c) => c.includes('/project/'));
+    expect(pipelinesCall).toBeDefined();
+    expect(new URL(pipelinesCall!).searchParams.get('branch')).toBeNull();
+  });
+
   it('iterates across multiple project slugs', async () => {
     const { calls } = installRouter(() => emptyPipelinesResponse());
     await makeConnector({
