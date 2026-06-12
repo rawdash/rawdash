@@ -21,7 +21,7 @@ export interface MetricValidationResult {
 }
 
 export type ResourcesByConnectorId = Readonly<
-  Record<string, ResourceDefinitions>
+  Partial<Record<string, ResourceDefinitions>>
 >;
 
 export function resourcesByConnectorIdFromRegistry(
@@ -178,7 +178,7 @@ function validateMetric(
   }
 
   const fields = declaredFields(resource);
-  if (fields && fields.length > 0) {
+  if (fields) {
     const valid = new Set<string>([
       ...fields.map((f) => f.name),
       ...IMPLICIT_FIELDS[metric.shape],

@@ -146,12 +146,16 @@ export async function validateConfigRemote(
     return { errors: [], warnings: [], skipped: true };
   }
 
-  const body = (await res.json()) as MetricValidationResult;
-  return {
-    errors: body.errors ?? [],
-    warnings: body.warnings ?? [],
-    skipped: false,
-  };
+  try {
+    const body = (await res.json()) as MetricValidationResult;
+    return {
+      errors: body.errors ?? [],
+      warnings: body.warnings ?? [],
+      skipped: false,
+    };
+  } catch {
+    return { errors: [], warnings: [], skipped: true };
+  }
 }
 
 async function buildDeployFailure(

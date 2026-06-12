@@ -84,6 +84,7 @@ describe('createConfigValidateRouter', () => {
         },
       }),
     );
+    expect(res.status).toBe(200);
     const body = (await res.json()) as {
       errors: { message: string }[];
       warnings: unknown[];
@@ -108,11 +109,22 @@ describe('createConfigValidateRouter', () => {
         },
       }),
     );
+    expect(res.status).toBe(200);
     const body = (await res.json()) as {
       errors: unknown[];
       warnings: { message: string }[];
     };
     expect(body.errors).toEqual([]);
     expect(body.warnings[0]?.message).toContain('cents');
+  });
+
+  it('returns 400 for a malformed body', async () => {
+    const app = makeApp();
+    const res = await app.request('/config/validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nonsense: true }),
+    });
+    expect(res.status).toBe(400);
   });
 });

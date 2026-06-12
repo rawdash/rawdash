@@ -21,8 +21,20 @@ export function createConfigValidateRouter(
   const resources = resourcesByConnectorIdFromRegistry(opts.connectorRegistry);
   app.post('/', async (c) => {
     try {
-      const config = (await c.req.json()) as DashboardConfig;
-      return c.json(validateConfigMetrics(config, resources));
+      const body = (await c.req.json()) as Partial<DashboardConfig>;
+      if (
+        !body ||
+        typeof body !== 'object' ||
+        !Array.isArray(body.connectors) ||
+        !body.dashboards ||
+        typeof body.dashboards !== 'object'
+      ) {
+        return c.json(
+          { error: 'Body must be a config with "connectors" and "dashboards"' },
+          400,
+        );
+      }
+      return c.json(validateConfigMetrics(body as DashboardConfig, resources));
     } catch (err) {
       return mapError(c, err);
     }
