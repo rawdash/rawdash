@@ -20,6 +20,7 @@ const acmeResources = defineResources({
   acme_charge: {
     shape: 'event',
     description: 'Charge attempts.',
+    filterable: [],
     fields: [
       { name: 'amount', description: 'Amount in cents.', unit: 'cents' },
       { name: 'status', description: 'Charge status.' },
@@ -28,6 +29,7 @@ const acmeResources = defineResources({
   acme_subscription: {
     shape: 'entity',
     description: 'Subscriptions.',
+    filterable: [],
     fields: [{ name: 'status', description: 'Subscription status.' }],
   },
 });
