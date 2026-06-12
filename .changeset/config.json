@@ -52,6 +52,7 @@
       "@rawdash/connector-openai",
       "@rawdash/connector-langfuse",
       "@rawdash/connector-branch",
+      "@rawdash/connector-vertex-ai",
       "@rawdash/connectors",
       "@rawdash/adapter-libsql",
       "@rawdash/adapter-sqlite",

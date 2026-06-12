@@ -2362,17 +2362,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     requestIssue: 'RAW-428',
   },
   {
-    id: 'vertex-ai',
-    name: 'Vertex AI',
-    category: 'engineering',
-    tagline:
-      'Sync model invocations, tokens, and spend across Vertex AI - Gemini and third-party models.',
-    icon: 'googlecloud',
-    domain: 'cloud.google.com',
-    requestIssue: 'RAW-413',
-  },
-
-  {
     id: 'sonarqube',
     name: 'SonarQube',
     category: 'engineering',
