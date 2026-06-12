@@ -2,6 +2,7 @@ export const ROUTES = {
   health: '/health',
   syncState: '/sync/state',
   sync: '/sync',
+  configValidate: '/config/validate',
   retention: '/retention/retain',
   widgets: {
     list: (dashboardId: string): string =>

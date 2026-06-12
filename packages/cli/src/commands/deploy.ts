@@ -1,11 +1,15 @@
 import { confirm, isCancel, spinner } from '@clack/prompts';
 import { Command } from 'commander';
 
-import { postConfig } from '../lib/api-client';
+import { postConfig, validateConfigRemote } from '../lib/api-client';
 import { findConfigFile, loadConfig } from '../lib/config-loader';
 import { requireApiKey } from '../lib/env';
-import { validateMetricsOrThrow } from '../lib/metric-validation';
-import { printDiff, printError, printSuccess } from '../lib/output';
+import {
+  printDiff,
+  printError,
+  printSuccess,
+  printWarning,
+} from '../lib/output';
 
 export const deployCommand = new Command('deploy')
   .description('Deploy rawdash.config.ts to the server')
@@ -34,13 +38,23 @@ export const deployCommand = new Command('deploy')
       s.stop('Config loaded');
 
       s.start('Validating metrics...');
-      try {
-        await validateMetricsOrThrow(config);
-        s.stop('Metrics valid');
-      } catch (err) {
+      const validation = await validateConfigRemote(config);
+      if (validation.skipped) {
+        s.stop('Metric validation skipped (server does not support it)');
+      } else if (validation.errors.length > 0) {
         s.stop('Metric validation failed');
-        printError(err instanceof Error ? err.message : String(err));
+        for (const warning of validation.warnings) {
+          printWarning(`${warning.ref}: ${warning.message}`);
+        }
+        for (const error of validation.errors) {
+          printError(`${error.ref}: ${error.message}`);
+        }
         process.exit(2);
+      } else {
+        s.stop('Metrics valid');
+        for (const warning of validation.warnings) {
+          printWarning(`${warning.ref}: ${warning.message}`);
+        }
       }
 
       s.start('Fetching diff...');

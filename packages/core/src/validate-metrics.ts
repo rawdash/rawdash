@@ -1,5 +1,6 @@
 import type { ComputedMetric, DashboardConfig, Shape, Widget } from './config';
 import type { FilterClause } from './filters';
+import type { ConnectorRegistry } from './registry';
 import type {
   ResourceDefinition,
   ResourceDefinitions,
@@ -22,6 +23,18 @@ export interface MetricValidationResult {
 export type ResourcesByConnectorId = Readonly<
   Record<string, ResourceDefinitions>
 >;
+
+export function resourcesByConnectorIdFromRegistry(
+  registry: ConnectorRegistry,
+): ResourcesByConnectorId {
+  const out: Record<string, ResourceDefinitions> = {};
+  for (const [connectorId, Cls] of Object.entries(registry)) {
+    if (Cls.resources) {
+      out[connectorId] = Cls.resources;
+    }
+  }
+  return out;
+}
 
 const IMPLICIT_FIELDS: Record<Shape, readonly string[]> = {
   event: ['name', 'start_ts', 'end_ts'],

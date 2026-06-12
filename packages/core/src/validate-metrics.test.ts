@@ -2,9 +2,13 @@ import { describe, expect, it } from 'vitest';
 
 import { defineConfig, defineDashboard, defineMetric } from './config';
 import type { DashboardConfig } from './config';
+import type { ConnectorRegistry } from './registry';
 import { defineResources } from './resource';
 import type { ResourcesByConnectorId } from './validate-metrics';
-import { validateConfigMetrics } from './validate-metrics';
+import {
+  resourcesByConnectorIdFromRegistry,
+  validateConfigMetrics,
+} from './validate-metrics';
 
 const acmeResources = defineResources({
   acme_active_users: {
@@ -305,5 +309,17 @@ describe('validateConfigMetrics', () => {
     });
     const { errors } = validateConfigMetrics(config, resourcesByConnectorId);
     expect(errors).toEqual([]);
+  });
+});
+
+describe('resourcesByConnectorIdFromRegistry', () => {
+  it('extracts resources from each connector class, skipping those without', () => {
+    const registry = {
+      acme: { resources: acmeResources },
+      bare: {},
+    } as unknown as ConnectorRegistry;
+    const resources = resourcesByConnectorIdFromRegistry(registry);
+    expect(Object.keys(resources)).toEqual(['acme']);
+    expect(resources.acme).toBe(acmeResources);
   });
 });

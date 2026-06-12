@@ -1,7 +1,6 @@
 import { Command } from 'commander';
 
 import { findConfigFile, loadConfig } from '../lib/config-loader';
-import { validateMetricsOrThrow } from '../lib/metric-validation';
 import { printError, printSuccess } from '../lib/output';
 
 export const validateCommand = new Command('validate')
@@ -17,7 +16,6 @@ export const validateCommand = new Command('validate')
 
     try {
       const config = await loadConfig(configPath);
-      await validateMetricsOrThrow(config);
       console.log(JSON.stringify(config, null, 2));
       printSuccess('Config is valid');
     } catch (err) {

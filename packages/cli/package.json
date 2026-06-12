@@ -31,7 +31,6 @@
   },
   "dependencies": {
     "@clack/prompts": "^0.9.0",
-    "@rawdash/connectors": "workspace:*",
     "@rawdash/core": "workspace:*",
     "commander": "^13.0.0",
     "picocolors": "^1.1.0",

@@ -4,6 +4,8 @@ export { createSyncRouter, createSyncStateRouter } from './sync';
 export type { SyncRouterOptions } from './sync';
 export { createWidgetsRouter } from './widgets';
 export type { HonoWidgetsRouterOptions } from './widgets';
+export { createConfigValidateRouter } from './config-validate';
+export type { ConfigValidateRouterOptions } from './config-validate';
 export { createRetentionRouter, startRetentionLoop } from './retention';
 export type { RetentionLoopOptions } from './retention';
 export { mountEngine } from './mount';

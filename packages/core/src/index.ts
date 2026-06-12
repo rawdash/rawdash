@@ -149,7 +149,11 @@ export type {
   ResourcesByConnectorId,
 } from './validate-metrics';
 
-export { formatMetricIssues, validateConfigMetrics } from './validate-metrics';
+export {
+  formatMetricIssues,
+  resourcesByConnectorIdFromRegistry,
+  validateConfigMetrics,
+} from './validate-metrics';
 
 export { computeMetric } from './compute';
 
