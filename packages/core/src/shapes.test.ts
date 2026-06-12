@@ -198,6 +198,7 @@ describe('defineConfig validation', () => {
                 metric: defineMetric({
                   connector,
                   shape: 'event',
+                  name: 'run',
                   field: 'start_ts',
                   fn: 'count',
                 }),
@@ -304,6 +305,53 @@ describe('defineConfig validation', () => {
     ).toThrow(/field is required unless fn is "count"/);
   });
 
+  it('allows a metric keyed by entityType without a name', () => {
+    expect(() =>
+      defineConfig({
+        connectors: [connector],
+        dashboards: {
+          main: defineDashboard({
+            widgets: {
+              w: {
+                kind: 'stat',
+                title: 'W',
+                metric: {
+                  connectorId: 'c',
+                  shape: 'event',
+                  entityType: 'workflow_run',
+                  fn: 'count',
+                },
+              },
+            },
+          }),
+        },
+      }),
+    ).not.toThrow();
+  });
+
+  it('throws for a metric with neither name nor entityType', () => {
+    expect(() =>
+      defineConfig({
+        connectors: [connector],
+        dashboards: {
+          main: defineDashboard({
+            widgets: {
+              w: {
+                kind: 'stat',
+                title: 'W',
+                metric: {
+                  connectorId: 'c',
+                  shape: 'event',
+                  fn: 'count',
+                },
+              },
+            },
+          }),
+        },
+      }),
+    ).toThrow(/either name or entityType is required/);
+  });
+
   it('throws for dashboard key with URL-unsafe characters', () => {
     expect(() =>
       defineConfig({
@@ -328,6 +376,7 @@ describe('defineConfig validation', () => {
                 metric: defineMetric({
                   connector,
                   shape: 'event',
+                  name: 'run',
                   field: 'start_ts',
                   fn: 'count',
                 }),
@@ -549,6 +598,7 @@ describe('defineDashboard widget validation', () => {
   const metric = defineMetric({
     connector: { name: 'c' },
     shape: 'event',
+    name: 'run',
     field: 'start_ts',
     fn: 'count',
   });

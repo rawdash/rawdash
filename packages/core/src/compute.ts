@@ -127,7 +127,7 @@ export async function computeMetric(
   switch (metric.shape) {
     case 'event': {
       const events = await storage.queryEvents({
-        name: metric.name,
+        name: metric.name ?? metric.entityType,
         start: windowStart,
       });
       records = events.map((e) => ({
@@ -156,7 +156,7 @@ export async function computeMetric(
 
     case 'metric': {
       const metrics = await storage.queryMetrics({
-        name: metric.name,
+        name: metric.name ?? metric.entityType,
         start: windowStart,
       });
       records = metrics.map((m) => ({
@@ -187,7 +187,7 @@ export async function computeMetric(
 
     case 'distribution': {
       const distributions = await storage.queryDistributions({
-        name: metric.name,
+        name: metric.name ?? metric.entityType,
         start: windowStart,
       });
       records = distributions.map((d) => ({
