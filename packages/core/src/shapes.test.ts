@@ -271,6 +271,30 @@ describe('defineConfig validation', () => {
     ).toThrow(/field is required unless fn is "count"/);
   });
 
+  it('allows a metric keyed by entityType without a name', () => {
+    expect(() =>
+      defineConfig({
+        connectors: [connector],
+        dashboards: {
+          main: defineDashboard({
+            widgets: {
+              w: {
+                kind: 'stat',
+                title: 'W',
+                metric: {
+                  connectorId: 'c',
+                  shape: 'event',
+                  entityType: 'workflow_run',
+                  fn: 'count',
+                },
+              },
+            },
+          }),
+        },
+      }),
+    ).not.toThrow();
+  });
+
   it('throws for a metric with neither name nor entityType', () => {
     expect(() =>
       defineConfig({

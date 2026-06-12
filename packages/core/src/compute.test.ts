@@ -418,6 +418,34 @@ describe('computeMetric — distributions', () => {
     });
     expect(result).toBe(2);
   });
+
+  it('falls back to entityType when name is absent', async () => {
+    const h = makeHandle();
+    await h.distributions([
+      {
+        name: 'latency',
+        ts: NOW - 1000,
+        kind: 'histogram',
+        data: { buckets: [], count: 10, sum: 1 },
+        attributes: {},
+      },
+      {
+        name: 'latency',
+        ts: NOW - 2000,
+        kind: 'histogram',
+        data: { buckets: [], count: 5, sum: 0.5 },
+        attributes: {},
+      },
+    ]);
+    const result = await computeMetric(h, {
+      connectorId: 'c',
+      shape: 'distribution',
+      entityType: 'latency',
+      field: 'ts',
+      fn: 'count',
+    });
+    expect(result).toBe(2);
+  });
 });
 
 describe('computeMetric — validation', () => {
