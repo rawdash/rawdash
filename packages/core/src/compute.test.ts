@@ -28,6 +28,32 @@ describe('computeMetric — events', () => {
     expect(result).toBe(2);
   });
 
+  it('falls back to entityType when name is absent', async () => {
+    const h = makeHandle();
+    await h.events([
+      {
+        name: 'workflow_run',
+        start_ts: NOW - 1000,
+        end_ts: null,
+        attributes: {},
+      },
+      {
+        name: 'workflow_run',
+        start_ts: NOW - 2000,
+        end_ts: null,
+        attributes: {},
+      },
+    ]);
+    const result = await computeMetric(h, {
+      connectorId: 'c',
+      shape: 'event',
+      entityType: 'workflow_run',
+      field: 'start_ts',
+      fn: 'count',
+    });
+    expect(result).toBe(2);
+  });
+
   it('returns latest attribute value', async () => {
     const h = makeHandle();
     await h.events([
@@ -167,6 +193,38 @@ describe('computeMetric — entities', () => {
     expect(result).toBe(2);
   });
 
+  it('counts open pull_request entities with a state filter', async () => {
+    const h = makeHandle();
+    await h.entities([
+      {
+        type: 'pull_request',
+        id: '1',
+        attributes: { state: 'open' },
+        updated_at: NOW,
+      },
+      {
+        type: 'pull_request',
+        id: '2',
+        attributes: { state: 'open' },
+        updated_at: NOW,
+      },
+      {
+        type: 'pull_request',
+        id: '3',
+        attributes: { state: 'closed' },
+        updated_at: NOW,
+      },
+    ]);
+    const result = await computeMetric(h, {
+      connectorId: 'c',
+      shape: 'entity',
+      entityType: 'pull_request',
+      fn: 'count',
+      filter: [{ field: 'state', op: 'eq', value: 'open' }],
+    });
+    expect(result).toBe(2);
+  });
+
   it('filters entities by attribute', async () => {
     const h = makeHandle();
     await h.entities([
@@ -216,6 +274,22 @@ describe('computeMetric — metrics shape', () => {
       connectorId: 'c',
       shape: 'metric',
       name: 'spend',
+      field: 'value',
+      fn: 'sum',
+    });
+    expect(result).toBe(30);
+  });
+
+  it('falls back to entityType when name is absent', async () => {
+    const h = makeHandle();
+    await h.metrics([
+      { name: 'spend', ts: NOW - 1000, value: 10, attributes: {} },
+      { name: 'spend', ts: NOW - 2000, value: 20, attributes: {} },
+    ]);
+    const result = await computeMetric(h, {
+      connectorId: 'c',
+      shape: 'metric',
+      entityType: 'spend',
       field: 'value',
       fn: 'sum',
     });

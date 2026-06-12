@@ -59,6 +59,10 @@ export const computedMetricSchema = z
   .refine((m) => m.fn === 'count' || m.field !== undefined, {
     message: 'field is required unless fn is "count"',
     path: ['field'],
+  })
+  .refine((m) => m.name !== undefined || m.entityType !== undefined, {
+    message: 'either name or entityType is required to identify the data',
+    path: ['name'],
   });
 
 const titleField = z
