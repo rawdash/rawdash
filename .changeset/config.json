@@ -50,6 +50,7 @@
       "@rawdash/connector-revenuecat",
       "@rawdash/connector-firebase-analytics",
       "@rawdash/connector-openai",
+      "@rawdash/connector-langfuse",
       "@rawdash/connectors",
       "@rawdash/adapter-libsql",
       "@rawdash/adapter-sqlite",
