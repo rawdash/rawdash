@@ -124,12 +124,14 @@ export function defineDashboard(options: {
 }
 
 export function defineMetric(options: Metric): ComputedMetric {
+  const field =
+    options.field ?? (options.shape === 'metric' ? 'value' : undefined);
   return {
     connectorId: options.connector.name,
     shape: options.shape,
     name: options.name,
     entityType: options.entityType,
-    field: options.field,
+    field,
     fn: options.fn,
     window: options.window,
     filter: options.filter,

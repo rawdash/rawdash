@@ -126,6 +126,40 @@ describe('defineMetric', () => {
     expect(resolved.fn).toBe('latest');
   });
 
+  it('defaults field to "value" for metric shape when omitted', () => {
+    const connector = { name: 'c' };
+    const resolved = defineMetric({
+      connector,
+      shape: 'metric',
+      name: 'events_per_day',
+      fn: 'sum',
+    });
+    expect(resolved.field).toBe('value');
+  });
+
+  it('does not default field for non-metric shapes', () => {
+    const connector = { name: 'c' };
+    const resolved = defineMetric({
+      connector,
+      shape: 'event',
+      name: 'deploy',
+      fn: 'count',
+    });
+    expect(resolved.field).toBeUndefined();
+  });
+
+  it('keeps an explicit field on metric shape', () => {
+    const connector = { name: 'c' };
+    const resolved = defineMetric({
+      connector,
+      shape: 'metric',
+      name: 'events',
+      field: 'custom',
+      fn: 'sum',
+    });
+    expect(resolved.field).toBe('custom');
+  });
+
   it('preserves window, filter, and groupBy', () => {
     const connector = { name: 'c' };
     const resolved = defineMetric({
