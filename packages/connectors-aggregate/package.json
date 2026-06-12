@@ -36,6 +36,7 @@
   "dependencies": {
     "@rawdash/connector-app-store-connect": "workspace:*",
     "@rawdash/connector-appsflyer": "workspace:*",
+    "@rawdash/connector-aws-bedrock": "workspace:*",
     "@rawdash/connector-aws-cloudwatch": "workspace:*",
     "@rawdash/connector-aws-cost": "workspace:*",
     "@rawdash/connector-azure-cost": "workspace:*",

@@ -1803,16 +1803,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     domain: 'airbase.com',
   },
   {
-    id: 'aws-bedrock',
-    name: 'AWS Bedrock',
-    category: 'engineering',
-    tagline:
-      'Sync model invocations, tokens, and spend across Bedrock-hosted models.',
-    brandColor: '#FF9900',
-    domain: 'aws.amazon.com',
-    requestIssue: 'RAW-412',
-  },
-  {
     id: 'aws-ses',
     name: 'Amazon SES',
     category: 'engineering',

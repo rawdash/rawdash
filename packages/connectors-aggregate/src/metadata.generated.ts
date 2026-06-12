@@ -13,6 +13,13 @@ import {
   resources as appsflyerResources,
 } from '@rawdash/connector-appsflyer';
 import {
+  configFields as awsBedrockConfigFields,
+  cost as awsBedrockCost,
+  doc as awsBedrockDoc,
+  id as awsBedrockId,
+  resources as awsBedrockResources,
+} from '@rawdash/connector-aws-bedrock';
+import {
   configFields as awsCloudwatchConfigFields,
   cost as awsCloudwatchCost,
   doc as awsCloudwatchDoc,
@@ -258,6 +265,14 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: appsflyerDoc,
     configFields: appsflyerConfigFields,
     resources: appsflyerResources,
+  },
+  {
+    id: awsBedrockId,
+    packageName: '@rawdash/connector-aws-bedrock',
+    doc: awsBedrockDoc,
+    configFields: awsBedrockConfigFields,
+    resources: awsBedrockResources,
+    cost: awsBedrockCost,
   },
   {
     id: awsCloudwatchId,
