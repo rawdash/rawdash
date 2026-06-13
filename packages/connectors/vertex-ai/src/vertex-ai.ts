@@ -38,59 +38,70 @@ import {
 import { z } from 'zod';
 
 export const configFields = defineConfigFields(
-  z.object({
-    projectId: z
-      .string()
-      .regex(BQ_IDENT_RE, 'projectId must be a valid GCP project id')
-      .meta({
-        label: 'GCP project ID',
+  z
+    .object({
+      projectId: z
+        .string()
+        .regex(BQ_IDENT_RE, 'projectId must be a valid GCP project id')
+        .meta({
+          label: 'GCP project ID',
+          description:
+            'Google Cloud project ID that hosts the Vertex AI workload. Cloud Monitoring metrics are read from this project.',
+          placeholder: 'my-project-123',
+        }),
+      ...gcpAuthConfigShape,
+      bqProject: z
+        .string()
+        .regex(BQ_IDENT_RE, 'bqProject must be a valid GCP project id')
+        .optional()
+        .meta({
+          label: 'BigQuery project ID (optional)',
+          description:
+            'Project that hosts the Cloud Billing -> BigQuery export. Required to sync the spend resource; omit to disable spend syncing.',
+          placeholder: 'my-billing-project',
+        }),
+      bqDataset: z
+        .string()
+        .regex(
+          BQ_DATASET_RE,
+          'bqDataset must be a valid BigQuery dataset id (letters, digits, underscores; must start with a letter or underscore)',
+        )
+        .optional()
+        .meta({
+          label: 'BigQuery dataset (optional)',
+          description:
+            'BigQuery dataset containing the Cloud Billing export tables (gcp_billing_export_v1_*). Required to sync the spend resource.',
+          placeholder: 'billing_export',
+        }),
+      bqLocation: z.string().min(1).optional().meta({
+        label: 'BigQuery location (optional)',
         description:
-          'Google Cloud project ID that hosts the Vertex AI workload. Cloud Monitoring metrics are read from this project.',
-        placeholder: 'my-project-123',
+          'Region or multi-region of the billing dataset (e.g. US, EU, us-central1). Defaults to US when bqDataset is set.',
+        placeholder: 'US',
       }),
-    ...gcpAuthConfigShape,
-    bqProject: z
-      .string()
-      .regex(BQ_IDENT_RE, 'bqProject must be a valid GCP project id')
-      .optional()
-      .meta({
-        label: 'BigQuery project ID (optional)',
+      spendServiceFilter: z.string().min(1).optional().meta({
+        label: 'Spend service filter (optional)',
         description:
-          'Project that hosts the Cloud Billing -> BigQuery export. Required to sync the spend resource; omit to disable spend syncing.',
-        placeholder: 'my-billing-project',
+          'BigQuery LIKE pattern matched against service.description to scope spend rows to Vertex AI. Defaults to "Vertex AI%" which covers both "Vertex AI" and "Vertex AI Generative AI" services.',
+        placeholder: 'Vertex AI%',
       }),
-    bqDataset: z
-      .string()
-      .regex(
-        BQ_DATASET_RE,
-        'bqDataset must be a valid BigQuery dataset id (letters, digits, underscores; must start with a letter or underscore)',
-      )
-      .optional()
-      .meta({
-        label: 'BigQuery dataset (optional)',
+      lookbackDays: z.number().int().positive().max(365).optional().meta({
+        label: 'Backfill window (days)',
         description:
-          'BigQuery dataset containing the Cloud Billing export tables (gcp_billing_export_v1_*). Required to sync the spend resource.',
-        placeholder: 'billing_export',
+          'How many days of history to pull on a full sync. Defaults to 30.',
+        placeholder: '30',
       }),
-    bqLocation: z.string().min(1).optional().meta({
-      label: 'BigQuery location (optional)',
-      description:
-        'Region or multi-region of the billing dataset (e.g. US, EU, us-central1). Defaults to US when bqDataset is set.',
-      placeholder: 'US',
+    })
+    .superRefine((val, ctx) => {
+      if ((val.bqProject === undefined) !== (val.bqDataset === undefined)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            'bqProject and bqDataset must both be provided or both omitted',
+          path: [val.bqProject === undefined ? 'bqProject' : 'bqDataset'],
+        });
+      }
     }),
-    spendServiceFilter: z.string().min(1).optional().meta({
-      label: 'Spend service filter (optional)',
-      description:
-        'BigQuery LIKE pattern matched against service.description to scope spend rows to Vertex AI. Defaults to "Vertex AI%" which covers both "Vertex AI" and "Vertex AI Generative AI" services.',
-      placeholder: 'Vertex AI%',
-    }),
-    lookbackDays: z.number().int().positive().max(365).optional().meta({
-      label: 'Backfill window (days)',
-      description:
-        'How many days of history to pull on a full sync. Defaults to 30.',
-      placeholder: '30',
-    }),
-  }),
 );
 
 export const doc: ConnectorDoc = defineConnectorDoc({
@@ -283,7 +294,6 @@ export const vertexAiResources = defineResources({
     description:
       'Daily Vertex AI spend per (date, sku) sourced from the Cloud Billing -> BigQuery export. Skipped unless bqProject and bqDataset are configured.',
     endpoint: 'POST /bigquery/v2/projects/{bqProject}/queries',
-    unit: 'USD',
     granularity: 'daily',
     notes:
       'The trailing 5 days are always refetched on incremental syncs to pick up GCP back-revisions. SKU describes the specific Vertex AI model and token type (e.g. "Gemini 1.5 Pro Online Inference - Input").',
@@ -757,7 +767,10 @@ export function pointToCountSample(
   responseCode: string,
   point: z.infer<typeof pointSchema>,
 ): { ts: number; value: number; attributes: Record<string, JSONValue> } | null {
-  const ts = parseEpoch(point.interval.endTime, 'iso');
+  const ts = parseEpoch(
+    point.interval.startTime ?? point.interval.endTime,
+    'iso',
+  );
   if (ts === null) {
     return null;
   }
@@ -780,7 +793,10 @@ export function pointToTokenSample(
   tokenType: string,
   point: z.infer<typeof pointSchema>,
 ): MetricSample | null {
-  const ts = parseEpoch(point.interval.endTime, 'iso');
+  const ts = parseEpoch(
+    point.interval.startTime ?? point.interval.endTime,
+    'iso',
+  );
   if (ts === null) {
     return null;
   }

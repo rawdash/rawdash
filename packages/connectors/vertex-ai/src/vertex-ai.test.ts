@@ -119,11 +119,17 @@ const INVOCATIONS_TIMESERIES = {
       },
       points: [
         {
-          interval: { endTime: '2024-01-02T00:00:00Z' },
+          interval: {
+            startTime: '2024-01-01T00:00:00Z',
+            endTime: '2024-01-02T00:00:00Z',
+          },
           value: { int64Value: '12' },
         },
         {
-          interval: { endTime: '2024-01-03T00:00:00Z' },
+          interval: {
+            startTime: '2024-01-02T00:00:00Z',
+            endTime: '2024-01-03T00:00:00Z',
+          },
           value: { int64Value: '8' },
         },
       ],
@@ -135,7 +141,10 @@ const INVOCATIONS_TIMESERIES = {
       },
       points: [
         {
-          interval: { endTime: '2024-01-02T00:00:00Z' },
+          interval: {
+            startTime: '2024-01-01T00:00:00Z',
+            endTime: '2024-01-02T00:00:00Z',
+          },
           value: { int64Value: '3' },
         },
       ],
@@ -152,7 +161,10 @@ const TOKENS_TIMESERIES = {
       },
       points: [
         {
-          interval: { endTime: '2024-01-02T00:00:00Z' },
+          interval: {
+            startTime: '2024-01-01T00:00:00Z',
+            endTime: '2024-01-02T00:00:00Z',
+          },
           value: { int64Value: '1500' },
         },
       ],
@@ -164,7 +176,10 @@ const TOKENS_TIMESERIES = {
       },
       points: [
         {
-          interval: { endTime: '2024-01-02T00:00:00Z' },
+          interval: {
+            startTime: '2024-01-01T00:00:00Z',
+            endTime: '2024-01-02T00:00:00Z',
+          },
           value: { int64Value: '420' },
         },
       ],
@@ -248,7 +263,7 @@ describe('VertexAiConnector sync', () => {
       modelId: 'gemini-pro',
       responseCode: '200',
     });
-    expect(invocations[0]!.ts).toBe(Date.UTC(2024, 0, 2));
+    expect(invocations[0]!.ts).toBe(Date.UTC(2024, 0, 1));
 
     const errors = metricsFor(storage, ERRORS_METRIC_NAME);
     expect(errors.map((m) => m.value)).toEqual([3]);
@@ -319,6 +334,124 @@ describe('VertexAiConnector sync', () => {
       0,
     );
     expect(calls.some((u) => u.includes('bigquery.googleapis.com'))).toBe(
+      false,
+    );
+  });
+
+  it('skips the spend phase when only bqProject is configured (no bqDataset)', async () => {
+    const calls: string[] = [];
+    installFetch((url) => {
+      calls.push(url);
+      if (url.startsWith('https://oauth2.googleapis.com/token')) {
+        return { body: { access_token: 'tok' } };
+      }
+      if (url.includes('monitoring.googleapis.com')) {
+        if (url.includes('model_invocation_count')) {
+          return { body: INVOCATIONS_TIMESERIES };
+        }
+        return { body: TOKENS_TIMESERIES };
+      }
+      throw new Error('unexpected URL: ' + url);
+    });
+
+    const storage = new InMemoryStorage();
+    const result = await makeConnector({ bqDataset: undefined }).sync(
+      { mode: 'full' },
+      storage.getStorageHandle(CONNECTOR_ID),
+    );
+    expect(result).toEqual({ done: true });
+    expect(metricsFor(storage, SPEND_METRIC_NAME)).toHaveLength(0);
+    expect(metricsFor(storage, INVOCATIONS_METRIC_NAME).length).toBeGreaterThan(
+      0,
+    );
+    expect(calls.some((u) => u.includes('bigquery.googleapis.com'))).toBe(
+      false,
+    );
+  });
+
+  it('skips the spend phase when only bqDataset is configured (no bqProject)', async () => {
+    const calls: string[] = [];
+    installFetch((url) => {
+      calls.push(url);
+      if (url.startsWith('https://oauth2.googleapis.com/token')) {
+        return { body: { access_token: 'tok' } };
+      }
+      if (url.includes('monitoring.googleapis.com')) {
+        if (url.includes('model_invocation_count')) {
+          return { body: INVOCATIONS_TIMESERIES };
+        }
+        return { body: TOKENS_TIMESERIES };
+      }
+      throw new Error('unexpected URL: ' + url);
+    });
+
+    const storage = new InMemoryStorage();
+    const result = await makeConnector({ bqProject: undefined }).sync(
+      { mode: 'full' },
+      storage.getStorageHandle(CONNECTOR_ID),
+    );
+    expect(result).toEqual({ done: true });
+    expect(metricsFor(storage, SPEND_METRIC_NAME)).toHaveLength(0);
+    expect(metricsFor(storage, INVOCATIONS_METRIC_NAME).length).toBeGreaterThan(
+      0,
+    );
+    expect(calls.some((u) => u.includes('bigquery.googleapis.com'))).toBe(
+      false,
+    );
+  });
+
+  it('resumes from a cursor at the tokens phase, skipping invocations', async () => {
+    const calls: string[] = [];
+    installFetch((url) => {
+      calls.push(url);
+      if (url.startsWith('https://oauth2.googleapis.com/token')) {
+        return { body: { access_token: 'tok' } };
+      }
+      if (url.includes('monitoring.googleapis.com')) {
+        return { body: TOKENS_TIMESERIES };
+      }
+      if (url.includes('bigquery.googleapis.com')) {
+        return {
+          body: { jobComplete: true, schema: { fields: [] }, rows: [] },
+        };
+      }
+      throw new Error('unexpected URL: ' + url);
+    });
+
+    const storage = new InMemoryStorage();
+    const result = await makeConnector().sync(
+      { mode: 'full', cursor: { phase: 'tokens', page: null } },
+      storage.getStorageHandle(CONNECTOR_ID),
+    );
+    expect(result).toEqual({ done: true });
+    expect(metricsFor(storage, INVOCATIONS_METRIC_NAME)).toHaveLength(0);
+    expect(metricsFor(storage, TOKENS_METRIC_NAME).length).toBeGreaterThan(0);
+    expect(calls.some((u) => u.includes('model_invocation_count'))).toBe(false);
+  });
+
+  it('resumes from a cursor at the spend phase, skipping invocations and tokens', async () => {
+    const calls: string[] = [];
+    installFetch((url) => {
+      calls.push(url);
+      if (url.startsWith('https://oauth2.googleapis.com/token')) {
+        return { body: { access_token: 'tok' } };
+      }
+      if (url.includes('bigquery.googleapis.com')) {
+        return { body: SPEND_BQ_RESPONSE };
+      }
+      throw new Error('unexpected URL: ' + url);
+    });
+
+    const storage = new InMemoryStorage();
+    const result = await makeConnector().sync(
+      { mode: 'full', cursor: { phase: 'spend', page: null } },
+      storage.getStorageHandle(CONNECTOR_ID),
+    );
+    expect(result).toEqual({ done: true });
+    expect(metricsFor(storage, INVOCATIONS_METRIC_NAME)).toHaveLength(0);
+    expect(metricsFor(storage, TOKENS_METRIC_NAME)).toHaveLength(0);
+    expect(metricsFor(storage, SPEND_METRIC_NAME).length).toBeGreaterThan(0);
+    expect(calls.some((u) => u.includes('monitoring.googleapis.com'))).toBe(
       false,
     );
   });
@@ -523,6 +656,16 @@ describe('configFields', () => {
         bqProject: 'b',
         bqDataset: 'billing-export',
       }),
+    ).toThrow();
+  });
+
+  it('rejects a config with bqProject but no bqDataset', () => {
+    expect(() => configFields.parse({ ...base, bqProject: 'b' })).toThrow();
+  });
+
+  it('rejects a config with bqDataset but no bqProject', () => {
+    expect(() =>
+      configFields.parse({ ...base, bqDataset: 'export' }),
     ).toThrow();
   });
 
