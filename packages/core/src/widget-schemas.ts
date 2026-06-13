@@ -1,5 +1,16 @@
 import { z } from 'zod';
 
+export const widgetFormatSchema = z.object({
+  kind: z.enum(['currency', 'number', 'percent', 'duration', 'bytes']),
+  currency: z
+    .string()
+    .trim()
+    .regex(/^[A-Z]{3}$/)
+    .optional(),
+  decimals: z.number().int().min(0).max(20).optional(),
+  compact: z.boolean().optional(),
+});
+
 export const shapeSchema = z.enum([
   'event',
   'entity',
@@ -84,6 +95,9 @@ export const statWidgetSchema = z.object({
     .enum(['none', 'previous-period'])
     .default('none')
     .meta({ label: 'Compare', description: 'Comparison mode.' }),
+  format: widgetFormatSchema
+    .optional()
+    .meta({ label: 'Format', description: 'Display format for the value.' }),
 });
 
 export const statusWidgetSchema = z.object({
@@ -109,6 +123,9 @@ export const timeseriesWidgetSchema = z.object({
     .enum(['hour', 'day', 'week'])
     .default('day')
     .meta({ label: 'Granularity', description: 'Time bucket size.' }),
+  format: widgetFormatSchema
+    .optional()
+    .meta({ label: 'Format', description: 'Display format for the value.' }),
 });
 
 export const distributionWidgetSchema = z.object({
@@ -121,6 +138,9 @@ export const distributionWidgetSchema = z.object({
   window: z
     .string()
     .meta({ label: 'Window', description: "Time window, e.g. '7d'." }),
+  format: widgetFormatSchema
+    .optional()
+    .meta({ label: 'Format', description: 'Display format for the value.' }),
 });
 
 export const widgetSchemas = {

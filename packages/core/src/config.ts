@@ -1,7 +1,10 @@
 import type { FilterClause, FilterCondition, FilterOperator } from './filters';
+import type { WidgetFormat } from './format';
 import type { RetentionConfig } from './retention';
 import { getWidgetSchema, widgetSchemas } from './widget-schemas';
 import type { WidgetKind } from './widget-schemas';
+
+export type { WidgetFormat };
 
 export type { FilterClause, FilterCondition, FilterOperator };
 
@@ -51,6 +54,7 @@ export interface StatWidget {
   metric: ComputedMetric;
   window?: string;
   compare?: 'none' | 'previous-period';
+  format?: WidgetFormat;
 }
 
 export interface StatusWidget {
@@ -65,6 +69,7 @@ export interface TimeseriesWidget {
   metric: ComputedMetric;
   window: string;
   granularity?: 'hour' | 'day' | 'week';
+  format?: WidgetFormat;
 }
 
 export interface DistributionWidget {
@@ -72,6 +77,7 @@ export interface DistributionWidget {
   title: string;
   metric: ComputedMetric;
   window: string;
+  format?: WidgetFormat;
 }
 
 export type Widget =

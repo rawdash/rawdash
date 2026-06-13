@@ -309,7 +309,7 @@ export const googleAdsResources = defineResources({
     description:
       'Daily campaign performance - impressions, clicks, cost, conversions, and conversion value per (date, campaignId).',
     endpoint: 'POST /v18/customers/{customerId}/googleAds:search',
-    unit: 'cost',
+    unit: 'USD',
     granularity: 'day',
     dimensions: [
       { name: 'date', description: 'Calendar day of the metric sample.' },
@@ -347,7 +347,7 @@ export const googleAdsResources = defineResources({
     description:
       'Daily ad-group performance - impressions, clicks, cost, and conversions per (date, adGroupId).',
     endpoint: 'POST /v18/customers/{customerId}/googleAds:search',
-    unit: 'cost',
+    unit: 'USD',
     granularity: 'day',
     dimensions: [
       { name: 'date', description: 'Calendar day of the metric sample.' },
@@ -376,7 +376,7 @@ export const googleAdsResources = defineResources({
     description:
       'Daily keyword performance - impressions, clicks, cost, and historical quality score per (date, criterionId).',
     endpoint: 'POST /v18/customers/{customerId}/googleAds:search',
-    unit: 'cost',
+    unit: 'USD',
     granularity: 'day',
     dimensions: [
       { name: 'date', description: 'Calendar day of the metric sample.' },

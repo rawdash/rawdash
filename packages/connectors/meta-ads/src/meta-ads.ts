@@ -340,7 +340,7 @@ export const metaAdsResources = defineResources({
     description:
       'Daily campaign-level Meta Ads insights - spend (primary value), impressions, clicks, reach, conversions, and conversion value bucketed by campaign.',
     endpoint: 'GET /{ad_account_id}/insights?level=campaign&time_increment=1',
-    unit: 'spend',
+    unit: 'USD',
     granularity: 'day',
     notes:
       'Primary value is `spend`. `conversions` is the sum of every entry in the upstream `actions` array; `conversion_value` is the sum of every entry in `action_values`.',
@@ -365,7 +365,7 @@ export const metaAdsResources = defineResources({
     description:
       'Daily adset-level Meta Ads insights - same fields as the campaign roll-up, bucketed by adset.',
     endpoint: 'GET /{ad_account_id}/insights?level=adset&time_increment=1',
-    unit: 'spend',
+    unit: 'USD',
     granularity: 'day',
     notes:
       'Primary value is `spend`. Includes campaign_id/campaign_name so adset rows are easy to roll up to their parent campaign.',
@@ -392,7 +392,7 @@ export const metaAdsResources = defineResources({
     description:
       'Daily ad-level Meta Ads insights - same fields as the adset roll-up, bucketed by ad.',
     endpoint: 'GET /{ad_account_id}/insights?level=ad&time_increment=1',
-    unit: 'spend',
+    unit: 'USD',
     granularity: 'day',
     notes:
       'Primary value is `spend`. Cardinality is the highest of the three insights resources - opt in via `resources: [..., "ad_insights"]` only when you need per-ad breakdowns.',

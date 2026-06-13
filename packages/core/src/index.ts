@@ -73,6 +73,7 @@ export type {
   StatusWidget,
   TimeseriesWidget,
   Widget,
+  WidgetFormat,
   WidgetKind,
 } from './config';
 
@@ -91,9 +92,14 @@ export {
   statWidgetSchema,
   statusWidgetSchema,
   timeseriesWidgetSchema,
+  widgetFormatSchema,
   widgetSchema,
   widgetSchemas,
 } from './widget-schemas';
+
+export type { ResolvedWidgetFormat } from './wire';
+
+export { currencyScaleFromUnit } from './format';
 
 export type { SyncState, SyncStatus } from './engine';
 export { ACTIVE_SYNC_STATUSES, isSyncActive } from './engine';

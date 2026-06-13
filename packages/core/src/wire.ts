@@ -1,4 +1,7 @@
 import type { SyncState } from './engine';
+import type { ResolvedWidgetFormat } from './format';
+
+export type { ResolvedWidgetFormat };
 
 export type WidgetSyncState =
   | 'fresh'
@@ -14,6 +17,7 @@ export interface CachedWidget<TData = unknown> {
   cachedAt: string | null;
   syncState?: WidgetSyncState;
   syncIntervalSeconds?: number;
+  format?: ResolvedWidgetFormat;
   meta?: Record<string, unknown>;
 }
 

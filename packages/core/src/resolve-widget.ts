@@ -1,7 +1,9 @@
 import { computeMetric } from './compute';
 import type { Widget } from './config';
 import type { ConnectorHealth } from './connector';
+import { resolveWidgetFormat } from './format';
 import type { ServerStorage } from './server-storage';
+import type { ResourcesByConnectorId } from './validate-metrics';
 import type { CachedWidget, WidgetSyncState } from './wire';
 
 const FAILING_CONNECTOR_STATUSES: ReadonlySet<ConnectorHealth['status']> =
@@ -36,6 +38,7 @@ export async function resolveWidget(
   widget: Widget,
   connectors: readonly string[] | undefined,
   storage: ServerStorage,
+  resourcesByConnectorId?: ResourcesByConnectorId,
 ): Promise<CachedWidget | undefined> {
   const connectorId =
     widget.kind === 'status' ? widget.source : widget.metric.connectorId;
@@ -60,6 +63,15 @@ export async function resolveWidget(
     syncState = 'fresh';
   }
 
+  const widgetFormat =
+    widget.kind !== 'status' && widget.format
+      ? resolveWidgetFormat(
+          widget.format,
+          widget.metric,
+          resourcesByConnectorId,
+        )
+      : undefined;
+
   return {
     widgetId,
     connectorId,
@@ -67,6 +79,7 @@ export async function resolveWidget(
     cachedAt: health?.lastSyncAt ?? null,
     syncState,
     syncIntervalSeconds: health?.syncIntervalSeconds,
+    format: widgetFormat,
     meta,
   };
 }
