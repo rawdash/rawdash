@@ -421,7 +421,8 @@ function renderResource(name: string, r: ResourceDefinition): string {
   }
   if ((r.shape === 'entity' || r.shape === 'event') && r.fields?.length) {
     for (const f of r.fields) {
-      lines.push(`  - \`${f.name}\`: ${f.description}`);
+      const unit = f.unit ? ` _(${f.unit})_` : '';
+      lines.push(`  - \`${f.name}\`${unit}: ${f.description}`);
     }
   }
   return lines.join('\n');

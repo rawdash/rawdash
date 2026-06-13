@@ -8,6 +8,7 @@ import type {
 import { InMemoryStorage, ROUTES } from '@rawdash/server';
 import { Hono } from 'hono';
 
+import { createConfigValidateRouter } from './config-validate';
 import { createHealthRouter } from './health';
 import { createRetentionRouter, startRetentionLoop } from './retention';
 import { createSyncRouter, createSyncStateRouter } from './sync';
@@ -48,6 +49,10 @@ export function mountEngine(
     }),
   );
   app.route(ROUTES.syncState, createSyncStateRouter({ getStorage }));
+  app.route(
+    ROUTES.configValidate,
+    createConfigValidateRouter({ connectorRegistry }),
+  );
   app.route('/retention', createRetentionRouter({ getConfig, getStorage }));
   app.route(ROUTES.health, createHealthRouter());
 

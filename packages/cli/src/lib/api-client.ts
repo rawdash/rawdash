@@ -1,8 +1,19 @@
-import { type DashboardConfig, toWireConfig } from '@rawdash/core';
+import {
+  type DashboardConfig,
+  type MetricValidationIssue,
+  type MetricValidationResult,
+  toWireConfig,
+} from '@rawdash/core';
 
 import { getEnv } from './env';
 
 const DEFAULT_TIMEOUT_MS = 10_000;
+
+export interface MetricValidation {
+  errors: MetricValidationIssue[];
+  warnings: MetricValidationIssue[];
+  skipped: boolean;
+}
 
 export interface Diff<T> {
   added: T[];
@@ -105,6 +116,46 @@ export async function postConfig(
   }
 
   return buildDeployFailure(res, url, endpoint);
+}
+
+export async function validateConfigRemote(
+  config: DashboardConfig,
+): Promise<MetricValidation> {
+  const { url, apiKey } = getEnv();
+  const endpoint = `${url}/config/validate`;
+
+  let res: Response;
+  try {
+    res = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey ?? ''}`,
+      },
+      body: JSON.stringify(config),
+      signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
+    });
+  } catch {
+    return { errors: [], warnings: [], skipped: true };
+  }
+
+  if (res.status === 404) {
+    return { errors: [], warnings: [], skipped: true };
+  }
+  if (!res.ok) {
+    return { errors: [], warnings: [], skipped: true };
+  }
+
+  try {
+    const body = (await res.json()) as MetricValidationResult;
+    return {
+      errors: body.errors ?? [],
+      warnings: body.warnings ?? [],
+      skipped: false,
+    };
+  } catch {
+    return { errors: [], warnings: [], skipped: true };
+  }
 }
 
 async function buildDeployFailure(

@@ -40,16 +40,60 @@ Authenticates with a Stripe restricted API key that has read-only access to the 
 - **`stripe_subscription`** _(entity)_ - Subscriptions with status, current period, cancellation state, and computed monthly recurring revenue (mrrAmount, in the smallest currency unit).
   - Endpoint: `GET /v1/subscriptions`
   - mrrAmount is computed as unit_amount x quantity, normalized to a monthly cadence (yearly / 12, weekly x 52 / 12, etc.).
+  - `customerId`: Customer the subscription belongs to.
+  - `status`: Subscription status (active, canceled, ...).
+  - `planId`: Price id of the first subscription item.
+  - `currentPeriodStart`: Current period start (unix seconds).
+  - `currentPeriodEnd`: Current period end (unix seconds).
+  - `cancelAtPeriodEnd`: Whether the subscription cancels at period end.
+  - `canceledAt`: Cancellation time (unix seconds), if canceled.
+  - `trialEnd`: Trial end time (unix seconds), if any.
+  - `mrrAmount` _(cents)_: Monthly recurring revenue in the smallest currency unit.
+  - `currency`: ISO currency code.
+  - `created`: Creation time (unix seconds).
 - **`stripe_invoice`** _(entity)_ - Invoices with amount due, amount paid, status, and due date, linked to their customer and subscription.
   - Endpoint: `GET /v1/invoices`
+  - `customerId`: Customer the invoice belongs to.
+  - `subscriptionId`: Subscription the invoice belongs to, if any.
+  - `status`: Invoice status (draft, open, paid, ...).
+  - `amountDue` _(cents)_: Amount due in the smallest currency unit.
+  - `amountPaid` _(cents)_: Amount paid in the smallest currency unit.
+  - `currency`: ISO currency code.
+  - `created`: Creation time (unix seconds).
+  - `dueDate`: Due date (unix seconds), if any.
+  - `hostedInvoiceUrl`: Hosted invoice URL, if any.
 - **`stripe_charge`** _(event)_ - Charge attempts with amount, currency, status, and failure code, timestamped at creation.
   - Endpoint: `GET /v1/charges`
+  - `id`: Stripe charge id.
+  - `customerId`: Customer charged, if any.
+  - `amount` _(cents)_: Charge amount in the smallest currency unit.
+  - `currency`: ISO currency code.
+  - `status`: Charge status (succeeded, failed, ...).
+  - `failureCode`: Failure code, if the charge failed.
+  - `paymentIntentId`: Associated payment intent id, if any.
 - **`stripe_payment_intent`** _(event)_ - Payment intents with amount, currency, and status, timestamped at creation.
   - Endpoint: `GET /v1/payment_intents`
+  - `id`: Stripe payment intent id.
+  - `customerId`: Customer, if any.
+  - `amount` _(cents)_: Intent amount in the smallest currency unit.
+  - `currency`: ISO currency code.
+  - `status`: Payment intent status.
 - **`stripe_dispute`** _(event)_ - Disputes with amount, currency, reason, and status, linked to the disputed charge.
   - Endpoint: `GET /v1/disputes`
+  - `id`: Stripe dispute id.
+  - `chargeId`: Disputed charge id.
+  - `amount` _(cents)_: Disputed amount in the smallest currency unit.
+  - `currency`: ISO currency code.
+  - `reason`: Dispute reason.
+  - `status`: Dispute status.
 - **`stripe_refund`** _(event)_ - Refunds with amount, currency, reason, and status, linked to the refunded charge.
   - Endpoint: `GET /v1/refunds`
+  - `id`: Stripe refund id.
+  - `chargeId`: Refunded charge id, if any.
+  - `amount` _(cents)_: Refunded amount in the smallest currency unit.
+  - `currency`: ISO currency code.
+  - `reason`: Refund reason, if any.
+  - `status`: Refund status, if any.
 
 ## Example
 

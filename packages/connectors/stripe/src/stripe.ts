@@ -466,6 +466,47 @@ export const stripeResources = defineResources({
     endpoint: 'GET /v1/subscriptions',
     notes:
       'mrrAmount is computed as unit_amount x quantity, normalized to a monthly cadence (yearly / 12, weekly x 52 / 12, etc.).',
+    fields: [
+      {
+        name: 'customerId',
+        description: 'Customer the subscription belongs to.',
+      },
+      {
+        name: 'status',
+        description: 'Subscription status (active, canceled, ...).',
+      },
+      {
+        name: 'planId',
+        description: 'Price id of the first subscription item.',
+      },
+      {
+        name: 'currentPeriodStart',
+        description: 'Current period start (unix seconds).',
+      },
+      {
+        name: 'currentPeriodEnd',
+        description: 'Current period end (unix seconds).',
+      },
+      {
+        name: 'cancelAtPeriodEnd',
+        description: 'Whether the subscription cancels at period end.',
+      },
+      {
+        name: 'canceledAt',
+        description: 'Cancellation time (unix seconds), if canceled.',
+      },
+      {
+        name: 'trialEnd',
+        description: 'Trial end time (unix seconds), if any.',
+      },
+      {
+        name: 'mrrAmount',
+        description: 'Monthly recurring revenue in the smallest currency unit.',
+        unit: 'cents',
+      },
+      { name: 'currency', description: 'ISO currency code.' },
+      { name: 'created', description: 'Creation time (unix seconds).' },
+    ],
     responses: { subscriptions: z.array(subscriptionSchema) },
   },
   stripe_invoice: {
@@ -480,6 +521,31 @@ export const stripeResources = defineResources({
     description:
       'Invoices with amount due, amount paid, status, and due date, linked to their customer and subscription.',
     endpoint: 'GET /v1/invoices',
+    fields: [
+      { name: 'customerId', description: 'Customer the invoice belongs to.' },
+      {
+        name: 'subscriptionId',
+        description: 'Subscription the invoice belongs to, if any.',
+      },
+      {
+        name: 'status',
+        description: 'Invoice status (draft, open, paid, ...).',
+      },
+      {
+        name: 'amountDue',
+        description: 'Amount due in the smallest currency unit.',
+        unit: 'cents',
+      },
+      {
+        name: 'amountPaid',
+        description: 'Amount paid in the smallest currency unit.',
+        unit: 'cents',
+      },
+      { name: 'currency', description: 'ISO currency code.' },
+      { name: 'created', description: 'Creation time (unix seconds).' },
+      { name: 'dueDate', description: 'Due date (unix seconds), if any.' },
+      { name: 'hostedInvoiceUrl', description: 'Hosted invoice URL, if any.' },
+    ],
     responses: { invoices: z.array(invoiceSchema) },
   },
   stripe_charge: {
@@ -488,6 +554,28 @@ export const stripeResources = defineResources({
     description:
       'Charge attempts with amount, currency, status, and failure code, timestamped at creation.',
     endpoint: 'GET /v1/charges',
+    fields: [
+      { name: 'id', description: 'Stripe charge id.' },
+      { name: 'customerId', description: 'Customer charged, if any.' },
+      {
+        name: 'amount',
+        description: 'Charge amount in the smallest currency unit.',
+        unit: 'cents',
+      },
+      { name: 'currency', description: 'ISO currency code.' },
+      {
+        name: 'status',
+        description: 'Charge status (succeeded, failed, ...).',
+      },
+      {
+        name: 'failureCode',
+        description: 'Failure code, if the charge failed.',
+      },
+      {
+        name: 'paymentIntentId',
+        description: 'Associated payment intent id, if any.',
+      },
+    ],
     responses: { charges: z.array(chargeSchema) },
   },
   stripe_payment_intent: {
@@ -496,6 +584,17 @@ export const stripeResources = defineResources({
     description:
       'Payment intents with amount, currency, and status, timestamped at creation.',
     endpoint: 'GET /v1/payment_intents',
+    fields: [
+      { name: 'id', description: 'Stripe payment intent id.' },
+      { name: 'customerId', description: 'Customer, if any.' },
+      {
+        name: 'amount',
+        description: 'Intent amount in the smallest currency unit.',
+        unit: 'cents',
+      },
+      { name: 'currency', description: 'ISO currency code.' },
+      { name: 'status', description: 'Payment intent status.' },
+    ],
     responses: { payment_intents: z.array(paymentIntentSchema) },
   },
   stripe_dispute: {
@@ -504,6 +603,18 @@ export const stripeResources = defineResources({
     description:
       'Disputes with amount, currency, reason, and status, linked to the disputed charge.',
     endpoint: 'GET /v1/disputes',
+    fields: [
+      { name: 'id', description: 'Stripe dispute id.' },
+      { name: 'chargeId', description: 'Disputed charge id.' },
+      {
+        name: 'amount',
+        description: 'Disputed amount in the smallest currency unit.',
+        unit: 'cents',
+      },
+      { name: 'currency', description: 'ISO currency code.' },
+      { name: 'reason', description: 'Dispute reason.' },
+      { name: 'status', description: 'Dispute status.' },
+    ],
     responses: { disputes: z.array(disputeSchema) },
   },
   stripe_refund: {
@@ -512,6 +623,18 @@ export const stripeResources = defineResources({
     description:
       'Refunds with amount, currency, reason, and status, linked to the refunded charge.',
     endpoint: 'GET /v1/refunds',
+    fields: [
+      { name: 'id', description: 'Stripe refund id.' },
+      { name: 'chargeId', description: 'Refunded charge id, if any.' },
+      {
+        name: 'amount',
+        description: 'Refunded amount in the smallest currency unit.',
+        unit: 'cents',
+      },
+      { name: 'currency', description: 'ISO currency code.' },
+      { name: 'reason', description: 'Refund reason, if any.' },
+      { name: 'status', description: 'Refund status, if any.' },
+    ],
     responses: { refunds: z.array(refundSchema) },
   },
 });
