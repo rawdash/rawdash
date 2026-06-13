@@ -108,7 +108,11 @@ export type {
   WidgetsListResponse,
 } from './wire';
 
-export type { RetentionDeletionPlan, RetentionConfig } from './retention';
+export type {
+  RetentionDeletionPlan,
+  RetentionConfig,
+  RetentionSpec,
+} from './retention';
 
 export { computeRetention, selectForDeletion } from './retention';
 
