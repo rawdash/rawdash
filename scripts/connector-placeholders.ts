@@ -1823,17 +1823,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     requestIssue: 'RAW-432',
   },
   {
-    id: 'anthropic',
-    name: 'Anthropic API',
-    category: 'engineering',
-    tagline:
-      'Sync token usage, requests, and spend across Claude models from the Anthropic API.',
-    icon: 'anthropic',
-    brandColor: '#D97757',
-    domain: 'anthropic.com',
-    requestIssue: 'RAW-411',
-  },
-  {
     id: 'bamboohr',
     name: 'BambooHR',
     category: 'hr',
