@@ -2303,16 +2303,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     requestIssue: 'RAW-430',
   },
   {
-    id: 'langsmith',
-    name: 'LangSmith',
-    category: 'engineering',
-    tagline:
-      'Sync LangChain runs, latency, per-project cost, and feedback from LangSmith.',
-    brandColor: '#1A1A1A',
-    domain: 'langchain.com',
-    requestIssue: 'RAW-415',
-  },
-  {
     id: 'resend',
     name: 'Resend',
     category: 'engineering',
