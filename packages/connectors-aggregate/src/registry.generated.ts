@@ -61,6 +61,7 @@ export const connectorLoaders: Record<string, () => Promise<ConnectorClass>> = {
   netlify: () => import('@rawdash/connector-netlify').then((m) => m.default),
   'new-relic': () =>
     import('@rawdash/connector-new-relic').then((m) => m.default),
+  okta: () => import('@rawdash/connector-okta').then((m) => m.default),
   openai: () => import('@rawdash/connector-openai').then((m) => m.default),
   posthog: () => import('@rawdash/connector-posthog').then((m) => m.default),
   revenuecat: () =>

@@ -670,15 +670,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     domain: 'microsoft.com',
   },
   {
-    id: 'okta',
-    name: 'Okta',
-    category: 'security',
-    tagline: 'Sync users, sign-ins, and MFA enrollment from an Okta org.',
-    icon: 'okta',
-    domain: 'okta.com',
-    requestIssue: 'RAW-417',
-  },
-  {
     id: 'orca-security',
     name: 'Orca Security',
     category: 'security',

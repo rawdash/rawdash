@@ -224,6 +224,12 @@ import {
   resources as newRelicResources,
 } from '@rawdash/connector-new-relic';
 import {
+  configFields as oktaConfigFields,
+  doc as oktaDoc,
+  id as oktaId,
+  resources as oktaResources,
+} from '@rawdash/connector-okta';
+import {
   configFields as openaiConfigFields,
   doc as openaiDoc,
   id as openaiId,
@@ -547,6 +553,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: newRelicDoc,
     configFields: newRelicConfigFields,
     resources: newRelicResources,
+  },
+  {
+    id: oktaId,
+    packageName: '@rawdash/connector-okta',
+    doc: oktaDoc,
+    configFields: oktaConfigFields,
+    resources: oktaResources,
   },
   {
     id: openaiId,
