@@ -190,6 +190,7 @@ export const branchResources = defineResources({
           'Estimated cost in the app local currency (only populated for ad-network-integrated channels; 0 otherwise).',
       },
     ],
+    filterable: [],
     responses: {
       install_metrics_installs: installResponseSchema,
       install_metrics_opens: installResponseSchema,
@@ -213,6 +214,7 @@ export const branchResources = defineResources({
       },
       { name: 'clicks', description: 'Click count for the bucket.' },
     ],
+    filterable: [],
     responses: { deep_link_events: clickResponseSchema },
   },
 });
