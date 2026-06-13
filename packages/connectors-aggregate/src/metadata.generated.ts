@@ -181,6 +181,12 @@ import {
   resources as langfuseResources,
 } from '@rawdash/connector-langfuse';
 import {
+  configFields as langsmithConfigFields,
+  doc as langsmithDoc,
+  id as langsmithId,
+  resources as langsmithResources,
+} from '@rawdash/connector-langsmith';
+import {
   configFields as launchdarklyConfigFields,
   doc as launchdarklyDoc,
   id as launchdarklyId,
@@ -503,6 +509,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: langfuseDoc,
     configFields: langfuseConfigFields,
     resources: langfuseResources,
+  },
+  {
+    id: langsmithId,
+    packageName: '@rawdash/connector-langsmith',
+    doc: langsmithDoc,
+    configFields: langsmithConfigFields,
+    resources: langsmithResources,
   },
   {
     id: launchdarklyId,

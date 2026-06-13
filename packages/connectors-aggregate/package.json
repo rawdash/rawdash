@@ -63,6 +63,7 @@
     "@rawdash/connector-jira": "workspace:*",
     "@rawdash/connector-klaviyo": "workspace:*",
     "@rawdash/connector-langfuse": "workspace:*",
+    "@rawdash/connector-langsmith": "workspace:*",
     "@rawdash/connector-launchdarkly": "workspace:*",
     "@rawdash/connector-linear": "workspace:*",
     "@rawdash/connector-mailchimp": "workspace:*",
