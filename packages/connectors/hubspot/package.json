@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-hubspot",
-  "version": "0.23.0",
+  "version": "0.24.0",
   "description": "Rawdash connector for HubSpot — CRM contacts, companies, deals, and marketing email performance",
   "license": "Apache-2.0",
   "type": "module",

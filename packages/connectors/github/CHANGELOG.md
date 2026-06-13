@@ -1,5 +1,14 @@
 # @rawdash/connector-github
 
+## 0.24.0
+
+### Patch Changes
+
+- 5c07c18: Fix mis-windowing in GitHub connector: `specCutoff` now respects the `since` backfill buffer when `fetchSpecs` are present, ensuring `open_prs` and `workflow_runs` are not dropped near the window boundary.
+- Updated dependencies [fe1ee4b]
+- Updated dependencies [ad70083]
+  - @rawdash/core@0.24.0
+
 ## 0.23.0
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-google-search-console",
-  "version": "0.23.0",
+  "version": "0.24.0",
   "description": "Rawdash connector for Google Search Console - syncs SEO impressions, clicks, CTR, and position by day, query, page, and country into the six-shape storage model",
   "license": "Apache-2.0",
   "type": "module",

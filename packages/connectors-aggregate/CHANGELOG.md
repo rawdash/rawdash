@@ -1,5 +1,71 @@
 # @rawdash/connectors
 
+## 0.24.0
+
+### Patch Changes
+
+- 5f33f22: Add `@rawdash/connector-langsmith` covering LangSmith runs (entity), per-run
+  samples surfaced as `langsmith_runs_per_day` (token / cost / latency attributes
+  so widgets aggregate by day or project at query time), and feedback scores.
+  Auth via `x-api-key`; endpoint defaults to US cloud and is configurable to EU
+  or self-hosted origins.
+- efc8fc0: Add `@rawdash/connector-okta`. Syncs users, groups, and authentication events from an Okta org via the Management API (`/api/v1/users`, `/api/v1/groups`) and System Log (`/api/v1/logs`). SSWS API-token auth, configurable org host, Link-header pagination, incremental SCIM `lastUpdated gt` filtering on entity resources, and native `since` on the System Log; honors Okta's `X-Rate-Limit-*` headers via the shared rate-limit policy.
+- Updated dependencies [38fde14]
+- Updated dependencies [5c07c18]
+- Updated dependencies [5f33f22]
+- Updated dependencies [efc8fc0]
+- Updated dependencies [fe1ee4b]
+- Updated dependencies [ad70083]
+  - @rawdash/connector-auth0@0.24.0
+  - @rawdash/connector-github@0.24.0
+  - @rawdash/connector-langsmith@0.24.0
+  - @rawdash/connector-okta@0.24.0
+  - @rawdash/core@0.24.0
+  - @rawdash/connector-google-ads@0.24.0
+  - @rawdash/connector-meta-ads@0.24.0
+  - @rawdash/connector-anthropic@0.24.0
+  - @rawdash/connector-app-store-connect@0.24.0
+  - @rawdash/connector-appsflyer@0.24.0
+  - @rawdash/connector-aws-bedrock@0.24.0
+  - @rawdash/connector-aws-cloudwatch@0.24.0
+  - @rawdash/connector-aws-cost@0.24.0
+  - @rawdash/connector-azure-cost@0.24.0
+  - @rawdash/connector-azure-monitor@0.24.0
+  - @rawdash/connector-bitbucket@0.24.0
+  - @rawdash/connector-branch@0.24.0
+  - @rawdash/connector-circleci@0.24.0
+  - @rawdash/connector-datadog@0.24.0
+  - @rawdash/connector-firebase-analytics@0.24.0
+  - @rawdash/connector-firebase-crashlytics@0.24.0
+  - @rawdash/connector-gcp-billing@0.24.0
+  - @rawdash/connector-gcp-monitoring@0.24.0
+  - @rawdash/connector-gitlab@0.24.0
+  - @rawdash/connector-google-analytics@0.24.0
+  - @rawdash/connector-google-play-console@0.24.0
+  - @rawdash/connector-google-search-console@0.24.0
+  - @rawdash/connector-greenhouse@0.24.0
+  - @rawdash/connector-hubspot@0.24.0
+  - @rawdash/connector-intercom@0.24.0
+  - @rawdash/connector-jira@0.24.0
+  - @rawdash/connector-klaviyo@0.24.0
+  - @rawdash/connector-langfuse@0.24.0
+  - @rawdash/connector-launchdarkly@0.24.0
+  - @rawdash/connector-linear@0.24.0
+  - @rawdash/connector-mailchimp@0.24.0
+  - @rawdash/connector-mixpanel@0.24.0
+  - @rawdash/connector-netlify@0.24.0
+  - @rawdash/connector-new-relic@0.24.0
+  - @rawdash/connector-openai@0.24.0
+  - @rawdash/connector-posthog@0.24.0
+  - @rawdash/connector-revenuecat@0.24.0
+  - @rawdash/connector-salesforce@0.24.0
+  - @rawdash/connector-sentry@0.24.0
+  - @rawdash/connector-statuspage@0.24.0
+  - @rawdash/connector-stripe@0.24.0
+  - @rawdash/connector-vercel@0.24.0
+  - @rawdash/connector-vertex-ai@0.24.0
+  - @rawdash/connector-zendesk@0.24.0
+
 ## 0.23.0
 
 ### Patch Changes
