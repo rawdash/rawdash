@@ -58,6 +58,21 @@ function buildConnector(): GitHubConnector {
   );
 }
 
+function makeRun(id: number, createdAtMs: number) {
+  const iso = new Date(createdAtMs).toISOString();
+  return {
+    id,
+    name: `run ${id}`,
+    conclusion: 'success',
+    status: 'completed',
+    head_branch: 'main',
+    actor: { login: 'alice' },
+    created_at: iso,
+    updated_at: iso,
+    run_attempt: 1,
+  };
+}
+
 function safeDefaultResponse(url: string): MockResponseInit {
   if (url.includes('/actions/runs')) {
     return { body: { workflow_runs: [] } };
@@ -753,21 +768,6 @@ describe('GitHubConnector property tests', () => {
   describe('widget-required window bounding', () => {
     const day = 86_400_000;
 
-    function makeRun(id: number, createdAtMs: number) {
-      const iso = new Date(createdAtMs).toISOString();
-      return {
-        id,
-        name: `run ${id}`,
-        conclusion: 'success',
-        status: 'completed',
-        head_branch: 'main',
-        actor: { login: 'alice' },
-        created_at: iso,
-        updated_at: iso,
-        run_attempt: 1,
-      };
-    }
-
     it('stops paginating workflow_runs once a page predates the required window', async () => {
       const now = Date.now();
       const linkHeader = (next: string) => `<${next}>; rel="next"`;
@@ -867,21 +867,6 @@ describe('GitHubConnector property tests', () => {
         user: { login: 'alice' },
         created_at: updatedAt,
         updated_at: updatedAt,
-      };
-    }
-
-    function makeRun(id: number, createdAtMs: number) {
-      const iso = new Date(createdAtMs).toISOString();
-      return {
-        id,
-        name: `run ${id}`,
-        conclusion: 'success',
-        status: 'completed',
-        head_branch: 'main',
-        actor: { login: 'alice' },
-        created_at: iso,
-        updated_at: iso,
-        run_attempt: 1,
       };
     }
 
