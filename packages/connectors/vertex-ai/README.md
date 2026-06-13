@@ -57,7 +57,6 @@ Authenticate against the Cloud Monitoring v3 API (and optionally BigQuery for sp
   - Sum across both tokenType values to get total tokens; slice by tokenType to separate input from output cost drivers.
 - **`vertex_ai_spend`** _(metric)_ - Daily Vertex AI spend per (date, sku) sourced from the Cloud Billing -> BigQuery export. Skipped unless bqProject and bqDataset are configured.
   - Endpoint: `POST /bigquery/v2/projects/{bqProject}/queries`
-  - Unit: USD
   - Granularity: daily
   - Dimensions: `sku`, `service`, `currency`
   - The trailing 5 days are always refetched on incremental syncs to pick up GCP back-revisions. SKU describes the specific Vertex AI model and token type (e.g. "Gemini 1.5 Pro Online Inference - Input").
