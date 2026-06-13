@@ -31,7 +31,7 @@ function makeConnector(
       resources: overrides.resources,
     },
     {
-      adminApiKey: 'sk-ant-admin-test' as unknown as { $secret: string },
+      adminApiKey: 'sk-ant-admin-test',
     },
   );
 }

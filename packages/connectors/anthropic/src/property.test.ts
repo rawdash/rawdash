@@ -27,7 +27,7 @@ function makeConnector(
   return new AnthropicConnector(
     { resources, lookbackDays: 7 },
     {
-      adminApiKey: 'sk-ant-admin-test' as unknown as { $secret: string },
+      adminApiKey: 'sk-ant-admin-test',
     },
   );
 }
