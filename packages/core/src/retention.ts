@@ -20,7 +20,6 @@ export interface RetentionSpec {
   fetchSpecs?: Record<string, FetchSpec[]>;
   watermarks?: Record<string, number>;
   gracePeriodMs?: number;
-  maxSize?: number;
 }
 
 export interface RetentionDeletionPlan {
@@ -181,6 +180,13 @@ export async function computeRetention(
   nowMs: number = Date.now(),
 ): Promise<RetentionDeletionPlan> {
   const { fetchSpecs, watermarks, gracePeriodMs = 0 } = spec;
+
+  const hasWatermarks = watermarks && Object.keys(watermarks).length > 0;
+  const hasFetchSpecs = fetchSpecs && Object.keys(fetchSpecs).length > 0;
+
+  if (!hasWatermarks && !hasFetchSpecs && gracePeriodMs === 0) {
+    return { events: [], metrics: [], distributions: [], entities: [] };
+  }
 
   const [events, metrics, distributions] = await Promise.all([
     handle.queryEvents({}),

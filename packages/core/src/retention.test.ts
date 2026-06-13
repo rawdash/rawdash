@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import type { Entity, Event, MetricSample, StorageHandle } from './connector';
+import type {
+  Distribution,
+  Entity,
+  Event,
+  MetricSample,
+  StorageHandle,
+} from './connector';
 import { computeRetention, selectForDeletion } from './retention';
 
 const NOW = 1_000_000;
@@ -151,9 +157,20 @@ function makeEntity(
   };
 }
 
+function makeDistribution(name: string, ts: number): Distribution {
+  return {
+    name,
+    ts,
+    kind: 'histogram',
+    data: { buckets: [], count: 0, sum: 0 },
+    attributes: {},
+  };
+}
+
 function makeHandle(data: {
   events?: Event[];
   metrics?: MetricSample[];
+  distributions?: Distribution[];
   entities?: Entity[];
 }): StorageHandle {
   return {
@@ -173,7 +190,7 @@ function makeHandle(data: {
       (data.entities ?? []).filter((e) => e.type === q.type),
     queryMetrics: async () => data.metrics ?? [],
     traverse: async () => [],
-    queryDistributions: async () => [],
+    queryDistributions: async () => data.distributions ?? [],
     deleteOlderThan: async () => ({ rowsDeleted: 0 }),
   };
 }
@@ -263,6 +280,26 @@ describe('computeRetention — FetchSpec keep-set', () => {
     );
     expect(plan.metrics).toHaveLength(1);
     expect(plan.metrics[0]!.attributes['env']).toBe('staging');
+  });
+
+  it('deletes distributions before watermark and outside keep-set', async () => {
+    const WATERMARK = NOW - 300;
+    const handle = makeHandle({
+      distributions: [
+        makeDistribution('latency', NOW - 100),
+        makeDistribution('latency', NOW - 500),
+        makeDistribution('latency', NOW - 800),
+      ],
+    });
+    const plan = await computeRetention(
+      handle,
+      { watermarks: { latency: WATERMARK } },
+      NOW,
+    );
+    expect(plan.distributions).toHaveLength(2);
+    expect(plan.distributions.map((d) => d.ts)).toEqual(
+      expect.arrayContaining([NOW - 500, NOW - 800]),
+    );
   });
 
   it('no-spec resource keeps nothing extra beyond watermark', async () => {
