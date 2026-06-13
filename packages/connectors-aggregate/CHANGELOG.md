@@ -1,5 +1,69 @@
 # @rawdash/connectors
 
+## 0.23.0
+
+### Patch Changes
+
+- 125f6f8: Add `@rawdash/connector-branch`, a new connector that syncs daily Branch attribution metrics (installs, opens, conversions, and estimated cost by channel and campaign) and aggregated deep-link click events (by channel, campaign, feature) from the Branch Cross-Platform Analytics API. Authenticated via Branch app key + secret.
+- 70d0c0f: Add `@rawdash/connector-openai`, a new connector that syncs the OpenAI organization Usage and Costs admin APIs into twelve daily metric series: completions input / output tokens + requests, embeddings input tokens + requests, images count + requests, audio_speeches characters + requests, audio_transcriptions seconds + requests, and cost in USD. Authenticates with an OpenAI admin API key (sk-admin-) and supports optional organization and project-id scoping; lookback window defaults to 30 days (capped at 180).
+- Updated dependencies [9acb935]
+- Updated dependencies [125f6f8]
+- Updated dependencies [a4b89c4]
+- Updated dependencies [70d0c0f]
+- Updated dependencies [289f42e]
+- Updated dependencies [e6d5f18]
+- Updated dependencies [2816c8a]
+- Updated dependencies [f7346f2]
+- Updated dependencies [8bce1e2]
+- Updated dependencies [1159dc1]
+- Updated dependencies [7768223]
+  - @rawdash/connector-aws-bedrock@0.23.0
+  - @rawdash/connector-branch@0.23.0
+  - @rawdash/connector-langfuse@0.23.0
+  - @rawdash/connector-openai@0.23.0
+  - @rawdash/connector-anthropic@0.23.0
+  - @rawdash/core@0.23.0
+  - @rawdash/connector-stripe@0.23.0
+  - @rawdash/connector-vertex-ai@0.23.0
+  - @rawdash/connector-app-store-connect@0.23.0
+  - @rawdash/connector-appsflyer@0.23.0
+  - @rawdash/connector-aws-cloudwatch@0.23.0
+  - @rawdash/connector-aws-cost@0.23.0
+  - @rawdash/connector-azure-cost@0.23.0
+  - @rawdash/connector-azure-monitor@0.23.0
+  - @rawdash/connector-bitbucket@0.23.0
+  - @rawdash/connector-circleci@0.23.0
+  - @rawdash/connector-datadog@0.23.0
+  - @rawdash/connector-firebase-analytics@0.23.0
+  - @rawdash/connector-firebase-crashlytics@0.23.0
+  - @rawdash/connector-gcp-billing@0.23.0
+  - @rawdash/connector-gcp-monitoring@0.23.0
+  - @rawdash/connector-github@0.23.0
+  - @rawdash/connector-gitlab@0.23.0
+  - @rawdash/connector-google-ads@0.23.0
+  - @rawdash/connector-google-analytics@0.23.0
+  - @rawdash/connector-google-play-console@0.23.0
+  - @rawdash/connector-google-search-console@0.23.0
+  - @rawdash/connector-greenhouse@0.23.0
+  - @rawdash/connector-hubspot@0.23.0
+  - @rawdash/connector-intercom@0.23.0
+  - @rawdash/connector-jira@0.23.0
+  - @rawdash/connector-klaviyo@0.23.0
+  - @rawdash/connector-launchdarkly@0.23.0
+  - @rawdash/connector-linear@0.23.0
+  - @rawdash/connector-mailchimp@0.23.0
+  - @rawdash/connector-meta-ads@0.23.0
+  - @rawdash/connector-mixpanel@0.23.0
+  - @rawdash/connector-netlify@0.23.0
+  - @rawdash/connector-new-relic@0.23.0
+  - @rawdash/connector-posthog@0.23.0
+  - @rawdash/connector-revenuecat@0.23.0
+  - @rawdash/connector-salesforce@0.23.0
+  - @rawdash/connector-sentry@0.23.0
+  - @rawdash/connector-statuspage@0.23.0
+  - @rawdash/connector-vercel@0.23.0
+  - @rawdash/connector-zendesk@0.23.0
+
 ## 0.22.0
 
 ### Minor Changes

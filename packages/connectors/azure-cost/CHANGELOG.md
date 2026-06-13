@@ -1,5 +1,16 @@
 # @rawdash/connector-azure-cost
 
+## 0.23.0
+
+### Patch Changes
+
+- Updated dependencies [e6d5f18]
+- Updated dependencies [2816c8a]
+- Updated dependencies [f7346f2]
+- Updated dependencies [8bce1e2]
+- Updated dependencies [1159dc1]
+  - @rawdash/core@0.23.0
+
 ## 0.22.0
 
 ### Patch Changes

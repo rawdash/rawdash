@@ -1,5 +1,45 @@
 # @rawdash/core
 
+## 0.23.0
+
+### Minor Changes
+
+- e6d5f18: Fix event/metric/distribution metrics silently computing 0 when keyed by `entityType` instead of `name` (RAW-534). Previously only the `entity` branch fell back from `entityType` to `name`; the `event`, `metric`, and `distribution` branches read `metric.name` only, so a schema-valid metric that set `entityType` (e.g. a `workflow_runs` event metric with `entityType: 'workflow_run'`) queried with `name: undefined` and returned 0 despite ingested data. All name-keyed shapes now fall back to `metric.name ?? metric.entityType`, restoring symmetry with the entity branch. Additionally, `computedMetricSchema` now requires at least one of `name`/`entityType`, so a metric that identifies no data fails loudly at deploy/validate time instead of rendering 0.
+- 8bce1e2: **Breaking:** `filterable` is now a required field on `entity` and `event` resources.
+
+  Resources with `shape: 'entity'` or `shape: 'event'` must declare a
+  `filterable: ResourceFilterField[]` array — use `[]` to explicitly state that the source
+  cannot filter any field server-side. `metric`, `distribution`, and `edge` resources do
+  **not** carry `filterable` (they are pre-aggregated / structural, so there is nothing to
+  push down). `defineResources` throws if an entity/event resource omits `filterable`, or if
+  any entry has an empty `field` or no operators.
+
+  Membership in `filterable` is the server-side pushdown signal: a widget filtering on a
+  declared field has that filter pushed to the source query; any other field is still
+  filtered client-side by compute (no declaration needed). Connectors translate their
+  declared filters into source query params in the fetch loop (e.g. GitHub/GitLab/Bitbucket
+  `state`, Sentry issue `status`/`level`, Stripe subscription/invoice `status`, Vercel
+  deployment `state`/`target`, Netlify deploy `state`, Jira/Linear/HubSpot/Datadog/Intercom
+  status/stage filters).
+
+  Third-party connector authors must add `filterable` to every entity/event resource in
+  their `defineResources` call.
+
+- 1159dc1: Validate widget metric definitions against connector resource schemas.
+
+  `@rawdash/core` now exports `validateConfigMetrics(config, resourcesByConnectorId)` (plus `resourcesByConnectorIdFromRegistry` to derive that map from a `ConnectorRegistry`). It checks every widget metric against the referenced connector's declared resources and reports:
+  - **Errors** for a metric that references an unknown resource name, a shape that doesn't match the resource, or a field (including filter/groupBy fields) the resource doesn't declare — each message lists the valid options.
+  - **Warnings** for aggregating a field declared in a minor currency unit (e.g. Stripe `amount` in cents) without conversion, and for a metric whose title/name implies a time window but has no effective `window`.
+
+  Validation runs server-side, where the connector registry (and therefore every connector's schema) already lives: the engine exposes a `POST /config/validate` route (`@rawdash/hono` `createConfigValidateRouter`, mounted by `mountEngine`). `rawdash deploy` calls this route and fails on errors / surfaces warnings before applying, and degrades gracefully if the server doesn't expose it. The CLI no longer bundles the connector packages.
+
+  `ResourceField` gains an optional `unit`, and the Stripe connector declares its monetary fields (`amount`, `mrrAmount`, `amountDue`, `amountPaid`) in `cents` so the cents-without-conversion warning is driven by the connector's own schema.
+
+### Patch Changes
+
+- 2816c8a: Add incremental aggregation rollups (RAW-520). `@rawdash/core` now owns a bucket-based rollup mechanism so unbounded aggregates can be answered after raw rows are dropped: an incremental-merge primitive for the mergeable `AggFn`s (`count`/`sum`/`avg`/`min`/`max`/`latest`/`first`), `computeRollupSpecs` to derive the rollup dimension set and bucket granularity from widget configs, a `foldResourceRollups` fold step that folds only complete past buckets and advances a per-resource watermark, and a bucket-aware read path wired into `computeMetric` that merges materialized buckets with the raw tail since the watermark. New optional `StorageHandle` methods (`writeRollups`/`queryRollups`/`getRollupWatermark`/`setRollupWatermark`) are implemented in `InMemoryStorage` and the libsql adapter (new `rollups` + `rollup_watermarks` tables). The watermark lets retention safely drop raw `ts < watermark` outside live keep-sets.
+- f7346f2: `defineMetric` now defaults `field` to `'value'` for metric-shape resources when omitted, matching the implicit `value` column metric records store. This fixes ~16 connector `example.config.ts` files (and any metric-shape widget using `fn: 'sum'`/`avg`/etc. without an explicit `field`) that failed to load with `field is required unless fn is "count"`.
+
 ## 0.22.0
 
 ### Minor Changes

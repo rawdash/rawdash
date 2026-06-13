@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-aws-bedrock",
-  "version": "0.22.0",
+  "version": "0.23.0",
   "description": "Rawdash connector for AWS Bedrock — model invocations, tokens, latency, errors, and spend per Bedrock-hosted model",
   "license": "Apache-2.0",
   "type": "module",
