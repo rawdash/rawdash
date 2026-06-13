@@ -167,7 +167,7 @@ The Usage and Costs admin endpoints share an organization-wide rate limit; the c
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [OpenAI API docs](https://platform.openai.com/docs/api-reference/usage)
 - [GitHub](https://github.com/rawdash/rawdash)
 

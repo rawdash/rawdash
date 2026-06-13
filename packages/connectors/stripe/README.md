@@ -148,7 +148,7 @@ Stripe 429 responses carry a Retry-After header; requests are retried with expon
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [Stripe API docs](https://stripe.com/docs/api)
 - [GitHub](https://github.com/rawdash/rawdash)
 

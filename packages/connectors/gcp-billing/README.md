@@ -102,7 +102,7 @@ BigQuery jobs.query is rate-limited per project; standard 429 / RESOURCE_EXHAUST
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [Google Cloud API docs](https://cloud.google.com/billing/docs/how-to/export-data-bigquery)
 - [GitHub](https://github.com/rawdash/rawdash)
 

@@ -93,7 +93,7 @@ Netlify returns standard `X-RateLimit-Remaining` / `X-RateLimit-Reset` headers (
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [Netlify API docs](https://open-api.netlify.com/)
 - [GitHub](https://github.com/rawdash/rawdash)
 

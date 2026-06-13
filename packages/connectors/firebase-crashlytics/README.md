@@ -112,7 +112,7 @@ BigQuery jobs.query is rate-limited per project; standard 429 / RESOURCE_EXHAUST
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [Firebase API docs](https://firebase.google.com/docs/crashlytics/bigquery-export)
 - [GitHub](https://github.com/rawdash/rawdash)
 

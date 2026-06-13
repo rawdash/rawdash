@@ -129,7 +129,7 @@ RevenueCat applies per-project rate limits and returns 429 with a Retry-After he
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [RevenueCat API docs](https://www.revenuecat.com/docs/api-v2)
 - [GitHub](https://github.com/rawdash/rawdash)
 

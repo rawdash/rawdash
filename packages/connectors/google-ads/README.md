@@ -122,7 +122,7 @@ Google Ads API basic-access tokens get a 15,000 operations / day quota per devel
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [Google Ads API docs](https://developers.google.com/google-ads/api/docs/start)
 - [GitHub](https://github.com/rawdash/rawdash)
 

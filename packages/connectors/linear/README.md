@@ -95,7 +95,7 @@ Linear returns X-RateLimit-Requests-Remaining / X-RateLimit-Requests-Reset heade
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [Linear API docs](https://developers.linear.app/docs)
 - [GitHub](https://github.com/rawdash/rawdash)
 

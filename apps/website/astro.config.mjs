@@ -11,7 +11,7 @@ const publishedPageTypes = new Set(
 const hiddenSectionPaths = new Set(
   SECTION_LIST.filter(
     (section) => !publishedPageTypes.has(section.pageType),
-  ).map((section) => `${section.basePath}/`),
+  ).map((section) => section.basePath),
 );
 
 const ga4Id = process.env.PUBLIC_GA4_ID?.trim();
@@ -33,13 +33,17 @@ const ga4Head = ga4Id
 
 export default defineConfig({
   site: 'https://rawdash.dev',
+  trailingSlash: 'never',
+  build: { format: 'file' },
   integrations: [
     sitemap({
-      filter: (page) => !hiddenSectionPaths.has(new URL(page).pathname),
+      filter: (page) =>
+        !hiddenSectionPaths.has(new URL(page).pathname.replace(/\/$/, '')),
     }),
     starlight({
       title: 'Rawdash',
       description: 'Headless dashboard backend for any team.',
+      routeMiddleware: './src/starlightRouteData.ts',
       head: ga4Head,
       logo: {
         light: './src/assets/logo.svg',

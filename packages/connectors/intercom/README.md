@@ -129,7 +129,7 @@ Intercom enforces per-app and per-workspace limits (default ~1000 requests/minut
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [Intercom API docs](https://developers.intercom.com/docs/references/rest-api/api.intercom.io/)
 - [GitHub](https://github.com/rawdash/rawdash)
 

@@ -101,7 +101,7 @@ Unauthenticated requests share GitHub’s low 60 requests/hour limit; an authent
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [GitHub API docs](https://docs.github.com/rest)
 - [GitHub](https://github.com/rawdash/rawdash)
 

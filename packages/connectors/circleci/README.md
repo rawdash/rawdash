@@ -98,7 +98,7 @@ CircleCI enforces a per-token rate limit of roughly 3,500 requests per hour. The
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [CircleCI API docs](https://circleci.com/docs/api/v2/)
 - [GitHub](https://github.com/rawdash/rawdash)
 
