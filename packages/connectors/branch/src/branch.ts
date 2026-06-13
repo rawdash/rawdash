@@ -190,7 +190,6 @@ export const branchResources = defineResources({
           'Estimated cost in the app local currency (only populated for ad-network-integrated channels; 0 otherwise).',
       },
     ],
-    filterable: [],
     responses: {
       install_metrics_installs: installResponseSchema,
       install_metrics_opens: installResponseSchema,
