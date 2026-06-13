@@ -120,7 +120,7 @@ Auth0 publishes X-RateLimit-Limit / X-RateLimit-Remaining / X-RateLimit-Reset re
 
 - User enumeration uses offset pagination (page/per_page) and is capped at the first 1000 users per sync; tenants with more than 1000 users updated since the last run should increase sync frequency so each window stays under the cap.
 - Action / hook / branding configuration objects are out of scope.
-- Only Auth0 tenants on the _.auth0.com hostname suffix are supported; custom-domain tenants must still expose a _.auth0.com hostname for the Management API.
+- Only Auth0 tenants on the `*.auth0.com` hostname suffix are supported; custom-domain tenants must still expose a `*.auth0.com` hostname for the Management API.
 
 ## Links
 
