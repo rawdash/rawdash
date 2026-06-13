@@ -266,6 +266,13 @@ import {
   resources as vercelResources,
 } from '@rawdash/connector-vercel';
 import {
+  configFields as vertexAiConfigFields,
+  cost as vertexAiCost,
+  doc as vertexAiDoc,
+  id as vertexAiId,
+  resources as vertexAiResources,
+} from '@rawdash/connector-vertex-ai';
+import {
   configFields as zendeskConfigFields,
   doc as zendeskDoc,
   id as zendeskId,
@@ -583,6 +590,14 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: vercelDoc,
     configFields: vercelConfigFields,
     resources: vercelResources,
+  },
+  {
+    id: vertexAiId,
+    packageName: '@rawdash/connector-vertex-ai',
+    doc: vertexAiDoc,
+    configFields: vertexAiConfigFields,
+    resources: vertexAiResources,
+    cost: vertexAiCost,
   },
   {
     id: zendeskId,
