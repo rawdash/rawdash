@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-github",
-  "version": "0.22.0",
+  "version": "0.23.0",
   "description": "Rawdash connector for GitHub",
   "license": "Apache-2.0",
   "type": "module",

@@ -1,5 +1,28 @@
 # @rawdash/server
 
+## 0.23.0
+
+### Minor Changes
+
+- 1159dc1: Validate widget metric definitions against connector resource schemas.
+
+  `@rawdash/core` now exports `validateConfigMetrics(config, resourcesByConnectorId)` (plus `resourcesByConnectorIdFromRegistry` to derive that map from a `ConnectorRegistry`). It checks every widget metric against the referenced connector's declared resources and reports:
+  - **Errors** for a metric that references an unknown resource name, a shape that doesn't match the resource, or a field (including filter/groupBy fields) the resource doesn't declare — each message lists the valid options.
+  - **Warnings** for aggregating a field declared in a minor currency unit (e.g. Stripe `amount` in cents) without conversion, and for a metric whose title/name implies a time window but has no effective `window`.
+
+  Validation runs server-side, where the connector registry (and therefore every connector's schema) already lives: the engine exposes a `POST /config/validate` route (`@rawdash/hono` `createConfigValidateRouter`, mounted by `mountEngine`). `rawdash deploy` calls this route and fails on errors / surfaces warnings before applying, and degrades gracefully if the server doesn't expose it. The CLI no longer bundles the connector packages.
+
+  `ResourceField` gains an optional `unit`, and the Stripe connector declares its monetary fields (`amount`, `mrrAmount`, `amountDue`, `amountPaid`) in `cents` so the cents-without-conversion warning is driven by the connector's own schema.
+
+### Patch Changes
+
+- Updated dependencies [e6d5f18]
+- Updated dependencies [2816c8a]
+- Updated dependencies [f7346f2]
+- Updated dependencies [8bce1e2]
+- Updated dependencies [1159dc1]
+  - @rawdash/core@0.23.0
+
 ## 0.22.0
 
 ### Patch Changes

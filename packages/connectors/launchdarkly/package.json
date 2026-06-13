@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-launchdarkly",
-  "version": "0.22.0",
+  "version": "0.23.0",
   "description": "Rawdash connector for LaunchDarkly - projects, environments, feature flags, and audit-log events",
   "license": "Apache-2.0",
   "type": "module",
