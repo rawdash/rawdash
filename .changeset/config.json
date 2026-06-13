@@ -55,6 +55,7 @@
       "@rawdash/connector-branch",
       "@rawdash/connector-vertex-ai",
       "@rawdash/connector-okta",
+      "@rawdash/connector-langsmith",
       "@rawdash/connectors",
       "@rawdash/adapter-libsql",
       "@rawdash/adapter-sqlite",
