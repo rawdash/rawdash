@@ -24,7 +24,7 @@ const docShapeExtra = (
 function makeConnector(resources: readonly OpenAIResource[]): OpenAIConnector {
   return new OpenAIConnector(
     { resources, lookbackDays: 7 },
-    { adminApiKey: 'sk-admin-test' as unknown as { $secret: string } },
+    { adminApiKey: 'sk-admin-test' },
   );
 }
 

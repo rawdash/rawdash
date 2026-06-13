@@ -33,7 +33,7 @@ function makeConnector(
       lookbackDays: overrides.lookbackDays ?? 7,
       resources: overrides.resources,
     },
-    { adminApiKey: 'sk-admin-test' as unknown as { $secret: string } },
+    { adminApiKey: 'sk-admin-test' },
   );
 }
 
