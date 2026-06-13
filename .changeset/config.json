@@ -11,6 +11,7 @@
       "@rawdash/connector-anthropic",
       "@rawdash/connector-app-store-connect",
       "@rawdash/connector-appsflyer",
+      "@rawdash/connector-aws-bedrock",
       "@rawdash/connector-aws-cloudwatch",
       "@rawdash/connector-azure-cost",
       "@rawdash/connector-azure-monitor",
