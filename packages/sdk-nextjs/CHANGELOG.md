@@ -1,5 +1,15 @@
 # @rawdash/nextjs
 
+## 0.24.0
+
+### Patch Changes
+
+- Updated dependencies [fe1ee4b]
+- Updated dependencies [ad70083]
+  - @rawdash/core@0.24.0
+  - @rawdash/sdk-client@0.24.0
+  - @rawdash/sdk-runtime@0.24.0
+
 ## 0.23.0
 
 ### Patch Changes

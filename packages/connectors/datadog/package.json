@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-datadog",
-  "version": "0.23.0",
+  "version": "0.24.0",
   "description": "Rawdash connector for Datadog — metric queries, monitors, incidents, and SLOs",
   "license": "Apache-2.0",
   "type": "module",

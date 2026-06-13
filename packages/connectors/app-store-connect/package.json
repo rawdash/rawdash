@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-app-store-connect",
-  "version": "0.23.0",
+  "version": "0.24.0",
   "description": "Rawdash connector for App Store Connect — syncs apps, sales (units and proceeds), and customer review ratings from the App Store Connect API into the six-shape storage model",
   "license": "Apache-2.0",
   "type": "module",

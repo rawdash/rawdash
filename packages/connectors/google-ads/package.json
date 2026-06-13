@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-google-ads",
-  "version": "0.23.0",
+  "version": "0.24.0",
   "description": "Rawdash connector for Google Ads — syncs campaigns plus daily campaign / ad-group / keyword performance metrics into the six-shape storage model",
   "license": "Apache-2.0",
   "type": "module",
