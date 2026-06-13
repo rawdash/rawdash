@@ -97,7 +97,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
   limitations: [
     'User enumeration uses offset pagination (page/per_page) and is capped at the first 1000 users per sync; tenants with more than 1000 users updated since the last run should increase sync frequency so each window stays under the cap.',
     'Action / hook / branding configuration objects are out of scope.',
-    'Only Auth0 tenants on the *.auth0.com hostname suffix are supported; custom-domain tenants must still expose a *.auth0.com hostname for the Management API.',
+    'Only Auth0 tenants on the `*.auth0.com` hostname suffix are supported; custom-domain tenants must still expose a `*.auth0.com` hostname for the Management API.',
   ],
 });
 
@@ -373,6 +373,7 @@ export class Auth0Connector extends BaseConnector<
   override readonly credentials = auth0Credentials;
 
   private accessToken: string | null = null;
+  private accessTokenExpiry: number = 0;
 
   private baseUrl(): string {
     return `https://${this.settings.domain}`;
@@ -401,12 +402,16 @@ export class Auth0Connector extends BaseConnector<
         signal,
       },
     );
-    return res.body.access_token;
+    const token = res.body.access_token;
+    const expiresIn = res.body.expires_in ?? 3600;
+    this.accessToken = token;
+    this.accessTokenExpiry = Date.now() + (expiresIn - 60) * 1000;
+    return token;
   }
 
   private async getAccessToken(signal?: AbortSignal): Promise<string> {
-    if (!this.accessToken) {
-      this.accessToken = await this.refreshAccessToken(signal);
+    if (!this.accessToken || Date.now() >= this.accessTokenExpiry) {
+      return this.refreshAccessToken(signal);
     }
     return this.accessToken;
   }
@@ -415,9 +420,10 @@ export class Auth0Connector extends BaseConnector<
     url: string,
     resource: string,
     signal?: AbortSignal,
+    retried = false,
   ): Promise<HttpResponse<T>> {
     const token = await this.getAccessToken(signal);
-    return this.get<T>(url, {
+    const res = await this.get<T>(url, {
       resource,
       headers: {
         Authorization: `Bearer ${token}`,
@@ -427,6 +433,12 @@ export class Auth0Connector extends BaseConnector<
       rateLimit: auth0RateLimit,
       signal,
     });
+    if (res.status === 401 && !retried) {
+      this.accessToken = null;
+      this.accessTokenExpiry = 0;
+      return this.apiGet<T>(url, resource, signal, true);
+    }
+    return res;
   }
 
   private parsePageCursor(page: string | null): number {
