@@ -315,7 +315,7 @@ function bucketKey(
   channel: string | null,
   campaign: string | null,
 ): string {
-  return `${date}${channel ?? ''}${campaign ?? ''}`;
+  return `${date}|${channel ?? ''}|${campaign ?? ''}`;
 }
 
 export function mergeInstallBuckets(
