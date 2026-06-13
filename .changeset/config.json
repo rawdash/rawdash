@@ -49,6 +49,7 @@
       "@rawdash/connector-statuspage",
       "@rawdash/connector-revenuecat",
       "@rawdash/connector-firebase-analytics",
+      "@rawdash/connector-openai",
       "@rawdash/connectors",
       "@rawdash/adapter-libsql",
       "@rawdash/adapter-sqlite",

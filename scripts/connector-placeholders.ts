@@ -2322,16 +2322,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     requestIssue: 'RAW-431',
   },
   {
-    id: 'openai',
-    name: 'OpenAI API',
-    category: 'engineering',
-    tagline:
-      'Sync token usage, requests, and spend across OpenAI models and projects.',
-    brandColor: '#10A37F',
-    domain: 'openai.com',
-    requestIssue: 'RAW-410',
-  },
-  {
     id: 'postmark',
     name: 'Postmark',
     category: 'engineering',
