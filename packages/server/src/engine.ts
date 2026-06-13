@@ -3,12 +3,18 @@ import type {
   ConnectorRegistry,
   DashboardConfig,
   HealthResponse,
+  ResourcesByConnectorId,
   SecretsResolver,
   ServerStorage,
   SyncState,
   TriggerSyncResponse,
 } from '@rawdash/core';
-import { InMemoryStorage, isSyncActive, resolveWidget } from '@rawdash/core';
+import {
+  InMemoryStorage,
+  isSyncActive,
+  resolveWidget,
+  resourcesByConnectorIdFromRegistry,
+} from '@rawdash/core';
 
 import { type ConnectorLoggerFactory, runSync } from './sync';
 
@@ -36,6 +42,10 @@ export function createEngine(
 ): Engine {
   const storage: ServerStorage = options.storage ?? new InMemoryStorage();
   const connectorNames = config.connectors.map((c) => c.name);
+  const resourcesByConnectorId: ResourcesByConnectorId | undefined =
+    options.connectorRegistry
+      ? resourcesByConnectorIdFromRegistry(options.connectorRegistry)
+      : undefined;
 
   return {
     async getWidget(dashboardId, widgetId) {
@@ -53,6 +63,7 @@ export function createEngine(
         widget,
         connectorNames,
         storage,
+        resourcesByConnectorId,
       );
     },
 
@@ -64,7 +75,14 @@ export function createEngine(
       const entries = Object.entries(dashboard.widgets);
       const resolved = await Promise.all(
         entries.map(([key, widget]) =>
-          resolveWidget(dashboardId, key, widget, connectorNames, storage),
+          resolveWidget(
+            dashboardId,
+            key,
+            widget,
+            connectorNames,
+            storage,
+            resourcesByConnectorId,
+          ),
         ),
       );
       return resolved.filter((w): w is CachedWidget => w !== undefined);

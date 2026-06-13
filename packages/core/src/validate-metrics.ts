@@ -1,5 +1,6 @@
 import type { ComputedMetric, DashboardConfig, Shape, Widget } from './config';
 import type { FilterClause } from './filters';
+import { MINOR_CURRENCY_UNITS } from './format';
 import type { ConnectorRegistry } from './registry';
 import type {
   ResourceDefinition,
@@ -43,8 +44,6 @@ const IMPLICIT_FIELDS: Record<Shape, readonly string[]> = {
   distribution: [],
   edge: [],
 };
-
-const MINOR_CURRENCY_UNITS = new Set(['cent', 'cents', 'pence', 'penny']);
 
 const WINDOW_HINT_RE =
   /(^|[^a-z0-9])(\d+)\s*(d|days?|h|hours?|w|weeks?)([^a-z0-9]|$)/i;
@@ -204,12 +203,23 @@ function validateMetric(
 
   if (metric.fn !== 'count') {
     const unit = fieldUnit(resource, metric.field);
+    const hasCurrencyFormat =
+      'format' in widget && widget.format?.kind === 'currency';
     if (isMinorCurrencyUnit(unit)) {
+      const fieldLabel = metric.field ?? 'value';
+      if (!hasCurrencyFormat) {
+        warnings.push({
+          ref,
+          severity: 'warning',
+          message: `${metric.fn}s "${fieldLabel}" which connector "${connectorTypeId}" declares in ${unit} (a minor currency unit). Raw ${unit} values are 100× the major-unit figure; set format: { kind: 'currency' } on the widget to display correctly.`,
+        });
+      }
+    } else if (hasCurrencyFormat && !unit) {
       const fieldLabel = metric.field ?? 'value';
       warnings.push({
         ref,
         severity: 'warning',
-        message: `${metric.fn}s "${fieldLabel}" which connector "${connectorTypeId}" declares in ${unit} (a minor currency unit). Aggregating raw ${unit} yields a value 100x the major-unit figure; divide by 100 (or convert) before display.`,
+        message: `has format: { kind: 'currency' } but field "${fieldLabel}" on connector "${connectorTypeId}" has no declared currency unit. Verify the field stores monetary values in a minor currency unit (e.g. cents) and add the appropriate unit declaration.`,
       });
     }
   }

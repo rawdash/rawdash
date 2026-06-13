@@ -136,7 +136,7 @@ describe('validateConfigMetrics', () => {
     expect(errors).toEqual([]);
     expect(warnings).toHaveLength(1);
     expect(warnings[0]?.message).toContain('cents');
-    expect(warnings[0]?.message).toContain('100x');
+    expect(warnings[0]?.message).toContain("format: { kind: 'currency' }");
   });
 
   it.each(['avg', 'min', 'max'] as const)(
@@ -159,6 +159,62 @@ describe('validateConfigMetrics', () => {
       expect(warnings[0]?.message).toContain('cents');
     },
   );
+
+  it('suppresses the cents warning when the widget sets format: currency', () => {
+    const metric = defineMetric({
+      connector: acme,
+      shape: 'event',
+      name: 'acme_charge',
+      field: 'amount',
+      fn: 'sum',
+    });
+    const config = defineConfig({
+      connectors: [acme],
+      dashboards: {
+        main: defineDashboard({
+          widgets: {
+            w: {
+              kind: 'stat',
+              title: 'W',
+              metric,
+              format: { kind: 'currency' },
+            },
+          },
+        }),
+      },
+    });
+    const { warnings } = validateConfigMetrics(config, resourcesByConnectorId);
+    expect(warnings).toEqual([]);
+  });
+
+  it('warns when format: currency is set on a field with no declared currency unit', () => {
+    const metric = defineMetric({
+      connector: acme,
+      shape: 'event',
+      name: 'acme_charge',
+      field: 'status',
+      fn: 'latest',
+    });
+    const config = defineConfig({
+      connectors: [acme],
+      dashboards: {
+        main: defineDashboard({
+          widgets: {
+            w: {
+              kind: 'stat',
+              title: 'W',
+              metric,
+              format: { kind: 'currency' },
+            },
+          },
+        }),
+      },
+    });
+    const { warnings } = validateConfigMetrics(config, resourcesByConnectorId);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]?.message).toContain("format: { kind: 'currency' }");
+    expect(warnings[0]?.message).toContain('no declared currency unit');
+  });
 
   it('rejects an invalid filter field', () => {
     const config = configWith(
