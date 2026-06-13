@@ -316,6 +316,66 @@ describe('LangfuseConnector', () => {
     });
   });
 
+  it('aggregates scores across pages when the same (day, name) bucket spans two pages', async () => {
+    let page = 0;
+    installFetchMock(() => {
+      page += 1;
+      if (page === 1) {
+        return {
+          data: [
+            {
+              id: 's1',
+              name: 'quality',
+              value: 1.0,
+              timestamp: '2026-05-20T01:00:00Z',
+            },
+            {
+              id: 's2',
+              name: 'quality',
+              value: 0.5,
+              timestamp: '2026-05-20T02:00:00Z',
+            },
+          ],
+          meta: { page: 1, limit: 50, totalItems: 4, totalPages: 2 },
+        };
+      }
+      return {
+        data: [
+          {
+            id: 's3',
+            name: 'quality',
+            value: 0.0,
+            timestamp: '2026-05-20T10:00:00Z',
+          },
+          {
+            id: 's4',
+            name: 'quality',
+            value: 0.5,
+            timestamp: '2026-05-20T11:00:00Z',
+          },
+        ],
+        meta: { page: 2, limit: 50, totalItems: 4, totalPages: 2 },
+      };
+    });
+
+    const storage = new InMemoryStorage();
+    await connector({ resources: ['scores'] }).sync(
+      { mode: 'full' },
+      storage.getStorageHandle(CONNECTOR_ID),
+    );
+
+    const metrics = langfuseMetrics(storage, 'langfuse_scores');
+    expect(metrics).toHaveLength(1);
+    expect(metrics[0]).toMatchObject({
+      ts: Date.parse('2026-05-20T00:00:00.000Z'),
+      attributes: {
+        name: 'quality',
+        count: 4,
+        average: 0.5,
+      },
+    });
+  });
+
   it('extends the fromTimestamp window when since predates the lookback', async () => {
     const spy = installFetchMock(() => ({
       data: [],

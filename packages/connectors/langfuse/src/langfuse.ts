@@ -119,6 +119,12 @@ export type LangfuseResource = LangfusePhase;
 
 const isLangfuseSyncCursor = makeChunkedCursorGuard(PHASE_ORDER);
 
+interface ScoreAcc {
+  count: number;
+  sum: number;
+  numericCount: number;
+}
+
 const TRACES_PAGE_SIZE = 50;
 const METRICS_PAGE_SIZE = 50;
 const SCORES_PAGE_SIZE = 50;
@@ -579,12 +585,10 @@ export class LangfuseConnector extends BaseConnector<
     return { items: data, next };
   }
 
-  private async writeScores(
-    storage: StorageHandle,
+  private collectScores(
+    acc: Map<string, ScoreAcc>,
     items: ScoreRecord[],
-  ): Promise<void> {
-    type Acc = { count: number; sum: number; numericCount: number };
-    const byDayName = new Map<string, Acc>();
+  ): void {
     for (const score of items) {
       const ts =
         parseEpoch(score.timestamp ?? null, 'iso') ??
@@ -594,19 +598,26 @@ export class LangfuseConnector extends BaseConnector<
       }
       const day = startOfUtcDay(ts);
       const key = `${day}|${score.name}`;
-      const prev = byDayName.get(key) ?? { count: 0, sum: 0, numericCount: 0 };
+      const prev = acc.get(key) ?? { count: 0, sum: 0, numericCount: 0 };
       prev.count += 1;
       if (typeof score.value === 'number' && Number.isFinite(score.value)) {
         prev.sum += score.value;
         prev.numericCount += 1;
       }
-      byDayName.set(key, prev);
+      acc.set(key, prev);
     }
-    for (const [key, acc] of byDayName) {
+  }
+
+  private async flushScores(
+    storage: StorageHandle,
+    acc: Map<string, ScoreAcc>,
+  ): Promise<void> {
+    for (const [key, scoreAcc] of acc) {
       const sep = key.indexOf('|');
       const dayMs = Number(key.slice(0, sep));
       const name = key.slice(sep + 1);
-      const average = acc.numericCount > 0 ? acc.sum / acc.numericCount : 0;
+      const average =
+        scoreAcc.numericCount > 0 ? scoreAcc.sum / scoreAcc.numericCount : 0;
       await storage.metric({
         name: SCORES_METRIC,
         ts: dayMs,
@@ -614,7 +625,7 @@ export class LangfuseConnector extends BaseConnector<
         attributes: {
           name,
           average,
-          count: acc.count,
+          count: scoreAcc.count,
         },
       });
     }
@@ -624,6 +635,7 @@ export class LangfuseConnector extends BaseConnector<
     storage: StorageHandle,
     phase: LangfusePhase,
     isFull: boolean,
+    windowStartMs: number,
   ): Promise<void> {
     switch (phase) {
       case 'traces':
@@ -631,18 +643,34 @@ export class LangfuseConnector extends BaseConnector<
           await storage.entities([], { types: [TRACE_ENTITY] });
         }
         return;
-      case 'observations_per_day':
-        await storage.metrics([], { names: [OBSERVATIONS_METRIC] });
+      case 'observations_per_day': {
+        if (isFull) {
+          await storage.metrics([], { names: [OBSERVATIONS_METRIC] });
+        } else {
+          const existing = await storage.queryMetrics({
+            name: OBSERVATIONS_METRIC,
+          });
+          const toKeep = existing.filter((m) => m.ts < windowStartMs);
+          await storage.metrics(toKeep, { names: [OBSERVATIONS_METRIC] });
+        }
         return;
-      case 'scores':
-        await storage.metrics([], { names: [SCORES_METRIC] });
+      }
+      case 'scores': {
+        if (isFull) {
+          await storage.metrics([], { names: [SCORES_METRIC] });
+        } else {
+          const existing = await storage.queryMetrics({ name: SCORES_METRIC });
+          const toKeep = existing.filter((m) => m.ts < windowStartMs);
+          await storage.metrics(toKeep, { names: [SCORES_METRIC] });
+        }
         return;
+      }
     }
   }
 
   private async writePhase(
     storage: StorageHandle,
-    phase: LangfusePhase,
+    phase: Exclude<LangfusePhase, 'scores'>,
     items: unknown[],
   ): Promise<void> {
     switch (phase) {
@@ -651,9 +679,6 @@ export class LangfuseConnector extends BaseConnector<
         return;
       case 'observations_per_day':
         await this.writeDailyMetrics(storage, items as DailyMetricRecord[]);
-        return;
-      case 'scores':
-        await this.writeScores(storage, items as ScoreRecord[]);
         return;
     }
   }
@@ -667,6 +692,8 @@ export class LangfuseConnector extends BaseConnector<
       ? options.cursor
       : undefined;
     const isFull = options.mode === 'full';
+    const windowStartMs = this.windowStart(options).getTime();
+    const scoresAcc = new Map<string, ScoreAcc>();
 
     const phases = selectActivePhases<LangfuseResource, LangfusePhase>(
       (r) => r,
@@ -674,7 +701,7 @@ export class LangfuseConnector extends BaseConnector<
       this.settings.resources,
     );
 
-    return paginateChunked<LangfusePhase, string>({
+    const result = await paginateChunked<LangfusePhase, string>({
       phases,
       cursor,
       signal,
@@ -692,11 +719,23 @@ export class LangfuseConnector extends BaseConnector<
       },
       writeBatch: async (phase, items, page) => {
         if (page === null) {
-          await this.clearScopeOnFirstPage(storage, phase, isFull);
+          await this.clearScopeOnFirstPage(
+            storage,
+            phase,
+            isFull,
+            windowStartMs,
+          );
         }
-        await this.writePhase(storage, phase, items);
+        if (phase === 'scores') {
+          this.collectScores(scoresAcc, items as ScoreRecord[]);
+        } else {
+          await this.writePhase(storage, phase, items);
+        }
       },
     });
+
+    await this.flushScores(storage, scoresAcc);
+    return result;
   }
 }
 
