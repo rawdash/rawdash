@@ -19,6 +19,12 @@ import {
   resources as appsflyerResources,
 } from '@rawdash/connector-appsflyer';
 import {
+  configFields as auth0ConfigFields,
+  doc as auth0Doc,
+  id as auth0Id,
+  resources as auth0Resources,
+} from '@rawdash/connector-auth0';
+import {
   configFields as awsBedrockConfigFields,
   cost as awsBedrockCost,
   doc as awsBedrockDoc,
@@ -303,6 +309,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: appsflyerDoc,
     configFields: appsflyerConfigFields,
     resources: appsflyerResources,
+  },
+  {
+    id: auth0Id,
+    packageName: '@rawdash/connector-auth0',
+    doc: auth0Doc,
+    configFields: auth0ConfigFields,
+    resources: auth0Resources,
   },
   {
     id: awsBedrockId,

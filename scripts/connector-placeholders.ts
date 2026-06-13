@@ -603,16 +603,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     domain: '1password.com',
   },
   {
-    id: 'auth0',
-    name: 'Auth0',
-    category: 'security',
-    tagline:
-      'Sync users, sign-up rate, MFA adoption, and failed-login activity from an Auth0 tenant.',
-    icon: 'auth0',
-    domain: 'auth0.com',
-    requestIssue: 'RAW-416',
-  },
-  {
     id: 'clerk',
     name: 'Clerk',
     category: 'security',

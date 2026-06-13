@@ -9,6 +9,7 @@
       "@rawdash/hono",
       "@rawdash/sdk-nextjs",
       "@rawdash/connector-anthropic",
+      "@rawdash/connector-auth0",
       "@rawdash/connector-app-store-connect",
       "@rawdash/connector-appsflyer",
       "@rawdash/connector-aws-bedrock",
