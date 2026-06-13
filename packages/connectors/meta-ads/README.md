@@ -38,19 +38,19 @@ A long-lived System User access token from Meta Business Manager, scoped with `a
   - Endpoint: `GET /{ad_account_id}/campaigns`
 - **`meta_campaign_insights`** _(metric)_ - Daily campaign-level Meta Ads insights - spend (primary value), impressions, clicks, reach, conversions, and conversion value bucketed by campaign.
   - Endpoint: `GET /{ad_account_id}/insights?level=campaign&time_increment=1`
-  - Unit: spend
+  - Unit: USD
   - Granularity: day
   - Dimensions: `date`, `campaignId`, `campaignName`, `impressions`, `clicks`, `spend`, `reach`, `conversions`, `conversion_value`
   - Primary value is `spend`. `conversions` is the sum of every entry in the upstream `actions` array; `conversion_value` is the sum of every entry in `action_values`.
 - **`meta_adset_insights`** _(metric)_ - Daily adset-level Meta Ads insights - same fields as the campaign roll-up, bucketed by adset.
   - Endpoint: `GET /{ad_account_id}/insights?level=adset&time_increment=1`
-  - Unit: spend
+  - Unit: USD
   - Granularity: day
   - Dimensions: `date`, `campaignId`, `campaignName`, `adsetId`, `adsetName`, `impressions`, `clicks`, `spend`, `reach`, `conversions`, `conversion_value`
   - Primary value is `spend`. Includes campaign_id/campaign_name so adset rows are easy to roll up to their parent campaign.
 - **`meta_ad_insights`** _(metric)_ - Daily ad-level Meta Ads insights - same fields as the adset roll-up, bucketed by ad.
   - Endpoint: `GET /{ad_account_id}/insights?level=ad&time_increment=1`
-  - Unit: spend
+  - Unit: USD
   - Granularity: day
   - Dimensions: `date`, `campaignId`, `campaignName`, `adsetId`, `adsetName`, `adId`, `adName`, `impressions`, `clicks`, `spend`, `reach`, `conversions`, `conversion_value`
   - Primary value is `spend`. Cardinality is the highest of the three insights resources - opt in via `resources: [..., "ad_insights"]` only when you need per-ad breakdowns.

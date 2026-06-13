@@ -48,18 +48,18 @@ OAuth 2.0 refresh token against an account with read access to the Google Ads cu
   - `endDate`: Campaign end date (YYYY-MM-DD), if set.
 - **`google_ads_campaign_metrics`** _(metric)_ - Daily campaign performance - impressions, clicks, cost, conversions, and conversion value per (date, campaignId).
   - Endpoint: `POST /v18/customers/{customerId}/googleAds:search`
-  - Unit: cost
+  - Unit: USD
   - Granularity: day
   - Dimensions: `date`, `campaignId`, `campaignName`, `impressions`, `clicks`, `cost`, `costMicros`, `conversions`, `conversionsValue`
   - Sample value is `cost` (account currency units). All other fields are mirrored in attributes for filtering and ratio metrics (CPA = cost / conversions, ROAS = conversionsValue / cost).
 - **`google_ads_ad_group_metrics`** _(metric)_ - Daily ad-group performance - impressions, clicks, cost, and conversions per (date, adGroupId).
   - Endpoint: `POST /v18/customers/{customerId}/googleAds:search`
-  - Unit: cost
+  - Unit: USD
   - Granularity: day
   - Dimensions: `date`, `adGroupId`, `adGroupName`, `campaignId`, `impressions`, `clicks`, `cost`, `costMicros`, `conversions`
 - **`google_ads_keyword_metrics`** _(metric)_ - Daily keyword performance - impressions, clicks, cost, and historical quality score per (date, criterionId).
   - Endpoint: `POST /v18/customers/{customerId}/googleAds:search`
-  - Unit: cost
+  - Unit: USD
   - Granularity: day
   - Dimensions: `date`, `criterionId`, `keywordText`, `matchType`, `adGroupId`, `impressions`, `clicks`, `cost`, `costMicros`, `qualityScore`
   - Driven by `keyword_view`; the cost / impression columns roll up to the criterion-day pair.
