@@ -42,10 +42,20 @@ export function createEngine(
 ): Engine {
   const storage: ServerStorage = options.storage ?? new InMemoryStorage();
   const connectorNames = config.connectors.map((c) => c.name);
-  const resourcesByConnectorId: ResourcesByConnectorId | undefined =
-    options.connectorRegistry
-      ? resourcesByConnectorIdFromRegistry(options.connectorRegistry)
-      : undefined;
+  const resourcesByConnectorId: ResourcesByConnectorId | undefined = (() => {
+    if (!options.connectorRegistry) {
+      return undefined;
+    }
+    const byTypeId = resourcesByConnectorIdFromRegistry(
+      options.connectorRegistry,
+    );
+    return Object.fromEntries(
+      config.connectors.flatMap(({ name, connectorId }) => {
+        const defs = byTypeId[connectorId];
+        return defs ? ([[name, defs]] as const) : [];
+      }),
+    );
+  })();
 
   return {
     async getWidget(dashboardId, widgetId) {

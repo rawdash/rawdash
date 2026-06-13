@@ -2,8 +2,12 @@ import { z } from 'zod';
 
 export const widgetFormatSchema = z.object({
   kind: z.enum(['currency', 'number', 'percent', 'duration', 'bytes']),
-  currency: z.string().optional(),
-  decimals: z.number().int().optional(),
+  currency: z
+    .string()
+    .trim()
+    .regex(/^[A-Z]{3}$/)
+    .optional(),
+  decimals: z.number().int().min(0).max(20).optional(),
   compact: z.boolean().optional(),
 });
 

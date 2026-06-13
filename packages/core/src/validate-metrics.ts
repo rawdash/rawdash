@@ -1,6 +1,6 @@
 import type { ComputedMetric, DashboardConfig, Shape, Widget } from './config';
 import type { FilterClause } from './filters';
-import { MINOR_CURRENCY_UNITS } from './format';
+import { MINOR_CURRENCY_UNITS, currencyScaleFromUnit } from './format';
 import type { ConnectorRegistry } from './registry';
 import type {
   ResourceDefinition,
@@ -211,7 +211,7 @@ function validateMetric(
         warnings.push({
           ref,
           severity: 'warning',
-          message: `${metric.fn}s "${fieldLabel}" which connector "${connectorTypeId}" declares in ${unit} (a minor currency unit). Raw ${unit} values are 100× the major-unit figure; set format: { kind: 'currency' } on the widget to display correctly.`,
+          message: `${metric.fn}s "${fieldLabel}" which connector "${connectorTypeId}" declares in ${unit} (a minor currency unit). Raw ${unit} values are ${currencyScaleFromUnit(unit)}× the major-unit figure; set format: { kind: 'currency' } on the widget to display correctly.`,
         });
       }
     } else if (hasCurrencyFormat && !unit) {

@@ -20,7 +20,9 @@ export interface ResolvedWidgetFormat extends WidgetFormat {
 }
 
 export function currencyScaleFromUnit(unit: string | undefined): number {
-  if (!unit) {return 1;}
+  if (!unit) {
+    return 1;
+  }
   if (MINOR_CURRENCY_UNITS.has(unit.trim().toLowerCase())) {
     return 100;
   }
@@ -49,13 +51,21 @@ export function lookupFieldUnit(
     | Readonly<Partial<Record<string, ResourceDefinitions>>>
     | undefined,
 ): string | undefined {
-  if (!resourcesByConnectorId) {return undefined;}
+  if (!resourcesByConnectorId) {
+    return undefined;
+  }
   const resourceDefs = resourcesByConnectorId[metric.connectorId];
-  if (!resourceDefs) {return undefined;}
+  if (!resourceDefs) {
+    return undefined;
+  }
   const resourceName = metric.name ?? metric.entityType;
-  if (!resourceName) {return undefined;}
+  if (!resourceName) {
+    return undefined;
+  }
   const resource = resourceDefs[resourceName];
-  if (!resource) {return undefined;}
+  if (!resource) {
+    return undefined;
+  }
   return fieldUnitFromResource(resource, metric.field);
 }
 

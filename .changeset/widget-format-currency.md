@@ -1,5 +1,5 @@
 ---
-'@rawdash/core': minor
+'@rawdash/core': patch
 '@rawdash/server': patch
 '@rawdash/connector-google-ads': patch
 '@rawdash/connector-meta-ads': patch
