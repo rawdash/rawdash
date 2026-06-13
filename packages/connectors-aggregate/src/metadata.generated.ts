@@ -163,6 +163,12 @@ import {
   resources as klaviyoResources,
 } from '@rawdash/connector-klaviyo';
 import {
+  configFields as langfuseConfigFields,
+  doc as langfuseDoc,
+  id as langfuseId,
+  resources as langfuseResources,
+} from '@rawdash/connector-langfuse';
+import {
   configFields as launchdarklyConfigFields,
   doc as launchdarklyDoc,
   id as launchdarklyId,
@@ -451,6 +457,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: klaviyoDoc,
     configFields: klaviyoConfigFields,
     resources: klaviyoResources,
+  },
+  {
+    id: langfuseId,
+    packageName: '@rawdash/connector-langfuse',
+    doc: langfuseDoc,
+    configFields: langfuseConfigFields,
+    resources: langfuseResources,
   },
   {
     id: launchdarklyId,

@@ -2332,16 +2332,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     requestIssue: 'RAW-430',
   },
   {
-    id: 'langfuse',
-    name: 'Langfuse',
-    category: 'engineering',
-    tagline:
-      'Sync LLM traces, observation volume, per-model cost, and feedback scores from Langfuse.',
-    brandColor: '#1F2937',
-    domain: 'langfuse.com',
-    requestIssue: 'RAW-414',
-  },
-  {
     id: 'langsmith',
     name: 'LangSmith',
     category: 'engineering',

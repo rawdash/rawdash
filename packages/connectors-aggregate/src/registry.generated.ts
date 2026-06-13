@@ -47,6 +47,7 @@ export const connectorLoaders: Record<string, () => Promise<ConnectorClass>> = {
   intercom: () => import('@rawdash/connector-intercom').then((m) => m.default),
   jira: () => import('@rawdash/connector-jira').then((m) => m.default),
   klaviyo: () => import('@rawdash/connector-klaviyo').then((m) => m.default),
+  langfuse: () => import('@rawdash/connector-langfuse').then((m) => m.default),
   launchdarkly: () =>
     import('@rawdash/connector-launchdarkly').then((m) => m.default),
   linear: () => import('@rawdash/connector-linear').then((m) => m.default),
