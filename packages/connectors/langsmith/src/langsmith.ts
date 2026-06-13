@@ -426,7 +426,7 @@ export class LangSmithConnector extends BaseConnector<
     let startMs = now - lookbackDays * MS_PER_DAY;
     if (options.since) {
       const sinceMs = new Date(options.since).getTime();
-      if (Number.isFinite(sinceMs) && sinceMs < startMs) {
+      if (Number.isFinite(sinceMs) && sinceMs > startMs) {
         startMs = sinceMs;
       }
     }
@@ -635,12 +635,14 @@ export class LangSmithConnector extends BaseConnector<
         if (isFull && this.wantsRunEntity()) {
           await storage.entities([], { types: [RUN_ENTITY] });
         }
-        if (this.wantsRunsPerDay()) {
+        if (isFull && this.wantsRunsPerDay()) {
           await storage.metrics([], { names: [RUNS_PER_DAY_METRIC] });
         }
         return;
       case 'feedback':
-        await storage.metrics([], { names: [FEEDBACK_METRIC] });
+        if (isFull) {
+          await storage.metrics([], { names: [FEEDBACK_METRIC] });
+        }
         return;
     }
   }

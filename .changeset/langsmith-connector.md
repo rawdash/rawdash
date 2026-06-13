@@ -1,6 +1,6 @@
 ---
-'@rawdash/connector-langsmith': minor
-'@rawdash/connectors': minor
+'@rawdash/connector-langsmith': patch
+'@rawdash/connectors': patch
 ---
 
 Add `@rawdash/connector-langsmith` covering LangSmith runs (entity), per-run

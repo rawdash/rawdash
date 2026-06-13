@@ -19,7 +19,7 @@ function makeConnector(
 ): LangSmithConnector {
   return new LangSmithConnector(
     { endpoint: 'https://api.smith.langchain.com', ...overrides },
-    { apiKey: 'lsv2_test' as unknown as { $secret: string } },
+    { apiKey: 'lsv2_test' },
   );
 }
 
@@ -298,5 +298,42 @@ describe('LangSmithConnector sync', () => {
     expect(call).toBe(2);
     const entities = entityStoreFor(storage, CONNECTOR_ID).get('langsmith_run');
     expect(entities?.size).toBe(101);
+  });
+
+  it('stops paginating when a page is entirely older than options.since', async () => {
+    let call = 0;
+    const fetchSpy = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/runs/query')) {
+        call += 1;
+        if (call === 1) {
+          const runs = Array.from({ length: 100 }, (_, i) => ({
+            id: `run-recent-${i}`,
+            name: 'r',
+            run_type: 'llm',
+            status: 'success',
+            start_time: '2026-06-10T00:00:00Z',
+            end_time: '2026-06-10T00:00:01Z',
+          }));
+          return Promise.resolve(mockJsonResponse({ runs, cursors: null }));
+        }
+        const runs = Array.from({ length: 100 }, (_, i) => ({
+          id: `run-old-${i}`,
+          name: 'r',
+          run_type: 'llm',
+          status: 'success',
+          start_time: '2026-04-01T00:00:00Z',
+          end_time: '2026-04-01T00:00:01Z',
+        }));
+        return Promise.resolve(mockJsonResponse({ runs, cursors: null }));
+      }
+      return Promise.resolve(mockJsonResponse([]));
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+    const storage = new InMemoryStorage();
+    await makeConnector({ resources: ['runs'] }).sync(
+      { mode: 'latest', since: '2026-06-01T00:00:00Z' },
+      storage.getStorageHandle(CONNECTOR_ID),
+    );
+    expect(call).toBe(2);
   });
 });

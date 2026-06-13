@@ -31,7 +31,7 @@ function makeConnector(
 ): LangSmithConnector {
   return new LangSmithConnector(
     { endpoint: 'https://api.smith.langchain.com', ...overrides },
-    { apiKey: 'lsv2_test' as unknown as { $secret: string } },
+    { apiKey: 'lsv2_test' },
   );
 }
 
