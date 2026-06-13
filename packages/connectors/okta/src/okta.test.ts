@@ -634,6 +634,33 @@ describe('OktaConnector.sync', () => {
     expect(decoded).not.toContain('filter=status eq');
   });
 
+  it('combines `since` and status pushdown in a single SCIM filter', async () => {
+    const fetchSpy = makeFetch(() => undefined);
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const since = '2024-01-01T00:00:00.000Z';
+    await connector({ resources: ['users'] }).sync(
+      {
+        mode: 'latest',
+        since,
+        fetchSpecs: {
+          okta_user: [
+            { filter: [{ field: 'status', op: 'eq', value: 'ACTIVE' }] },
+          ],
+        },
+      } as never,
+      makeStorage(),
+    );
+
+    const req = recordCalls(fetchSpy).find((c) =>
+      c.url.includes('/api/v1/users'),
+    );
+    expect(req).toBeDefined();
+    const decoded = decodeURIComponent(req!.url.replace(/\+/g, ' '));
+    expect(decoded).toContain(`lastUpdated gt "${since}"`);
+    expect(decoded).toContain('status eq "ACTIVE"');
+  });
+
   it('sends the SSWS auth header and routes to the configured host', async () => {
     const fetchSpy = makeFetch(() => undefined);
     vi.stubGlobal('fetch', fetchSpy);

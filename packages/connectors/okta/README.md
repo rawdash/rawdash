@@ -110,7 +110,7 @@ Okta publishes per-endpoint quotas (commonly 600 to 1200 requests/minute on prod
 
 ## Limitations
 
-- Daily-active-users is not synced as a metric; derive it at query time over the okta_auth_event scope (filter event_type to a sign-in success and count distinct actor ids per day).
+- Daily-active-users is not synced as a metric; derive it at query time over the okta_auth_event scope (filter eventType to a sign-in success and count distinct actor ids per day).
 - Application assignments, factors, devices, and the policy / authorization-server APIs are out of scope.
 - Only successful and failed sign-in System Log events are captured; broader event types (admin actions, lifecycle changes) can be added later.
 

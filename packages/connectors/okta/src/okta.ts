@@ -49,7 +49,7 @@ export const configFields = defineConfigFields(
           'Your Okta org hostname, e.g. "acme.okta.com" or "acme.oktapreview.com". Do not include the protocol or trailing slash.',
         placeholder: 'acme.okta.com',
       }),
-    apiToken: z.object({ $secret: z.string() }).meta({
+    apiToken: z.object({ $secret: z.string().min(1) }).meta({
       label: 'API token',
       description:
         'Okta API token (SSWS). Create one at Security -> API -> Tokens. Read-only access to Users, Groups, and the System Log is sufficient.',
@@ -539,6 +539,14 @@ export class OktaConnector extends BaseConnector<
     return specs && specs.length === 1 ? specs[0] : undefined;
   }
 
+  private setScimFilter(url: URL, clause: string): void {
+    const existing = url.searchParams.get('filter');
+    url.searchParams.set(
+      'filter',
+      existing ? `(${existing}) and (${clause})` : clause,
+    );
+  }
+
   private applyPushdown(
     url: URL,
     phase: OktaPhase,
@@ -551,8 +559,7 @@ export class OktaConnector extends BaseConnector<
           'status',
         );
         if (status !== null) {
-          // Okta uses SCIM-style filters; status equality is `status eq "ACTIVE"`.
-          url.searchParams.set('filter', `status eq "${status}"`);
+          this.setScimFilter(url, `status eq "${status}"`);
         }
         return;
       }
@@ -562,7 +569,7 @@ export class OktaConnector extends BaseConnector<
           'type',
         );
         if (groupType !== null) {
-          url.searchParams.set('filter', `type eq "${groupType}"`);
+          this.setScimFilter(url, `type eq "${groupType}"`);
         }
         return;
       }
