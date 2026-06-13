@@ -787,7 +787,16 @@ export class GitHubConnector extends BaseConnector<
     now: number,
   ): number | null {
     if (options.fetchSpecs?.[resource]) {
-      return resolveSpecCutoff(spec.requiredWindowMs, now);
+      const specCutoffMs = resolveSpecCutoff(spec.requiredWindowMs, now);
+      if (specCutoffMs === null) {
+        return null;
+      }
+      const sinceCutoffMs = options.since
+        ? new Date(options.since).getTime()
+        : null;
+      return sinceCutoffMs !== null
+        ? Math.min(specCutoffMs, sinceCutoffMs)
+        : specCutoffMs;
     }
     return resolveBackfillCutoff(options, resource, now);
   }

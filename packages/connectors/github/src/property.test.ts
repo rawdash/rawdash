@@ -7,7 +7,7 @@ import {
   entityStoreFor as sharedEntityStoreFor,
   eventStoreFor as sharedEventStoreFor,
 } from '@rawdash/connector-test-utils';
-import { InMemoryStorage } from '@rawdash/core';
+import { InMemoryStorage, computeMetric } from '@rawdash/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
@@ -870,6 +870,21 @@ describe('GitHubConnector property tests', () => {
       };
     }
 
+    function makeRun(id: number, createdAtMs: number) {
+      const iso = new Date(createdAtMs).toISOString();
+      return {
+        id,
+        name: `run ${id}`,
+        conclusion: 'success',
+        status: 'completed',
+        head_branch: 'main',
+        actor: { login: 'alice' },
+        created_at: iso,
+        updated_at: iso,
+        run_attempt: 1,
+      };
+    }
+
     it('pushes ?state=open and applies no time cutoff for an unbounded filtered spec', async () => {
       const now = Date.now();
       const linkHeader = (next: string) => `<${next}>; rel="next"`;
@@ -1104,6 +1119,136 @@ describe('GitHubConnector property tests', () => {
         .map(([url]) => String(url))
         .filter((url) => url.match(/\/deployments(\?|$)/));
       expect(deploymentCalls[0]).toContain('environment=production');
+    });
+
+    it('open_prs: syncing open PRs and computing with state=open filter returns the correct count', async () => {
+      const now = Date.now();
+      installFetchMock((url) => {
+        if (url.match(/\/pulls(\?|$)/)) {
+          return {
+            body: [
+              makePR(1, 'open', new Date(now - 1 * day).toISOString()),
+              makePR(2, 'open', new Date(now - 3 * day).toISOString()),
+              makePR(3, 'open', new Date(now - 500 * day).toISOString()),
+            ],
+          };
+        }
+        return safeDefaultResponse(url);
+      });
+
+      const storage = new InMemoryStorage();
+      await buildConnector().sync(
+        {
+          mode: 'full',
+          resources: new Set(['pull_request']),
+          fetchSpecs: {
+            pull_request: [
+              { filter: [{ field: 'state', op: 'eq', value: 'open' }] },
+            ],
+          },
+        },
+        storage.getStorageHandle(CONNECTOR_ID),
+      );
+
+      const handle = storage.getStorageHandle(CONNECTOR_ID);
+      const count = await computeMetric(handle, {
+        connectorId: CONNECTOR_ID,
+        shape: 'entity',
+        entityType: 'pull_request',
+        fn: 'count',
+        filter: [{ field: 'state', op: 'eq', value: 'open' }],
+      });
+      expect(count).toBe(3);
+    });
+
+    it('workflow_runs: syncing with fetchSpecs+since buffer stores runs just outside the spec cutoff', async () => {
+      const now = Date.now();
+      const specWindowMs = 7 * day;
+      const bufferMs = day;
+      const sinceMs = now - specWindowMs - bufferMs;
+      const since = new Date(sinceMs).toISOString();
+
+      const withinSpec = makeRun(1, now - 3 * day);
+      const outsideSpecWithinBuffer = makeRun(
+        2,
+        now - specWindowMs - bufferMs / 2,
+      );
+      const tooOld = makeRun(3, now - specWindowMs - bufferMs - day);
+
+      installFetchMock((url) => {
+        if (url.includes('/actions/runs')) {
+          return {
+            body: {
+              workflow_runs: [withinSpec, outsideSpecWithinBuffer, tooOld],
+            },
+          };
+        }
+        return safeDefaultResponse(url);
+      });
+
+      const storage = new InMemoryStorage();
+      await buildConnector().sync(
+        {
+          mode: 'full',
+          since,
+          resources: new Set(['workflow_run']),
+          fetchSpecs: {
+            workflow_run: [{ requiredWindowMs: specWindowMs }],
+          },
+        },
+        storage.getStorageHandle(CONNECTOR_ID),
+      );
+
+      const events = eventStoreFor(storage);
+      const runIds = new Set(
+        events
+          .filter((e) => e.name === 'workflow_run')
+          .map(
+            (e) =>
+              (e as unknown as { attributes: { id: number } }).attributes.id,
+          ),
+      );
+      expect(runIds.has(withinSpec.id)).toBe(true);
+      expect(runIds.has(outsideSpecWithinBuffer.id)).toBe(true);
+      expect(runIds.has(tooOld.id)).toBe(false);
+    });
+
+    it('workflow_runs: counting events via entityType fallback returns the correct 7d count', async () => {
+      const now = Date.now();
+      installFetchMock((url) => {
+        if (url.includes('/actions/runs')) {
+          return {
+            body: {
+              workflow_runs: [
+                makeRun(10, now - 1 * day),
+                makeRun(11, now - 4 * day),
+                makeRun(12, now - 8 * day),
+              ],
+            },
+          };
+        }
+        return safeDefaultResponse(url);
+      });
+
+      const storage = new InMemoryStorage();
+      await buildConnector().sync(
+        {
+          mode: 'full',
+          resources: new Set(['workflow_run']),
+          fetchSpecs: { workflow_run: [{ requiredWindowMs: 7 * day }] },
+        },
+        storage.getStorageHandle(CONNECTOR_ID),
+      );
+
+      const handle = storage.getStorageHandle(CONNECTOR_ID);
+      const count = await computeMetric(handle, {
+        connectorId: CONNECTOR_ID,
+        shape: 'event',
+        entityType: 'workflow_run',
+        fn: 'count',
+        window: '7d',
+      });
+      expect(count).toBe(2);
     });
   });
 
