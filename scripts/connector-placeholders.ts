@@ -1136,16 +1136,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     domain: 'braze.com',
   },
   {
-    id: 'branch',
-    name: 'Branch',
-    category: 'marketing',
-    tagline:
-      'Sync deep-link conversions, install attribution, and channel performance from Branch.',
-    brandColor: '#7CB833',
-    domain: 'branch.io',
-    requestIssue: 'RAW-409',
-  },
-  {
     id: 'buffer',
     name: 'Buffer',
     category: 'marketing',
