@@ -15,26 +15,26 @@ npm install @rawdash/connector-bitbucket
 
 ## Authentication
 
-Authenticates over HTTP Basic auth using an Atlassian account username and a Bitbucket app password. The password is scoped to the projects and repositories the account can already read.
+Authenticates over HTTP Basic auth using an Atlassian account email as the username and an Atlassian API token as the password. The token grants access to the workspaces, repositories, and pipelines the account can already read.
 
-1. Open Bitbucket -> Personal settings -> App passwords (https://bitbucket.org/account/settings/app-passwords/).
-2. Create an app password with `Repositories:Read` and `Pipelines:Read` scopes.
-3. Store it as a secret and reference it from the connector config as `appPassword: secret("BITBUCKET_APP_PASSWORD")`, alongside your `workspace`, `username`, and the list of `repoSlugs` to sync.
+1. Open https://id.atlassian.com/manage-profile/security/api-tokens and create an API token for your Atlassian account. If you create a scoped token, include read access to repositories and pipelines.
+2. Store the token as a secret and reference it from the connector config as `apiToken: secret("BITBUCKET_API_TOKEN")`.
+3. Set `email` to the Atlassian account email that owns the token, alongside your `workspace` and the list of `repoSlugs` to sync.
 
 ## Configuration
 
-| Field         | Type   | Required | Description                                                                                                                                                                                            |
-| ------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `workspace`   | string | Yes      | Bitbucket Cloud workspace slug (the segment shown in repo URLs after bitbucket.org/).                                                                                                                  |
-| `username`    | string | Yes      | Atlassian account username paired with the app password for Basic auth (find it under Personal settings -> Account settings).                                                                          |
-| `appPassword` | secret | Yes      | Bitbucket app password with `Repositories:Read` and `Pipelines:Read` scopes. Create one at Personal settings -> App passwords.                                                                         |
-| `repoSlugs`   | array  | Yes      | Repositories to sync, named by their slug within the workspace (no `workspace/` prefix).                                                                                                               |
-| `resources`   | array  | No       | Which Bitbucket resources to sync. Omit to sync all of them. 'pipeline_event' rides the 'pipeline' phase - enabling it without 'pipeline' still fetches pipelines but skips writing pipeline entities. |
+| Field       | Type   | Required | Description                                                                                                                                                                                            |
+| ----------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `workspace` | string | Yes      | Bitbucket Cloud workspace slug (the segment shown in repo URLs after bitbucket.org/).                                                                                                                  |
+| `email`     | string | Yes      | Email address of the Atlassian account that owns the API token. Used as the Basic auth username.                                                                                                       |
+| `apiToken`  | secret | Yes      | Atlassian API token for the account, granting read access to the workspace repositories and pipelines you want to sync. Create one at https://id.atlassian.com/manage-profile/security/api-tokens.     |
+| `repoSlugs` | array  | Yes      | Repositories to sync, named by their slug within the workspace (no `workspace/` prefix).                                                                                                               |
+| `resources` | array  | No       | Which Bitbucket resources to sync. Omit to sync all of them. 'pipeline_event' rides the 'pipeline' phase - enabling it without 'pipeline' still fetches pipelines but skips writing pipeline entities. |
 
 ## Resources
 
 - **`pull_request`** _(entity)_ - Open, merged, declined, and superseded pull requests with author, source/target branches, and close timestamp.
-  - Endpoint: `GET /2.0/repositories/{workspace}/{repo_slug}/pullrequests?state=OPEN,MERGED,DECLINED,SUPERSEDED`
+  - Endpoint: `GET /2.0/repositories/{workspace}/{repo_slug}/pullrequests?state=OPEN&state=MERGED&state=DECLINED&state=SUPERSEDED`
   - Paginated newest-first by `updated_on`; the connector stops once a page is entirely older than `options.since`.
 - **`pipeline`** _(entity)_ - Bitbucket Pipelines runs with state, result, target ref/commit, trigger, duration, and create/complete timestamps.
   - Endpoint: `GET /2.0/repositories/{workspace}/{repo_slug}/pipelines/`
@@ -58,8 +58,8 @@ const bitbucket = {
   connectorId: 'bitbucket',
   config: {
     workspace: 'my-workspace',
-    username: 'janedoe',
-    appPassword: secret('BITBUCKET_APP_PASSWORD'),
+    email: 'jane@example.com',
+    apiToken: secret('BITBUCKET_API_TOKEN'),
     repoSlugs: ['my-repo'],
   },
 };
@@ -88,7 +88,7 @@ export default defineConfig({
 
 ## Rate limits
 
-Bitbucket Cloud applies hourly per-IP and per-user limits (around 1,000 requests/hour for app-password auth). Pagination uses a `next` URL in each response and a configurable `pagelen` (capped at 50 here).
+Bitbucket Cloud applies hourly per-IP and per-user limits (around 1,000 requests/hour for API-token Basic auth). Pagination uses a `next` URL in each response and a configurable `pagelen` (capped at 50 here).
 
 ## Limitations
 
