@@ -816,7 +816,10 @@ export class SentryConnector extends BaseConnector<
 
     let intervals = stats.intervals ?? [];
     if (intervals.length === 0 && stats.start) {
-      const seriesLen = stats.groups[0]?.series?.['sum(quantity)']?.length ?? 0;
+      const seriesLen = stats.groups.reduce((max, group) => {
+        const len = group.series?.['sum(quantity)']?.length ?? 0;
+        return Math.max(max, len);
+      }, 0);
       const startMs = parseEpoch(stats.start, 'iso');
       if (seriesLen > 0 && startMs !== null) {
         intervals = Array.from({ length: seriesLen }, (_, i) =>
