@@ -1,6 +1,6 @@
 ---
 name: new-connector
-description: Scaffold a new rawdash connector package under packages/connectors/<id>. Use whenever the user asks to "add a new connector", "create a connector for <vendor>", "scaffold a <vendor> integration", or similar. The skill is a thin procedure — it tells you to copy the closest existing connector as a starting point and what decisions you have to make. It does NOT embed a template, because the real connectors are the template.
+description: Scaffold a new rawdash connector package under packages/connectors/<id>. Use whenever the user asks to "add a new connector", "create a connector for <vendor>", "scaffold a <vendor> integration", or similar. The skill is a thin procedure — it tells you to observe the vendor's real API in a battle-tested OSS reference (Airbyte/Nango/Singer) before writing any vendor-specific logic, copy the closest existing connector as a starting point, and what decisions you have to make. It does NOT embed a template, because the real connectors are the template.
 ---
 
 # new-connector
@@ -22,6 +22,12 @@ Trigger on requests like:
 
 1. **Resolve the connector id** (kebab-case, e.g. `pagerduty`). If the user supplied it, use it. Otherwise ask once.
 2. **Read `packages/connectors/`.** List the existing connectors. They are the template.
+2a. **Observe the vendor's real API before writing any vendor-specific logic.** Do **not** derive auth, pagination, the incremental cursor, endpoints, or field shapes from memory — that is the single biggest source of connector bugs. Find a battle-tested reference implementation and observe how it actually talks to the API:
+   - Look for the vendor's connector in an OSS data-integration framework, in this order: **Airbyte** (`airbyte-integrations/connectors/source-<vendor>/`, especially the low-code `manifest.yaml`), **Nango** (`integrations/<vendor>/`, especially `nango.yaml`), then a **Singer tap** (`tap-<vendor>`) / Meltano hub entry.
+   - From it, observe and note (for your own use only) the **auth method** for server-to-server access, the **pagination strategy**, the **incremental cursor field** (what feeds `options.since`), the **endpoint paths**, and the **field shapes / primary keys** per resource.
+   - **If no OSS connector exists**, fall back to the vendor's **official API reference and OpenAPI/Postman spec**, in that order. Do not ground in blog posts or forum answers.
+   - **Confirm against the vendor's current docs.** OSS connectors can be stale or use a deprecated auth flow; pin to what the vendor recommends today.
+   - **Observe and reimplement — never copy, never attribute.** You are translating API facts into rawdash's own resource/shape model (entity/event/metric via `defineResources`), not mirroring the reference's stream list or pasting its code. rawdash deliberately starts with one or two resources, not the reference's full set. The connector must stand entirely on its own — see "Never mention the observed source" below.
 3. **Pick the closest existing connector to copy from.** Choose by matching:
    - **Pagination shape** of the vendor's API (cursor, page, RFC 5988 Link header, GraphQL `pageInfo`, single-shot).
    - **Auth shape** of the vendor's API (bearer token, custom header, basic, service account, etc.).
@@ -62,7 +68,7 @@ Trigger on requests like:
    - `connectorUserAgent('<id>')`.
    - `parseEpoch` for any timestamp normalization.
    - The property-test scaffolding from `@rawdash/connector-test-utils`.
-10. **Auth setup** - do **not** invent or recommend an auth shape. Read the vendor's official docs and follow what they recommend for server-to-server access. Capture it in the connector's `doc.auth` (`summary` plus numbered `setup` steps with the exact secrets to store) — this is what renders the README/docs `Authentication` section. Do not hand-write it into the README. If the vendor supports multiple auth methods, describe the recommended one and note alternatives in the setup steps.
+10. **Auth setup** - do **not** invent or recommend an auth shape. Use the server-to-server auth you observed in step 2a as the starting point, then confirm it against the vendor's current official docs (the OSS reference can be stale). Capture it in the connector's `doc.auth` (`summary` plus numbered `setup` steps with the exact secrets to store) — this is what renders the README/docs `Authentication` section. Do not hand-write it into the README. If the vendor supports multiple auth methods, describe the recommended one and note alternatives in the setup steps.
 11. **Run `pnpm install`** so workspace links pick up the new package.
 12. **Generate the docs** - run `pnpm docs:connectors`. This renders the new connector's `README.md`, its Cloud docs page under `apps/website/src/content/docs/docs/connectors/<id>.mdx`, the per-connector icon under `apps/website/public/connectors/<id>.svg`, and the catalog data at `apps/website/src/generated/connectors.ts`. Only the `README.md` is committed; the website docs tree, public icons, and `connectors.ts` are gitignored and regenerated at build time (the website's `dev`/`build`/`typecheck` scripts all run `pnpm docs:connectors` first), so don't commit them. CI runs `pnpm docs:connectors:check` and fails if the committed outputs (the per-package READMEs) are out of date, so regenerate and commit those whenever the connector's metadata changes.
 13. **Regenerate the umbrella package** - run `pnpm gen:connectors-package` so the new connector flows into `@rawdash/connectors` (its `package.json` dependency, `src/metadata.generated.ts`, and `src/registry.generated.ts`). Commit the result. CI runs `pnpm gen:connectors-package:check` and fails if it's stale, and will error loudly if the connector is missing any of the required named metadata exports (`id`/`doc`/`configFields`/`resources`).
@@ -85,10 +91,11 @@ The scaffolded `sync()` will compile against an old version of the contract, but
 
 ## Decisions the dev (or you, with their permission) must make
 
-These shape which existing connector you should copy from. Surface them explicitly in your scaffolding plan if you make a non-obvious call:
+These shape which existing connector you should copy from. Resolve each by observing the vendor's real API (step 2a), then confirming against the vendor's current docs. Surface them explicitly in your scaffolding plan if you make a non-obvious call:
 
-- **Auth shape** — read the vendor's docs.
-- **Pagination shape** — read the vendor's API reference.
+- **Auth shape** — observe the OSS reference's server-to-server auth, confirm against the vendor's docs.
+- **Pagination shape** — observe the OSS reference / API spec, confirm against the vendor's API reference.
+- **Incremental cursor** — the field that feeds `options.since`. Observe what the reference uses to filter incrementally; getting this wrong is a common silent bug.
 - **Rate-limit headers** — if the vendor publishes `*-remaining` / `*-reset` headers, plan to wire `standardRateLimitPolicy`. Otherwise omit.
 - **Resources** — what the connector will sync. Start with one or two, the dev can extend.
 - **Output shape per resource** — entity, event, or metric. The dev usually knows; ask only if ambiguous.
@@ -99,6 +106,17 @@ These shape which existing connector you should copy from. Surface them explicit
 - **Do not register the new connector** in any registry, index, or example app. The dev wires it in after the integration is real.
 - **Do not add a changeset** for the scaffold commit alone. Connectors are added under their own changeset when the first real implementation lands.
 - **Do not recommend an auth method without checking the vendor's docs.** What's "standard" varies wildly across vendors.
+- **Do not derive the API contract from memory.** Observe a real reference first (step 2a).
+
+## Never mention the observed source
+
+The OSS connector / spec you observe in step 2a is an observation aid only. The finished work must show no trace of it. Do **not** name, cite, link, paste, or allude to Airbyte, Nango, Singer, Meltano, or any specific reference implementation in **any** of:
+
+- **Connector files** — code, comments, type names, `doc.auth` setup steps, `doc.notes`/`limitations`, `README.md`, the generated docs page, `example.config.ts`, or test files.
+- **Linear tickets** — the description, comments, or title.
+- **Pull requests** — the title, description, commit messages, or review replies.
+
+Reimplement every fact in rawdash's own model and wording. If you catch a reference name anywhere in the diff, ticket, or PR, remove it before handing off.
 
 ## Post-scaffold checklist (print this for the dev)
 
