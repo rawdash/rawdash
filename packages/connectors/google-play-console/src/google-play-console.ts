@@ -46,7 +46,7 @@ export const configFields = defineConfigFields(
     reviewLimit: z.number().int().positive().max(2000).optional().meta({
       label: 'Review sample size',
       description:
-        'Most-recent user reviews to fetch for the gplay_app_ratings metric. Defaults to 200. The Android Publisher reviews API only surfaces reviews from roughly the past week, so this bounds a rolling sample rather than a full history.',
+        'How many of the most-recent user reviews to emit as gplay_app_ratings samples. Defaults to 200. Reviews are fetched then ranked newest-first before this cap is applied. The Android Publisher reviews API only surfaces reviews from roughly the past week, so this is a rolling sample, not a full history.',
       placeholder: '200',
     }),
   }),
@@ -200,6 +200,7 @@ const DAILY_TIME_ZONE = 'America/Los_Angeles';
 
 const DEFAULT_REVIEW_LIMIT = 200;
 const REVIEWS_PAGE_SIZE = 100;
+const MAX_REVIEW_PAGES = 50;
 
 export interface GplayTimelineDate {
   year?: number;
@@ -843,13 +844,12 @@ export class GooglePlayConsoleConnector extends BaseConnector<
 
   private async fetchReviews(
     accessToken: string,
-    limit: number,
     signal?: AbortSignal,
   ): Promise<GplayReview[]> {
     const reviews: GplayReview[] = [];
     const base = `${PUBLISHER_BASE}/androidpublisher/v3/applications/${encodeURIComponent(this.settings.packageName)}/reviews`;
     let token: string | undefined = undefined;
-    while (reviews.length < limit) {
+    for (let page = 0; page < MAX_REVIEW_PAGES; page++) {
       if (signal?.aborted) {
         return reviews;
       }
@@ -870,19 +870,16 @@ export class GooglePlayConsoleConnector extends BaseConnector<
           signal,
         },
       );
-      const page = res.body.reviews ?? [];
-      for (const review of page) {
-        reviews.push(review);
-        if (reviews.length >= limit) {
-          break;
-        }
+      reviews.push(...(res.body.reviews ?? []));
+      token = res.body.tokenPagination?.nextPageToken;
+      if (!token) {
+        return reviews;
       }
-      const next = res.body.tokenPagination?.nextPageToken;
-      if (!next || page.length === 0) {
-        break;
-      }
-      token = next;
     }
+    this.logger.warn(
+      `Stopped paginating Play Console reviews after ${MAX_REVIEW_PAGES} pages; the most-recent reviews are still ranked first but older reviews may be omitted`,
+      { packageName: this.settings.packageName },
+    );
     return reviews;
   }
 
@@ -892,10 +889,12 @@ export class GooglePlayConsoleConnector extends BaseConnector<
     signal?: AbortSignal,
   ): Promise<void> {
     const limit = this.settings.reviewLimit ?? DEFAULT_REVIEW_LIMIT;
-    const reviews = await this.fetchReviews(accessToken, limit, signal);
+    const reviews = await this.fetchReviews(accessToken, signal);
     const samples = reviews
       .map((review) => reviewToRatingSample(review, this.settings.packageName))
-      .filter((s): s is NonNullable<typeof s> => s !== null);
+      .filter((s): s is NonNullable<typeof s> => s !== null)
+      .sort((a, b) => b.ts - a.ts)
+      .slice(0, limit);
     await storage.metrics(samples, { names: [GPLAY_APP_RATINGS_METRIC] });
   }
 

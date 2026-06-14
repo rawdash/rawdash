@@ -433,8 +433,12 @@ describe('GooglePlayConsoleConnector.sync', () => {
     expect(samples[0]!.attributes['reviewer_language']).toBe('en');
   });
 
-  it('paginates the reviews API and caps at reviewLimit', async () => {
+  it('paginates the reviews API, ranks newest-first, then caps at reviewLimit', async () => {
     let reviewCalls = 0;
+    const review = (id: string, seconds: string) => ({
+      reviewId: id,
+      comments: [{ userComment: { starRating: 5, lastModified: { seconds } } }],
+    });
     vi.stubGlobal(
       'fetch',
       vi.fn().mockImplementation((url: string) => {
@@ -453,24 +457,13 @@ describe('GooglePlayConsoleConnector.sync', () => {
         }
         if (urlStr.includes('androidpublisher.googleapis.com')) {
           reviewCalls += 1;
-          const review = (id: string) => ({
-            reviewId: id,
-            comments: [
-              {
-                userComment: {
-                  starRating: 5,
-                  lastModified: { seconds: '1700000000' },
-                },
-              },
-            ],
-          });
           const resp =
             reviewCalls === 1
               ? {
-                  reviews: [review('a')],
+                  reviews: [review('old', '100'), review('newest', '300')],
                   tokenPagination: { nextPageToken: 'p2' },
                 }
-              : { reviews: [review('b')] };
+              : { reviews: [review('middle', '200')] };
           return Promise.resolve({
             ok: true,
             status: 200,
@@ -503,7 +496,10 @@ describe('GooglePlayConsoleConnector.sync', () => {
       attributes: { review_id: string };
     }>;
     expect(reviewCalls).toBe(2);
-    expect(samples.map((s) => s.attributes.review_id)).toEqual(['a', 'b']);
+    expect(samples.map((s) => s.attributes.review_id)).toEqual([
+      'newest',
+      'middle',
+    ]);
   });
 
   it('writes samples for returned rows', async () => {
