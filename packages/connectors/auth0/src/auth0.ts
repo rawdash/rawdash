@@ -60,10 +60,10 @@ export const configFields = defineConfigFields(
         description:
           'Which Auth0 resources to sync. Omit to sync all of them. The M2M application only needs the Management API scopes for the resources listed here (read:users, read:logs, read:stats).',
       }),
-    statsLookbackDays: z.number().int().positive().max(30).optional().meta({
+    statsLookbackDays: z.number().int().positive().optional().meta({
       label: 'Stats lookback (days)',
       description:
-        'How many days of daily-active-user / signup stats to refresh on each sync. Defaults to 30 (the maximum the Auth0 Daily Stats endpoint returns).',
+        'How many days of daily logins / signups stats to refresh on each sync. Defaults to 30; the Auth0 Daily Stats endpoint accepts an arbitrary from/to range.',
       placeholder: '30',
     }),
   }),
@@ -74,7 +74,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
   category: 'security',
   brandColor: '#EB5424',
   tagline:
-    'Sync users, login events, and daily active-user / signup metrics from an Auth0 tenant for identity, sign-up, and failed-login dashboards.',
+    'Sync users, login events, and daily login / signup metrics from an Auth0 tenant for identity, sign-up, and failed-login dashboards.',
   vendor: {
     name: 'Auth0',
     domain: 'auth0.com',
@@ -201,7 +201,6 @@ const dailyStatSchema = z.object({
   date: z.string(),
   logins: z.number().nullish(),
   signups: z.number().nullish(),
-  leaked_passwords: z.number().nullish(),
   updated_at: z.string().nullish(),
   created_at: z.string().nullish(),
 });
@@ -262,7 +261,7 @@ export const auth0Resources = defineResources({
       'Login / authentication events from the Auth0 Logs endpoint. One event per log row of type s (success), f (failure), seacft (token exchange success), or fp (failed change password).',
     endpoint: 'GET /api/v2/logs',
     notes:
-      'Uses offset pagination (page / per_page) and is capped at the first 1000 events per sync. Incremental syncs filter on date via the q parameter.',
+      'Uses checkpoint pagination (from = last seen log_id, take = page size) and reads every page until the endpoint returns no more rows, so a sync is not capped at 1000 events. Incremental syncs resume from the last ingested log_id; the type filter (and any since bound) is applied client-side because the checkpoint method ignores q / sort / page.',
     fields: [
       { name: 'logId', description: 'Auth0 log row id.' },
       {
@@ -289,7 +288,7 @@ export const auth0Resources = defineResources({
   [DAILY_METRIC]: {
     shape: 'metric',
     description:
-      'Daily logins and signups, one sample per day for the configured lookback window (up to 30 days, the Daily Stats endpoint maximum).',
+      'Daily login and signup counts from the Auth0 Daily Stats endpoint, one sample per day for the configured lookback window. This is a logins/signups activity proxy, not a count of distinct active users.',
     endpoint: 'GET /api/v2/stats/daily',
     unit: 'count',
     granularity: '1d',
@@ -466,18 +465,12 @@ export class Auth0Connector extends BaseConnector<
     return u.toString();
   }
 
-  private buildLogsUrl(page: number, options: SyncOptions): string {
+  private buildLogsUrl(from: string | null): string {
     const u = new URL(`${this.baseUrl()}/api/v2/logs`);
-    u.searchParams.set('page', String(page));
-    u.searchParams.set('per_page', String(PAGE_SIZE));
-    u.searchParams.set('include_totals', 'false');
-    u.searchParams.set('sort', 'date:1');
-    const typeClause = LOG_EVENT_TYPES.map((t) => `type:"${t}"`).join(' OR ');
-    const clauses: string[] = [`(${typeClause})`];
-    if (options.since) {
-      clauses.push(`date:[${escapeLuceneRange(options.since)} TO *]`);
+    u.searchParams.set('take', String(PAGE_SIZE));
+    if (from) {
+      u.searchParams.set('from', from);
     }
-    u.searchParams.set('q', clauses.join(' AND '));
     return u.toString();
   }
 
@@ -516,18 +509,36 @@ export class Auth0Connector extends BaseConnector<
     return { items: users, next: hasMore ? String(nextPage) : null };
   }
 
+  private logCheckpoint(log: Auth0Log): string {
+    return log.log_id ?? log._id;
+  }
+
   private async fetchLogsPage(
-    page: string | null,
-    options: SyncOptions,
+    from: string | null,
     signal: AbortSignal | undefined,
   ): Promise<{ items: Auth0Log[]; next: string | null }> {
-    const pageNum = this.parsePageCursor(page);
-    const url = this.buildLogsUrl(pageNum, options);
+    const url = this.buildLogsUrl(from);
     const res = await this.apiGet<LogsResponse>(url, 'logs', signal);
     const logs = res.body;
-    const nextPage = pageNum + 1;
-    const hasMore = logs.length >= PAGE_SIZE && nextPage < MAX_USER_PAGES;
-    return { items: logs, next: hasMore ? String(nextPage) : null };
+    if (logs.length === 0) {
+      return { items: [], next: null };
+    }
+    const nextFrom = this.logCheckpoint(logs[logs.length - 1]!);
+    return { items: logs, next: nextFrom === from ? null : nextFrom };
+  }
+
+  private async lastIngestedLogId(
+    storage: StorageHandle,
+  ): Promise<string | null> {
+    const events = await storage.queryEvents({ name: LOGIN_EVENT });
+    let max: string | null = null;
+    for (const e of events) {
+      const logId = e.attributes.logId;
+      if (typeof logId === 'string' && (max === null || logId > max)) {
+        max = logId;
+      }
+    }
+    return max;
   }
 
   private async fetchDailyStats(
@@ -574,10 +585,14 @@ export class Auth0Connector extends BaseConnector<
   private async writeLogs(
     storage: StorageHandle,
     items: Auth0Log[],
+    sinceMs: number | null,
   ): Promise<void> {
     for (const log of items) {
       const ts = parseEpoch(log.date, 'iso');
       if (ts === null) {
+        continue;
+      }
+      if (sinceMs !== null && ts < sinceMs) {
         continue;
       }
       if (!isLogEventType(log.type)) {
@@ -640,12 +655,13 @@ export class Auth0Connector extends BaseConnector<
     storage: StorageHandle,
     phase: Auth0Phase,
     items: unknown[],
+    sinceMs: number | null,
   ): Promise<void> {
     switch (phase) {
       case 'users':
         return this.writeUsers(storage, items as Auth0User[]);
       case 'login_events':
-        return this.writeLogs(storage, items as Auth0Log[]);
+        return this.writeLogs(storage, items as Auth0Log[], sinceMs);
       case 'daily_active_users':
         return this.writeDailyStats(storage, items as Auth0DailyStat[]);
     }
@@ -690,6 +706,12 @@ export class Auth0Connector extends BaseConnector<
       this.settings.resources,
     );
 
+    const sinceMs = options.since ? Date.parse(options.since) : null;
+    const logsSeed =
+      !isFull && phases.includes('login_events')
+        ? await this.lastIngestedLogId(storage)
+        : null;
+
     return paginateChunked<Auth0Phase, string>({
       phases,
       cursor,
@@ -700,7 +722,7 @@ export class Auth0Connector extends BaseConnector<
           case 'users':
             return this.fetchUsersPage(page, options, sig);
           case 'login_events':
-            return this.fetchLogsPage(page, options, sig);
+            return this.fetchLogsPage(page ?? logsSeed, sig);
           case 'daily_active_users':
             return this.fetchDailyStats(page, options, sig);
         }
@@ -709,7 +731,12 @@ export class Auth0Connector extends BaseConnector<
         if (page === null) {
           await this.clearScopeOnFirstPage(storage, phase, isFull);
         }
-        await this.writePhase(storage, phase, items);
+        await this.writePhase(
+          storage,
+          phase,
+          items,
+          phase === 'login_events' ? sinceMs : null,
+        );
       },
     });
   }

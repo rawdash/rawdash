@@ -60,12 +60,22 @@ describe('configFields', () => {
     expect(result.success).toBe(false);
   });
 
-  it('rejects a statsLookbackDays above 30', () => {
+  it('accepts a statsLookbackDays above 30', () => {
     const result = configFields.safeParse({
       domain: 'acme.us.auth0.com',
       clientId: 'AbCdEf',
       clientSecret: { $secret: 'AUTH0_CLIENT_SECRET' },
-      statsLookbackDays: 60,
+      statsLookbackDays: 90,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects a non-positive statsLookbackDays', () => {
+    const result = configFields.safeParse({
+      domain: 'acme.us.auth0.com',
+      clientId: 'AbCdEf',
+      clientSecret: { $secret: 'AUTH0_CLIENT_SECRET' },
+      statsLookbackDays: 0,
     });
     expect(result.success).toBe(false);
   });
@@ -315,6 +325,9 @@ describe('Auth0Connector.sync', () => {
   it('emits a login event per log row with a known type', async () => {
     const fetchSpy = makeFetch((u) => {
       if (u.includes('/api/v2/logs')) {
+        if (new URL(u).searchParams.get('from')) {
+          return [];
+        }
         return [
           {
             _id: 'log_1',
@@ -458,22 +471,141 @@ describe('Auth0Connector.sync', () => {
     expect(q).toContain('2024-01-01T00:00:00.000Z');
   });
 
-  it('pushes a since filter into the logs q parameter', async () => {
+  it('paginates logs past 1000 events via checkpoint from', async () => {
+    const TOTAL = 1100;
+    const all = Array.from({ length: TOTAL }, (_, i) => ({
+      _id: `log_${String(i).padStart(5, '0')}`,
+      date: '2024-02-01T00:00:00.000Z',
+      type: 's' as const,
+      user_id: `auth0|user_${i}`,
+      ip: '203.0.113.10',
+      connection: 'Username-Password-Authentication',
+      strategy: 'auth0',
+    }));
+    const fetchSpy = makeFetch((u) => {
+      if (u.includes('/api/v2/logs')) {
+        const from = new URL(u).searchParams.get('from');
+        const startIdx = from ? all.findIndex((l) => l._id === from) + 1 : 0;
+        return all.slice(startIdx, startIdx + 100);
+      }
+      return undefined;
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const storage = makeStorage();
+    await connector(['login_events']).sync({ mode: 'full' }, storage);
+
+    expect(storage.event).toHaveBeenCalledTimes(TOTAL);
+  });
+
+  it('advances the logs checkpoint by the last seen log_id', async () => {
+    const page1 = Array.from({ length: 100 }, (_, i) => ({
+      _id: `log_a_${String(i).padStart(3, '0')}`,
+      date: '2024-02-01T00:00:00.000Z',
+      type: 's' as const,
+      user_id: `auth0|user_${i}`,
+    }));
+    const fetchSpy = makeFetch((u) => {
+      if (u.includes('/api/v2/logs')) {
+        const from = new URL(u).searchParams.get('from');
+        if (!from) {
+          return page1;
+        }
+        return [];
+      }
+      return undefined;
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await connector(['login_events']).sync({ mode: 'full' }, makeStorage());
+
+    const logCalls = recordCalls(fetchSpy).filter((c) =>
+      c.url.includes('/api/v2/logs'),
+    );
+    expect(logCalls.length).toBeGreaterThanOrEqual(2);
+    expect(new URL(logCalls[0]!.url).searchParams.get('from')).toBeNull();
+    expect(new URL(logCalls[1]!.url).searchParams.get('from')).toBe(
+      'log_a_099',
+    );
+  });
+
+  it('applies the client-side type filter under checkpoint pagination', async () => {
+    const fetchSpy = makeFetch((u) => {
+      if (u.includes('/api/v2/logs')) {
+        if (new URL(u).searchParams.get('from')) {
+          return [];
+        }
+        return [
+          { _id: 'log_1', date: '2024-02-01T00:00:00.000Z', type: 's' },
+          { _id: 'log_2', date: '2024-02-02T00:00:00.000Z', type: 'sapi' },
+          { _id: 'log_3', date: '2024-02-03T00:00:00.000Z', type: 'f' },
+          { _id: 'log_4', date: '2024-02-04T00:00:00.000Z', type: 'depnote' },
+        ];
+      }
+      return undefined;
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const storage = makeStorage();
+    await connector(['login_events']).sync({ mode: 'full' }, storage);
+
+    expect(storage.event).toHaveBeenCalledTimes(2);
+    const types = storage.event.mock.calls.map(
+      (c) => (c[0] as { attributes: { type: string } }).attributes.type,
+    );
+    expect(types).toEqual(['s', 'f']);
+  });
+
+  it('seeds the logs checkpoint from the last ingested log_id on an incremental sync', async () => {
     const fetchSpy = makeFetch(() => undefined);
     vi.stubGlobal('fetch', fetchSpy);
 
+    const storage = makeStorage();
+    storage.queryEvents.mockResolvedValue([
+      { name: 'auth0_login_event', attributes: { logId: 'log_seed_42' } },
+      { name: 'auth0_login_event', attributes: { logId: 'log_seed_07' } },
+    ]);
+
     await connector(['login_events']).sync(
       { mode: 'latest', since: '2024-02-01T00:00:00.000Z' },
-      makeStorage(),
+      storage,
     );
 
-    const queryCall = recordCalls(fetchSpy).find((c) =>
+    const firstLogCall = recordCalls(fetchSpy).find((c) =>
       c.url.includes('/api/v2/logs'),
     );
-    expect(queryCall).toBeDefined();
-    const q = new URL(queryCall!.url).searchParams.get('q');
-    expect(q).toContain('date:');
-    expect(q).toContain('2024-02-01T00:00:00.000Z');
+    expect(firstLogCall).toBeDefined();
+    expect(new URL(firstLogCall!.url).searchParams.get('from')).toBe(
+      'log_seed_42',
+    );
+  });
+
+  it('drops logs older than the since bound client-side', async () => {
+    const fetchSpy = makeFetch((u) => {
+      if (u.includes('/api/v2/logs')) {
+        if (new URL(u).searchParams.get('from')) {
+          return [];
+        }
+        return [
+          { _id: 'log_old', date: '2024-01-01T00:00:00.000Z', type: 's' },
+          { _id: 'log_new', date: '2024-03-01T00:00:00.000Z', type: 's' },
+        ];
+      }
+      return undefined;
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const storage = makeStorage();
+    await connector(['login_events']).sync(
+      { mode: 'latest', since: '2024-02-01T00:00:00.000Z' },
+      storage,
+    );
+
+    expect(storage.event).toHaveBeenCalledTimes(1);
+    const written = storage.event.mock.calls[0]![0] as {
+      attributes: { logId: string };
+    };
+    expect(written.attributes.logId).toBe('log_new');
   });
 
   it('paginates users via page=N until length < per_page', async () => {
