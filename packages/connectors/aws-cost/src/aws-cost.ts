@@ -125,6 +125,11 @@ const MS_PER_DAY = 86_400_000;
 const PHASE_ORDER = ['daily_cost', 'forecast'] as const;
 type AwsCostPhase = (typeof PHASE_ORDER)[number];
 
+const PHASE_RESOURCES: Record<AwsCostPhase, readonly string[]> = {
+  daily_cost: [DAILY_METRIC_NAME],
+  forecast: [FORECAST_METRIC_NAME],
+};
+
 const amountString = z.string().regex(/^-?\d+(\.\d+)?$/);
 const ceDateString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const metricAmount = z.object({ Amount: amountString, Unit: z.string() });
@@ -231,7 +236,7 @@ function mapAwsJsonError(err: unknown): unknown {
   const type = extractAwsErrorType(httpError);
   const status = httpError.response?.status ?? 0;
   if (
-    /throttl|TooManyRequests|RequestLimitExceeded/i.test(type) ||
+    /throttl|TooManyRequests|RequestLimitExceeded|LimitExceeded/i.test(type) ||
     status === 429
   ) {
     return new RateLimitError(httpError.message, httpError.response);
@@ -744,6 +749,7 @@ export class AwsCostConnector extends BaseAWSConnector<AwsCostSettings> {
     const lookbackDays = this.settings.lookbackDays ?? DEFAULT_BACKFILL_DAYS;
     const groupBy = this.settings.groupBy;
 
+    const activeResources = options.resources;
     const cursor = isAwsCostCursor(options.cursor) ? options.cursor : undefined;
     const page =
       cursor?.page ?? getCostWindow(options, granularity, lookbackDays);
@@ -757,9 +763,9 @@ export class AwsCostConnector extends BaseAWSConnector<AwsCostSettings> {
         return { done: false, cursor: { phase, page } };
       }
       if (
-        options.resources &&
-        options.resources.size > 0 &&
-        !options.resources.has(phase)
+        activeResources &&
+        activeResources.size > 0 &&
+        !PHASE_RESOURCES[phase].some((r) => activeResources.has(r))
       ) {
         continue;
       }
