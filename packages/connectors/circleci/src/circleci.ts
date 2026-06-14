@@ -580,7 +580,13 @@ export class CircleCIConnector extends BaseConnector<
     const inWindow: CircleCIPipeline[] = [];
     for (const p of pipelines) {
       const createdMs = parseEpoch(p.created_at, 'iso');
-      if (cutoff !== null && createdMs !== null && createdMs < cutoff) {
+      if (createdMs === null) {
+        console.warn(
+          `[connector-circleci] skipping pipeline ${p.id} with unparseable created_at`,
+        );
+        continue;
+      }
+      if (cutoff !== null && createdMs < cutoff) {
         continue;
       }
       inWindow.push(p);
@@ -641,13 +647,7 @@ export class CircleCIConnector extends BaseConnector<
     const writeEvents = this.isResourceEnabled('pipeline_events');
 
     for (const p of batch.pipelines) {
-      const createdMs = parseEpoch(p.created_at, 'iso');
-      if (createdMs === null) {
-        console.warn(
-          `[connector-circleci] skipping pipeline ${p.id} with unparseable created_at`,
-        );
-        continue;
-      }
+      const createdMs = parseEpoch(p.created_at, 'iso')!;
 
       if (writePipelines) {
         await storage.entity({
