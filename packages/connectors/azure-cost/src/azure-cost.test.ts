@@ -436,6 +436,55 @@ describe('AzureCostConnector.sync', () => {
     ]);
   });
 
+  it('sends a TagKey grouping for a TAG:<key> group-by and parses the tag column into samples', async () => {
+    const fetchSpy = makeFetch(({ url }) => {
+      if (url.includes(COST_URL_FRAGMENT)) {
+        return {
+          body: {
+            properties: {
+              columns: [
+                { name: 'Cost', type: 'Number' },
+                { name: 'UsageDate', type: 'Number' },
+                { name: 'Environment', type: 'String' },
+                { name: 'Currency', type: 'String' },
+              ],
+              rows: [
+                [21.5, 20250601, 'prod', 'USD'],
+                [4.25, 20250601, 'dev', 'USD'],
+              ],
+            },
+          },
+        };
+      }
+      return undefined;
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const storage = makeStorage();
+    await connector({ groupBy: ['TAG:Environment'] }).sync(
+      { mode: 'full' },
+      storage,
+    );
+
+    const calls = recordCalls(fetchSpy);
+    const costCall = calls.find((c) => c.url.includes(COST_URL_FRAGMENT));
+    const body = costCall!.body as {
+      dataset: { grouping?: Array<{ type: string; name: string }> };
+    };
+    expect(body.dataset.grouping).toEqual([
+      { type: 'TagKey', name: 'Environment' },
+    ]);
+
+    const batch = storage.metrics.mock.calls[0]![0] as Array<{
+      value: number;
+      attributes: Record<string, unknown>;
+    }>;
+    expect(batch).toHaveLength(2);
+    expect(batch[0]!.value).toBe(21.5);
+    expect(batch[0]!.attributes['tag_Environment']).toBe('prod');
+    expect(batch[1]!.attributes['tag_Environment']).toBe('dev');
+  });
+
   it('omits the grouping clause when no groupBy is configured', async () => {
     const fetchSpy = makeFetch(({ url }) => {
       if (url.includes(COST_URL_FRAGMENT)) {
