@@ -1,3 +1,4 @@
+import type { ConnectorLogger } from '@rawdash/connector-shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -7,6 +8,21 @@ import {
   computeMetricsTimespan,
   configFields,
 } from './azure-monitor';
+
+function recordingLogger(): {
+  logger: ConnectorLogger;
+  warnings: Array<{ event: string; fields?: Record<string, unknown> }>;
+} {
+  const warnings: Array<{ event: string; fields?: Record<string, unknown> }> =
+    [];
+  const logger: ConnectorLogger = {
+    info() {},
+    warn(event, fields) {
+      warnings.push({ event, fields });
+    },
+  };
+  return { logger, warnings };
+}
 
 // ---------------------------------------------------------------------------
 // configFields
@@ -119,6 +135,41 @@ describe('computeMetricsTimespan', () => {
     const now = Date.UTC(2025, 5, 1, 12, 0, 0);
     const ts = computeMetricsTimespan({ mode: 'latest' }, 180, now);
     expect(ts).toBe('2025-06-01T11:00:00.000Z/2025-06-01T12:00:00.000Z');
+  });
+
+  it('clamps a since older than the 92-day retention floor and warns', () => {
+    const now = Date.UTC(2025, 5, 1, 12, 0, 0);
+    const since = '2024-01-01T00:00:00.000Z';
+    const { logger, warnings } = recordingLogger();
+    const ts = computeMetricsTimespan(
+      { mode: 'full', since },
+      180,
+      now,
+      logger,
+    );
+    const start = ts.split('/')[0]!;
+    const startMs = Date.parse(start);
+    expect(startMs).toBe(now - 92 * 86_400_000);
+    expect(startMs).toBeGreaterThan(Date.parse(since));
+    const truncation = warnings.find(
+      (w) => w.event === 'metrics timespan truncated to retention floor',
+    );
+    expect(truncation).toBeDefined();
+    expect(truncation!.fields!['effectiveStartMs']).toBe(startMs);
+  });
+
+  it('does not clamp or warn for a since within the retention floor', () => {
+    const now = Date.UTC(2025, 5, 1, 12, 0, 0);
+    const since = '2025-05-15T00:00:00.000Z';
+    const { logger, warnings } = recordingLogger();
+    const ts = computeMetricsTimespan(
+      { mode: 'full', since },
+      180,
+      now,
+      logger,
+    );
+    expect(ts.startsWith(`${since}/`)).toBe(true);
+    expect(warnings).toHaveLength(0);
   });
 });
 
@@ -661,6 +712,75 @@ describe('AzureMonitorConnector.sync', () => {
     expect(url.searchParams.get('severity')).toBeNull();
     expect(url.searchParams.get('alertState')).toBeNull();
     expect(url.searchParams.get('monitorCondition')).toBeNull();
+  });
+
+  it('requests metrics with the control-plane api-version 2023-10-01', async () => {
+    const fetchSpy = routeFetch({
+      '/providers/Microsoft.Insights/metrics': () => ({
+        body: { value: [] },
+      }),
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await connector({ resources: ['metric_queries'] }).sync(
+      { mode: 'full' },
+      makeStorage(),
+    );
+
+    const metricsCall = recordCalls(fetchSpy).find((c) =>
+      c.url.includes('/providers/Microsoft.Insights/metrics'),
+    );
+    expect(metricsCall).toBeDefined();
+    expect(new URL(metricsCall!.url).searchParams.get('api-version')).toBe(
+      '2023-10-01',
+    );
+  });
+
+  it('requests alerts with the GA api-version 2019-03-01 and parses essentials', async () => {
+    const fetchSpy = routeFetch({
+      '/providers/Microsoft.AlertsManagement/alerts': () => ({
+        body: {
+          value: [
+            {
+              id: '/subscriptions/sub-1/providers/Microsoft.AlertsManagement/alerts/a1',
+              name: 'high-cpu',
+              properties: {
+                essentials: {
+                  severity: 'Sev1',
+                  alertState: 'New',
+                  monitorCondition: 'Fired',
+                  signalType: 'Metric',
+                  monitorService: 'Platform',
+                  startDateTime: '2025-01-01T00:00:00Z',
+                  lastModifiedDateTime: '2025-01-01T01:00:00Z',
+                },
+              },
+            },
+          ],
+        },
+      }),
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const storage = makeStorage();
+    await connector({ resources: ['alerts'] }).sync({ mode: 'full' }, storage);
+
+    const alertsCall = recordCalls(fetchSpy).find((c) =>
+      c.url.includes('/providers/Microsoft.AlertsManagement/alerts'),
+    );
+    expect(alertsCall).toBeDefined();
+    expect(new URL(alertsCall!.url).searchParams.get('api-version')).toBe(
+      '2019-03-01',
+    );
+
+    const items = storage.entities.mock.calls[0]![0] as Array<{
+      id: string;
+      attributes: Record<string, unknown>;
+    }>;
+    expect(items).toHaveLength(1);
+    expect(items[0]!.attributes['severity']).toBe('Sev1');
+    expect(items[0]!.attributes['state']).toBe('New');
+    expect(items[0]!.attributes['monitorCondition']).toBe('Fired');
   });
 
   it('returns done:true at end of sync', async () => {
