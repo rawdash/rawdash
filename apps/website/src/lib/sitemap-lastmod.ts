@@ -166,11 +166,14 @@ export function sitemapIndexLastmod(): AstroIntegration {
         let index: string;
         try {
           index = await readFile(indexUrl, 'utf8');
-        } catch {
-          logger.info(
-            'No sitemap-index.xml found; skipping lastmod injection.',
-          );
-          return;
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+            logger.info(
+              'No sitemap-index.xml found; skipping lastmod injection.',
+            );
+            return;
+          }
+          throw error;
         }
 
         const childCache = new Map<string, string | undefined>();
@@ -195,15 +198,8 @@ export function sitemapIndexLastmod(): AstroIntegration {
           }
 
           if (!childCache.has(childPath)) {
-            try {
-              const childXml = await readFile(new URL(childPath, dir), 'utf8');
-              childCache.set(childPath, maxLastmod(childXml));
-            } catch (error) {
-              logger.warn(
-                `Could not read child sitemap ${childPath}: ${(error as Error).message}`,
-              );
-              childCache.set(childPath, undefined);
-            }
+            const childXml = await readFile(new URL(childPath, dir), 'utf8');
+            childCache.set(childPath, maxLastmod(childXml));
           }
 
           const lastmod = childCache.get(childPath);
