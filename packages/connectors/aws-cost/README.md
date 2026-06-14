@@ -105,7 +105,7 @@ Cost Explorer throttling (ThrottlingException) is retried with backoff. Cost Exp
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [Amazon Web Services API docs](https://docs.aws.amazon.com/aws-cost-management/latest/APIReference/API_Operations_AWS_Cost_Explorer_Service.html)
 - [GitHub](https://github.com/rawdash/rawdash)
 

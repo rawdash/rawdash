@@ -122,7 +122,7 @@ Mailchimp allows up to 10 simultaneous connections per account; per-endpoint rat
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [Mailchimp API docs](https://mailchimp.com/developer/marketing/api/)
 - [GitHub](https://github.com/rawdash/rawdash)
 

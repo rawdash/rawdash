@@ -124,7 +124,7 @@ Azure Resource Manager enforces per-tenant and per-subscription read throttling 
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [Microsoft Azure API docs](https://learn.microsoft.com/en-us/rest/api/monitor/)
 - [GitHub](https://github.com/rawdash/rawdash)
 

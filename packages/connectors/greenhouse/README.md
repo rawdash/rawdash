@@ -144,7 +144,7 @@ Greenhouse Harvest enforces 50 requests per 10 seconds per key and surfaces rema
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [Greenhouse API docs](https://developers.greenhouse.io/harvest.html)
 - [GitHub](https://github.com/rawdash/rawdash)
 

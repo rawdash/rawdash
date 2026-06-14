@@ -114,7 +114,7 @@ Branch enforces a per-app request quota on the Cross-Platform Analytics API (rou
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [Branch API docs](https://help.branch.io/developers-hub/reference)
 - [GitHub](https://github.com/rawdash/rawdash)
 

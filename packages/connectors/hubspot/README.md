@@ -99,7 +99,7 @@ HubSpot allows 100 requests / 10s; the Search API caps results at 10,000 per que
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [HubSpot API docs](https://developers.hubspot.com/docs/api/overview)
 - [GitHub](https://github.com/rawdash/rawdash)
 

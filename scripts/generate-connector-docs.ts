@@ -228,7 +228,7 @@ function loadPlaceholders(
 }
 
 function placeholderUrl(p: LoadedPlaceholder): string {
-  return `/docs/connectors/${p.category}/${p.id}/`;
+  return `/docs/connectors/${p.category}/${p.id}`;
 }
 
 function requestIssueUrl(requestIssue: string): string {
@@ -538,7 +538,7 @@ function renderReadme(c: LoadedConnector): string {
   parts.push('');
   parts.push('## Links');
   parts.push('');
-  parts.push('- [Rawdash docs](https://rawdash.dev/docs/connectors/)');
+  parts.push('- [Rawdash docs](https://rawdash.dev/docs/connectors)');
   if (doc.vendor.apiDocs) {
     parts.push(`- [${doc.vendor.name} API docs](${doc.vendor.apiDocs})`);
   }
@@ -681,7 +681,7 @@ function groupPlaceholdersByCategory(
 }
 
 function connectorUrl(c: LoadedConnector): string {
-  return `/docs/connectors/${c.doc.category}/${c.id}/`;
+  return `/docs/connectors/${c.doc.category}/${c.id}`;
 }
 
 function renderTopIndex(): string {
@@ -760,7 +760,7 @@ function renderPlaceholderMdx(p: LoadedPlaceholder): string {
   parts.push(escapeMdxText(p.tagline));
   parts.push('');
   parts.push(
-    `<Aside type="note" title="Not built yet">There's no \`@rawdash/connector-${p.id}\` package yet. This connector is on the roadmap. Upvote below to help us prioritize it, or [build it yourself](/docs/connector-guide/) - rawdash connectors are just typed resource-syncers.</Aside>`,
+    `<Aside type="note" title="Not built yet">There's no \`@rawdash/connector-${p.id}\` package yet. This connector is on the roadmap. Upvote below to help us prioritize it, or [build it yourself](/docs/connector-guide) - rawdash connectors are just typed resource-syncers.</Aside>`,
   );
   parts.push('');
   parts.push('## Upvote this connector');

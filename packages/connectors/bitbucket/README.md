@@ -98,7 +98,7 @@ Bitbucket Cloud applies hourly per-IP and per-user limits (around 1,000 requests
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [Atlassian API docs](https://developer.atlassian.com/cloud/bitbucket/rest/intro/)
 - [GitHub](https://github.com/rawdash/rawdash)
 

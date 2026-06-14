@@ -122,7 +122,7 @@ Meta enforces per-app and per-ad-account budgets surfaced through the `X-Busines
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [Meta API docs](https://developers.facebook.com/docs/marketing-api/insights)
 - [GitHub](https://github.com/rawdash/rawdash)
 

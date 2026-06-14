@@ -126,7 +126,7 @@ App Store Connect enforces a 3,600 requests-per-hour quota per team. The shared 
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [Apple API docs](https://developer.apple.com/documentation/appstoreconnectapi)
 - [GitHub](https://github.com/rawdash/rawdash)
 
