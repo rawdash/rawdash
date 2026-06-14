@@ -229,26 +229,31 @@ describe('getBedrockWindow / getSpendWindow', () => {
   const now = Date.UTC(2025, 5, 15, 12, 0, 0);
 
   it('uses the configured lookback for a full sync', () => {
-    const w = getBedrockWindow({ mode: 'full' }, 30, 86_400, now);
+    const w = getBedrockWindow({ mode: 'full' }, 30, now);
     expect(w.endMs).toBe(now);
     expect(w.startMs).toBe(now - 30 * 86_400_000);
   });
 
   it('uses a short trailing window for an incremental sync', () => {
-    const w = getBedrockWindow({ mode: 'latest' }, 30, 86_400, now);
+    const w = getBedrockWindow({ mode: 'latest' }, 30, now);
     expect(w.endMs - w.startMs).toBe(3 * 86_400_000);
   });
 
   it('honors options.since when provided', () => {
     const since = '2025-06-01T00:00:00Z';
-    const w = getBedrockWindow({ mode: 'full', since }, 30, 86_400, now);
+    const w = getBedrockWindow({ mode: 'full', since }, 30, now);
     expect(w.startMs).toBe(Date.parse(since));
+  });
+
+  it('leaves the legacy three-argument signature behavior unchanged', () => {
+    const w = getBedrockWindow({ mode: 'full' }, 365, now);
+    expect(w.startMs).toBe(now - 365 * 86_400_000);
   });
 
   it('clamps the window to the 15-day retention floor for a 60s period', () => {
     const lookbackDays = 30;
     const { logger, warnings } = recordingLogger();
-    const w = getBedrockWindow({ mode: 'full' }, lookbackDays, 60, now, logger);
+    const w = getBedrockWindow({ mode: 'full' }, lookbackDays, now, 60, logger);
     expect(w.startMs).toBe(now - 15 * 86_400_000);
     const truncation = warnings.find(
       (warn) => warn.event === 'window truncated to retention floor',
@@ -263,7 +268,7 @@ describe('getBedrockWindow / getSpendWindow', () => {
 
   it('does not clamp a 3600s period at a 30-day lookback', () => {
     const { logger, warnings } = recordingLogger();
-    const w = getBedrockWindow({ mode: 'full' }, 30, 3600, now, logger);
+    const w = getBedrockWindow({ mode: 'full' }, 30, now, 3600, logger);
     expect(w.startMs).toBe(now - 30 * 86_400_000);
     expect(
       warnings.find(

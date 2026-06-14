@@ -541,8 +541,8 @@ export interface BedrockWindow {
 export function getBedrockWindow(
   options: SyncOptions,
   lookbackDays: number,
-  periodSeconds: number,
   now: number = Date.now(),
+  periodSeconds: number = DEFAULT_GRANULARITY_SECONDS,
   logger?: ConnectorLogger,
 ): BedrockWindow {
   const endMs = now;
@@ -1159,8 +1159,8 @@ export class AwsBedrockConnector extends BaseAWSConnector<AwsBedrockSettings> {
     const window = getBedrockWindow(
       options,
       lookbackDays,
-      periodSeconds,
       Date.now(),
+      periodSeconds,
       this.logger,
     );
 
