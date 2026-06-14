@@ -597,8 +597,13 @@ export class SentryConnector extends BaseConnector<
     u.searchParams.set('interval', '1h');
     u.searchParams.set('statsPeriod', `${lookback}h`);
     u.searchParams.append('groupBy', 'project');
-    for (const project of this.settings.projects ?? []) {
-      u.searchParams.append('project', project);
+    const projects = this.settings.projects ?? [];
+    if (projects.length > 0) {
+      for (const project of projects) {
+        u.searchParams.append('project', project);
+      }
+    } else {
+      u.searchParams.append('project', '-1');
     }
     return u.toString();
   }
@@ -811,18 +816,18 @@ export class SentryConnector extends BaseConnector<
       const project = group.by['project'];
       const projectKey = project !== undefined ? String(project) : 'unknown';
       const series = group.series?.['sum(quantity)'] ?? [];
-      if (series.length === 0) {
-        continue;
-      }
       for (let i = 0; i < intervals.length; i++) {
         const intervalIso = intervals[i];
-        const rawValue = series[i];
-        if (intervalIso === undefined || rawValue === undefined) {
+        if (intervalIso === undefined) {
           continue;
         }
         const ts = parseEpoch(intervalIso, 'iso');
-        const value = Number(rawValue);
-        if (ts === null || !Number.isFinite(value)) {
+        if (ts === null) {
+          continue;
+        }
+        const rawValue = series[i];
+        const value = rawValue === undefined ? 0 : Number(rawValue);
+        if (!Number.isFinite(value)) {
           continue;
         }
         samples.push({
