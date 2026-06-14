@@ -468,6 +468,7 @@ describe('AzureCostConnector.sync', () => {
 
     const calls = recordCalls(fetchSpy);
     const costCall = calls.find((c) => c.url.includes(COST_URL_FRAGMENT));
+    expect(costCall).toBeDefined();
     const body = costCall!.body as {
       dataset: { grouping?: Array<{ type: string; name: string }> };
     };
