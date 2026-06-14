@@ -4,10 +4,11 @@ import { defineConfig } from 'astro/config';
 
 import { fetchPublishedFeedItems } from './src/lib/content-feed';
 import { SECTION_LIST } from './src/lib/sections';
+import { buildSitemapLastmod } from './src/lib/sitemap-lastmod';
 
-const publishedPageTypes = new Set(
-  (await fetchPublishedFeedItems()).map((item) => item.pageType),
-);
+const feedItems = await fetchPublishedFeedItems();
+const publishedPageTypes = new Set(feedItems.map((item) => item.pageType));
+const sitemapLastmod = buildSitemapLastmod(feedItems);
 const hiddenSectionPaths = new Set(
   SECTION_LIST.filter(
     (section) => !publishedPageTypes.has(section.pageType),
@@ -36,6 +37,13 @@ export default defineConfig({
   integrations: [
     sitemap({
       filter: (page) => !hiddenSectionPaths.has(new URL(page).pathname),
+      serialize(item) {
+        const lastmod = sitemapLastmod(item.url);
+        if (lastmod) {
+          item.lastmod = lastmod;
+        }
+        return item;
+      },
     }),
     starlight({
       title: 'Rawdash',
