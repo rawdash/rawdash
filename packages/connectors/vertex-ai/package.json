@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-vertex-ai",
-  "version": "0.24.0",
+  "version": "0.25.0",
   "description": "Rawdash connector for Google Cloud Vertex AI - syncs daily model invocations, token counts, errors, and spend (Gemini and partner models) into the six-shape storage model",
   "license": "Apache-2.0",
   "type": "module",

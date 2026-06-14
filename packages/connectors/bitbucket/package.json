@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-bitbucket",
-  "version": "0.24.0",
+  "version": "0.25.0",
   "description": "Rawdash connector for Bitbucket Cloud — pull requests, pipelines, and pipeline state-transition events",
   "license": "Apache-2.0",
   "type": "module",

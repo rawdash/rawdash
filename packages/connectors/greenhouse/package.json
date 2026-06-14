@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-greenhouse",
-  "version": "0.24.0",
+  "version": "0.25.0",
   "description": "Rawdash connector for Greenhouse — syncs candidates, applications, jobs, and offers from the Greenhouse Harvest API into the six-shape storage model",
   "license": "Apache-2.0",
   "type": "module",

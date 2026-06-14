@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-firebase-analytics",
-  "version": "0.24.0",
+  "version": "0.25.0",
   "description": "Rawdash connector for Firebase Analytics - syncs DAU/WAU/MAU, per-event volume, and cohort retention from the GA4 Data API into the six-shape storage model",
   "license": "Apache-2.0",
   "type": "module",
