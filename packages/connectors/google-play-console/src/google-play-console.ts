@@ -12,6 +12,7 @@ import {
   defineConnectorDoc,
   defineResources,
   schemasFromResources,
+  selectActivePhases,
 } from '@rawdash/core';
 import { z } from 'zod';
 
@@ -42,6 +43,12 @@ export const configFields = defineConfigFields(
         'How many calendar days to fetch on a full sync. Defaults to 30. The Play Developer Reporting API exposes daily metrics with a typical 2-3 day reporting lag.',
       placeholder: '30',
     }),
+    reviewLimit: z.number().int().positive().max(2000).optional().meta({
+      label: 'Review sample size',
+      description:
+        'How many of the most-recent user reviews to emit as gplay_app_ratings samples. Defaults to 200. Reviews are fetched then ranked newest-first before this cap is applied. The Android Publisher reviews API only surfaces reviews from roughly the past week, so this is a rolling sample, not a full history.',
+      placeholder: '200',
+    }),
   }),
 );
 
@@ -50,7 +57,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
   category: 'engineering',
   brandColor: '#34A853',
   tagline:
-    'Sync daily Android app vitals from the Play Developer Reporting API - crash rate, ANR rate, ratings, and error counts.',
+    'Sync daily Android app vitals from the Play Developer Reporting API (crash rate, ANR rate, error counts) plus user review ratings from the Android Publisher API.',
   vendor: {
     name: 'Google Play Console',
     domain: 'play.google.com',
@@ -62,7 +69,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
       'Authenticate against the Play Developer Reporting API and the Android Publisher API with a Google service account JSON key. The service account must be linked to your Play Console developer account.',
     setup: [
       'In Google Cloud, create a service account at IAM & Admin -> Service Accounts and download a JSON key.',
-      'Enable both the "Google Play Android Developer API" and the "Google Play Developer Reporting API" on the Cloud project.',
+      'Enable both the "Google Play Developer Reporting API" and the "Google Play Android Developer API" on the Cloud project.',
       'In Google Play Console open Setup -> API access, link the same Cloud project, then invite the service account email and grant it at least the "View app information and download bulk reports" permission for the app you want to sync.',
       'Store the service account JSON as a secret and reference it as serviceAccountJson: secret("GPLAY_SA_JSON").',
       'Set packageName to the reverse-DNS application id of the app (e.g. com.example.app).',
@@ -71,7 +78,9 @@ export const doc: ConnectorDoc = defineConnectorDoc({
   rateLimit:
     'The Play Developer Reporting API enforces a per-project quota (default 60 requests per minute); 429 responses are retried with exponential backoff.',
   limitations: [
-    'Daily vitals (crash rate, ANR rate, ratings, error counts) have a 2-3 day reporting lag on the Play Developer Reporting API; incremental syncs refetch the trailing 3 days.',
+    'Daily vitals (crash rate, ANR rate, error counts) have a 2-3 day reporting lag on the Play Developer Reporting API; incremental syncs refetch the trailing 3 days. Metric days are reported on the America/Los_Angeles calendar, the only timezone the API supports for daily aggregation.',
+    'gplay_app_ratings is a rolling sample of recent reviews from the Android Publisher reviews API (default 200, configurable via reviewLimit). Each sample carries one review with its star rating (1-5) as the value; this is not the lifetime average shown on the Play Store, and the reviews API only surfaces reviews from roughly the past week.',
+    'The apps entity carries only the configured package name; the Play Store listing title is available solely through an Android Publisher edit, which this connector does not create.',
     'Install counts and earnings are not exposed through the Reporting API - Google delivers them only as monthly CSV reports in a private Cloud Storage bucket. Those metrics are out of scope for this connector and will land in a follow-up.',
   ],
 });
@@ -79,6 +88,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
 export interface GooglePlayConsoleSettings {
   packageName: string;
   lookbackDays?: number;
+  reviewLimit?: number;
 }
 
 const gplayCredentials = {
@@ -94,11 +104,13 @@ const PHASE_ORDER = [
   'apps',
   'crash_rate',
   'anr_rate',
-  'ratings',
   'errors',
+  'reviews',
 ] as const;
 
 type GplayPhase = (typeof PHASE_ORDER)[number];
+
+type MetricPhase = 'crash_rate' | 'anr_rate' | 'errors';
 
 interface GplayDateRange {
   startDate: string;
@@ -143,36 +155,41 @@ interface MetricPhaseConfig {
   metrics: string[];
   metricName: string;
   primaryMetric: string;
+  responseTag: string;
 }
 
-const METRIC_PHASE_CONFIGS: Record<
-  Exclude<GplayPhase, 'apps'>,
-  MetricPhaseConfig
-> = {
+const METRIC_PHASE_CONFIGS: Record<MetricPhase, MetricPhaseConfig> = {
   crash_rate: {
     metricSet: 'crashRateMetricSet',
     metrics: ['crashRate', 'distinctUsers'],
     metricName: 'gplay_crash_rate_by_day',
     primaryMetric: 'crashRate',
+    responseTag: 'crash_rate',
   },
   anr_rate: {
     metricSet: 'anrRateMetricSet',
     metrics: ['anrRate', 'distinctUsers'],
     metricName: 'gplay_anr_rate_by_day',
     primaryMetric: 'anrRate',
-  },
-  ratings: {
-    metricSet: 'ratingsMetricSet',
-    metrics: ['averageRating', 'ratingsCount'],
-    metricName: 'gplay_ratings_by_day',
-    primaryMetric: 'averageRating',
+    responseTag: 'anr_rate',
   },
   errors: {
     metricSet: 'errorCountMetricSet',
     metrics: ['errorReportCount', 'distinctUsers'],
     metricName: 'gplay_error_count_by_day',
     primaryMetric: 'errorReportCount',
+    responseTag: 'errors',
   },
+};
+
+const GPLAY_APP_RATINGS_METRIC = 'gplay_app_ratings';
+
+const RESOURCE_TO_PHASE: Record<string, GplayPhase> = {
+  apps: 'apps',
+  gplay_crash_rate_by_day: 'crash_rate',
+  gplay_anr_rate_by_day: 'anr_rate',
+  gplay_error_count_by_day: 'errors',
+  [GPLAY_APP_RATINGS_METRIC]: 'reviews',
 };
 
 const SCOPES = [
@@ -182,6 +199,12 @@ const SCOPES = [
 
 const REPORTING_BASE = 'https://playdeveloperreporting.googleapis.com';
 const PUBLISHER_BASE = 'https://androidpublisher.googleapis.com';
+
+const DAILY_TIME_ZONE = 'America/Los_Angeles';
+
+const DEFAULT_REVIEW_LIMIT = 200;
+const REVIEWS_PAGE_SIZE = 100;
+const MAX_REVIEW_PAGES = 50;
 
 export interface GplayTimelineDate {
   year?: number;
@@ -209,6 +232,33 @@ interface GplayMetricResponse {
   nextPageToken?: string;
 }
 
+export interface GplayTimestamp {
+  seconds?: string;
+  nanos?: number;
+}
+
+export interface GplayUserComment {
+  text?: string;
+  lastModified?: GplayTimestamp;
+  starRating?: number;
+  reviewerLanguage?: string;
+  device?: string;
+  androidOsVersion?: number;
+  appVersionCode?: number;
+  appVersionName?: string;
+}
+
+export interface GplayReview {
+  reviewId?: string;
+  authorName?: string;
+  comments?: Array<{ userComment?: GplayUserComment }>;
+}
+
+interface GplayReviewsResponse {
+  reviews?: GplayReview[];
+  tokenPagination?: { nextPageToken?: string };
+}
+
 interface ServiceAccountKey {
   client_email: string;
   private_key: string;
@@ -218,16 +268,6 @@ interface ServiceAccountKey {
 interface TokenResponse {
   access_token: string;
   expires_in?: number;
-}
-
-interface PublisherListingResponse {
-  defaultLanguage?: string;
-  listings?: Array<{
-    language?: string;
-    title?: string;
-    fullDescription?: string;
-    shortDescription?: string;
-  }>;
 }
 
 function base64urlFromBytes(bytes: Uint8Array): string {
@@ -315,11 +355,15 @@ async function buildServiceAccountJwt(
   };
 }
 
+const gplayDateFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: DAILY_TIME_ZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
 function toGplayDate(date: Date): string {
-  const y = date.getUTCFullYear();
-  const m = String(date.getUTCMonth() + 1).padStart(2, '0');
-  const d = String(date.getUTCDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+  return gplayDateFormatter.format(date);
 }
 
 function gplayDateToMs(gplayDate: string): number {
@@ -427,6 +471,65 @@ export function rowToMetricSample(
   };
 }
 
+function timestampToMs(ts: GplayTimestamp | undefined): number | null {
+  if (!ts || typeof ts.seconds !== 'string') {
+    return null;
+  }
+  const seconds = Number(ts.seconds);
+  if (!Number.isFinite(seconds)) {
+    return null;
+  }
+  const nanos = typeof ts.nanos === 'number' ? ts.nanos : 0;
+  return Math.round(seconds * 1000 + nanos / 1e6);
+}
+
+export function reviewToRatingSample(
+  review: GplayReview,
+  packageName: string,
+): {
+  name: string;
+  ts: number;
+  value: number;
+  attributes: Record<string, string | number>;
+} | null {
+  const userComment = review.comments?.find((c) => c.userComment)?.userComment;
+  if (!userComment) {
+    return null;
+  }
+  const rating = userComment.starRating;
+  if (typeof rating !== 'number' || rating < 1 || rating > 5) {
+    return null;
+  }
+  const ts = timestampToMs(userComment.lastModified);
+  if (ts === null) {
+    return null;
+  }
+
+  const attributes: Record<string, string | number> = {
+    package_name: packageName,
+    review_id: review.reviewId ?? '',
+  };
+  if (userComment.reviewerLanguage) {
+    attributes['reviewer_language'] = userComment.reviewerLanguage;
+  }
+  if (userComment.device) {
+    attributes['device'] = userComment.device;
+  }
+  if (userComment.appVersionName) {
+    attributes['app_version_name'] = userComment.appVersionName;
+  }
+  if (typeof userComment.androidOsVersion === 'number') {
+    attributes['android_os_version'] = userComment.androidOsVersion;
+  }
+
+  return {
+    name: GPLAY_APP_RATINGS_METRIC,
+    ts,
+    value: rating,
+    attributes,
+  };
+}
+
 const dateOnlyTimeline = z.object({
   startTime: z.object({
     year: z.number().int(),
@@ -457,17 +560,40 @@ function metricSetSchema() {
   });
 }
 
-const publisherListingSchema = z.object({
-  defaultLanguage: z.string().optional(),
-  listings: z
+const reviewsResponseSchema = z.object({
+  reviews: z
     .array(
       z.object({
-        language: z.string(),
-        title: z.string().optional(),
-        shortDescription: z.string().optional(),
-        fullDescription: z.string().optional(),
+        reviewId: z.string().optional(),
+        authorName: z.string().optional(),
+        comments: z
+          .array(
+            z.object({
+              userComment: z
+                .object({
+                  text: z.string().optional(),
+                  lastModified: z
+                    .object({
+                      seconds: z.string().optional(),
+                      nanos: z.number().optional(),
+                    })
+                    .optional(),
+                  starRating: z.number().int().optional(),
+                  reviewerLanguage: z.string().optional(),
+                  device: z.string().optional(),
+                  androidOsVersion: z.number().int().optional(),
+                  appVersionCode: z.number().int().optional(),
+                  appVersionName: z.string().optional(),
+                })
+                .optional(),
+            }),
+          )
+          .optional(),
       }),
     )
+    .optional(),
+  tokenPagination: z
+    .object({ nextPageToken: z.string().optional() })
     .optional(),
 });
 
@@ -476,25 +602,13 @@ export const googlePlayConsoleResources = defineResources({
     shape: 'entity',
     filterable: [],
     description:
-      'Android app the connector is syncing. One entity per configured packageName.',
-    endpoint: 'GET /androidpublisher/v3/applications/{packageName}/listings',
+      'Android app the connector is syncing. One entity per configured packageName, derived from the connector config; the Play Store listing title is only reachable through an Android Publisher edit and is not fetched.',
     fields: [
       {
         name: 'package_name',
         description: 'Reverse-DNS application id (e.g. com.example.app).',
       },
-      {
-        name: 'title',
-        description:
-          'Play Store listing title in the default language. Empty if the listing has not been fetched yet.',
-      },
-      {
-        name: 'default_language',
-        description:
-          'Default language code (BCP-47) configured for the Play Store listings.',
-      },
     ],
-    responses: { listings: publisherListingSchema },
   },
   gplay_crash_rate_by_day: {
     shape: 'metric',
@@ -504,7 +618,11 @@ export const googlePlayConsoleResources = defineResources({
     granularity: 'day',
     endpoint: 'POST /v1beta1/apps/{packageName}/crashRateMetricSet:query',
     dimensions: [
-      { name: 'date', description: 'Calendar day of the metric sample (UTC).' },
+      {
+        name: 'date',
+        description:
+          'Calendar day of the metric sample (America/Los_Angeles, the only timezone the Reporting API supports for daily aggregation).',
+      },
       {
         name: 'package_name',
         description:
@@ -521,7 +639,11 @@ export const googlePlayConsoleResources = defineResources({
     granularity: 'day',
     endpoint: 'POST /v1beta1/apps/{packageName}/anrRateMetricSet:query',
     dimensions: [
-      { name: 'date', description: 'Calendar day of the metric sample (UTC).' },
+      {
+        name: 'date',
+        description:
+          'Calendar day of the metric sample (America/Los_Angeles, the only timezone the Reporting API supports for daily aggregation).',
+      },
       {
         name: 'package_name',
         description:
@@ -529,23 +651,6 @@ export const googlePlayConsoleResources = defineResources({
       },
     ],
     responses: { anr_rate: metricSetSchema() },
-  },
-  gplay_ratings_by_day: {
-    shape: 'metric',
-    description:
-      'Daily average user rating and rating count from the Play Developer Reporting API.',
-    unit: 'stars',
-    granularity: 'day',
-    endpoint: 'POST /v1beta1/apps/{packageName}/ratingsMetricSet:query',
-    dimensions: [
-      { name: 'date', description: 'Calendar day of the metric sample (UTC).' },
-      {
-        name: 'package_name',
-        description:
-          'Reverse-DNS application id this sample is reported against.',
-      },
-    ],
-    responses: { ratings: metricSetSchema() },
   },
   gplay_error_count_by_day: {
     shape: 'metric',
@@ -555,7 +660,11 @@ export const googlePlayConsoleResources = defineResources({
     granularity: 'day',
     endpoint: 'POST /v1beta1/apps/{packageName}/errorCountMetricSet:query',
     dimensions: [
-      { name: 'date', description: 'Calendar day of the metric sample (UTC).' },
+      {
+        name: 'date',
+        description:
+          'Calendar day of the metric sample (America/Los_Angeles, the only timezone the Reporting API supports for daily aggregation).',
+      },
       {
         name: 'package_name',
         description:
@@ -563,6 +672,40 @@ export const googlePlayConsoleResources = defineResources({
       },
     ],
     responses: { errors: metricSetSchema() },
+  },
+  gplay_app_ratings: {
+    shape: 'metric',
+    description:
+      'Rolling per-review star ratings sampled from the most-recent user reviews via the Android Publisher reviews API (default 200, configurable via reviewLimit). Each sample carries one review with its star rating (1-5) as the value.',
+    unit: 'stars',
+    endpoint: 'GET /androidpublisher/v3/applications/{packageName}/reviews',
+    notes:
+      'Not the lifetime average shown on the Play Store. The reviews API only returns reviews from roughly the past week, so this is a rolling sample; average over a time window downstream for a smoothed rating.',
+    dimensions: [
+      {
+        name: 'package_name',
+        description:
+          'Reverse-DNS application id this review was filed against.',
+      },
+      { name: 'review_id', description: 'Unique identifier of the review.' },
+      {
+        name: 'reviewer_language',
+        description: 'BCP-47 language code the review was written in.',
+      },
+      {
+        name: 'device',
+        description: 'Codename of the device the review was filed from.',
+      },
+      {
+        name: 'app_version_name',
+        description: 'App version name the reviewer was running.',
+      },
+      {
+        name: 'android_os_version',
+        description: 'Android SDK version the reviewer was running.',
+      },
+    ],
+    responses: { reviews: reviewsResponseSchema },
   },
 });
 
@@ -587,6 +730,7 @@ export class GooglePlayConsoleConnector extends BaseConnector<
       {
         packageName: parsed.packageName,
         lookbackDays: parsed.lookbackDays,
+        reviewLimit: parsed.reviewLimit,
       },
       {
         serviceAccountJson: parsed.serviceAccountJson,
@@ -635,22 +779,6 @@ export class GooglePlayConsoleConnector extends BaseConnector<
     return this.cachedToken.token;
   }
 
-  private async fetchListings(
-    accessToken: string,
-    signal?: AbortSignal,
-  ): Promise<PublisherListingResponse> {
-    const url = `${PUBLISHER_BASE}/androidpublisher/v3/applications/${encodeURIComponent(this.settings.packageName)}/listings`;
-    const res = await this.get<PublisherListingResponse>(url, {
-      resource: 'listings',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'User-Agent': connectorUserAgent('google-play-console'),
-      },
-      signal,
-    });
-    return res.body;
-  }
-
   private async runMetricQuery(
     accessToken: string,
     cfg: MetricPhaseConfig,
@@ -679,13 +807,13 @@ export class GooglePlayConsoleConnector extends BaseConnector<
           year: sy,
           month: sm,
           day: sd,
-          timeZone: { id: 'UTC' },
+          timeZone: { id: DAILY_TIME_ZONE },
         },
         endTime: {
           year: ey,
           month: em,
           day: ed,
-          timeZone: { id: 'UTC' },
+          timeZone: { id: DAILY_TIME_ZONE },
         },
       },
     };
@@ -694,7 +822,7 @@ export class GooglePlayConsoleConnector extends BaseConnector<
     }
 
     const res = await this.post<GplayMetricResponse>(url, {
-      resource: cfg.metricSet,
+      resource: cfg.responseTag,
       headers: {
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
@@ -706,37 +834,70 @@ export class GooglePlayConsoleConnector extends BaseConnector<
     return res.body;
   }
 
-  private async syncApps(
-    accessToken: string,
-    storage: StorageHandle,
-    signal?: AbortSignal,
-  ): Promise<void> {
-    let title = '';
-    let defaultLanguage = '';
-    try {
-      const listings = await this.fetchListings(accessToken, signal);
-      defaultLanguage = listings.defaultLanguage ?? '';
-      const list = listings.listings ?? [];
-      const def = list.find((l) => l.language === defaultLanguage) ?? list[0];
-      title = def?.title ?? '';
-    } catch (err) {
-      this.logger.warn(
-        'Failed to fetch Play Console listings; emitting app entity with empty title',
-        { error: (err as Error).message },
-      );
-    }
-
+  private async syncApps(storage: StorageHandle): Promise<void> {
     const entity: Entity = {
       type: 'apps',
       id: this.settings.packageName,
       attributes: {
         package_name: this.settings.packageName,
-        title,
-        default_language: defaultLanguage,
       },
       updated_at: Date.now(),
     };
     await storage.entities([entity], { types: ['apps'] });
+  }
+
+  private async fetchReviews(
+    accessToken: string,
+    signal?: AbortSignal,
+  ): Promise<GplayReview[]> {
+    const reviews: GplayReview[] = [];
+    const base = `${PUBLISHER_BASE}/androidpublisher/v3/applications/${encodeURIComponent(this.settings.packageName)}/reviews`;
+    let token: string | undefined = undefined;
+    for (let page = 0; page < MAX_REVIEW_PAGES; page++) {
+      signal?.throwIfAborted();
+      const params = new URLSearchParams({
+        maxResults: String(REVIEWS_PAGE_SIZE),
+      });
+      if (token) {
+        params.set('token', token);
+      }
+      const res = await this.get<GplayReviewsResponse>(
+        `${base}?${params.toString()}`,
+        {
+          resource: 'reviews',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'User-Agent': connectorUserAgent('google-play-console'),
+          },
+          signal,
+        },
+      );
+      reviews.push(...(res.body.reviews ?? []));
+      token = res.body.tokenPagination?.nextPageToken;
+      if (!token) {
+        return reviews;
+      }
+    }
+    this.logger.warn(
+      `Stopped paginating Play Console reviews after ${MAX_REVIEW_PAGES} pages; the most-recent reviews are still ranked first but older reviews may be omitted`,
+      { packageName: this.settings.packageName },
+    );
+    return reviews;
+  }
+
+  private async syncReviews(
+    accessToken: string,
+    storage: StorageHandle,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    const limit = this.settings.reviewLimit ?? DEFAULT_REVIEW_LIMIT;
+    const reviews = await this.fetchReviews(accessToken, signal);
+    const samples = reviews
+      .map((review) => reviewToRatingSample(review, this.settings.packageName))
+      .filter((s): s is NonNullable<typeof s> => s !== null)
+      .sort((a, b) => b.ts - a.ts)
+      .slice(0, limit);
+    await storage.metrics(samples, { names: [GPLAY_APP_RATINGS_METRIC] });
   }
 
   private async drainMetricPhase(
@@ -786,19 +947,30 @@ export class GooglePlayConsoleConnector extends BaseConnector<
       return accessToken;
     };
 
-    const resumeIdx = cursor ? PHASE_ORDER.indexOf(cursor.phase) : -1;
+    const phases = selectActivePhases<string, GplayPhase>(
+      (resource) => RESOURCE_TO_PHASE[resource] ?? 'apps',
+      PHASE_ORDER,
+      options.resources ? [...options.resources] : undefined,
+    );
+
+    const resumeIdx = cursor ? phases.indexOf(cursor.phase) : -1;
     const startIdx = resumeIdx >= 0 ? resumeIdx : 0;
 
-    for (let i = startIdx; i < PHASE_ORDER.length; i++) {
-      const phase = PHASE_ORDER[i]!;
+    for (let i = startIdx; i < phases.length; i++) {
+      const phase = phases[i]!;
       if (signal?.aborted) {
         return { done: false, cursor: { phase, dateRange } };
       }
 
       try {
         if (phase === 'apps') {
+          await this.syncApps(storage);
+          continue;
+        }
+
+        if (phase === 'reviews') {
           const token = await getToken(signal);
-          await this.syncApps(token, storage, signal);
+          await this.syncReviews(token, storage, signal);
           continue;
         }
 

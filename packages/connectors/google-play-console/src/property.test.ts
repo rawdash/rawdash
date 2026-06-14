@@ -79,9 +79,7 @@ function installMetricFetchMock(
       );
     }
     if (u.includes('androidpublisher.googleapis.com')) {
-      return Promise.resolve(
-        mockJsonResponse({ defaultLanguage: 'en-US', listings: [] }),
-      );
+      return Promise.resolve(mockJsonResponse({ reviews: [] }));
     }
     if (u.includes(`${metricSet}:query`)) {
       const stripped = { ...(body as Record<string, unknown>) };
@@ -94,9 +92,30 @@ function installMetricFetchMock(
   return spy;
 }
 
+function installReviewsFetchMock(body: unknown): ReturnType<typeof vi.fn> {
+  const spy = vi.fn().mockImplementation((url: string, _init?: RequestInit) => {
+    const u = String(url);
+    if (u.includes('oauth2.googleapis.com/token')) {
+      return Promise.resolve(
+        mockJsonResponse({ access_token: 'tok', expires_in: 3600 }),
+      );
+    }
+    if (u.includes('androidpublisher.googleapis.com')) {
+      const stripped = { ...(body as Record<string, unknown>) };
+      delete stripped['tokenPagination'];
+      return Promise.resolve(mockJsonResponse(stripped));
+    }
+    return Promise.resolve(mockJsonResponse({ rows: [] }));
+  });
+  vi.stubGlobal('fetch', spy);
+  return spy;
+}
+
 type CrashRateSample = z.infer<
   typeof GooglePlayConsoleConnector.schemas.crash_rate
 >;
+
+type ReviewsSample = z.infer<typeof GooglePlayConsoleConnector.schemas.reviews>;
 
 describe('GooglePlayConsoleConnector property tests', () => {
   afterEach(() => {
@@ -133,6 +152,53 @@ describe('GooglePlayConsoleConnector property tests', () => {
       extraInvariants: [extra, docShapeExtra],
       run: async (sample, storage) => {
         installMetricFetchMock('crashRateMetricSet', sample);
+        await makeConnector().sync(
+          { mode: 'full' },
+          storage.getStorageHandle(CONNECTOR_ID),
+        );
+      },
+    });
+  });
+
+  it('reviews: sync upholds universal invariants for any valid API payload', async () => {
+    const extra = (
+      storage: InMemoryStorage,
+      _connectorId: string,
+      sample: ReviewsSample,
+    ): InvariantViolation[] => {
+      const violations: InvariantViolation[] = [];
+      const reviews = sample.reviews ?? [];
+      const samples = metricStoreFor(storage).filter(
+        (m) => m.name === 'gplay_app_ratings',
+      );
+      if (samples.length > reviews.length) {
+        violations.push({
+          invariant:
+            'never emit more gplay_app_ratings metrics than the API returned reviews',
+          location: 'reviews phase',
+          detail: `got ${samples.length} metrics for ${reviews.length} reviews`,
+        });
+      }
+      for (const m of samples) {
+        if (m.value < 1 || m.value > 5) {
+          violations.push({
+            invariant: 'gplay_app_ratings value is a 1-5 star rating',
+            location: 'reviews phase',
+            detail: `got value ${m.value}`,
+          });
+        }
+      }
+      return violations;
+    };
+
+    await runPropertySyncTest({
+      connectorClass: GooglePlayConsoleConnector,
+      resource: 'reviews',
+      connectorId: CONNECTOR_ID,
+      runs: 30,
+      extraInvariants: [extra, docShapeExtra],
+      run: async (sample, storage) => {
+        installReviewsFetchMock(sample);
         await makeConnector().sync(
           { mode: 'full' },
           storage.getStorageHandle(CONNECTOR_ID),
@@ -184,8 +250,8 @@ describe('GooglePlayConsoleConnector property tests', () => {
         [
           'gplay_crash_rate_by_day',
           'gplay_anr_rate_by_day',
-          'gplay_ratings_by_day',
           'gplay_error_count_by_day',
+          'gplay_app_ratings',
         ].includes(n),
       ).toBe(true);
     }
