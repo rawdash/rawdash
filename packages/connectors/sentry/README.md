@@ -42,7 +42,7 @@ A Sentry auth token is required. Use an organization-level Internal Integration 
   - Events are sampled: at most eventsPerIssueCap recent events per issue per sync (Sentry caps a single events page at 100), so this is a representative sample, not a full audit trail.
 - **`sentry_release`** _(entity)_ - Releases with their versions, associated project slugs, and creation/release/last-event timestamps.
   - Endpoint: `GET /api/0/organizations/{organization}/releases/`
-- **`sentry_errors_per_hour`** _(metric)_ - Hourly count of error events, broken down by project, over the configured lookback window.
+- **`sentry_errors_per_hour`** _(metric)_ - Hourly count of accepted (stored) error events, broken down by project, over the configured lookback window.
   - Endpoint: `GET /api/0/organizations/{organization}/stats_v2/`
   - Unit: errors
   - Granularity: 1h
