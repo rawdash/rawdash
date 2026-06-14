@@ -12,6 +12,7 @@ import {
   defineConnectorDoc,
   defineResources,
   schemasFromResources,
+  selectActivePhases,
 } from '@rawdash/core';
 import { z } from 'zod';
 
@@ -50,7 +51,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
   category: 'engineering',
   brandColor: '#34A853',
   tagline:
-    'Sync daily Android app vitals from the Play Developer Reporting API - crash rate, ANR rate, ratings, and error counts.',
+    'Sync daily Android app vitals from the Play Developer Reporting API - crash rate, ANR rate, and error counts.',
   vendor: {
     name: 'Google Play Console',
     domain: 'play.google.com',
@@ -59,10 +60,10 @@ export const doc: ConnectorDoc = defineConnectorDoc({
   },
   auth: {
     summary:
-      'Authenticate against the Play Developer Reporting API and the Android Publisher API with a Google service account JSON key. The service account must be linked to your Play Console developer account.',
+      'Authenticate against the Play Developer Reporting API with a Google service account JSON key. The service account must be linked to your Play Console developer account.',
     setup: [
       'In Google Cloud, create a service account at IAM & Admin -> Service Accounts and download a JSON key.',
-      'Enable both the "Google Play Android Developer API" and the "Google Play Developer Reporting API" on the Cloud project.',
+      'Enable the "Google Play Developer Reporting API" on the Cloud project.',
       'In Google Play Console open Setup -> API access, link the same Cloud project, then invite the service account email and grant it at least the "View app information and download bulk reports" permission for the app you want to sync.',
       'Store the service account JSON as a secret and reference it as serviceAccountJson: secret("GPLAY_SA_JSON").',
       'Set packageName to the reverse-DNS application id of the app (e.g. com.example.app).',
@@ -71,7 +72,8 @@ export const doc: ConnectorDoc = defineConnectorDoc({
   rateLimit:
     'The Play Developer Reporting API enforces a per-project quota (default 60 requests per minute); 429 responses are retried with exponential backoff.',
   limitations: [
-    'Daily vitals (crash rate, ANR rate, ratings, error counts) have a 2-3 day reporting lag on the Play Developer Reporting API; incremental syncs refetch the trailing 3 days.',
+    'Daily vitals (crash rate, ANR rate, error counts) have a 2-3 day reporting lag on the Play Developer Reporting API; incremental syncs refetch the trailing 3 days. Metric days are reported on the America/Los_Angeles calendar, the only timezone the API supports for daily aggregation.',
+    'The apps entity carries only the configured package name; the Play Store listing title is available solely through an Android Publisher edit, which this connector does not create.',
     'Install counts and earnings are not exposed through the Reporting API - Google delivers them only as monthly CSV reports in a private Cloud Storage bucket. Those metrics are out of scope for this connector and will land in a follow-up.',
   ],
 });
@@ -90,13 +92,7 @@ const gplayCredentials = {
 
 type GplayCredentials = typeof gplayCredentials;
 
-const PHASE_ORDER = [
-  'apps',
-  'crash_rate',
-  'anr_rate',
-  'ratings',
-  'errors',
-] as const;
+const PHASE_ORDER = ['apps', 'crash_rate', 'anr_rate', 'errors'] as const;
 
 type GplayPhase = (typeof PHASE_ORDER)[number];
 
@@ -161,12 +157,6 @@ const METRIC_PHASE_CONFIGS: Record<
     metricName: 'gplay_anr_rate_by_day',
     primaryMetric: 'anrRate',
   },
-  ratings: {
-    metricSet: 'ratingsMetricSet',
-    metrics: ['averageRating', 'ratingsCount'],
-    metricName: 'gplay_ratings_by_day',
-    primaryMetric: 'averageRating',
-  },
   errors: {
     metricSet: 'errorCountMetricSet',
     metrics: ['errorReportCount', 'distinctUsers'],
@@ -175,13 +165,18 @@ const METRIC_PHASE_CONFIGS: Record<
   },
 };
 
-const SCOPES = [
-  'https://www.googleapis.com/auth/playdeveloperreporting',
-  'https://www.googleapis.com/auth/androidpublisher',
-].join(' ');
+const RESOURCE_TO_PHASE: Record<string, GplayPhase> = {
+  apps: 'apps',
+  gplay_crash_rate_by_day: 'crash_rate',
+  gplay_anr_rate_by_day: 'anr_rate',
+  gplay_error_count_by_day: 'errors',
+};
+
+const SCOPES = 'https://www.googleapis.com/auth/playdeveloperreporting';
 
 const REPORTING_BASE = 'https://playdeveloperreporting.googleapis.com';
-const PUBLISHER_BASE = 'https://androidpublisher.googleapis.com';
+
+const DAILY_TIME_ZONE = 'America/Los_Angeles';
 
 export interface GplayTimelineDate {
   year?: number;
@@ -218,16 +213,6 @@ interface ServiceAccountKey {
 interface TokenResponse {
   access_token: string;
   expires_in?: number;
-}
-
-interface PublisherListingResponse {
-  defaultLanguage?: string;
-  listings?: Array<{
-    language?: string;
-    title?: string;
-    fullDescription?: string;
-    shortDescription?: string;
-  }>;
 }
 
 function base64urlFromBytes(bytes: Uint8Array): string {
@@ -315,11 +300,15 @@ async function buildServiceAccountJwt(
   };
 }
 
+const gplayDateFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: DAILY_TIME_ZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
 function toGplayDate(date: Date): string {
-  const y = date.getUTCFullYear();
-  const m = String(date.getUTCMonth() + 1).padStart(2, '0');
-  const d = String(date.getUTCDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+  return gplayDateFormatter.format(date);
 }
 
 function gplayDateToMs(gplayDate: string): number {
@@ -457,44 +446,18 @@ function metricSetSchema() {
   });
 }
 
-const publisherListingSchema = z.object({
-  defaultLanguage: z.string().optional(),
-  listings: z
-    .array(
-      z.object({
-        language: z.string(),
-        title: z.string().optional(),
-        shortDescription: z.string().optional(),
-        fullDescription: z.string().optional(),
-      }),
-    )
-    .optional(),
-});
-
 export const googlePlayConsoleResources = defineResources({
   apps: {
     shape: 'entity',
     filterable: [],
     description:
-      'Android app the connector is syncing. One entity per configured packageName.',
-    endpoint: 'GET /androidpublisher/v3/applications/{packageName}/listings',
+      'Android app the connector is syncing. One entity per configured packageName, derived from the connector config; the Play Store listing title is only reachable through an Android Publisher edit and is not fetched.',
     fields: [
       {
         name: 'package_name',
         description: 'Reverse-DNS application id (e.g. com.example.app).',
       },
-      {
-        name: 'title',
-        description:
-          'Play Store listing title in the default language. Empty if the listing has not been fetched yet.',
-      },
-      {
-        name: 'default_language',
-        description:
-          'Default language code (BCP-47) configured for the Play Store listings.',
-      },
     ],
-    responses: { listings: publisherListingSchema },
   },
   gplay_crash_rate_by_day: {
     shape: 'metric',
@@ -504,7 +467,11 @@ export const googlePlayConsoleResources = defineResources({
     granularity: 'day',
     endpoint: 'POST /v1beta1/apps/{packageName}/crashRateMetricSet:query',
     dimensions: [
-      { name: 'date', description: 'Calendar day of the metric sample (UTC).' },
+      {
+        name: 'date',
+        description:
+          'Calendar day of the metric sample (America/Los_Angeles, the only timezone the Reporting API supports for daily aggregation).',
+      },
       {
         name: 'package_name',
         description:
@@ -521,7 +488,11 @@ export const googlePlayConsoleResources = defineResources({
     granularity: 'day',
     endpoint: 'POST /v1beta1/apps/{packageName}/anrRateMetricSet:query',
     dimensions: [
-      { name: 'date', description: 'Calendar day of the metric sample (UTC).' },
+      {
+        name: 'date',
+        description:
+          'Calendar day of the metric sample (America/Los_Angeles, the only timezone the Reporting API supports for daily aggregation).',
+      },
       {
         name: 'package_name',
         description:
@@ -529,23 +500,6 @@ export const googlePlayConsoleResources = defineResources({
       },
     ],
     responses: { anr_rate: metricSetSchema() },
-  },
-  gplay_ratings_by_day: {
-    shape: 'metric',
-    description:
-      'Daily average user rating and rating count from the Play Developer Reporting API.',
-    unit: 'stars',
-    granularity: 'day',
-    endpoint: 'POST /v1beta1/apps/{packageName}/ratingsMetricSet:query',
-    dimensions: [
-      { name: 'date', description: 'Calendar day of the metric sample (UTC).' },
-      {
-        name: 'package_name',
-        description:
-          'Reverse-DNS application id this sample is reported against.',
-      },
-    ],
-    responses: { ratings: metricSetSchema() },
   },
   gplay_error_count_by_day: {
     shape: 'metric',
@@ -555,7 +509,11 @@ export const googlePlayConsoleResources = defineResources({
     granularity: 'day',
     endpoint: 'POST /v1beta1/apps/{packageName}/errorCountMetricSet:query',
     dimensions: [
-      { name: 'date', description: 'Calendar day of the metric sample (UTC).' },
+      {
+        name: 'date',
+        description:
+          'Calendar day of the metric sample (America/Los_Angeles, the only timezone the Reporting API supports for daily aggregation).',
+      },
       {
         name: 'package_name',
         description:
@@ -635,22 +593,6 @@ export class GooglePlayConsoleConnector extends BaseConnector<
     return this.cachedToken.token;
   }
 
-  private async fetchListings(
-    accessToken: string,
-    signal?: AbortSignal,
-  ): Promise<PublisherListingResponse> {
-    const url = `${PUBLISHER_BASE}/androidpublisher/v3/applications/${encodeURIComponent(this.settings.packageName)}/listings`;
-    const res = await this.get<PublisherListingResponse>(url, {
-      resource: 'listings',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'User-Agent': connectorUserAgent('google-play-console'),
-      },
-      signal,
-    });
-    return res.body;
-  }
-
   private async runMetricQuery(
     accessToken: string,
     cfg: MetricPhaseConfig,
@@ -679,13 +621,13 @@ export class GooglePlayConsoleConnector extends BaseConnector<
           year: sy,
           month: sm,
           day: sd,
-          timeZone: { id: 'UTC' },
+          timeZone: { id: DAILY_TIME_ZONE },
         },
         endTime: {
           year: ey,
           month: em,
           day: ed,
-          timeZone: { id: 'UTC' },
+          timeZone: { id: DAILY_TIME_ZONE },
         },
       },
     };
@@ -706,33 +648,12 @@ export class GooglePlayConsoleConnector extends BaseConnector<
     return res.body;
   }
 
-  private async syncApps(
-    accessToken: string,
-    storage: StorageHandle,
-    signal?: AbortSignal,
-  ): Promise<void> {
-    let title = '';
-    let defaultLanguage = '';
-    try {
-      const listings = await this.fetchListings(accessToken, signal);
-      defaultLanguage = listings.defaultLanguage ?? '';
-      const list = listings.listings ?? [];
-      const def = list.find((l) => l.language === defaultLanguage) ?? list[0];
-      title = def?.title ?? '';
-    } catch (err) {
-      this.logger.warn(
-        'Failed to fetch Play Console listings; emitting app entity with empty title',
-        { error: (err as Error).message },
-      );
-    }
-
+  private async syncApps(storage: StorageHandle): Promise<void> {
     const entity: Entity = {
       type: 'apps',
       id: this.settings.packageName,
       attributes: {
         package_name: this.settings.packageName,
-        title,
-        default_language: defaultLanguage,
       },
       updated_at: Date.now(),
     };
@@ -786,19 +707,24 @@ export class GooglePlayConsoleConnector extends BaseConnector<
       return accessToken;
     };
 
-    const resumeIdx = cursor ? PHASE_ORDER.indexOf(cursor.phase) : -1;
+    const phases = selectActivePhases<string, GplayPhase>(
+      (resource) => RESOURCE_TO_PHASE[resource] ?? 'apps',
+      PHASE_ORDER,
+      options.resources ? [...options.resources] : undefined,
+    );
+
+    const resumeIdx = cursor ? phases.indexOf(cursor.phase) : -1;
     const startIdx = resumeIdx >= 0 ? resumeIdx : 0;
 
-    for (let i = startIdx; i < PHASE_ORDER.length; i++) {
-      const phase = PHASE_ORDER[i]!;
+    for (let i = startIdx; i < phases.length; i++) {
+      const phase = phases[i]!;
       if (signal?.aborted) {
         return { done: false, cursor: { phase, dateRange } };
       }
 
       try {
         if (phase === 'apps') {
-          const token = await getToken(signal);
-          await this.syncApps(token, storage, signal);
+          await this.syncApps(storage);
           continue;
         }
 

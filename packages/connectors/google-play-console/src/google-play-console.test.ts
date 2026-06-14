@@ -84,7 +84,6 @@ interface MetricSetSpec {
 function mockFetch(
   tokenResponse: object,
   metricSetResponses: Record<string, MetricSetSpec>,
-  listings?: object,
 ) {
   return vi.fn().mockImplementation((url: string, _init?: RequestInit) => {
     const urlStr = String(url);
@@ -96,21 +95,6 @@ function mockFetch(
         statusText: 'OK',
         headers: new Headers({ 'content-type': 'application/json' }),
         text: () => Promise.resolve(JSON.stringify(tokenResponse)),
-      } as Response);
-    }
-
-    if (urlStr.includes('androidpublisher.googleapis.com')) {
-      return Promise.resolve({
-        ok: true,
-        status: 200,
-        statusText: 'OK',
-        headers: new Headers({ 'content-type': 'application/json' }),
-        text: () =>
-          Promise.resolve(
-            JSON.stringify(
-              listings ?? { defaultLanguage: 'en-US', listings: [] },
-            ),
-          ),
       } as Response);
     }
 
@@ -241,14 +225,14 @@ describe('rowToMetricSample', () => {
     const row = { startTime: { year: 2025, month: 1, day: 1 }, metrics: [] };
     const sample = rowToMetricSample(
       row,
-      ['averageRating', 'ratingsCount'],
-      'gplay_ratings_by_day',
-      'averageRating',
+      ['errorReportCount', 'distinctUsers'],
+      'gplay_error_count_by_day',
+      'errorReportCount',
       'com.example.app',
     );
     expect(sample).not.toBeNull();
-    expect(sample!.attributes['averageRating']).toBe(0);
-    expect(sample!.attributes['ratingsCount']).toBe(0);
+    expect(sample!.attributes['errorReportCount']).toBe(0);
+    expect(sample!.attributes['distinctUsers']).toBe(0);
     expect(sample!.value).toBe(0);
   });
 
@@ -302,10 +286,10 @@ describe('GooglePlayConsoleConnector.sync', () => {
       expect.arrayContaining([
         'gplay_crash_rate_by_day',
         'gplay_anr_rate_by_day',
-        'gplay_ratings_by_day',
         'gplay_error_count_by_day',
       ]),
     );
+    expect(metricNames).not.toContain('gplay_ratings_by_day');
     expect(storage.entities).toHaveBeenCalledTimes(1);
     const entityCall = storage.entities.mock.calls[0]!;
     const entities = entityCall[0] as Array<{ type: string; id: string }>;
@@ -314,31 +298,33 @@ describe('GooglePlayConsoleConnector.sync', () => {
     expect(entities[0]!.id).toBe('com.example.app');
   });
 
-  it('persists the title from the default-language Play Console listing', async () => {
+  it('emits the apps entity from the configured package name alone', async () => {
     vi.stubGlobal(
       'fetch',
-      mockFetch(
-        { access_token: 'tok', expires_in: 3600 },
-        {},
-        {
-          defaultLanguage: 'en-US',
-          listings: [
-            { language: 'fr-FR', title: 'Mon App' },
-            { language: 'en-US', title: 'My App' },
-          ],
-        },
-      ),
+      mockFetch({ access_token: 'tok', expires_in: 3600 }, {}),
     );
     const storage = makeStorage();
     await makeConnector().sync({ mode: 'full' }, storage);
 
     const entityCall = storage.entities.mock.calls[0]!;
     const entities = entityCall[0] as Array<{
-      type: string;
       attributes: Record<string, string>;
     }>;
-    expect(entities[0]!.attributes['title']).toBe('My App');
-    expect(entities[0]!.attributes['default_language']).toBe('en-US');
+    expect(entities[0]!.attributes['package_name']).toBe('com.example.app');
+    expect(entities[0]!.attributes).not.toHaveProperty('title');
+    expect(entities[0]!.attributes).not.toHaveProperty('default_language');
+  });
+
+  it('never calls the Android Publisher API', async () => {
+    const fetchSpy = mockFetch({ access_token: 'tok', expires_in: 3600 }, {});
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await makeConnector().sync({ mode: 'full' }, makeStorage());
+
+    const publisherCalls = fetchSpy.mock.calls.filter((c: unknown[]) =>
+      String(c[0]).includes('androidpublisher.googleapis.com'),
+    );
+    expect(publisherCalls).toHaveLength(0);
   });
 
   it('writes samples for returned rows', async () => {
@@ -411,7 +397,7 @@ describe('GooglePlayConsoleConnector.sync', () => {
       {
         mode: 'full',
         cursor: {
-          phase: 'ratings',
+          phase: 'anr_rate',
           dateRange: { startDate: '2025-02-01', endDate: '2025-02-28' },
         },
       },
@@ -424,7 +410,7 @@ describe('GooglePlayConsoleConnector.sync', () => {
     expect(queryCalls.length).toBeGreaterThan(0);
 
     const firstUrl = String((queryCalls[0] as [string])[0]);
-    expect(firstUrl).toContain('ratingsMetricSet:query');
+    expect(firstUrl).toContain('anrRateMetricSet:query');
 
     for (const c of queryCalls) {
       const init = (c as [string, RequestInit])[1];
@@ -438,17 +424,66 @@ describe('GooglePlayConsoleConnector.sync', () => {
         year: 2025,
         month: 2,
         day: 1,
-        timeZone: { id: 'UTC' },
+        timeZone: { id: 'America/Los_Angeles' },
       });
       expect(body.timelineSpec.endTime).toEqual({
         year: 2025,
         month: 2,
         day: 28,
-        timeZone: { id: 'UTC' },
+        timeZone: { id: 'America/Los_Angeles' },
       });
     }
 
     expect(storage.entities).not.toHaveBeenCalled();
+  });
+
+  it('sends America/Los_Angeles, never UTC, for DAILY queries', async () => {
+    const fetchSpy = mockFetch({ access_token: 'tok', expires_in: 3600 }, {});
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await makeConnector().sync({ mode: 'full' }, makeStorage());
+
+    const queryCalls = fetchSpy.mock.calls.filter((c: unknown[]) =>
+      String(c[0]).includes('playdeveloperreporting.googleapis.com'),
+    );
+    expect(queryCalls.length).toBeGreaterThan(0);
+    for (const c of queryCalls) {
+      const init = (c as [string, RequestInit])[1];
+      const body = JSON.parse(String(init.body)) as {
+        timelineSpec: {
+          aggregationPeriod: string;
+          startTime: { timeZone: { id: string } };
+          endTime: { timeZone: { id: string } };
+        };
+      };
+      expect(body.timelineSpec.aggregationPeriod).toBe('DAILY');
+      expect(body.timelineSpec.startTime.timeZone.id).toBe(
+        'America/Los_Angeles',
+      );
+      expect(body.timelineSpec.endTime.timeZone.id).toBe('America/Los_Angeles');
+      expect(body.timelineSpec.startTime.timeZone.id).not.toBe('UTC');
+      expect(body.timelineSpec.endTime.timeZone.id).not.toBe('UTC');
+    }
+  });
+
+  it('honors options.resources by skipping unrequested phases', async () => {
+    const fetchSpy = mockFetch({ access_token: 'tok', expires_in: 3600 }, {});
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const storage = makeStorage();
+    await makeConnector().sync(
+      { mode: 'full', resources: new Set(['gplay_anr_rate_by_day']) },
+      storage,
+    );
+
+    const queriedSets = fetchSpy.mock.calls
+      .map((c: unknown[]) => String(c[0]))
+      .filter((u) => u.includes('playdeveloperreporting.googleapis.com'))
+      .map((u) => u.match(/(\w+MetricSet):query$/)?.[1]);
+
+    expect(queriedSets).toEqual(['anrRateMetricSet']);
+    expect(storage.entities).not.toHaveBeenCalled();
+    expect(storage.metrics).toHaveBeenCalledTimes(1);
   });
 
   it('sends Authorization header with bearer token to every API call', async () => {

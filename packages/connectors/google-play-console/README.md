@@ -5,7 +5,7 @@
 [![npm version](https://img.shields.io/npm/v/@rawdash/connector-google-play-console)](https://www.npmjs.com/package/@rawdash/connector-google-play-console)
 [![license](https://img.shields.io/npm/l/@rawdash/connector-google-play-console)](https://github.com/rawdash/rawdash/blob/main/LICENSE)
 
-Sync daily Android app vitals from the Play Developer Reporting API - crash rate, ANR rate, ratings, and error counts.
+Sync daily Android app vitals from the Play Developer Reporting API - crash rate, ANR rate, and error counts.
 
 ## Install
 
@@ -15,10 +15,10 @@ npm install @rawdash/connector-google-play-console
 
 ## Authentication
 
-Authenticate against the Play Developer Reporting API and the Android Publisher API with a Google service account JSON key. The service account must be linked to your Play Console developer account.
+Authenticate against the Play Developer Reporting API with a Google service account JSON key. The service account must be linked to your Play Console developer account.
 
 1. In Google Cloud, create a service account at IAM & Admin -> Service Accounts and download a JSON key.
-2. Enable both the "Google Play Android Developer API" and the "Google Play Developer Reporting API" on the Cloud project.
+2. Enable the "Google Play Developer Reporting API" on the Cloud project.
 3. In Google Play Console open Setup -> API access, link the same Cloud project, then invite the service account email and grant it at least the "View app information and download bulk reports" permission for the app you want to sync.
 4. Store the service account JSON as a secret and reference it as serviceAccountJson: secret("GPLAY_SA_JSON").
 5. Set packageName to the reverse-DNS application id of the app (e.g. com.example.app).
@@ -33,11 +33,8 @@ Authenticate against the Play Developer Reporting API and the Android Publisher 
 
 ## Resources
 
-- **`apps`** _(entity)_ - Android app the connector is syncing. One entity per configured packageName.
-  - Endpoint: `GET /androidpublisher/v3/applications/{packageName}/listings`
+- **`apps`** _(entity)_ - Android app the connector is syncing. One entity per configured packageName, derived from the connector config; the Play Store listing title is only reachable through an Android Publisher edit and is not fetched.
   - `package_name`: Reverse-DNS application id (e.g. com.example.app).
-  - `title`: Play Store listing title in the default language. Empty if the listing has not been fetched yet.
-  - `default_language`: Default language code (BCP-47) configured for the Play Store listings.
 - **`gplay_crash_rate_by_day`** _(metric)_ - Daily crash rate reported by the Play Developer Reporting API. Primary value is the crashRate metric (fraction of distinct users that experienced a crash).
   - Endpoint: `POST /v1beta1/apps/{packageName}/crashRateMetricSet:query`
   - Unit: crashRate
@@ -46,11 +43,6 @@ Authenticate against the Play Developer Reporting API and the Android Publisher 
 - **`gplay_anr_rate_by_day`** _(metric)_ - Daily ANR (Application Not Responding) rate. Primary value is the anrRate metric (fraction of distinct users that experienced an ANR).
   - Endpoint: `POST /v1beta1/apps/{packageName}/anrRateMetricSet:query`
   - Unit: anrRate
-  - Granularity: day
-  - Dimensions: `date`, `package_name`
-- **`gplay_ratings_by_day`** _(metric)_ - Daily average user rating and rating count from the Play Developer Reporting API.
-  - Endpoint: `POST /v1beta1/apps/{packageName}/ratingsMetricSet:query`
-  - Unit: stars
   - Granularity: day
   - Dimensions: `date`, `package_name`
 - **`gplay_error_count_by_day`** _(metric)_ - Daily count of error reports (crashes + ANRs + handled errors) from the Play Developer Reporting API.
@@ -107,7 +99,8 @@ The Play Developer Reporting API enforces a per-project quota (default 60 reques
 
 ## Limitations
 
-- Daily vitals (crash rate, ANR rate, ratings, error counts) have a 2-3 day reporting lag on the Play Developer Reporting API; incremental syncs refetch the trailing 3 days.
+- Daily vitals (crash rate, ANR rate, error counts) have a 2-3 day reporting lag on the Play Developer Reporting API; incremental syncs refetch the trailing 3 days. Metric days are reported on the America/Los_Angeles calendar, the only timezone the API supports for daily aggregation.
+- The apps entity carries only the configured package name; the Play Store listing title is available solely through an Android Publisher edit, which this connector does not create.
 - Install counts and earnings are not exposed through the Reporting API - Google delivers them only as monthly CSV reports in a private Cloud Storage bucket. Those metrics are out of scope for this connector and will land in a follow-up.
 
 ## Links

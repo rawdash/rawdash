@@ -184,7 +184,6 @@ describe('GooglePlayConsoleConnector property tests', () => {
         [
           'gplay_crash_rate_by_day',
           'gplay_anr_rate_by_day',
-          'gplay_ratings_by_day',
           'gplay_error_count_by_day',
         ].includes(n),
       ).toBe(true);
