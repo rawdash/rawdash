@@ -34,7 +34,7 @@ type ClickSample = z.infer<typeof BranchConnector.schemas.deep_link_events>;
 
 function makeConnector(resources?: string[]) {
   return new BranchConnector(
-    { resources: resources as never },
+    { resources: resources as never, lookbackDays: 7 },
     { branchKey: KEY, branchSecret: SECRET },
   );
 }
@@ -43,7 +43,10 @@ function distinctInstallBucketCount(sample: InstallSample): number {
   const keys = new Set<string>();
   for (const row of sample.results) {
     const r = row.result as Record<string, unknown>;
-    const date = String(r['timestamp']).slice(0, 10);
+    const date = String((row as Record<string, unknown>)['timestamp']).slice(
+      0,
+      10,
+    );
     const channel =
       (r['last_attributed_touch_data_tilde_channel'] as string | null) ?? '';
     const campaign =
@@ -108,7 +111,7 @@ describe('BranchConnector property tests', () => {
       runs: 50,
       extraInvariants: [installSampleCountInvariant, docShapeExtra],
       run: async (sample, storage) => {
-        installFetchMock(() => sample);
+        installFetchMock(() => ({ results: sample.results }));
         await makeConnector(['install_metrics']).sync(
           { mode: 'full' },
           storage.getStorageHandle(CONNECTOR_ID),
@@ -125,7 +128,7 @@ describe('BranchConnector property tests', () => {
       runs: 50,
       extraInvariants: [clickEventCountInvariant, docShapeExtra],
       run: async (sample, storage) => {
-        installFetchMock(() => sample);
+        installFetchMock(() => ({ results: sample.results }));
         await makeConnector(['deep_link_events']).sync(
           { mode: 'full' },
           storage.getStorageHandle(CONNECTOR_ID),
@@ -138,9 +141,9 @@ describe('BranchConnector property tests', () => {
     installFetchMock(() => ({
       results: [
         {
-          unique_count: 42,
+          timestamp: '2025-01-15T00:00:00.000-08:00',
           result: {
-            timestamp: '2025-01-15',
+            unique_count: 42,
             last_attributed_touch_data_tilde_channel: 'organic',
             last_attributed_touch_data_tilde_campaign: 'launch',
             last_attributed_touch_data_tilde_feature: 'sharing',
