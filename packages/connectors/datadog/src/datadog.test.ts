@@ -524,9 +524,20 @@ describe('DatadogConnector.sync', () => {
     expect(filterEntries.some(([, v]) => v === since)).toBe(true);
   });
 
-  it('writes slo entities and sli metrics', async () => {
+  it('writes slo entities and sli metrics from the history endpoint', async () => {
     const connector = makeConnector({ resources: ['slos'] });
     installRouter((u) => {
+      if (u.includes('/api/v1/slo/slo_1/history')) {
+        return {
+          body: {
+            data: {
+              from_ts: 1711929600,
+              to_ts: 1714608000,
+              overall: { sli_value: 99.95 },
+            },
+          },
+        };
+      }
       if (u.includes('/api/v1/slo')) {
         return {
           body: {
@@ -536,10 +547,6 @@ describe('DatadogConnector.sync', () => {
                 name: 'API uptime',
                 type: 'monitor',
                 thresholds: [{ timeframe: '30d', target: 99.9 }],
-                overall_status: [
-                  { sli_value: 99.95, indexed_at: 1714521600 },
-                  { sli_value: 99.99, indexed_at: 1714608000 },
-                ],
                 created_at: 1714000000,
                 modified_at: 1714500000,
               },
@@ -564,14 +571,50 @@ describe('DatadogConnector.sync', () => {
       .filter((e) => e.type === 'datadog_slo');
     expect(slos).toHaveLength(1);
     expect(slos[0]!.attributes.target).toBe(99.9);
+    expect(slos[0]!.attributes.latestSliValue).toBe(99.95);
 
-    const metricBatches = storage.metrics.mock.calls
-      .map((c) => c[0] as Array<{ name: string; value: number }>)
-      .filter((arr) => Array.isArray(arr) && arr.length > 0);
-    const sliSamples = metricBatches
+    const sliSamples = storage.metrics.mock.calls
+      .map((c) => c[0] as Array<{ name: string; value: number; ts: number }>)
+      .filter((arr) => Array.isArray(arr) && arr.length > 0)
       .flat()
       .filter((m) => m.name === 'datadog_slo_sli');
-    expect(sliSamples).toHaveLength(2);
+    expect(sliSamples).toHaveLength(1);
+    expect(sliSamples[0]!.value).toBe(99.95);
+    expect(sliSamples[0]!.ts).toBe(1714608000 * 1000);
+  });
+
+  it('requests slo history over a window derived from the threshold timeframe', async () => {
+    const connector = makeConnector({ resources: ['slos'] });
+    const { calls } = installRouter((u) => {
+      if (u.includes('/api/v1/slo/slo_1/history')) {
+        return { body: { data: { overall: { sli_value: 99.9 } } } };
+      }
+      if (u.includes('/api/v1/slo')) {
+        return {
+          body: {
+            data: [
+              {
+                id: 'slo_1',
+                name: 'API uptime',
+                type: 'monitor',
+                thresholds: [{ timeframe: '30d', target: 99.9 }],
+                created_at: 1714000000,
+                modified_at: 1714500000,
+              },
+            ],
+          },
+        };
+      }
+      return routeAllEmpty(u);
+    });
+    await connector.sync({ mode: 'full' }, makeStorage());
+
+    const historyCall = calls.find((c) => c.includes('/history'));
+    expect(historyCall).toBeDefined();
+    const params = new URL(historyCall!).searchParams;
+    const fromTs = Number(params.get('from_ts'));
+    const toTs = Number(params.get('to_ts'));
+    expect(toTs - fromTs).toBe(30 * 24 * 60 * 60);
   });
 
   it('posts metric query body to /query/timeseries and writes samples', async () => {
@@ -699,5 +742,93 @@ describe('DatadogConnector filter pushdown', () => {
       ],
     });
     expect(monitorSearchUrl(calls).searchParams.get('query')).toBeNull();
+  });
+});
+
+describe('DatadogConnector response schemas', () => {
+  function monitorPayload(status: string) {
+    return {
+      monitors: [
+        {
+          id: 1,
+          name: 'A monitor',
+          type: 'metric alert',
+          status,
+          priority: 1,
+          tags: [],
+          created: '2024-05-01T00:00:00.000Z',
+          modified: '2024-05-02T00:00:00.000Z',
+        },
+      ],
+      metadata: { page: 0, page_count: 1, per_page: 100, total_count: 1 },
+    };
+  }
+
+  it('parses a monitor with status Skipped without throwing', () => {
+    const result = DatadogConnector.schemas.monitors.safeParse(
+      monitorPayload('Skipped'),
+    );
+    expect(result.success).toBe(true);
+  });
+
+  it('parses a monitor with status Unknown without throwing', () => {
+    const result = DatadogConnector.schemas.monitors.safeParse(
+      monitorPayload('Unknown'),
+    );
+    expect(result.success).toBe(true);
+  });
+
+  it('parses a timeseries response containing a null value', () => {
+    const result = DatadogConnector.schemas.metric_queries.safeParse({
+      data: {
+        type: 'timeseries_response',
+        attributes: {
+          series: [{ group_tags: [], query_index: 0 }],
+          times: [1714521600000, 1714525200000, 1714528800000],
+          values: [[10.5, null, 12.5]],
+        },
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe('DatadogConnector timeseries gaps', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('skips null gap points when writing metric samples', async () => {
+    const connector = makeConnector({
+      resources: ['metric_queries'],
+      metricQueries: [{ name: 'cpu_user', query: 'avg:system.cpu.user{*}' }],
+    });
+    installRouter((u) => {
+      if (u.includes('/api/v2/query/timeseries')) {
+        return {
+          body: {
+            data: {
+              type: 'timeseries_response',
+              attributes: {
+                series: [{ group_tags: ['env:prod'], query_index: 0 }],
+                times: [1714521600000, 1714525200000, 1714528800000],
+                values: [[10.5, null, 12.5]],
+              },
+            },
+          },
+        };
+      }
+      return routeAllEmpty(u);
+    });
+    const storage = makeStorage();
+    await connector.sync({ mode: 'full' }, storage);
+
+    const samples = storage.metrics.mock.calls
+      .map((c) => c[0] as Array<{ name: string; value: number }>)
+      .filter((arr) => Array.isArray(arr) && arr.length > 0)
+      .flat()
+      .filter((m) => m.name === 'datadog_metric.cpu_user');
+    expect(samples).toHaveLength(2);
+    expect(samples.map((s) => s.value)).toEqual([10.5, 12.5]);
   });
 });
