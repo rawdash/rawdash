@@ -1,5 +1,12 @@
 # @rawdash/connector-azure-cost
 
+## 0.26.0
+
+### Patch Changes
+
+- 4f88b52: Fix `TAG:<key>` group-bys sending an invalid Cost Management grouping type. The `QueryGrouping.type` enum only accepts `Dimension` or `TagKey`, but tag group-bys were emitting `Tag`, so the Cost Management query API rejected (or silently dropped) the grouping. Tag group-bys now send `type: 'TagKey'`.
+  - @rawdash/core@0.26.0
+
 ## 0.25.0
 
 ### Patch Changes

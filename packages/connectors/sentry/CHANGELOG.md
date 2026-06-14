@@ -1,5 +1,12 @@
 # @rawdash/connector-sentry
 
+## 0.26.0
+
+### Patch Changes
+
+- 3e3524f: Fix `sentry_errors_per_hour` writing no samples when `stats_v2` response omits the top-level `intervals` field. Timestamps are now reconstructed from `start` + series length (1h buckets) when `intervals` is absent or empty.
+  - @rawdash/core@0.26.0
+
 ## 0.25.0
 
 ### Patch Changes
