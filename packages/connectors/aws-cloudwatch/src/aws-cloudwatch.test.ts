@@ -409,7 +409,7 @@ describe('CloudWatchConnector result status codes', () => {
         { mode: 'full', since: '2024-01-01T00:00:00Z' },
         new InMemoryStorage().getStorageHandle(CONNECTOR_ID),
       ),
-    ).rejects.toBeInstanceOf(TransientError);
+    ).rejects.toMatchObject({ name: TransientError.name });
 
     expect(
       warnings.find((w) => w.event === 'metric result internal error'),
