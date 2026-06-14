@@ -27,8 +27,8 @@ const dateFmt = new Intl.DateTimeFormat('en-US', {
 <article class="content-article">
   <nav class="content-breadcrumb" aria-label="Breadcrumb">
     <a href={basePath}>{sectionLabel}</a>
-    <span aria-hidden="true">/</span>
-    <span>{data.title}</span>
+    <span class="content-breadcrumb__separator" aria-hidden="true">/</span>
+    <span class="content-breadcrumb__current" aria-current="page">{data.title}</span>
   </nav>
 
   <header class="content-article-header">
