@@ -1,0 +1,5 @@
+---
+'@rawdash/connector-aws-cloudwatch': patch
+---
+
+Clamp each GetMetricData query's window to CloudWatch's resolution-based retention floor and surface per-series result statuses. CloudWatch returns no data points older than the retention floor for a given period (period < 300s keeps 15 days, 300s–3600s keeps 63 days, otherwise 455 days), so a short-period query over a long lookback (or a far-back `since`) previously left a silent gap and requested points AWS never returns. The effective start is now clamped per query period and a truncation is logged when the requested window was cut. The sync loop also inspects each series' `StatusCode`: it warns on `Forbidden` (a per-metric IAM gap that otherwise yields zero samples with no signal) and on `InternalError`, throwing a `TransientError` on `InternalError` so the host reschedules. The `latest` window margin was widened to cover late-arriving points, and a coarse `resources` gate skips the sync when a non-empty requested set matches none of the configured `${namespace}/${metric}` series.

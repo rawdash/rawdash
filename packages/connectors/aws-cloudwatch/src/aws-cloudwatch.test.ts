@@ -1,4 +1,9 @@
-import { AuthError, RateLimitError } from '@rawdash/connector-shared';
+import {
+  AuthError,
+  type ConnectorLogger,
+  RateLimitError,
+  TransientError,
+} from '@rawdash/connector-shared';
 import { InMemoryStorage } from '@rawdash/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -9,6 +14,21 @@ const CONNECTOR_ID = 'aws-cloudwatch';
 interface MockReply {
   status?: number;
   body: string;
+}
+
+function recordingLogger(): {
+  logger: ConnectorLogger;
+  warnings: Array<{ event: string; fields?: Record<string, unknown> }>;
+} {
+  const warnings: Array<{ event: string; fields?: Record<string, unknown> }> =
+    [];
+  const logger: ConnectorLogger = {
+    info() {},
+    warn(event, fields) {
+      warnings.push({ event, fields });
+    },
+  };
+  return { logger, warnings };
 }
 
 function installFetch(
@@ -34,6 +54,7 @@ function metricDataXml(
     label: string;
     timestamps: string[];
     values: number[];
+    statusCode?: string;
   }>,
   nextToken?: string,
 ): string {
@@ -44,7 +65,7 @@ function metricDataXml(
         <Label>${r.label}</Label>
         <Timestamps>${r.timestamps.map((t) => `<member>${t}</member>`).join('')}</Timestamps>
         <Values>${r.values.map((v) => `<member>${v}</member>`).join('')}</Values>
-        <StatusCode>Complete</StatusCode>
+        <StatusCode>${r.statusCode ?? 'Complete'}</StatusCode>
       </member>`,
     )
     .join('');
@@ -262,6 +283,209 @@ describe('CloudWatchConnector error mapping', () => {
         new InMemoryStorage().getStorageHandle(CONNECTOR_ID),
       ),
     ).rejects.toMatchObject({ name: AuthError.name });
+  });
+});
+
+function startTimeFromBody(body: unknown): number {
+  const params = new URLSearchParams(String(body));
+  const startTime = params.get('StartTime');
+  expect(startTime).not.toBeNull();
+  return Date.parse(startTime!);
+}
+
+function connectorWithPeriod(
+  periodSeconds: number,
+  logger?: ConnectorLogger,
+): CloudWatchConnector {
+  return new CloudWatchConnector(
+    {
+      region: 'us-east-1',
+      metricQueries: [
+        {
+          id: 'cpu',
+          namespace: 'AWS/EC2',
+          metric: 'CPUUtilization',
+          stat: 'Average',
+          periodSeconds,
+        },
+      ],
+    },
+    { accessKeyId: 'AKIDEXAMPLE', secretAccessKey: 'secret' },
+    logger ? { logger } : undefined,
+  );
+}
+
+const DAY_MS = 86_400_000;
+
+describe('CloudWatchConnector retention clamp', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('clamps a 60s-period query with a 30-day since to ~15 days and warns', async () => {
+    const spy = installFetch(() => ({
+      body: metricDataXml([
+        {
+          id: 'cpu',
+          label: 'CPUUtilization',
+          timestamps: [],
+          values: [],
+        },
+      ]),
+    }));
+
+    const { logger, warnings } = recordingLogger();
+    const since = new Date(Date.now() - 30 * DAY_MS).toISOString();
+    const before = Date.now();
+    await connectorWithPeriod(60, logger).sync(
+      { mode: 'full', since },
+      new InMemoryStorage().getStorageHandle(CONNECTOR_ID),
+    );
+    const after = Date.now();
+
+    const startMs = startTimeFromBody(spy.mock.calls[0]![1].body);
+    expect(startMs).toBeGreaterThanOrEqual(before - 15 * DAY_MS - 1000);
+    expect(startMs).toBeLessThanOrEqual(after - 15 * DAY_MS + 1000);
+    expect(startMs).toBeGreaterThan(Date.parse(since) + 10 * DAY_MS);
+
+    const truncation = warnings.find(
+      (w) => w.event === 'window truncated to retention floor',
+    );
+    expect(truncation).toBeDefined();
+    expect(truncation!.fields).toMatchObject({
+      retentionFloorMs: 15 * DAY_MS,
+    });
+  });
+
+  it('does not clamp a 3600s-period query at a 30-day since', async () => {
+    const spy = installFetch(() => ({
+      body: metricDataXml([
+        {
+          id: 'cpu',
+          label: 'CPUUtilization',
+          timestamps: [],
+          values: [],
+        },
+      ]),
+    }));
+
+    const { logger, warnings } = recordingLogger();
+    const sinceMs = Date.now() - 30 * DAY_MS;
+    const since = new Date(sinceMs).toISOString();
+    await connectorWithPeriod(3600, logger).sync(
+      { mode: 'full', since },
+      new InMemoryStorage().getStorageHandle(CONNECTOR_ID),
+    );
+
+    const startMs = startTimeFromBody(spy.mock.calls[0]![1].body);
+    expect(startMs).toBe(sinceMs);
+    expect(
+      warnings.find((w) => w.event === 'window truncated to retention floor'),
+    ).toBeUndefined();
+  });
+});
+
+describe('CloudWatchConnector result status codes', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('warns and throws TransientError on InternalError', async () => {
+    installFetch(() => ({
+      body: metricDataXml([
+        {
+          id: 'cpu',
+          label: 'CPUUtilization',
+          timestamps: ['2024-01-01T00:00:00Z'],
+          values: [1],
+          statusCode: 'InternalError',
+        },
+      ]),
+    }));
+
+    const { logger, warnings } = recordingLogger();
+    await expect(
+      connectorWithPeriod(300, logger).sync(
+        { mode: 'full', since: '2024-01-01T00:00:00Z' },
+        new InMemoryStorage().getStorageHandle(CONNECTOR_ID),
+      ),
+    ).rejects.toBeInstanceOf(TransientError);
+
+    expect(
+      warnings.find((w) => w.event === 'metric result internal error'),
+    ).toBeDefined();
+  });
+
+  it('warns on Forbidden without throwing', async () => {
+    installFetch(() => ({
+      body: metricDataXml([
+        {
+          id: 'cpu',
+          label: 'CPUUtilization',
+          timestamps: [],
+          values: [],
+          statusCode: 'Forbidden',
+        },
+      ]),
+    }));
+
+    const { logger, warnings } = recordingLogger();
+    const storage = new InMemoryStorage();
+    const result = await connectorWithPeriod(300, logger).sync(
+      { mode: 'full', since: '2024-01-01T00:00:00Z' },
+      storage.getStorageHandle(CONNECTOR_ID),
+    );
+
+    expect(result).toEqual({ done: true });
+    expect(
+      warnings.find((w) => w.event === 'metric result forbidden'),
+    ).toBeDefined();
+  });
+});
+
+describe('CloudWatchConnector resource gate', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('skips the sync when requested resources match no configured metric', async () => {
+    const spy = installFetch(() => ({ body: metricDataXml([]) }));
+    const storage = new InMemoryStorage();
+    const result = await staticConnector().sync(
+      {
+        mode: 'full',
+        since: '2024-01-01T00:00:00Z',
+        resources: new Set(['AWS/Lambda/Errors']),
+      },
+      storage.getStorageHandle(CONNECTOR_ID),
+    );
+
+    expect(result).toEqual({ done: true });
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('runs the sync when requested resources match a configured metric', async () => {
+    const spy = installFetch(() => ({
+      body: metricDataXml([
+        {
+          id: 'cpu',
+          label: 'CPUUtilization',
+          timestamps: ['2024-01-01T00:00:00Z'],
+          values: [1],
+        },
+      ]),
+    }));
+    const storage = new InMemoryStorage();
+    await staticConnector().sync(
+      {
+        mode: 'full',
+        since: '2024-01-01T00:00:00Z',
+        resources: new Set(['AWS/EC2/CPUUtilization']),
+      },
+      storage.getStorageHandle(CONNECTOR_ID),
+    );
+
+    expect(spy).toHaveBeenCalled();
   });
 });
 
