@@ -47,6 +47,7 @@
     "@rawdash/connector-branch": "workspace:*",
     "@rawdash/connector-circleci": "workspace:*",
     "@rawdash/connector-datadog": "workspace:*",
+    "@rawdash/connector-entra-id": "workspace:*",
     "@rawdash/connector-firebase-analytics": "workspace:*",
     "@rawdash/connector-firebase-crashlytics": "workspace:*",
     "@rawdash/connector-gcp-billing": "workspace:*",

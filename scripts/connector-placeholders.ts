@@ -633,16 +633,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     requestIssue: 'RAW-422',
   },
   {
-    id: 'entra-id',
-    name: 'Microsoft Entra ID',
-    category: 'security',
-    tagline:
-      'Sync sign-ins, risky users, and MFA adoption from a Microsoft Entra ID tenant.',
-    brandColor: '#0078D4',
-    domain: 'microsoft.com',
-    requestIssue: 'RAW-420',
-  },
-  {
     id: 'have-i-been-pwned',
     name: 'Have I Been Pwned',
     category: 'security',
