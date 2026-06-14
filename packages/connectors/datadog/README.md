@@ -35,7 +35,7 @@ A Datadog API key and Application key are required, scoped to the org and site y
 
 ## Resources
 
-- **`datadog_monitor`** _(entity)_ - Datadog monitors with name, type, current status (OK / Alert / Warn / No Data), priority, and tags.
+- **`datadog_monitor`** _(entity)_ - Datadog monitors with name, type, current status (OK / Alert / Warn / No Data / Ignored / Skipped / Unknown), priority, and tags.
   - Endpoint: `GET /api/v1/monitor/search`
 - **`datadog_monitor_event`** _(event)_ - Monitor state-transition events, emitted whenever a monitor's status changes from its previously-stored value.
   - Derived by diffing each monitor's current status against the last-synced status, so it depends on the monitors phase running and on prior monitor state being stored.
@@ -43,7 +43,8 @@ A Datadog API key and Application key are required, scoped to the org and site y
   - Endpoint: `GET /api/v2/incidents`
 - **`datadog_slo`** _(entity)_ - Service Level Objectives with type, thresholds, primary target, and latest SLI value.
   - Endpoint: `GET /api/v1/slo`
-- **`datadog_slo_sli`** _(metric)_ - SLI value samples per SLO, one per overall_status snapshot reported by Datadog.
+- **`datadog_slo_sli`** _(metric)_ - SLI value samples per SLO, one per sync, read from the SLO history endpoint over a window derived from the SLO threshold timeframes.
+  - Endpoint: `GET /api/v1/slo/{slo_id}/history`
   - Unit: percent
   - Dimensions: `sloId`, `sloType`
 - **`datadog_metric`** _(metric)_ - User-declared metric timeseries samples, stored as `datadog_metric.<query name>`, from the Datadog Metrics Query API.
@@ -102,6 +103,8 @@ Datadog returns X-RateLimit-Remaining / X-RateLimit-Reset headers (reset in seco
 - Synthetic monitor results are out of scope.
 - Monitor entities are not cleared on a full sync - the monitor_events diff depends on the prior status being stored.
 - Pagination URLs are pinned to the configured `api.<site>` host.
+- SLI values are read per SLO from the SLO history endpoint, so the SLO phase issues one extra request per SLO each sync.
+- The SLO list is capped at 1000 entries per sync; orgs with more SLOs will not see the remainder.
 
 ## Links
 
