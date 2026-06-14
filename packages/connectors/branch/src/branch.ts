@@ -487,6 +487,7 @@ export class BranchConnector extends BaseConnector<
   ): Promise<T[]> {
     const body = this.buildBody(dataSource, dimensions, window);
     const results: T[] = [];
+    const base = new URL(ANALYTICS_API_URL);
     const visited = new Set<string>();
     let url = ANALYTICS_API_URL;
     while (!visited.has(url)) {
@@ -505,7 +506,14 @@ export class BranchConnector extends BaseConnector<
       if (!next) {
         break;
       }
-      url = next;
+      const parsedNext = new URL(next, ANALYTICS_API_URL);
+      if (
+        parsedNext.origin !== base.origin ||
+        parsedNext.pathname !== base.pathname
+      ) {
+        break;
+      }
+      url = parsedNext.toString();
     }
     return results;
   }
