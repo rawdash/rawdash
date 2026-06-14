@@ -101,7 +101,7 @@ Sentry returns X-Sentry-Rate-Limit-Remaining / X-Sentry-Rate-Limit-Reset headers
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [Sentry API docs](https://docs.sentry.io/api/)
 - [GitHub](https://github.com/rawdash/rawdash)
 

@@ -124,7 +124,7 @@ Auth0 publishes X-RateLimit-Limit / X-RateLimit-Remaining / X-RateLimit-Reset re
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [Auth0 API docs](https://auth0.com/docs/api/management/v2)
 - [GitHub](https://github.com/rawdash/rawdash)
 

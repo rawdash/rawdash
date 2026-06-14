@@ -34,7 +34,7 @@ const dateFmt = new Intl.DateTimeFormat('en-US', {
 
 <article class="content-article">
   <nav class="content-breadcrumb" aria-label="Breadcrumb">
-    <a href={`${basePath}/`}>{sectionLabel}</a>
+    <a href={basePath}>{sectionLabel}</a>
     <span aria-hidden="true">/</span>
     <span>{data.title}</span>
   </nav>
@@ -133,7 +133,7 @@ const dateFmt = new Intl.DateTimeFormat('en-US', {
         <ul class="metric-related-list">
           {data.relatedMetrics.map((related) => (
             <li>
-              <a href={`${metricsBase}/${related.slug}/`}>{related.title}</a>
+              <a href={`${metricsBase}/${related.slug}`}>{related.title}</a>
             </li>
           ))}
         </ul>

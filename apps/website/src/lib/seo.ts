@@ -87,7 +87,7 @@ export function definedTermJsonLd(
     inDefinedTermSet: {
       '@type': 'DefinedTermSet',
       name: 'Rawdash Metrics & KPI Library',
-      url: canonical('/metrics/', undefined),
+      url: canonical('/metrics', undefined),
     },
   };
 }
@@ -138,7 +138,7 @@ export function articleMeta(
   section: SectionMeta,
   site: URL | undefined,
 ): ArticleMeta {
-  const path = `${section.basePath}/${entry.data.slug}/`;
+  const path = `${section.basePath}/${entry.data.slug}`;
   const url = canonical(path, site);
   return {
     path,
@@ -149,7 +149,7 @@ export function articleMeta(
       breadcrumbJsonLd(
         [
           { name: 'Home', path: '/' },
-          { name: section.title, path: `${section.basePath}/` },
+          { name: section.title, path: section.basePath },
           { name: entry.data.title, path },
         ],
         site,

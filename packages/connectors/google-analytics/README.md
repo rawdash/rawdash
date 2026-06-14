@@ -118,7 +118,7 @@ GA4 Data API quota is 200,000 tokens/day per property (default); 429 responses a
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [Google Analytics API docs](https://developers.google.com/analytics/devguides/reporting/data/v1)
 - [GitHub](https://github.com/rawdash/rawdash)
 

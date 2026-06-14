@@ -112,7 +112,7 @@ The Play Developer Reporting API enforces a per-project quota (default 60 reques
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [Google Play Console API docs](https://developers.google.com/play/developer/reporting)
 - [GitHub](https://github.com/rawdash/rawdash)
 

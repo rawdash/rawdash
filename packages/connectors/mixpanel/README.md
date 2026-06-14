@@ -134,7 +134,7 @@ Mixpanel's Query API quota is 60 queries/hour per project (default); requests ar
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [Mixpanel API docs](https://developer.mixpanel.com/reference/query-api)
 - [GitHub](https://github.com/rawdash/rawdash)
 

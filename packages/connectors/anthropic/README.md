@@ -134,7 +134,7 @@ The Admin API returns 429 with a Retry-After header on burst; the shared HTTP cl
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [Anthropic API docs](https://docs.claude.com/en/api/admin-api/usage-cost/get-messages-usage-report)
 - [GitHub](https://github.com/rawdash/rawdash)
 

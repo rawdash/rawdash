@@ -135,7 +135,7 @@ CloudWatch GetMetricData batches up to 500 queries per call and follows NextToke
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [Amazon Web Services API docs](https://docs.aws.amazon.com/bedrock/latest/userguide/monitoring-cw.html)
 - [GitHub](https://github.com/rawdash/rawdash)
 

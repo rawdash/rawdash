@@ -115,7 +115,7 @@ AppsFlyer enforces a per-token daily request budget for the Master/Pull APIs (60
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [AppsFlyer API docs](https://dev.appsflyer.com/hc/reference/master-api)
 - [GitHub](https://github.com/rawdash/rawdash)
 

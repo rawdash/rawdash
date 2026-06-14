@@ -117,7 +117,7 @@ PostHog allows roughly 1200 requests/min per personal API key; Retry-After is ho
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [PostHog API docs](https://posthog.com/docs/api)
 - [GitHub](https://github.com/rawdash/rawdash)
 

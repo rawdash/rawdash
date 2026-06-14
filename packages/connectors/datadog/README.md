@@ -105,7 +105,7 @@ Datadog returns X-RateLimit-Remaining / X-RateLimit-Reset headers (reset in seco
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [Datadog API docs](https://docs.datadoghq.com/api/latest/)
 - [GitHub](https://github.com/rawdash/rawdash)
 

@@ -110,7 +110,7 @@ GetMetricData is batched at most 500 metrics per call with NextToken pagination;
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [Amazon Web Services API docs](https://docs.aws.amazon.com/AmazonCloudWatch/latest/APIReference/API_GetMetricData.html)
 - [GitHub](https://github.com/rawdash/rawdash)
 
