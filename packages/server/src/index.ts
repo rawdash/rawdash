@@ -41,6 +41,7 @@ export type {
   SyncStatus,
   TriggerSyncResponse,
   Widget,
+  WidgetStatus,
   WidgetSyncState,
   WidgetsListResponse,
 } from './types';

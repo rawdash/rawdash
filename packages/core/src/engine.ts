@@ -16,3 +16,15 @@ export const ACTIVE_SYNC_STATUSES: ReadonlySet<SyncStatus> = new Set([
 export function isSyncActive(status: SyncStatus): boolean {
   return ACTIVE_SYNC_STATUSES.has(status);
 }
+
+export function healthStatusFromSyncStatus(
+  status: SyncStatus,
+): 'idle' | 'syncing' | 'error' {
+  if (status === 'failed') {
+    return 'error';
+  }
+  if (isSyncActive(status)) {
+    return 'syncing';
+  }
+  return 'idle';
+}

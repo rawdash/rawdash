@@ -212,8 +212,7 @@ export async function getWidget(
   }
 
   if (ifNoneMatch) {
-    const handle = storage.getStorageHandle(connectorId);
-    const health = (await handle.getHealth?.()) ?? null;
+    const health = await storage.getHealth(connectorId);
     if (health?.lastSyncAt) {
       const probeEtag = computeWidgetEtag(health.lastSyncAt, widget);
       if (probeEtag === ifNoneMatch) {

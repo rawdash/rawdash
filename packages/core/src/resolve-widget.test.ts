@@ -35,11 +35,8 @@ function makeStorage(getHealth?: () => Promise<ConnectorHealth | null>): {
     return { storage: inner, inner };
   }
   const storage: ServerStorage = {
-    getStorageHandle: (id) => {
-      const handle = inner.getStorageHandle(id);
-      const override: StorageHandle = { ...handle, getHealth };
-      return override;
-    },
+    getStorageHandle: (id) => inner.getStorageHandle(id),
+    getHealth,
     getSyncState: () => inner.getSyncState(),
     markSyncQueued: () => inner.markSyncQueued(),
     markSyncRunning: () => inner.markSyncRunning(),
@@ -83,6 +80,7 @@ describe('resolveWidget', () => {
         queryDistributions: async () => [],
         deleteOlderThan: async () => ({ rowsDeleted: 0 }),
       }),
+      getHealth: async () => null,
       getSyncState: async () => ({
         status: 'idle',
         queuedAt: null,
@@ -181,6 +179,171 @@ describe('resolveWidget', () => {
       connectorStatus: 'auth_failed',
       lastError: 'token expired',
     });
+  });
+
+  it('reports status "ok" with a legitimate aggregated 0 (rows existed)', async () => {
+    const storage = new InMemoryStorage();
+    const handle = storage.getStorageHandle(CONNECTOR);
+    await handle.metric({
+      name: 'spend',
+      ts: Date.now(),
+      value: 0,
+      attributes: {},
+    });
+    await new Promise((r) => setTimeout(r, 5));
+    const w = await resolveWidget(
+      'd',
+      'w',
+      {
+        kind: 'stat',
+        title: 'Spend',
+        metric: {
+          connectorId: CONNECTOR,
+          shape: 'metric',
+          name: 'spend',
+          field: 'value',
+          fn: 'sum',
+        },
+      },
+      undefined,
+      storage,
+    );
+    expect(w?.data).toBe(0);
+    expect(w?.status).toBe('ok');
+    expect(w?.errorMessage).toBeUndefined();
+  });
+
+  it('reports status "no_data" when zero underlying rows match', async () => {
+    const storage = new InMemoryStorage();
+    const handle = storage.getStorageHandle(CONNECTOR);
+    await handle.event({
+      name: 'deploy',
+      start_ts: Date.now(),
+      end_ts: null,
+      attributes: {},
+    });
+    await new Promise((r) => setTimeout(r, 5));
+    const w = await resolveWidget('d', 'w', STAT_WIDGET, undefined, storage);
+    expect(w?.data).toBe(0);
+    expect(w?.status).toBe('no_data');
+  });
+
+  it('does not report no_data before the first sync (unsynced)', async () => {
+    const storage = new InMemoryStorage();
+    const w = await resolveWidget('d', 'w', STAT_WIDGET, undefined, storage);
+    expect(w?.syncState).toBe('unsynced');
+    expect(w?.status).toBe('ok');
+  });
+
+  it('reports status "error" with the connector lastError when the connector failed', async () => {
+    const { storage } = makeStorage(async () => ({
+      status: 'auth_failed',
+      lastSyncAt: new Date().toISOString(),
+      lastError: 'token expired',
+      syncIntervalSeconds: 600,
+    }));
+    const w = await resolveWidget('d', 'w', STAT_WIDGET, undefined, storage);
+    expect(w?.status).toBe('error');
+    expect(w?.errorMessage).toBe('token expired');
+  });
+
+  it('reports status "error" whenever a lastError is present, regardless of status', async () => {
+    const { storage } = makeStorage(async () => ({
+      status: 'idle',
+      lastSyncAt: new Date().toISOString(),
+      lastError: 'partial sync failure',
+      syncIntervalSeconds: 600,
+    }));
+    const w = await resolveWidget('d', 'w', STAT_WIDGET, undefined, storage);
+    expect(w?.status).toBe('error');
+    expect(w?.errorMessage).toBe('partial sync failure');
+  });
+
+  it('surfaces a failed sync as widget "error" (InMemoryStorage)', async () => {
+    const storage = new InMemoryStorage();
+    const handle = storage.getStorageHandle(CONNECTOR);
+    await handle.event({
+      name: 'run',
+      start_ts: Date.now(),
+      end_ts: null,
+      attributes: {},
+    });
+    await storage.markSyncFailed('connector blew up');
+    const w = await resolveWidget('d', 'w', STAT_WIDGET, undefined, storage);
+    expect(w?.status).toBe('error');
+    expect(w?.errorMessage).toBe('connector blew up');
+    expect(w?.syncState).toBe('failing');
+  });
+
+  it('a connector error takes precedence over a compute error', async () => {
+    const { storage } = makeStorage(async () => ({
+      status: 'error',
+      lastSyncAt: new Date().toISOString(),
+      lastError: 'connector down',
+      syncIntervalSeconds: 600,
+    }));
+    const w = await resolveWidget(
+      'd',
+      'w',
+      {
+        kind: 'stat',
+        title: 'Bad',
+        metric: {
+          connectorId: CONNECTOR,
+          shape: 'event',
+          name: 'run',
+          field: 'conclusion',
+          fn: 'sum',
+        },
+      },
+      undefined,
+      storage,
+    );
+    expect(w?.status).toBe('error');
+    expect(w?.errorMessage).toBe('connector down');
+  });
+
+  it('reports status "error" when the metric compute throws', async () => {
+    const storage = new InMemoryStorage();
+    const handle = storage.getStorageHandle(CONNECTOR);
+    await handle.event({
+      name: 'run',
+      start_ts: Date.now(),
+      end_ts: null,
+      attributes: { conclusion: 'success' },
+    });
+    await new Promise((r) => setTimeout(r, 5));
+    const w = await resolveWidget(
+      'd',
+      'w',
+      {
+        kind: 'stat',
+        title: 'Bad',
+        metric: {
+          connectorId: CONNECTOR,
+          shape: 'event',
+          name: 'run',
+          field: 'conclusion',
+          fn: 'sum',
+        },
+      },
+      undefined,
+      storage,
+    );
+    expect(w?.status).toBe('error');
+    expect(w?.errorMessage).toMatch(/numeric/);
+    expect(w?.data).toBeNull();
+  });
+
+  it('reports status "ok" for healthy status widgets', async () => {
+    const { storage } = makeStorage(async () => ({
+      status: 'idle',
+      lastSyncAt: new Date().toISOString(),
+      lastError: null,
+      syncIntervalSeconds: 600,
+    }));
+    const w = await resolveWidget('d', 'w', STATUS_WIDGET, undefined, storage);
+    expect(w?.status).toBe('ok');
   });
 
   it('with InMemoryStorage: "unsynced" before any write, "stale" after a write (window=0)', async () => {

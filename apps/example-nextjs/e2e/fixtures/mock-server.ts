@@ -58,6 +58,25 @@ const WIDGETS = [
     ],
     cachedAt,
   },
+  {
+    id: 'errors_per_hour',
+    widgetId: 'errors_per_hour',
+    connectorId: 'github-actions',
+    data: 0,
+    cachedAt,
+    syncState: 'fresh',
+    status: 'no_data',
+  },
+  {
+    id: 'deploy_frequency',
+    widgetId: 'deploy_frequency',
+    connectorId: 'github-actions',
+    data: null,
+    cachedAt,
+    syncState: 'failing',
+    status: 'error',
+    errorMessage: 'connector auth failed: token expired',
+  },
 ];
 
 const HEALTH = {

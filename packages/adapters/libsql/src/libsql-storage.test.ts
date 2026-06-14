@@ -454,6 +454,27 @@ describe('LibsqlStorage — isolation + sync state', () => {
     await s.close();
   });
 
+  it('getHealth surfaces a failed sync as connector error', async () => {
+    const { storage: s } = makeStorage();
+    expect(await s.getHealth('c')).toBeNull();
+    await s.markSyncQueued();
+    await s.markSyncRunning();
+    await s.markSyncFailed('boom');
+    const health = await s.getHealth('c');
+    expect(health?.status).toBe('error');
+    expect(health?.lastError).toBe('boom');
+    await s.close();
+  });
+
+  it('getHealth returns null while the sync is healthy', async () => {
+    const { storage: s } = makeStorage();
+    await s.markSyncQueued();
+    await s.markSyncRunning();
+    await s.markSyncSucceeded();
+    expect(await s.getHealth('c')).toBeNull();
+    await s.close();
+  });
+
   it('markSyncRunning rejects non-queued states', async () => {
     const { storage: s } = makeStorage();
     expect(await s.markSyncRunning()).toBe(false);

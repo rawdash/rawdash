@@ -108,13 +108,25 @@ function getTimestampField(shape: string): string {
   }
 }
 
+export interface MetricComputation {
+  value: unknown;
+  matchedRows: number;
+}
+
 export async function computeMetric(
   storage: StorageHandle,
   metric: ComputedMetric,
 ): Promise<unknown> {
+  return (await computeMetricWithStatus(storage, metric)).value;
+}
+
+export async function computeMetricWithStatus(
+  storage: StorageHandle,
+  metric: ComputedMetric,
+): Promise<MetricComputation> {
   const rollupResult = await tryComputeMetricFromRollups(storage, metric);
   if (rollupResult.used) {
-    return rollupResult.value;
+    return { value: rollupResult.value, matchedRows: rollupResult.matchedRows };
   }
 
   const tsField = getTimestampField(metric.shape);
@@ -201,15 +213,15 @@ export async function computeMetric(
     }
 
     default:
-      return null;
+      return { value: null, matchedRows: 0 };
   }
 
   const filtered = records.filter((r) => applyFilter(r, metric.filter));
   const sorted = sortByTs(filtered, tsField);
 
-  if (metric.groupBy) {
-    return computeGroupBy(sorted, metric, tsField);
-  }
+  const value = metric.groupBy
+    ? computeGroupBy(sorted, metric, tsField)
+    : computeAgg(sorted, metric.field, metric.fn);
 
-  return computeAgg(sorted, metric.field, metric.fn);
+  return { value, matchedRows: filtered.length };
 }
