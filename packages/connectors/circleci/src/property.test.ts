@@ -33,6 +33,8 @@ describe('CircleCIConnector property tests', () => {
   });
 
   it('pipelines: sync upholds universal invariants for any valid API payload', async () => {
+    const lookbackDays = 365 * 50;
+    const cutoffMs = Date.now() - lookbackDays * 24 * 60 * 60 * 1000;
     const extra = (
       storage: InMemoryStorage,
       _connectorId: string,
@@ -41,8 +43,7 @@ describe('CircleCIConnector property tests', () => {
       const violations: InvariantViolation[] = [];
       const validIds = sample.items.filter((p) => {
         const created = Date.parse(p.created_at);
-        const updated = Date.parse(p.updated_at);
-        return Number.isFinite(created) && Number.isFinite(updated);
+        return Number.isFinite(created) && created >= cutoffMs;
       });
       const unique = new Set(validIds.map((p) => p.id)).size;
       const written =
@@ -51,7 +52,7 @@ describe('CircleCIConnector property tests', () => {
       if (written !== unique) {
         violations.push({
           invariant:
-            'one circleci_pipeline entity per unique pipeline id with parseable timestamps',
+            'one circleci_pipeline entity per unique pipeline id with parseable created_at',
           location: 'pipelines phase',
           detail: `expected ${unique} entities, got ${written}`,
         });
@@ -77,7 +78,7 @@ describe('CircleCIConnector property tests', () => {
           {
             projectSlugs: ['gh/my-org/my-repo'],
             resources: ['pipelines', 'workflows', 'pipeline_events'],
-            pipelinesLookbackDays: 365 * 50,
+            pipelinesLookbackDays: lookbackDays,
           },
           { apiToken: 'ccitest' as unknown as { $secret: string } },
         );
