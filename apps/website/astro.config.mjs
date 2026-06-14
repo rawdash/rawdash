@@ -4,8 +4,10 @@ import { defineConfig } from 'astro/config';
 
 import { fetchPublishedFeedItems } from './src/lib/content-feed';
 import { SECTION_LIST } from './src/lib/sections';
-import { sitemapIndexLastmod } from './src/lib/sitemap-index-lastmod';
-import { buildSitemapLastmod } from './src/lib/sitemap-lastmod';
+import {
+  buildSitemapLastmod,
+  sitemapIndexLastmod,
+} from './src/lib/sitemap-lastmod';
 
 const feedItems = await fetchPublishedFeedItems();
 const publishedPageTypes = new Set(feedItems.map((item) => item.pageType));
