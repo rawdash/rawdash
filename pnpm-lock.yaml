@@ -468,9 +468,9 @@ importers:
       '@rawdash/connector-vertex-ai':
         specifier: workspace:*
         version: link:../connectors/vertex-ai
-      '@rawdash/connector-wiz':
+      '@rawdash/connector-workos':
         specifier: workspace:*
-        version: link:../connectors/wiz
+        version: link:../connectors/workos
       '@rawdash/connector-zendesk':
         specifier: workspace:*
         version: link:../connectors/zendesk
@@ -1912,7 +1912,7 @@ importers:
         specifier: ^4.1.4
         version: 4.1.4(@types/node@24.12.2)(vite@8.0.8(@types/node@24.12.2)(esbuild@0.27.7)(jiti@1.21.7)(tsx@4.21.0)(yaml@2.8.3))
 
-  packages/connectors/wiz:
+  packages/connectors/workos:
     dependencies:
       '@rawdash/core':
         specifier: workspace:*

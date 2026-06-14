@@ -291,11 +291,11 @@ import {
   resources as vertexAiResources,
 } from '@rawdash/connector-vertex-ai';
 import {
-  configFields as wizConfigFields,
-  doc as wizDoc,
-  id as wizId,
-  resources as wizResources,
-} from '@rawdash/connector-wiz';
+  configFields as workosConfigFields,
+  doc as workosDoc,
+  id as workosId,
+  resources as workosResources,
+} from '@rawdash/connector-workos';
 import {
   configFields as zendeskConfigFields,
   doc as zendeskDoc,
@@ -645,11 +645,11 @@ export const connectorMetadata: ConnectorMetadata[] = [
     cost: vertexAiCost,
   },
   {
-    id: wizId,
-    packageName: '@rawdash/connector-wiz',
-    doc: wizDoc,
-    configFields: wizConfigFields,
-    resources: wizResources,
+    id: workosId,
+    packageName: '@rawdash/connector-workos',
+    doc: workosDoc,
+    configFields: workosConfigFields,
+    resources: workosResources,
   },
   {
     id: zendeskId,
