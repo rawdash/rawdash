@@ -73,7 +73,7 @@ describe('getWindow', () => {
   const NOW = Date.UTC(2026, 5, 10);
 
   it('returns lookbackDays-aligned full window when no since is provided', () => {
-    const window = getWindow({ mode: 'full' }, 30, NOW);
+    const window = getWindow({ mode: 'full' }, 30, undefined, NOW);
     expect(window.to).toBe('2026-06-10');
     expect(window.from).toBe('2026-05-12');
   });
@@ -82,6 +82,7 @@ describe('getWindow', () => {
     const window = getWindow(
       { mode: 'full', since: '2020-01-01T00:00:00Z' },
       30,
+      undefined,
       NOW,
     );
     expect(window.from).toBe('2026-05-12');
@@ -92,10 +93,24 @@ describe('getWindow', () => {
     const window = getWindow(
       { mode: 'latest', since: '2026-06-08T00:00:00Z' },
       90,
+      undefined,
       NOW,
     );
     expect(window.to).toBe('2026-06-10');
     expect(window.from).toBe('2026-05-28');
+  });
+
+  it('aligns the trailing day to the configured timezone', () => {
+    const lateUtc = Date.UTC(2026, 5, 10, 3, 0, 0);
+    const utcWindow = getWindow({ mode: 'full' }, 30, undefined, lateUtc);
+    const tzWindow = getWindow(
+      { mode: 'full' },
+      30,
+      'America/Los_Angeles',
+      lateUtc,
+    );
+    expect(utcWindow.to).toBe('2026-06-10');
+    expect(tzWindow.to).toBe('2026-06-09');
   });
 });
 
@@ -103,12 +118,12 @@ describe('installRowToMetricSample', () => {
   it('uses installs as the primary value and bucketed date as ts', () => {
     const sample = installRowToMetricSample({
       af_date: '2025-01-15',
-      af_media_source: 'facebook_ads',
-      af_campaign: 'summer_2025',
+      pid: 'facebook_ads',
+      c: 'summer_2025',
       installs: 120,
       cost: '45.50',
       revenue: '210.25',
-      conversions: 18,
+      loyal_users: 42,
     });
     expect(sample.name).toBe('appsflyer_install_metrics');
     expect(sample.ts).toBe(Date.UTC(2025, 0, 15));
@@ -117,14 +132,14 @@ describe('installRowToMetricSample', () => {
     expect(sample.attributes['campaign']).toBe('summer_2025');
     expect(sample.attributes['cost']).toBeCloseTo(45.5);
     expect(sample.attributes['revenue']).toBeCloseTo(210.25);
-    expect(sample.attributes['conversions']).toBe(18);
+    expect(sample.attributes['loyalUsers']).toBe(42);
   });
 
   it('preserves null media source and campaign', () => {
     const sample = installRowToMetricSample({
       af_date: '2025-01-15',
-      af_media_source: null,
-      af_campaign: null,
+      pid: null,
+      c: null,
       installs: 5,
     });
     expect(sample.attributes['mediaSource']).toBeNull();
@@ -144,11 +159,11 @@ describe('installRowToMetricSample', () => {
 describe('retentionRowToMetricSamples', () => {
   it('emits one sample per RETENTION period', () => {
     const samples = retentionRowToMetricSamples({
-      cohort_date: '2025-01-15',
-      af_media_source: 'organic',
-      retained_users_day_1: 1000,
-      retained_users_day_7: 500,
-      retained_users_day_30: 200,
+      af_date: '2025-01-15',
+      pid: 'organic',
+      retention_day_1: 1000,
+      retention_day_7: 500,
+      retention_day_30: 200,
     });
     expect(samples).toHaveLength(3);
     expect(samples.map((s) => s.attributes['period'])).toEqual([1, 7, 30]);
@@ -163,7 +178,7 @@ describe('retentionRowToMetricSamples', () => {
 
   it('treats missing retention KPIs as 0', () => {
     const samples = retentionRowToMetricSamples({
-      cohort_date: '2025-01-15',
+      af_date: '2025-01-15',
     });
     expect(samples.map((s) => s.value)).toEqual([0, 0, 0]);
   });
@@ -312,22 +327,22 @@ describe('AppsflyerConnector.sync', () => {
 
   it('writes one metric sample per install row', async () => {
     const fetchSpy = makeFetch((url) => {
-      if (url.includes('groupings=af_date')) {
+      if (url.includes('kpis=installs')) {
         return {
           data: [
             {
               af_date: '2025-01-15',
-              af_media_source: 'facebook_ads',
-              af_campaign: 'summer',
+              pid: 'facebook_ads',
+              c: 'summer',
               installs: 120,
               cost: 45,
               revenue: 250,
-              conversions: 18,
+              loyal_users: 18,
             },
             {
               af_date: '2025-01-16',
-              af_media_source: 'organic',
-              af_campaign: null,
+              pid: 'organic',
+              c: null,
               installs: 200,
             },
           ],
@@ -357,15 +372,15 @@ describe('AppsflyerConnector.sync', () => {
 
   it('writes three retention samples per cohort row (one per period)', async () => {
     const fetchSpy = makeFetch((url) => {
-      if (url.includes('groupings=cohort_date')) {
+      if (url.includes('kpis=retention_day_1')) {
         return {
           data: [
             {
-              cohort_date: '2025-01-15',
-              af_media_source: 'organic',
-              retained_users_day_1: 1000,
-              retained_users_day_7: 500,
-              retained_users_day_30: 200,
+              af_date: '2025-01-15',
+              pid: 'organic',
+              retention_day_1: 1000,
+              retention_day_7: 500,
+              retention_day_30: 200,
             },
           ],
         };
@@ -403,7 +418,7 @@ describe('AppsflyerConnector.sync', () => {
 
     const calls = recordCalls(fetchSpy);
     const retentionCalls = calls.filter((c) =>
-      c.url.includes('groupings=cohort_date'),
+      c.url.includes('kpis=retention_day_1'),
     );
     expect(retentionCalls).toHaveLength(0);
   });
@@ -423,6 +438,22 @@ describe('AppsflyerConnector.sync', () => {
     expect(calls[0]!.url).toContain('currency=USD');
   });
 
+  it('omits an invalid timezone from the URL instead of forwarding it to the API', async () => {
+    const fetchSpy = makeFetch(() => undefined);
+    vi.stubGlobal('fetch', fetchSpy);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await connector({
+      resources: ['install_metrics'],
+      timezone: 'Not/AZone',
+    }).sync({ mode: 'full' }, makeStorage());
+
+    const calls = recordCalls(fetchSpy);
+    expect(calls[0]!.url).not.toContain('timezone=');
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
   it('omits timezone and currency from the URL when not configured', async () => {
     const fetchSpy = makeFetch(() => undefined);
     vi.stubGlobal('fetch', fetchSpy);
@@ -437,6 +468,41 @@ describe('AppsflyerConnector.sync', () => {
     expect(calls[0]!.url).not.toContain('currency=');
   });
 
+  it('requests the Master API install groupings/KPIs (pid, c, loyal_users)', async () => {
+    const fetchSpy = makeFetch(() => undefined);
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await connector({ resources: ['install_metrics'] }).sync(
+      { mode: 'full' },
+      makeStorage(),
+    );
+
+    const url = decodeURIComponent(recordCalls(fetchSpy)[0]!.url);
+    expect(url).toContain('groupings=af_date,pid,c');
+    expect(url).toContain('kpis=installs,cost,revenue,loyal_users');
+    expect(url).not.toContain('af_media_source');
+    expect(url).not.toContain('af_campaign');
+    expect(url).not.toContain('conversions');
+  });
+
+  it('requests the Master API retention groupings/KPIs (retention_day_N by af_date, pid)', async () => {
+    const fetchSpy = makeFetch(() => undefined);
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await connector({ resources: ['retention_metrics'] }).sync(
+      { mode: 'full' },
+      makeStorage(),
+    );
+
+    const url = decodeURIComponent(recordCalls(fetchSpy)[0]!.url);
+    expect(url).toContain('groupings=af_date,pid');
+    expect(url).toContain(
+      'kpis=retention_day_1,retention_day_7,retention_day_30',
+    );
+    expect(url).not.toContain('retained_users_day');
+    expect(url).not.toContain('cohort_date');
+  });
+
   it('resumes from a saved cursor at the specified phase', async () => {
     const fetchSpy = makeFetch(() => undefined);
     vi.stubGlobal('fetch', fetchSpy);
@@ -447,11 +513,9 @@ describe('AppsflyerConnector.sync', () => {
     );
 
     const calls = recordCalls(fetchSpy);
+    expect(calls.find((c) => c.url.includes('kpis=installs'))).toBeUndefined();
     expect(
-      calls.find((c) => c.url.includes('groupings=af_date')),
-    ).toBeUndefined();
-    expect(
-      calls.find((c) => c.url.includes('groupings=cohort_date')),
+      calls.find((c) => c.url.includes('kpis=retention_day_1')),
     ).toBeDefined();
   });
 });
