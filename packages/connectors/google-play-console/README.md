@@ -5,7 +5,7 @@
 [![npm version](https://img.shields.io/npm/v/@rawdash/connector-google-play-console)](https://www.npmjs.com/package/@rawdash/connector-google-play-console)
 [![license](https://img.shields.io/npm/l/@rawdash/connector-google-play-console)](https://github.com/rawdash/rawdash/blob/main/LICENSE)
 
-Sync daily Android app vitals from the Play Developer Reporting API - crash rate, ANR rate, and error counts.
+Sync daily Android app vitals from the Play Developer Reporting API (crash rate, ANR rate, error counts) plus user review ratings from the Android Publisher API.
 
 ## Install
 
@@ -15,10 +15,10 @@ npm install @rawdash/connector-google-play-console
 
 ## Authentication
 
-Authenticate against the Play Developer Reporting API with a Google service account JSON key. The service account must be linked to your Play Console developer account.
+Authenticate against the Play Developer Reporting API and the Android Publisher API with a Google service account JSON key. The service account must be linked to your Play Console developer account.
 
 1. In Google Cloud, create a service account at IAM & Admin -> Service Accounts and download a JSON key.
-2. Enable the "Google Play Developer Reporting API" on the Cloud project.
+2. Enable both the "Google Play Developer Reporting API" and the "Google Play Android Developer API" on the Cloud project.
 3. In Google Play Console open Setup -> API access, link the same Cloud project, then invite the service account email and grant it at least the "View app information and download bulk reports" permission for the app you want to sync.
 4. Store the service account JSON as a secret and reference it as serviceAccountJson: secret("GPLAY_SA_JSON").
 5. Set packageName to the reverse-DNS application id of the app (e.g. com.example.app).
@@ -30,6 +30,7 @@ Authenticate against the Play Developer Reporting API with a Google service acco
 | `packageName`        | string | Yes      | Reverse-DNS application id of the Android app (e.g. com.example.app). Visible in the Play Console URL and on Google Play under "About".                                                                                                                                      |
 | `serviceAccountJson` | secret | Yes      | Contents of the JSON key file for a Google service account that has been granted access to your Play Console developer account with at least the "View app information and download bulk reports" permission. Create one at Google Cloud -> IAM & Admin -> Service Accounts. |
 | `lookbackDays`       | number | No       | How many calendar days to fetch on a full sync. Defaults to 30. The Play Developer Reporting API exposes daily metrics with a typical 2-3 day reporting lag.                                                                                                                 |
+| `reviewLimit`        | number | No       | Most-recent user reviews to fetch for the gplay_app_ratings metric. Defaults to 200. The Android Publisher reviews API only surfaces reviews from roughly the past week, so this bounds a rolling sample rather than a full history.                                         |
 
 ## Resources
 
@@ -50,6 +51,11 @@ Authenticate against the Play Developer Reporting API with a Google service acco
   - Unit: reports
   - Granularity: day
   - Dimensions: `date`, `package_name`
+- **`gplay_app_ratings`** _(metric)_ - Rolling per-review star ratings sampled from the most-recent user reviews via the Android Publisher reviews API (default 200, configurable via reviewLimit). Each sample carries one review with its star rating (1-5) as the value.
+  - Endpoint: `GET /androidpublisher/v3/applications/{packageName}/reviews`
+  - Unit: stars
+  - Dimensions: `package_name`, `review_id`, `reviewer_language`, `device`, `app_version_name`, `android_os_version`
+  - Not the lifetime average shown on the Play Store. The reviews API only returns reviews from roughly the past week, so this is a rolling sample; average over a time window downstream for a smoothed rating.
 
 ## Example
 
@@ -100,6 +106,7 @@ The Play Developer Reporting API enforces a per-project quota (default 60 reques
 ## Limitations
 
 - Daily vitals (crash rate, ANR rate, error counts) have a 2-3 day reporting lag on the Play Developer Reporting API; incremental syncs refetch the trailing 3 days. Metric days are reported on the America/Los_Angeles calendar, the only timezone the API supports for daily aggregation.
+- gplay_app_ratings is a rolling sample of recent reviews from the Android Publisher reviews API (default 200, configurable via reviewLimit). Each sample carries one review with its star rating (1-5) as the value; this is not the lifetime average shown on the Play Store, and the reviews API only surfaces reviews from roughly the past week.
 - The apps entity carries only the configured package name; the Play Store listing title is available solely through an Android Publisher edit, which this connector does not create.
 - Install counts and earnings are not exposed through the Reporting API - Google delivers them only as monthly CSV reports in a private Cloud Storage bucket. Those metrics are out of scope for this connector and will land in a follow-up.
 

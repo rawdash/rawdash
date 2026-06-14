@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   GooglePlayConsoleConnector,
   configFields,
+  reviewToRatingSample,
   rowToMetricSample,
 } from './google-play-console';
 
@@ -84,6 +85,7 @@ interface MetricSetSpec {
 function mockFetch(
   tokenResponse: object,
   metricSetResponses: Record<string, MetricSetSpec>,
+  reviewsResponse?: object,
 ) {
   return vi.fn().mockImplementation((url: string, _init?: RequestInit) => {
     const urlStr = String(url);
@@ -95,6 +97,17 @@ function mockFetch(
         statusText: 'OK',
         headers: new Headers({ 'content-type': 'application/json' }),
         text: () => Promise.resolve(JSON.stringify(tokenResponse)),
+      } as Response);
+    }
+
+    if (urlStr.includes('androidpublisher.googleapis.com')) {
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: new Headers({ 'content-type': 'application/json' }),
+        text: () =>
+          Promise.resolve(JSON.stringify(reviewsResponse ?? { reviews: [] })),
       } as Response);
     }
 
@@ -248,6 +261,64 @@ describe('rowToMetricSample', () => {
   });
 });
 
+describe('reviewToRatingSample', () => {
+  it('maps a user review to a star-rating sample', () => {
+    const sample = reviewToRatingSample(
+      {
+        reviewId: 'rev-9',
+        comments: [
+          {
+            userComment: {
+              starRating: 3,
+              lastModified: { seconds: '1690000000', nanos: 500000000 },
+            },
+          },
+        ],
+      },
+      'com.example.app',
+    );
+    expect(sample).not.toBeNull();
+    expect(sample!.name).toBe('gplay_app_ratings');
+    expect(sample!.value).toBe(3);
+    expect(sample!.ts).toBe(1690000000 * 1000 + 500);
+    expect(sample!.attributes['review_id']).toBe('rev-9');
+  });
+
+  it('returns null when there is no user comment', () => {
+    const sample = reviewToRatingSample(
+      { reviewId: 'rev-1', comments: [] },
+      'com.example.app',
+    );
+    expect(sample).toBeNull();
+  });
+
+  it('returns null for an out-of-range star rating', () => {
+    const sample = reviewToRatingSample(
+      {
+        reviewId: 'rev-1',
+        comments: [
+          {
+            userComment: {
+              starRating: 0,
+              lastModified: { seconds: '1690000000' },
+            },
+          },
+        ],
+      },
+      'com.example.app',
+    );
+    expect(sample).toBeNull();
+  });
+
+  it('returns null when the timestamp is missing', () => {
+    const sample = reviewToRatingSample(
+      { reviewId: 'rev-1', comments: [{ userComment: { starRating: 5 } }] },
+      'com.example.app',
+    );
+    expect(sample).toBeNull();
+  });
+});
+
 describe('GooglePlayConsoleConnector.sync', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -315,16 +386,124 @@ describe('GooglePlayConsoleConnector.sync', () => {
     expect(entities[0]!.attributes).not.toHaveProperty('default_language');
   });
 
-  it('never calls the Android Publisher API', async () => {
-    const fetchSpy = mockFetch({ access_token: 'tok', expires_in: 3600 }, {});
-    vi.stubGlobal('fetch', fetchSpy);
-
-    await makeConnector().sync({ mode: 'full' }, makeStorage());
-
-    const publisherCalls = fetchSpy.mock.calls.filter((c: unknown[]) =>
-      String(c[0]).includes('androidpublisher.googleapis.com'),
+  it('maps Android Publisher reviews to gplay_app_ratings samples', async () => {
+    vi.stubGlobal(
+      'fetch',
+      mockFetch(
+        { access_token: 'tok', expires_in: 3600 },
+        {},
+        {
+          reviews: [
+            {
+              reviewId: 'rev-1',
+              comments: [
+                {
+                  userComment: {
+                    starRating: 4,
+                    reviewerLanguage: 'en',
+                    device: 'klte',
+                    appVersionName: '1.2.3',
+                    androidOsVersion: 31,
+                    lastModified: { seconds: '1700000000', nanos: 0 },
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      ),
     );
-    expect(publisherCalls).toHaveLength(0);
+    const storage = makeStorage();
+    await makeConnector().sync({ mode: 'full' }, storage);
+
+    const ratingsCall = storage.metrics.mock.calls.find(
+      (c) => (c[1] as { names: string[] }).names[0] === 'gplay_app_ratings',
+    );
+    expect(ratingsCall).toBeDefined();
+    const samples = ratingsCall![0] as Array<{
+      value: number;
+      ts: number;
+      attributes: Record<string, string | number>;
+    }>;
+    expect(samples).toHaveLength(1);
+    expect(samples[0]!.value).toBe(4);
+    expect(samples[0]!.ts).toBe(1700000000 * 1000);
+    expect(samples[0]!.attributes['review_id']).toBe('rev-1');
+    expect(samples[0]!.attributes['package_name']).toBe('com.example.app');
+    expect(samples[0]!.attributes['reviewer_language']).toBe('en');
+  });
+
+  it('paginates the reviews API and caps at reviewLimit', async () => {
+    let reviewCalls = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        const urlStr = String(url);
+        if (urlStr.includes('oauth2.googleapis.com/token')) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            statusText: 'OK',
+            headers: new Headers({ 'content-type': 'application/json' }),
+            text: () =>
+              Promise.resolve(
+                JSON.stringify({ access_token: 'tok', expires_in: 3600 }),
+              ),
+          } as Response);
+        }
+        if (urlStr.includes('androidpublisher.googleapis.com')) {
+          reviewCalls += 1;
+          const review = (id: string) => ({
+            reviewId: id,
+            comments: [
+              {
+                userComment: {
+                  starRating: 5,
+                  lastModified: { seconds: '1700000000' },
+                },
+              },
+            ],
+          });
+          const resp =
+            reviewCalls === 1
+              ? {
+                  reviews: [review('a')],
+                  tokenPagination: { nextPageToken: 'p2' },
+                }
+              : { reviews: [review('b')] };
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            statusText: 'OK',
+            headers: new Headers({ 'content-type': 'application/json' }),
+            text: () => Promise.resolve(JSON.stringify(resp)),
+          } as Response);
+        }
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          headers: new Headers({ 'content-type': 'application/json' }),
+          text: () => Promise.resolve(JSON.stringify({ rows: [] })),
+        } as Response);
+      }),
+    );
+
+    const connector = new GooglePlayConsoleConnector(
+      { packageName: 'com.example.app', reviewLimit: 2 },
+      { serviceAccountJson: TEST_SA_JSON },
+    );
+    const storage = makeStorage();
+    await connector.sync({ mode: 'full' }, storage);
+
+    const ratingsCall = storage.metrics.mock.calls.find(
+      (c) => (c[1] as { names: string[] }).names[0] === 'gplay_app_ratings',
+    );
+    const samples = ratingsCall![0] as Array<{
+      attributes: { review_id: string };
+    }>;
+    expect(reviewCalls).toBe(2);
+    expect(samples.map((s) => s.attributes.review_id)).toEqual(['a', 'b']);
   });
 
   it('writes samples for returned rows', async () => {
