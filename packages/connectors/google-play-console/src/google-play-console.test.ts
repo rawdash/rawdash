@@ -760,6 +760,58 @@ describe('GooglePlayConsoleConnector.sync', () => {
     }
   });
 
+  it('returns a resumable reviews cursor when the abort signal trips mid-reviews', async () => {
+    const controller = new AbortController();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        const urlStr = String(url);
+        if (urlStr.includes('oauth2.googleapis.com/token')) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            statusText: 'OK',
+            headers: new Headers({ 'content-type': 'application/json' }),
+            text: () =>
+              Promise.resolve(
+                JSON.stringify({ access_token: 'tok', expires_in: 3600 }),
+              ),
+          } as Response);
+        }
+        if (urlStr.includes('androidpublisher.googleapis.com')) {
+          controller.abort();
+          const abortErr = new Error('aborted');
+          abortErr.name = 'AbortError';
+          return Promise.reject(abortErr);
+        }
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          headers: new Headers({ 'content-type': 'application/json' }),
+          text: () => Promise.resolve(JSON.stringify({ rows: [] })),
+        } as Response);
+      }),
+    );
+
+    const storage = makeStorage();
+    const result = await makeConnector().sync(
+      { mode: 'full' },
+      storage,
+      controller.signal,
+    );
+
+    expect(result.done).toBe(false);
+    if (!result.done) {
+      const cursor = result.cursor as { phase: string };
+      expect(cursor.phase).toBe('reviews');
+    }
+    const ratingsCall = storage.metrics.mock.calls.find(
+      (c) => (c[1] as { names: string[] }).names[0] === 'gplay_app_ratings',
+    );
+    expect(ratingsCall).toBeUndefined();
+  });
+
   it('handles paginated metric set responses', async () => {
     let crashCalls = 0;
     vi.stubGlobal(

@@ -854,9 +854,7 @@ export class GooglePlayConsoleConnector extends BaseConnector<
     const base = `${PUBLISHER_BASE}/androidpublisher/v3/applications/${encodeURIComponent(this.settings.packageName)}/reviews`;
     let token: string | undefined = undefined;
     for (let page = 0; page < MAX_REVIEW_PAGES; page++) {
-      if (signal?.aborted) {
-        return reviews;
-      }
+      signal?.throwIfAborted();
       const params = new URLSearchParams({
         maxResults: String(REVIEWS_PAGE_SIZE),
       });
