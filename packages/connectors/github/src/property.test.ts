@@ -768,28 +768,33 @@ describe('GitHubConnector property tests', () => {
       };
     }
 
-    it('stops paginating workflow_runs once a page predates the required window', async () => {
+    it('keeps paginating workflow_runs across the re-run look-back, stopping once a page predates window + look-back', async () => {
       const now = Date.now();
       const linkHeader = (next: string) => `<${next}>; rel="next"`;
       const page2Url =
         'https://api.github.com/repos/rawdash/rawdash/actions/runs?page=2';
       const page3Url =
         'https://api.github.com/repos/rawdash/rawdash/actions/runs?page=3';
+      const page4Url =
+        'https://api.github.com/repos/rawdash/rawdash/actions/runs?page=4';
 
       const page1 = {
         workflow_runs: [makeRun(10, now - 1 * day), makeRun(11, now - 2 * day)],
       };
       const page2 = {
         workflow_runs: [
-          makeRun(20, now - 6 * day),
+          makeRun(20, now - 10 * day),
           makeRun(21, now - 20 * day),
         ],
       };
-      const page3 = { workflow_runs: [makeRun(30, now - 40 * day)] };
+      const page3 = { workflow_runs: [makeRun(30, now - 50 * day)] };
 
       const spy = installFetchMock((url) => {
+        if (url === page4Url) {
+          return { body: { workflow_runs: [] } };
+        }
         if (url === page3Url) {
-          return { body: page3 };
+          return { body: page3, headers: { link: linkHeader(page4Url) } };
         }
         if (url === page2Url) {
           return { body: page2, headers: { link: linkHeader(page3Url) } };
@@ -813,8 +818,9 @@ describe('GitHubConnector property tests', () => {
       const runCalls = spy.mock.calls
         .map(([url]) => String(url))
         .filter((url) => url.includes('/actions/runs'));
-      expect(runCalls).toHaveLength(2);
-      expect(runCalls.some((u) => u === page3Url)).toBe(false);
+      expect(runCalls).toHaveLength(3);
+      expect(runCalls.some((u) => u === page3Url)).toBe(true);
+      expect(runCalls.some((u) => u === page4Url)).toBe(false);
     });
 
     it('fetches unbounded workflow_runs history when no window is supplied', async () => {
@@ -852,6 +858,169 @@ describe('GitHubConnector property tests', () => {
         .map(([url]) => String(url))
         .filter((url) => url.includes('/actions/runs'));
       expect(runCalls).toHaveLength(3);
+    });
+  });
+
+  describe('mutating-collection incremental regressions', () => {
+    const day = 86_400_000;
+    const linkHeader = (next: string) => `<${next}>; rel="next"`;
+
+    function makeRun(id: number, createdAtMs: number, updatedAtMs: number) {
+      return {
+        id,
+        name: `run ${id}`,
+        conclusion: 'success',
+        status: 'completed',
+        head_branch: 'main',
+        actor: { login: 'alice' },
+        created_at: new Date(createdAtMs).toISOString(),
+        updated_at: new Date(updatedAtMs).toISOString(),
+        run_attempt: 2,
+      };
+    }
+
+    function makeRelease(
+      id: number,
+      createdAtMs: number,
+      publishedAtMs: number | null,
+    ) {
+      return {
+        id,
+        tag_name: `v${id}`,
+        name: `Release ${id}`,
+        draft: false,
+        prerelease: false,
+        created_at: new Date(createdAtMs).toISOString(),
+        published_at:
+          publishedAtMs === null ? null : new Date(publishedAtMs).toISOString(),
+        author: { login: 'alice' },
+      };
+    }
+
+    function makeDeployment(id: number, createdAtMs: number) {
+      return {
+        id,
+        environment: 'production',
+        ref: 'main',
+        sha: `sha${id}`,
+        creator: { login: 'alice' },
+        created_at: new Date(createdAtMs).toISOString(),
+      };
+    }
+
+    it('does not drop a run created before the window but re-run within it on an incremental sync', async () => {
+      const now = Date.now();
+      const page2Url =
+        'https://api.github.com/repos/rawdash/rawdash/actions/runs?page=2';
+
+      const page1 = {
+        workflow_runs: [
+          makeRun(10, now - 1 * day, now - 1 * day),
+          makeRun(11, now - 10 * day, now - 10 * day),
+        ],
+      };
+      const reRun = makeRun(20, now - 20 * day, now - 1 * day);
+      const page2 = { workflow_runs: [reRun] };
+
+      installFetchMock((url) => {
+        if (url === page2Url) {
+          return { body: page2 };
+        }
+        if (url.includes('/actions/runs')) {
+          return { body: page1, headers: { link: linkHeader(page2Url) } };
+        }
+        return safeDefaultResponse(url);
+      });
+
+      const storage = new InMemoryStorage();
+      await buildConnector().sync(
+        {
+          mode: 'full',
+          resources: new Set(['workflow_run']),
+          requiredWindowMs: { workflow_run: 7 * day },
+        },
+        storage.getStorageHandle(CONNECTOR_ID),
+      );
+
+      const events = eventStoreFor(storage).filter(
+        (e) => e.name === 'workflow_run',
+      ) as Array<{ name: string; attributes: { id: number } }>;
+      const ids = new Set(events.map((e) => e.attributes.id));
+      expect(ids.has(20)).toBe(true);
+    });
+
+    it('does not drop in-window releases when created_at is not descending across pages', async () => {
+      const now = Date.now();
+      const page2Url =
+        'https://api.github.com/repos/rawdash/rawdash/releases?page=2';
+
+      const page1 = [
+        makeRelease(1, now - 1 * day, now - 1 * day),
+        makeRelease(2, now - 10 * day, now - 1 * day),
+      ];
+      const page2 = [makeRelease(3, now - 2 * day, now - 2 * day)];
+
+      installFetchMock((url) => {
+        if (url === page2Url) {
+          return { body: page2 };
+        }
+        if (url.includes('/releases')) {
+          return { body: page1, headers: { link: linkHeader(page2Url) } };
+        }
+        return safeDefaultResponse(url);
+      });
+
+      const storage = new InMemoryStorage();
+      await buildConnector().sync(
+        {
+          mode: 'full',
+          resources: new Set(['release']),
+          fetchSpecs: { release: [{ requiredWindowMs: 7 * day }] },
+        },
+        storage.getStorageHandle(CONNECTOR_ID),
+      );
+
+      const stored = entityStoreFor(storage).get('release') ?? new Map();
+      expect(stored.has('3')).toBe(true);
+      expect(stored.has('1')).toBe(true);
+      expect(stored.has('2')).toBe(false);
+    });
+
+    it('does not drop in-window deployments when created_at is not descending across pages', async () => {
+      const now = Date.now();
+      const page2Url =
+        'https://api.github.com/repos/rawdash/rawdash/deployments?page=2';
+
+      const page1 = [
+        makeDeployment(1, now - 1 * day),
+        makeDeployment(2, now - 10 * day),
+      ];
+      const page2 = [makeDeployment(3, now - 2 * day)];
+
+      installFetchMock((url) => {
+        if (url === page2Url) {
+          return { body: page2 };
+        }
+        if (url.match(/\/deployments(\?|$)/)) {
+          return { body: page1, headers: { link: linkHeader(page2Url) } };
+        }
+        return safeDefaultResponse(url);
+      });
+
+      const storage = new InMemoryStorage();
+      await buildConnector().sync(
+        {
+          mode: 'full',
+          resources: new Set(['deployment']),
+          fetchSpecs: { deployment: [{ requiredWindowMs: 7 * day }] },
+        },
+        storage.getStorageHandle(CONNECTOR_ID),
+      );
+
+      const stored = entityStoreFor(storage).get('deployment') ?? new Map();
+      expect(stored.has('3')).toBe(true);
+      expect(stored.has('1')).toBe(true);
+      expect(stored.has('2')).toBe(false);
     });
   });
 
