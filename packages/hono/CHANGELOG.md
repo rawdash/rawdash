@@ -1,5 +1,12 @@
 # @rawdash/hono
 
+## 0.26.0
+
+### Patch Changes
+
+- @rawdash/core@0.26.0
+- @rawdash/server@0.26.0
+
 ## 0.25.0
 
 ### Minor Changes
