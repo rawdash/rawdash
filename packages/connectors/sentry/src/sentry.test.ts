@@ -530,7 +530,7 @@ describe('SentryConnector.sync', () => {
     expect(typed.filter((s) => s.attributes.project === 'api')).toHaveLength(3);
   });
 
-  it('tolerates stats_v2 groups missing a series (low-activity orgs)', async () => {
+  it('emits explicit zeros for stats_v2 groups missing a series (genuine 0-error windows)', async () => {
     const connector = makeConnector({ resources: ['errors_per_hour'] });
     installRouter((u) => {
       if (u.includes('/stats_v2/')) {
@@ -554,9 +554,52 @@ describe('SentryConnector.sync', () => {
 
     expect(storage.metrics).toHaveBeenCalledTimes(1);
     const [samples] = storage.metrics.mock.calls[0]!;
-    const typed = samples as Array<{ attributes: Record<string, string> }>;
-    expect(typed).toHaveLength(2);
-    expect(typed.every((s) => s.attributes.project === 'api')).toBe(true);
+    const typed = samples as Array<{
+      value: number;
+      attributes: Record<string, string>;
+    }>;
+    expect(typed).toHaveLength(4);
+    const web = typed.filter((s) => s.attributes.project === 'web');
+    expect(web).toHaveLength(2);
+    expect(web.every((s) => s.value === 0)).toBe(true);
+    const api = typed.filter((s) => s.attributes.project === 'api');
+    expect(api.map((s) => s.value)).toEqual([2, 3]);
+  });
+
+  it('requests stats_v2 across all projects (project=-1) when none are configured', async () => {
+    const connector = makeConnector({ resources: ['errors_per_hour'] });
+    const { calls } = installRouter((u) => {
+      if (u.includes('/stats_v2/')) {
+        return { body: { intervals: [], groups: [] } };
+      }
+      return { body: [] };
+    });
+    await connector.sync({ mode: 'full' }, makeStorage());
+
+    const statsCall = calls.find((c) => c.includes('/stats_v2/'));
+    expect(statsCall).toBeDefined();
+    expect(new URL(statsCall!).searchParams.getAll('project')).toEqual(['-1']);
+  });
+
+  it('scopes stats_v2 to configured projects instead of project=-1', async () => {
+    const connector = makeConnector({
+      resources: ['errors_per_hour'],
+      projects: ['web', 'api'],
+    });
+    const { calls } = installRouter((u) => {
+      if (u.includes('/stats_v2/')) {
+        return { body: { intervals: [], groups: [] } };
+      }
+      return { body: [] };
+    });
+    await connector.sync({ mode: 'full' }, makeStorage());
+
+    const statsCall = calls.find((c) => c.includes('/stats_v2/'));
+    expect(statsCall).toBeDefined();
+    expect(new URL(statsCall!).searchParams.getAll('project')).toEqual([
+      'web',
+      'api',
+    ]);
   });
 
   it('applies lastSeen filter in latest mode for issues', async () => {
