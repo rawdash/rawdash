@@ -1,4 +1,3 @@
-import { AuthError, RateLimitError } from '@rawdash/connector-shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -433,7 +432,7 @@ describe('AwsCostConnector.sync', () => {
     const storage = makeStorage();
     await expect(
       makeConnector().sync({ mode: 'full' }, storage),
-    ).rejects.toBeInstanceOf(RateLimitError);
+    ).rejects.toMatchObject({ kind: 'rate_limit' });
   });
 
   it('maps a LimitExceededException (HTTP 400) to a RateLimitError', async () => {
@@ -453,7 +452,7 @@ describe('AwsCostConnector.sync', () => {
     const storage = makeStorage();
     await expect(
       makeConnector().sync({ mode: 'full' }, storage),
-    ).rejects.toBeInstanceOf(RateLimitError);
+    ).rejects.toMatchObject({ kind: 'rate_limit' });
   });
 
   it('maps an AccessDenied error to an AuthError', async () => {
@@ -473,7 +472,7 @@ describe('AwsCostConnector.sync', () => {
     const storage = makeStorage();
     await expect(
       makeConnector().sync({ mode: 'full' }, storage),
-    ).rejects.toBeInstanceOf(AuthError);
+    ).rejects.toMatchObject({ kind: 'auth' });
   });
 });
 
