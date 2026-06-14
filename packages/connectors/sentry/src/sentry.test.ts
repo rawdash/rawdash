@@ -629,6 +629,116 @@ describe('SentryConnector.sync', () => {
     expect(api.map((s) => s.value)).toEqual([2, 3]);
   });
 
+  it('emits samples when intervals is absent but series data is present', async () => {
+    const connector = makeConnector({ resources: ['errors_per_hour'] });
+    installRouter((u) => {
+      if (u.includes('/stats_v2/')) {
+        return {
+          body: {
+            start: '2024-05-01T00:00:00.000Z',
+            end: '2024-05-01T03:00:00.000Z',
+            groups: [
+              {
+                by: { project: 'web' },
+                series: { 'sum(quantity)': [10, 20, 30] },
+              },
+            ],
+          },
+        };
+      }
+      return { body: [] };
+    });
+    const storage = makeStorage();
+    await connector.sync({ mode: 'full' }, storage);
+
+    expect(storage.metrics).toHaveBeenCalledTimes(1);
+    const [samples] = storage.metrics.mock.calls[0]!;
+    const typed = samples as Array<{
+      name: string;
+      ts: number;
+      value: number;
+      attributes: Record<string, string>;
+    }>;
+    expect(typed).toHaveLength(3);
+    expect(typed.map((s) => s.value)).toEqual([10, 20, 30]);
+    expect(typed.every((s) => s.name === 'sentry_errors_per_hour')).toBe(true);
+    expect(typed.every((s) => s.attributes.project === 'web')).toBe(true);
+    expect(typed[0]!.ts).toBe(new Date('2024-05-01T00:00:00.000Z').getTime());
+    expect(typed[1]!.ts).toBe(new Date('2024-05-01T01:00:00.000Z').getTime());
+  });
+
+  it('emits explicit zeros when intervals absent and series is all zeros', async () => {
+    const connector = makeConnector({ resources: ['errors_per_hour'] });
+    installRouter((u) => {
+      if (u.includes('/stats_v2/')) {
+        return {
+          body: {
+            start: '2024-05-01T00:00:00.000Z',
+            end: '2024-05-01T02:00:00.000Z',
+            groups: [
+              {
+                by: { project: 'web' },
+                series: { 'sum(quantity)': [0, 0] },
+              },
+            ],
+          },
+        };
+      }
+      return { body: [] };
+    });
+    const storage = makeStorage();
+    await connector.sync({ mode: 'full' }, storage);
+
+    expect(storage.metrics).toHaveBeenCalledTimes(1);
+    const [samples] = storage.metrics.mock.calls[0]!;
+    const typed = samples as Array<{
+      value: number;
+      attributes: Record<string, string>;
+    }>;
+    expect(typed).toHaveLength(2);
+    expect(typed.every((s) => s.value === 0)).toBe(true);
+    expect(typed.every((s) => s.attributes.project === 'web')).toBe(true);
+  });
+
+  it('reconstructs intervals from a later group when first group has no series', async () => {
+    const connector = makeConnector({ resources: ['errors_per_hour'] });
+    installRouter((u) => {
+      if (u.includes('/stats_v2/')) {
+        return {
+          body: {
+            start: '2024-05-01T00:00:00.000Z',
+            end: '2024-05-01T02:00:00.000Z',
+            groups: [
+              { by: { project: 'empty-proj' } },
+              {
+                by: { project: 'api' },
+                series: { 'sum(quantity)': [7, 14] },
+              },
+            ],
+          },
+        };
+      }
+      return { body: [] };
+    });
+    const storage = makeStorage();
+    await connector.sync({ mode: 'full' }, storage);
+
+    expect(storage.metrics).toHaveBeenCalledTimes(1);
+    const [samples] = storage.metrics.mock.calls[0]!;
+    const typed = samples as Array<{
+      value: number;
+      attributes: Record<string, string>;
+    }>;
+    expect(typed).toHaveLength(4);
+    const emptyProj = typed.filter(
+      (s) => s.attributes.project === 'empty-proj',
+    );
+    expect(emptyProj).toHaveLength(2);
+    expect(emptyProj.every((s) => s.value === 0)).toBe(true);
+    const api = typed.filter((s) => s.attributes.project === 'api');
+    expect(api.map((s) => s.value)).toEqual([7, 14]);
+  });
+
   it('requests stats_v2 across all projects (project=-1) when none are configured', async () => {
     const connector = makeConnector({ resources: ['errors_per_hour'] });
     const { calls } = installRouter((u) => {

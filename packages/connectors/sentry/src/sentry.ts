@@ -813,7 +813,21 @@ export class SentryConnector extends BaseConnector<
       value: number;
       attributes: Record<string, string | number>;
     }> = [];
-    const intervals = stats.intervals ?? [];
+
+    let intervals = stats.intervals ?? [];
+    if (intervals.length === 0 && stats.start) {
+      const seriesLen = stats.groups.reduce((max, group) => {
+        const len = group.series?.['sum(quantity)']?.length ?? 0;
+        return Math.max(max, len);
+      }, 0);
+      const startMs = parseEpoch(stats.start, 'iso');
+      if (seriesLen > 0 && startMs !== null) {
+        intervals = Array.from({ length: seriesLen }, (_, i) =>
+          new Date(startMs + i * 3_600_000).toISOString(),
+        );
+      }
+    }
+
     for (const group of stats.groups) {
       const project = group.by['project'];
       const projectKey = project !== undefined ? String(project) : 'unknown';
