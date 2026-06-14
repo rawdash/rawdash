@@ -77,5 +77,6 @@ export const connectorLoaders: Record<string, () => Promise<ConnectorClass>> = {
   vercel: () => import('@rawdash/connector-vercel').then((m) => m.default),
   'vertex-ai': () =>
     import('@rawdash/connector-vertex-ai').then((m) => m.default),
+  workos: () => import('@rawdash/connector-workos').then((m) => m.default),
   zendesk: () => import('@rawdash/connector-zendesk').then((m) => m.default),
 };
