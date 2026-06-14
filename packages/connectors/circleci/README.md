@@ -34,9 +34,9 @@ A CircleCI personal API token is required. Tokens authenticate against the v2 RE
 
 ## Resources
 
-- **`circleci_pipeline`** _(entity)_ - CircleCI pipelines with state, trigger, git ref, project slug, and create/update timestamps.
+- **`circleci_pipeline`** _(entity)_ - CircleCI pipelines with state, trigger, git ref, project slug, and created_at. Pipelines are immutable: CircleCI sets updated_at once at creation (always equal to created_at), so the entity carries only created_at.
   - Endpoint: `GET /api/v2/project/{project_slug}/pipeline`
-  - Pipelines are paginated newest-first; the connector stops once it crosses `pipelinesLookbackDays`.
+  - Pipelines are paginated newest-first by created_at; the connector cuts off and watermarks on created_at and stops once it crosses `pipelinesLookbackDays`. A page is only treated as the last when its oldest (final) item crosses the cutoff, so an out-of-order old pipeline mid-page never halts pagination.
 - **`circleci_workflow`** _(entity)_ - Workflows belonging to each pipeline, including status, name, and start/stop timestamps. Fetched per pipeline with one extra API call.
   - Endpoint: `GET /api/v2/pipeline/{pipeline_id}/workflow`
 - **`circleci_job`** _(entity)_ - Jobs belonging to each workflow, including status, type, and start/stop timestamps. Off by default; enable via `resources` because it adds an API call per workflow.
@@ -88,11 +88,12 @@ export default defineConfig({
 
 ## Rate limits
 
-CircleCI enforces a per-token rate limit of roughly 3,500 requests per hour. The connector paginates pipelines newest-first and fans out one extra request per pipeline for workflows (and one more per workflow for jobs when enabled), so cap `projectSlugs` and `pipelinesLookbackDays` accordingly.
+CircleCI v2 rate-limits per token at roughly 1,000 requests per minute and surfaces the budget via `X-RateLimit-*` response headers (and `Retry-After` on a 429). The shared HTTP layer backs off and retries on 429. The connector paginates pipelines newest-first and fans out one extra request per pipeline for workflows (and one more per workflow for jobs when enabled), so cap `projectSlugs` and `pipelinesLookbackDays` accordingly.
 
 ## Limitations
 
-- CircleCI v2 has no server-side since filter for pipelines, so the connector paginates newest-first and stops once it crosses `pipelinesLookbackDays` (default 30).
+- CircleCI v2 has no server-side since filter for pipelines, so the connector paginates newest-first by `created_at` and stops once it crosses `pipelinesLookbackDays` (default 30).
+- CircleCI pipelines are immutable once created: `updated_at` is set at creation and never changes (it always equals `created_at`), and a re-run surfaces as a new pipeline with a new id and `created_at`. The connector therefore cuts off and watermarks on `created_at`; no completed-pipeline updates are lost.
 - The `jobs` resource is off by default because it adds an extra API call per workflow. Enable it explicitly in `resources` if you need per-job entities.
 - Insights API (pre-aggregated workflow stats) and the self-hosted CircleCI Server are out of scope for v1.
 
