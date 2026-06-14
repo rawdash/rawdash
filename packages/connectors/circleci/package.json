@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-circleci",
-  "version": "0.24.0",
+  "version": "0.25.0",
   "description": "Rawdash connector for CircleCI — pipelines, workflows, jobs, and workflow state-transition events",
   "license": "Apache-2.0",
   "type": "module",

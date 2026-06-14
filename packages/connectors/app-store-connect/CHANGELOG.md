@@ -1,5 +1,13 @@
 # @rawdash/connector-app-store-connect
 
+## 0.25.0
+
+### Patch Changes
+
+- faade33: Fix `app_revenue` undercounting developer proceeds. Apple's Sales and Trends SALES SUMMARY report exposes "Developer Proceeds" per unit, so the total proceeds for a row are the per-unit figure multiplied by Units. The connector previously emitted the bare per-unit value, undercounting every row with more than one unit and recording refund rows (negative units, positive per-unit proceeds) as positive revenue. The revenue sample value is now `Developer Proceeds × Units` (both factors guarded with `Number.isFinite`, row skipped if either is non-finite), so multi-unit rows are fully counted and refunds correctly subtract. Values remain per-currency and are not FX-normalised. The `app_installs` description is clarified to note it counts units across all product types (downloads, updates, redownloads, and in-app-purchase units), filterable by `productTypeIdentifier` for true installs. The sales-report parser now logs a warning naming the missing column(s) and header line before dropping a report, so a future Apple header rename surfaces instead of silently zeroing the metric.
+- Updated dependencies [f99cb16]
+  - @rawdash/core@0.25.0
+
 ## 0.24.0
 
 ### Patch Changes

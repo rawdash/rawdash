@@ -1,5 +1,13 @@
 # @rawdash/connector-aws-bedrock
 
+## 0.25.0
+
+### Patch Changes
+
+- 8315556: Clamp the CloudWatch metric window to CloudWatch's period-based retention floor and classify Cost Explorer rate-limit throttles. CloudWatch returns no GetMetricData points older than the retention floor for a given period (period < 300s keeps 15 days, < 3600s keeps 63 days, otherwise 455 days), so a short `granularitySeconds` over a long `lookbackDays` (or a far-back `since`) previously left a silent gap and requested points AWS never returns. `getBedrockWindow` now clamps the effective start to the retention floor for the configured period and logs a truncation when the requested window was cut; the defaults (86400s period, 30-day lookback) are unaffected. The Cost Explorer error mapping now treats `LimitExceeded`/`LimitExceededException` (the Cost Explorer request-rate throttle, returned as HTTP 400) as a retryable rate-limit error so it is backed off and retried instead of failing the sync. Non-`Complete` GetMetricData result statuses are now logged, and the `since` parsing in `getSpendWindow` is aligned with `getBedrockWindow`.
+- Updated dependencies [f99cb16]
+  - @rawdash/core@0.25.0
+
 ## 0.24.0
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @rawdash/sdk-runtime
 
+## 0.25.0
+
+### Patch Changes
+
+- Updated dependencies [f99cb16]
+  - @rawdash/core@0.25.0
+  - @rawdash/sdk-client@0.25.0
+
 ## 0.24.0
 
 ### Patch Changes
