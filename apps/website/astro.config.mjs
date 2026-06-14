@@ -4,6 +4,7 @@ import { defineConfig } from 'astro/config';
 
 import { fetchPublishedFeedItems } from './src/lib/content-feed';
 import { SECTION_LIST } from './src/lib/sections';
+import { sitemapIndexLastmod } from './src/lib/sitemap-index-lastmod';
 import { buildSitemapLastmod } from './src/lib/sitemap-lastmod';
 
 const feedItems = await fetchPublishedFeedItems();
@@ -91,5 +92,6 @@ export default defineConfig({
       },
       customCss: ['./src/styles/custom.css'],
     }),
+    sitemapIndexLastmod(),
   ],
 });
