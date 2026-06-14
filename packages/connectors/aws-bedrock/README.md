@@ -132,6 +132,7 @@ CloudWatch GetMetricData batches up to 500 queries per call and follows NextToke
 - Cost Explorer does not expose a native modelId dimension; spend is grouped by USAGE_TYPE (e.g. inference input/output tokens per model), and the model identifier is embedded in the usage_type string.
 - Each Cost Explorer query is billed $0.01; a full sync issues one GetCostAndUsage call (plus pagination).
 - A full sync uses lookbackDays; a latest sync uses a trailing window covering the last few periods plus a short Cost Explorer overlap.
+- The CloudWatch metric window is clamped to CloudWatch's period-based retention floor (period < 300s keeps 15 days, < 3600s keeps 63 days, otherwise 455 days), since GetMetricData returns no points older than the floor; shortening granularitySeconds below the lookback range truncates the window and the truncation is logged.
 
 ## Links
 

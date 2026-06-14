@@ -23,6 +23,7 @@ import {
   type ConnectorContext,
   type ConnectorCost,
   type ConnectorDoc,
+  type ConnectorLogger,
   type JSONValue,
   type MetricSample,
   type StorageHandle,
@@ -100,6 +101,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Cost Explorer does not expose a native modelId dimension; spend is grouped by USAGE_TYPE (e.g. inference input/output tokens per model), and the model identifier is embedded in the usage_type string.',
     'Each Cost Explorer query is billed $0.01; a full sync issues one GetCostAndUsage call (plus pagination).',
     'A full sync uses lookbackDays; a latest sync uses a trailing window covering the last few periods plus a short Cost Explorer overlap.',
+    "The CloudWatch metric window is clamped to CloudWatch's period-based retention floor (period < 300s keeps 15 days, < 3600s keeps 63 days, otherwise 455 days), since GetMetricData returns no points older than the floor; shortening granularitySeconds below the lookback range truncates the window and the truncation is logged.",
   ],
 });
 
@@ -119,6 +121,20 @@ const MS_PER_DAY = 86_400_000;
 const DEFAULT_LOOKBACK_DAYS = 30;
 const DEFAULT_GRANULARITY_SECONDS = 86_400;
 const INCREMENTAL_LOOKBACK_DAYS = 3;
+
+const RETENTION_FLOOR_HIGH_RES_MS = 15 * MS_PER_DAY;
+const RETENTION_FLOOR_STANDARD_MS = 63 * MS_PER_DAY;
+const RETENTION_FLOOR_LONG_TERM_MS = 455 * MS_PER_DAY;
+
+function retentionFloorMs(periodSeconds: number): number {
+  if (periodSeconds < 300) {
+    return RETENTION_FLOOR_HIGH_RES_MS;
+  }
+  if (periodSeconds < 3600) {
+    return RETENTION_FLOOR_STANDARD_MS;
+  }
+  return RETENTION_FLOOR_LONG_TERM_MS;
+}
 
 const CE_REGION = 'us-east-1';
 const CE_HOST = 'ce.us-east-1.amazonaws.com';
@@ -525,18 +541,33 @@ export interface BedrockWindow {
 export function getBedrockWindow(
   options: SyncOptions,
   lookbackDays: number,
+  periodSeconds: number,
   now: number = Date.now(),
+  logger?: ConnectorLogger,
 ): BedrockWindow {
   const endMs = now;
-  if (options.since !== undefined) {
-    const sinceMs = parseEpoch(options.since, 'iso');
-    if (sinceMs !== null) {
-      return { startMs: Math.min(sinceMs, endMs), endMs };
-    }
+  let requestedStartMs: number;
+  const sinceMs =
+    options.since !== undefined ? parseEpoch(options.since, 'iso') : null;
+  if (sinceMs !== null) {
+    requestedStartMs = Math.min(sinceMs, endMs);
+  } else {
+    const days =
+      options.mode === 'latest' ? INCREMENTAL_LOOKBACK_DAYS : lookbackDays;
+    requestedStartMs = endMs - days * MS_PER_DAY;
   }
-  const days =
-    options.mode === 'latest' ? INCREMENTAL_LOOKBACK_DAYS : lookbackDays;
-  return { startMs: endMs - days * MS_PER_DAY, endMs };
+  const floorMs = retentionFloorMs(periodSeconds);
+  const earliestRetainedMs = endMs - floorMs;
+  const startMs = Math.max(requestedStartMs, earliestRetainedMs);
+  if (startMs > requestedStartMs) {
+    logger?.warn('window truncated to retention floor', {
+      retentionFloorMs: floorMs,
+      requestedStartMs,
+      effectiveStartMs: startMs,
+      periodSeconds,
+    });
+  }
+  return { startMs, endMs };
 }
 
 export interface SpendWindow {
@@ -549,8 +580,9 @@ export function getSpendWindow(
   lookbackDays: number,
   now: number = Date.now(),
 ): SpendWindow {
-  const sinceMs = options.since !== undefined ? Date.parse(options.since) : NaN;
-  const hasSince = Number.isFinite(sinceMs);
+  const sinceMs =
+    options.since !== undefined ? parseEpoch(options.since, 'iso') : null;
+  const hasSince = sinceMs !== null;
   let days = lookbackDays;
   if (options.mode === 'latest') {
     days = INCREMENTAL_LOOKBACK_DAYS;
@@ -603,7 +635,7 @@ function mapAwsJsonError(err: unknown): unknown {
   const type = extractAwsJsonErrorType(httpError);
   const status = httpError.response?.status ?? 0;
   if (
-    /throttl|TooManyRequests|RequestLimitExceeded/i.test(type) ||
+    /throttl|TooManyRequests|RequestLimitExceeded|LimitExceeded/i.test(type) ||
     status === 429
   ) {
     return new RateLimitError(httpError.message, httpError.response);
@@ -822,6 +854,13 @@ export class AwsBedrockConnector extends BaseAWSConnector<AwsBedrockSettings> {
         const q = queriesById.get(result.id);
         if (q === undefined) {
           continue;
+        }
+        if (result.statusCode !== 'Complete') {
+          this.logger.warn('metric result status not complete', {
+            resource,
+            id: result.id,
+            statusCode: result.statusCode,
+          });
         }
         onResult(q, result);
       }
@@ -1117,7 +1156,13 @@ export class AwsBedrockConnector extends BaseAWSConnector<AwsBedrockSettings> {
     const lookbackDays = this.settings.lookbackDays ?? DEFAULT_LOOKBACK_DAYS;
     const periodSeconds =
       this.settings.granularitySeconds ?? DEFAULT_GRANULARITY_SECONDS;
-    const window = getBedrockWindow(options, lookbackDays);
+    const window = getBedrockWindow(
+      options,
+      lookbackDays,
+      periodSeconds,
+      Date.now(),
+      this.logger,
+    );
 
     const needsModelIds =
       this.phaseActive(options, 'usage') || this.phaseActive(options, 'errors');
