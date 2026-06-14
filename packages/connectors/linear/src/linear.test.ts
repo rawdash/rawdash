@@ -352,6 +352,78 @@ describe('LinearConnector.sync', () => {
     expect(stateEvents[0]!.attributes.toStateId).toBe('s-in-progress');
   });
 
+  it('captures the most recent transitions when history exceeds historyPerIssue', async () => {
+    const connector = new LinearConnector(
+      { resources: ['issues'] },
+      { apiKey: 'lin_api_test' as unknown as { $secret: string } },
+    );
+
+    const total = 12;
+    const fullHistory = Array.from({ length: total }, (_, k) => ({
+      id: `h-${String(k).padStart(2, '0')}`,
+      createdAt: new Date(Date.UTC(2024, 0, 1 + k)).toISOString(),
+      actor: { id: 'user-1' },
+      fromState: { id: `s-${k}`, name: `State ${k}` },
+      toState: { id: `s-${k + 1}`, name: `State ${k + 1}` },
+      fromAssignee: null,
+      toAssignee: null,
+    }));
+
+    const issue = {
+      id: 'issue-1',
+      identifier: 'CORE-7',
+      title: 'Long-lived issue',
+      priority: 2,
+      estimate: null,
+      state: { id: 's-12', name: 'State 12', type: 'started' },
+      assignee: { id: 'user-1' },
+      team: { id: 'team-1' },
+      project: null,
+      cycle: null,
+      labels: { nodes: [] },
+      createdAt: '2024-01-01T00:00:00.000Z',
+      updatedAt: '2024-01-13T00:00:00.000Z',
+      completedAt: null,
+      canceledAt: null,
+      startedAt: null,
+    };
+
+    const { spy } = mockGraphql((call) => {
+      const n = call.variables.historyFirst as number;
+      const nodes = /history\(last:/.test(call.query)
+        ? fullHistory.slice(-n)
+        : /history\(first:/.test(call.query)
+          ? fullHistory.slice(0, n)
+          : fullHistory;
+      return {
+        issues: {
+          nodes: [
+            {
+              ...issue,
+              history: {
+                nodes,
+                pageInfo: { hasNextPage: false, endCursor: null },
+              },
+            },
+          ],
+          pageInfo: { hasNextPage: false, endCursor: null },
+        },
+      };
+    });
+    vi.stubGlobal('fetch', spy);
+
+    const storage = makeStorage();
+    await connector.sync({ mode: 'full' }, storage);
+
+    const historyIds = storage.event.mock.calls
+      .map((c) => c[0] as { name: string; attributes: Record<string, unknown> })
+      .filter((e) => e.name === 'linear_issue_state_change')
+      .map((e) => e.attributes.historyId as string);
+
+    expect(historyIds).toContain('h-11');
+    expect(historyIds).not.toContain('h-00');
+  });
+
   it('skips history events with createdAt <= since in latest mode', async () => {
     const connector = new LinearConnector(
       { resources: ['issues'] },
