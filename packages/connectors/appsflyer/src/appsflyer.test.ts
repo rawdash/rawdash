@@ -438,6 +438,22 @@ describe('AppsflyerConnector.sync', () => {
     expect(calls[0]!.url).toContain('currency=USD');
   });
 
+  it('omits an invalid timezone from the URL instead of forwarding it to the API', async () => {
+    const fetchSpy = makeFetch(() => undefined);
+    vi.stubGlobal('fetch', fetchSpy);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await connector({
+      resources: ['install_metrics'],
+      timezone: 'Not/AZone',
+    }).sync({ mode: 'full' }, makeStorage());
+
+    const calls = recordCalls(fetchSpy);
+    expect(calls[0]!.url).not.toContain('timezone=');
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
   it('omits timezone and currency from the URL when not configured', async () => {
     const fetchSpy = makeFetch(() => undefined);
     vi.stubGlobal('fetch', fetchSpy);

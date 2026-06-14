@@ -261,26 +261,34 @@ function startOfUtcDay(ms: number): number {
   return Math.floor(ms / MS_PER_DAY) * MS_PER_DAY;
 }
 
-function startOfDayInTimezone(ms: number, timezone?: string): number {
+export function normalizeTimezone(timezone?: string): string | undefined {
   if (!timezone || timezone === 'preferred') {
-    return startOfUtcDay(ms);
+    return undefined;
   }
   try {
-    const localDate = new Intl.DateTimeFormat('en-CA', {
-      timeZone: timezone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    }).format(new Date(ms));
-    const anchored = isoDateToMs(localDate);
-    return Number.isFinite(anchored) ? anchored : startOfUtcDay(ms);
+    new Intl.DateTimeFormat('en-CA', { timeZone: timezone });
+    return timezone;
   } catch (e) {
     console.warn(
-      `appsflyer: invalid timezone "${timezone}", falling back to UTC for window bucketing`,
+      `appsflyer: invalid timezone "${timezone}", falling back to AppsFlyer's preferred timezone (UTC bucketing, omitted from the request)`,
       e,
     );
+    return undefined;
+  }
+}
+
+function startOfDayInTimezone(ms: number, timezone?: string): number {
+  if (!timezone) {
     return startOfUtcDay(ms);
   }
+  const localDate = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(ms));
+  const anchored = isoDateToMs(localDate);
+  return Number.isFinite(anchored) ? anchored : startOfUtcDay(ms);
 }
 
 export function getWindow(
@@ -426,15 +434,19 @@ export class AppsflyerConnector extends BaseConnector<
     };
   }
 
-  private buildUrl(phase: AppsflyerPhase, window: AppsflyerWindow): string {
+  private buildUrl(
+    phase: AppsflyerPhase,
+    window: AppsflyerWindow,
+    timezone: string | undefined,
+  ): string {
     const url = new URL(
       `${MASTER_API_BASE}/${encodeURIComponent(this.settings.appId)}`,
     );
     url.searchParams.set('from', window.from);
     url.searchParams.set('to', window.to);
     url.searchParams.set('format', 'json');
-    if (this.settings.timezone) {
-      url.searchParams.set('timezone', this.settings.timezone);
+    if (timezone) {
+      url.searchParams.set('timezone', timezone);
     }
     if (this.settings.currency) {
       url.searchParams.set('currency', this.settings.currency);
@@ -455,9 +467,10 @@ export class AppsflyerConnector extends BaseConnector<
   private async fetchPhase(
     phase: AppsflyerPhase,
     window: AppsflyerWindow,
+    timezone: string | undefined,
     signal?: AbortSignal,
   ): Promise<unknown[]> {
-    const url = this.buildUrl(phase, window);
+    const url = this.buildUrl(phase, window, timezone);
     const res = await this.get<{ data?: unknown[] }>(url, {
       resource: phase,
       headers: this.buildHeaders(),
@@ -495,7 +508,8 @@ export class AppsflyerConnector extends BaseConnector<
       ? options.cursor
       : undefined;
     const lookbackDays = this.settings.lookbackDays ?? DEFAULT_LOOKBACK_DAYS;
-    const window = getWindow(options, lookbackDays, this.settings.timezone);
+    const timezone = normalizeTimezone(this.settings.timezone);
+    const window = getWindow(options, lookbackDays, timezone);
 
     const phases = selectActivePhases<AppsflyerResource, AppsflyerPhase>(
       (r) => r,
@@ -509,7 +523,7 @@ export class AppsflyerConnector extends BaseConnector<
       signal,
       logger: this.logger,
       fetchPage: async (phase, _page, sig) => {
-        const items = await this.fetchPhase(phase, window, sig);
+        const items = await this.fetchPhase(phase, window, timezone, sig);
         return { items, next: null };
       },
       writeBatch: async (phase, items, page) => {
