@@ -1,0 +1,7 @@
+---
+'@rawdash/connector-auth0': patch
+---
+
+Switch the `login_events` (logs) phase from offset pagination to checkpoint pagination so a sync is no longer capped at 1000 events. `GET /api/v2/logs` enforces a hard 1000-result ceiling across all offset pages and exposes the checkpoint method beyond it, so the previous `page`/`per_page` loop (capped at 10 pages = 1000 rows) silently dropped every matching event past the 1000th — the primary failure mode for a login/security-events connector. The phase now requests `from=<last log_id>&take=100` and reads pages until the endpoint returns no more rows. Because the checkpoint method ignores `q`, `sort`, and `page`, the event-type filter is applied client-side (as before) and the `since` bound is now enforced client-side too. Incremental runs resume from the last ingested `log_id` (monotonic, never truncates) instead of a caller-supplied `since` + `q=date:` window, so events are no longer skipped between runs.
+
+Relabel `auth0_daily_active_users` in its description as a daily logins/signups activity proxy rather than a count of distinct active users (the metric is unchanged; `GET /api/v2/stats/daily` returns login/signup counts), and drop the parsed-but-never-written `leaked_passwords` field from the daily-stats schema. Loosen `statsLookbackDays` to accept ranges beyond 30 days and correct its description, since the Daily Stats endpoint accepts an arbitrary `from`/`to` range with no documented 30-day maximum.
