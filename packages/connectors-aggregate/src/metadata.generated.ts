@@ -77,6 +77,12 @@ import {
   resources as circleciResources,
 } from '@rawdash/connector-circleci';
 import {
+  configFields as clerkConfigFields,
+  doc as clerkDoc,
+  id as clerkId,
+  resources as clerkResources,
+} from '@rawdash/connector-clerk';
+import {
   configFields as datadogConfigFields,
   doc as datadogDoc,
   id as datadogId,
@@ -388,6 +394,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: circleciDoc,
     configFields: circleciConfigFields,
     resources: circleciResources,
+  },
+  {
+    id: clerkId,
+    packageName: '@rawdash/connector-clerk',
+    doc: clerkDoc,
+    configFields: clerkConfigFields,
+    resources: clerkResources,
   },
   {
     id: datadogId,

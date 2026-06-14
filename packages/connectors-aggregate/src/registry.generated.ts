@@ -23,6 +23,7 @@ export const connectorLoaders: Record<string, () => Promise<ConnectorClass>> = {
     import('@rawdash/connector-bitbucket').then((m) => m.default),
   branch: () => import('@rawdash/connector-branch').then((m) => m.default),
   circleci: () => import('@rawdash/connector-circleci').then((m) => m.default),
+  clerk: () => import('@rawdash/connector-clerk').then((m) => m.default),
   datadog: () => import('@rawdash/connector-datadog').then((m) => m.default),
   'firebase-analytics': () =>
     import('@rawdash/connector-firebase-analytics').then((m) => m.default),
