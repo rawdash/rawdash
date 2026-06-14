@@ -1,6 +1,5 @@
 import type { AstroIntegration } from 'astro';
 import { readFile, writeFile } from 'node:fs/promises';
-import { basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 function maxLastmod(xml: string): string | undefined {
@@ -46,20 +45,27 @@ export function sitemapIndexLastmod(): AstroIntegration {
             continue;
           }
 
-          const fileName = basename(new URL(loc).pathname);
-          if (!childCache.has(fileName)) {
+          let childPath: string;
+          try {
+            childPath = new URL(loc).pathname.replace(/^\/+/, '');
+          } catch {
+            logger.warn(`Skipping invalid child sitemap <loc>: ${loc}`);
+            continue;
+          }
+
+          if (!childCache.has(childPath)) {
             try {
-              const childXml = await readFile(new URL(fileName, dir), 'utf8');
-              childCache.set(fileName, maxLastmod(childXml));
+              const childXml = await readFile(new URL(childPath, dir), 'utf8');
+              childCache.set(childPath, maxLastmod(childXml));
             } catch (error) {
               logger.warn(
-                `Could not read child sitemap ${fileName}: ${(error as Error).message}`,
+                `Could not read child sitemap ${childPath}: ${(error as Error).message}`,
               );
-              childCache.set(fileName, undefined);
+              childCache.set(childPath, undefined);
             }
           }
 
-          const lastmod = childCache.get(fileName);
+          const lastmod = childCache.get(childPath);
           if (!lastmod) {
             continue;
           }
