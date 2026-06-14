@@ -66,6 +66,7 @@ function metricDataXml(
     label: string;
     timestamps: string[];
     values: number[];
+    statusCode?: string;
   }>,
   nextToken?: string,
 ): string {
@@ -76,7 +77,7 @@ function metricDataXml(
         <Label>${r.label}</Label>
         <Timestamps>${r.timestamps.map((t) => `<member>${t}</member>`).join('')}</Timestamps>
         <Values>${r.values.map((v) => `<member>${v}</member>`).join('')}</Values>
-        <StatusCode>Complete</StatusCode>
+        <StatusCode>${r.statusCode ?? 'Complete'}</StatusCode>
       </member>`,
     )
     .join('');
@@ -553,6 +554,47 @@ describe('AwsBedrockConnector.sync retention clamp', () => {
     expect(truncation).toBeDefined();
     expect(truncation!.fields).toMatchObject({
       retentionFloorMs: 15 * DAY_MS,
+    });
+  });
+
+  it('warns when a GetMetricData result status is not Complete', async () => {
+    installFetch((url) => {
+      if (url.startsWith('https://ce.us-east-1')) {
+        return {
+          contentType: 'application/json',
+          body: JSON.stringify({ ResultsByTime: [] }),
+        };
+      }
+      return {
+        body: metricDataXml([
+          {
+            id: 'u0',
+            label: 'Invocations',
+            timestamps: ['2025-01-01T00:00:00Z'],
+            values: [1],
+            statusCode: 'PartialData',
+          },
+        ]),
+      };
+    });
+
+    const { logger, warnings } = recordingLogger();
+    await staticConnector(
+      { modelIds: ['anthropic.claude-3-sonnet-20240229-v1:0'] },
+      logger,
+    ).sync(
+      { mode: 'full', resources: new Set([INVOCATIONS_METRIC]) },
+      new InMemoryStorage().getStorageHandle(CONNECTOR_ID),
+    );
+
+    const warning = warnings.find(
+      (w) => w.event === 'metric result status not complete',
+    );
+    expect(warning).toBeDefined();
+    expect(warning!.fields).toMatchObject({
+      resource: 'usage',
+      id: 'u0',
+      statusCode: 'PartialData',
     });
   });
 
