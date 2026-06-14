@@ -487,6 +487,69 @@ describe('SentryConnector.sync', () => {
     expect(releases[0]!.attributes.projects).toEqual(['web', 'api']);
   });
 
+  it('keys the incremental release window on dateCreated, not dateReleased', async () => {
+    const connector = makeConnector({ resources: ['releases'] });
+    const since = '2024-05-10T00:00:00.000Z';
+    installRouter((u) => {
+      if (u.includes('/releases/') && !u.includes('cursor=page2')) {
+        return {
+          body: [
+            {
+              version: 'r-in-window-released-long-ago',
+              dateCreated: '2024-05-12T00:00:00.000Z',
+              dateReleased: '2024-01-01T00:00:00.000Z',
+              lastEvent: '2024-01-02T00:00:00.000Z',
+              projects: [{ slug: 'web' }],
+            },
+          ],
+          headers: {
+            link: '<https://sentry.io/api/0/organizations/acme/releases/?cursor=page2>; rel="next"; results="true"; cursor="page2"',
+          },
+        };
+      }
+      if (u.includes('cursor=page2')) {
+        return {
+          body: [
+            {
+              version: 'r-on-next-page',
+              dateCreated: '2024-05-11T00:00:00.000Z',
+              dateReleased: null,
+              lastEvent: null,
+              projects: [{ slug: 'web' }],
+            },
+          ],
+        };
+      }
+      return { body: [] };
+    });
+    const storage = makeStorage();
+    await connector.sync({ mode: 'latest', since }, storage);
+
+    const written = storage.entity.mock.calls
+      .map((c) => c[0] as { type: string; id: string })
+      .filter((e) => e.type === 'sentry_release')
+      .map((e) => e.id);
+    expect(written).toEqual([
+      'r-in-window-released-long-ago',
+      'r-on-next-page',
+    ]);
+  });
+
+  it('requests stats_v2 only for accepted error outcomes', async () => {
+    const connector = makeConnector({ resources: ['errors_per_hour'] });
+    const { calls } = installRouter((u) => {
+      if (u.includes('/stats_v2/')) {
+        return { body: { intervals: [], groups: [] } };
+      }
+      return { body: [] };
+    });
+    await connector.sync({ mode: 'full' }, makeStorage());
+
+    const statsCall = calls.find((c) => c.includes('/stats_v2/'));
+    expect(statsCall).toBeDefined();
+    expect(new URL(statsCall!).searchParams.get('outcome')).toBe('accepted');
+  });
+
   it('writes hourly error metrics from stats_v2', async () => {
     const connector = makeConnector({ resources: ['errors_per_hour'] });
     installRouter((u) => {

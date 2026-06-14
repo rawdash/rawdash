@@ -404,7 +404,7 @@ export const sentryResources = defineResources({
   sentry_errors_per_hour: {
     shape: 'metric',
     description:
-      'Hourly count of error events, broken down by project, over the configured lookback window.',
+      'Hourly count of accepted (stored) error events, broken down by project, over the configured lookback window.',
     endpoint: 'GET /api/0/organizations/{organization}/stats_v2/',
     unit: 'errors',
     granularity: '1h',
@@ -580,6 +580,7 @@ export class SentryConnector extends BaseConnector<
       'per_page',
       String(clampPageSize(options.pageSize, RELEASES_PAGE_SIZE)),
     );
+    u.searchParams.set('sort', 'date');
     for (const project of this.settings.projects ?? []) {
       u.searchParams.append('project', project);
     }
@@ -594,6 +595,7 @@ export class SentryConnector extends BaseConnector<
     );
     u.searchParams.set('field', 'sum(quantity)');
     u.searchParams.set('category', 'error');
+    u.searchParams.set('outcome', 'accepted');
     u.searchParams.set('interval', '1h');
     u.searchParams.set('statsPeriod', `${lookback}h`);
     u.searchParams.append('groupBy', 'project');
@@ -673,13 +675,13 @@ export class SentryConnector extends BaseConnector<
     const filtered =
       cutoff !== null
         ? releases.filter((r) => {
-            const ts = new Date(r.dateReleased ?? r.dateCreated).getTime();
+            const ts = new Date(r.dateCreated).getTime();
             return Number.isFinite(ts) ? ts >= cutoff : true;
           })
         : releases;
     const lastRelease = releases.at(-1);
     const lastTs = lastRelease
-      ? new Date(lastRelease.dateReleased ?? lastRelease.dateCreated).getTime()
+      ? new Date(lastRelease.dateCreated).getTime()
       : null;
     const cutoffReached =
       cutoff !== null &&
