@@ -15,6 +15,7 @@ import type {
   StorageHandle,
 } from './connector';
 import type { SyncState } from './engine';
+import { healthStatusFromSyncStatus } from './engine';
 import { dimsKey } from './rollup';
 import type { GetStorageHandleOptions, ServerStorage } from './server-storage';
 import { withAbortSignal } from './storage-handle-guard';
@@ -327,15 +328,16 @@ export class InMemoryStorage implements ServerStorage {
         );
         touch();
       },
+    };
+  }
 
-      getHealth: async (): Promise<ConnectorHealth> => {
-        return {
-          status: 'idle',
-          lastSyncAt: this.lastWriteAt.get(connectorId) ?? null,
-          lastError: null,
-          syncIntervalSeconds: 0,
-        };
-      },
+  async getHealth(connectorId: string): Promise<ConnectorHealth> {
+    const failed = this.syncState.status === 'failed';
+    return {
+      status: healthStatusFromSyncStatus(this.syncState.status),
+      lastSyncAt: this.lastWriteAt.get(connectorId) ?? null,
+      lastError: failed ? this.syncState.lastError : null,
+      syncIntervalSeconds: 0,
     };
   }
 

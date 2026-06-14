@@ -130,6 +130,5 @@ export function withAbortSignal(
           },
         }
       : {}),
-    ...(handle.getHealth ? { getHealth: handle.getHealth.bind(handle) } : {}),
   };
 }

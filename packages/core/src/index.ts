@@ -102,7 +102,11 @@ export type { ResolvedWidgetFormat } from './wire';
 export { currencyScaleFromUnit } from './format';
 
 export type { SyncState, SyncStatus } from './engine';
-export { ACTIVE_SYNC_STATUSES, isSyncActive } from './engine';
+export {
+  ACTIVE_SYNC_STATUSES,
+  healthStatusFromSyncStatus,
+  isSyncActive,
+} from './engine';
 
 export type {
   CachedWidget,
@@ -110,6 +114,7 @@ export type {
   HealthResponse,
   ServerDataSource,
   TriggerSyncResponse,
+  WidgetStatus,
   WidgetSyncState,
   WidgetsListResponse,
 } from './wire';
@@ -168,7 +173,8 @@ export {
   validateConfigMetrics,
 } from './validate-metrics';
 
-export { computeMetric } from './compute';
+export { computeMetric, computeMetricWithStatus } from './compute';
+export type { MetricComputation } from './compute';
 
 export type {
   ConnectorRollupSpecs,

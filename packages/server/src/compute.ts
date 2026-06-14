@@ -1,1 +1,2 @@
-export { computeMetric } from '@rawdash/core';
+export { computeMetric, computeMetricWithStatus } from '@rawdash/core';
+export type { MetricComputation } from '@rawdash/core';
