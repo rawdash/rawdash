@@ -580,6 +580,41 @@ describe('Auth0Connector.sync', () => {
     );
   });
 
+  it('checkpoints on log_id and persists it as logId when it differs from _id', async () => {
+    const fetchSpy = makeFetch((u) => {
+      if (u.includes('/api/v2/logs')) {
+        if (new URL(u).searchParams.get('from')) {
+          return [];
+        }
+        return [
+          {
+            _id: 'mongo_oid_1',
+            log_id: '90020230101000000000000000000001',
+            date: '2024-02-01T00:00:00.000Z',
+            type: 's',
+          },
+        ];
+      }
+      return undefined;
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const storage = makeStorage();
+    await connector(['login_events']).sync({ mode: 'full' }, storage);
+
+    const written = storage.event.mock.calls[0]![0] as {
+      attributes: { logId: string };
+    };
+    expect(written.attributes.logId).toBe('90020230101000000000000000000001');
+
+    const logCalls = recordCalls(fetchSpy).filter((c) =>
+      c.url.includes('/api/v2/logs'),
+    );
+    expect(new URL(logCalls[1]!.url).searchParams.get('from')).toBe(
+      '90020230101000000000000000000001',
+    );
+  });
+
   it('drops logs older than the since bound client-side', async () => {
     const fetchSpy = makeFetch((u) => {
       if (u.includes('/api/v2/logs')) {

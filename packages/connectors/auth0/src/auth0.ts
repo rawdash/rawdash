@@ -603,7 +603,7 @@ export class Auth0Connector extends BaseConnector<
         start_ts: ts,
         end_ts: null,
         attributes: {
-          logId: log._id,
+          logId: this.logCheckpoint(log),
           type: log.type,
           userId: log.user_id ?? null,
           ip: log.ip ?? null,
