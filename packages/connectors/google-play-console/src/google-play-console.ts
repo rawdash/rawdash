@@ -155,6 +155,7 @@ interface MetricPhaseConfig {
   metrics: string[];
   metricName: string;
   primaryMetric: string;
+  responseTag: string;
 }
 
 const METRIC_PHASE_CONFIGS: Record<MetricPhase, MetricPhaseConfig> = {
@@ -163,18 +164,21 @@ const METRIC_PHASE_CONFIGS: Record<MetricPhase, MetricPhaseConfig> = {
     metrics: ['crashRate', 'distinctUsers'],
     metricName: 'gplay_crash_rate_by_day',
     primaryMetric: 'crashRate',
+    responseTag: 'crash_rate',
   },
   anr_rate: {
     metricSet: 'anrRateMetricSet',
     metrics: ['anrRate', 'distinctUsers'],
     metricName: 'gplay_anr_rate_by_day',
     primaryMetric: 'anrRate',
+    responseTag: 'anr_rate',
   },
   errors: {
     metricSet: 'errorCountMetricSet',
     metrics: ['errorReportCount', 'distinctUsers'],
     metricName: 'gplay_error_count_by_day',
     primaryMetric: 'errorReportCount',
+    responseTag: 'errors',
   },
 };
 
@@ -818,7 +822,7 @@ export class GooglePlayConsoleConnector extends BaseConnector<
     }
 
     const res = await this.post<GplayMetricResponse>(url, {
-      resource: cfg.metricSet,
+      resource: cfg.responseTag,
       headers: {
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
