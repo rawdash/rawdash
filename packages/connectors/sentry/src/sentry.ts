@@ -304,7 +304,7 @@ const issueEventResponseSchema = z.array(
     crashFile: z.unknown().nullable().optional(),
     culprit: z.string().optional(),
     'event.type': z.string().optional(),
-    location: z.string().optional(),
+    location: z.string().nullable().optional(),
     metadata: z.unknown().optional(),
     projectID: z.string().optional(),
     tags: z.unknown().optional(),
