@@ -1,7 +1,7 @@
 export {
-  type AzureAuthInput,
+  type EntraAuthInput,
   type TokenCacheEntry,
-  fetchArmAccessToken,
+  fetchEntraAccessToken,
   isTokenFresh,
 } from './auth';
 export { ARM_HOST, isAllowedArmUrl, mapArmError } from './arm';

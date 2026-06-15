@@ -2,9 +2,11 @@ import { BaseConnector, type CredentialsSchema } from '@rawdash/core';
 
 import {
   type TokenCacheEntry,
-  fetchArmAccessToken,
+  fetchEntraAccessToken,
   isTokenFresh,
 } from './auth';
+
+const ARM_SCOPE = 'https://management.azure.com/.default';
 
 export interface BaseAzureSettings {
   tenantId: string;
@@ -32,11 +34,12 @@ export abstract class BaseAzureConnector<
     if (isTokenFresh(this.tokenCache)) {
       return this.tokenCache!.token;
     }
-    this.tokenCache = await fetchArmAccessToken(
+    this.tokenCache = await fetchEntraAccessToken(
       {
         tenantId: this.settings.tenantId,
         clientId: this.settings.clientId,
         clientSecret: this.creds.clientSecret,
+        scope: ARM_SCOPE,
         connectorId: this.id,
       },
       signal,

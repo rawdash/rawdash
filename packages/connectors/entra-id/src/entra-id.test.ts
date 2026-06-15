@@ -219,6 +219,33 @@ describe('EntraIdConnector.sync', () => {
     );
   });
 
+  it('surfaces a failed token mint as a fatal auth error without retrying', async () => {
+    const fetchSpy = vi.fn().mockImplementation((url: string | URL) => {
+      const u = typeof url === 'string' ? url : url.toString();
+      if (u.includes('/oauth2/v2.0/token')) {
+        return Promise.resolve({
+          ok: false,
+          status: 400,
+          statusText: 'Bad Request',
+          headers: new Headers({ 'content-type': 'application/json' }),
+          text: () =>
+            Promise.resolve(JSON.stringify({ error: 'invalid_client' })),
+        } as Response);
+      }
+      return Promise.resolve(jsonResponse({ value: [] }));
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await expect(
+      connector(['users']).sync({ mode: 'full' }, makeStorage()),
+    ).rejects.toMatchObject({ name: 'AuthError' });
+
+    const tokenCalls = recordCalls(fetchSpy).filter((c) =>
+      c.url.includes('/oauth2/v2.0/token'),
+    );
+    expect(tokenCalls).toHaveLength(1);
+  });
+
   it('sends the access token as a bearer authorization header on API calls', async () => {
     const fetchSpy = makeFetch((u) => {
       if (u.includes('/oauth2/v2.0/token')) {

@@ -923,6 +923,9 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
+      '@rawdash/connector-azure-shared':
+        specifier: workspace:*
+        version: link:../azure-shared
       '@rawdash/connector-shared':
         specifier: workspace:*
         version: link:../../connector-shared
