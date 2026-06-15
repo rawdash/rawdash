@@ -10,8 +10,8 @@ const bitbucket = {
   connectorId: 'bitbucket',
   config: {
     workspace: 'my-workspace',
-    username: 'janedoe',
-    appPassword: secret('BITBUCKET_APP_PASSWORD'),
+    email: 'jane@example.com',
+    apiToken: secret('BITBUCKET_API_TOKEN'),
     repoSlugs: ['my-repo'],
   },
 };

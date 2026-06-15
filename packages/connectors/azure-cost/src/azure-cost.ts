@@ -281,7 +281,7 @@ function dimensionAttrKey(dimension: string): string {
 
 function toGrouping(dimension: string): { type: string; name: string } {
   if (dimension.startsWith('TAG:')) {
-    return { type: 'Tag', name: dimension.slice(4) };
+    return { type: 'TagKey', name: dimension.slice(4) };
   }
   return { type: 'Dimension', name: dimension };
 }

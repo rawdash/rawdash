@@ -5,7 +5,7 @@
 [![npm version](https://img.shields.io/npm/v/@rawdash/connector-auth0)](https://www.npmjs.com/package/@rawdash/connector-auth0)
 [![license](https://img.shields.io/npm/l/@rawdash/connector-auth0)](https://github.com/rawdash/rawdash/blob/main/LICENSE)
 
-Sync users, login events, and daily active-user / signup metrics from an Auth0 tenant for identity, sign-up, and failed-login dashboards.
+Sync users, login events, and daily login / signup metrics from an Auth0 tenant for identity, sign-up, and failed-login dashboards.
 
 ## Install
 
@@ -31,7 +31,7 @@ OAuth 2.0 client-credentials flow against a Machine-to-Machine application autho
 | `clientId`          | string | Yes      | Client ID of the Auth0 Machine-to-Machine application authorized to call the Management API.                                                                                         |
 | `clientSecret`      | secret | Yes      | Client secret of the Auth0 Machine-to-Machine application. Stored as a secret.                                                                                                       |
 | `resources`         | array  | No       | Which Auth0 resources to sync. Omit to sync all of them. The M2M application only needs the Management API scopes for the resources listed here (read:users, read:logs, read:stats). |
-| `statsLookbackDays` | number | No       | How many days of daily-active-user / signup stats to refresh on each sync. Defaults to 30 (the maximum the Auth0 Daily Stats endpoint returns).                                      |
+| `statsLookbackDays` | number | No       | How many days of daily logins / signups stats to refresh on each sync. Defaults to 30; the Auth0 Daily Stats endpoint accepts an arbitrary from/to range.                            |
 
 ## Resources
 
@@ -46,14 +46,14 @@ OAuth 2.0 client-credentials flow against a Machine-to-Machine application autho
   - `createdAt`: When the user record was created (Unix ms).
 - **`auth0_login_event`** _(event)_ - Login / authentication events from the Auth0 Logs endpoint. One event per log row of type s (success), f (failure), seacft (token exchange success), or fp (failed change password).
   - Endpoint: `GET /api/v2/logs`
-  - Uses offset pagination (page / per_page) and is capped at the first 1000 events per sync. Incremental syncs filter on date via the q parameter.
+  - Uses checkpoint pagination (from = last seen log_id, take = page size) and reads every page until the endpoint returns no more rows, so a sync is not capped at 1000 events. Incremental syncs resume from the last ingested log_id; the type filter (and any since bound) is applied client-side because the checkpoint method ignores q / sort / page.
   - `logId`: Auth0 log row id.
   - `type`: Auth0 log type (s, f, seacft, fp).
   - `userId`: Auth0 user_id the event belongs to (may be null).
   - `ip`: Source IP of the login attempt.
   - `connection`: Connection name used for the login.
   - `strategy`: Identity provider strategy (e.g. auth0, google-oauth2, samlp).
-- **`auth0_daily_active_users`** _(metric)_ - Daily logins and signups, one sample per day for the configured lookback window (up to 30 days, the Daily Stats endpoint maximum).
+- **`auth0_daily_active_users`** _(metric)_ - Daily login and signup counts from the Auth0 Daily Stats endpoint, one sample per day for the configured lookback window. This is a logins/signups activity proxy, not a count of distinct active users.
   - Endpoint: `GET /api/v2/stats/daily`
   - Unit: count
   - Granularity: 1d
@@ -124,7 +124,7 @@ Auth0 publishes X-RateLimit-Limit / X-RateLimit-Remaining / X-RateLimit-Reset re
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [Auth0 API docs](https://auth0.com/docs/api/management/v2)
 - [GitHub](https://github.com/rawdash/rawdash)
 

@@ -45,12 +45,12 @@ App Store Connect API uses an ES256-signed JWT minted per request from an issuer
   - `bundleId`: Bundle identifier, e.g. com.example.app.
   - `sku`: App SKU set when the app was registered.
   - `primaryLocale`: Primary App Store locale, e.g. en-US.
-- **`app_store_connect_app_installs`** _(metric)_ - Daily installs (units sold or downloaded) aggregated from the SALES SUMMARY report by (date, app, country code, product type). One sample per (day, app, country, productTypeIdentifier).
+- **`app_store_connect_app_installs`** _(metric)_ - Daily units from the SALES SUMMARY report by (date, app, country code, product type). Counts units across ALL product types (paid and free downloads, app updates, redownloads, and in-app-purchase units; refunds appear as negative units), so this is not first-installs - filter by productTypeIdentifier for true installs. One sample per (day, app, country, productTypeIdentifier).
   - Endpoint: `GET /v1/salesReports`
   - Granularity: daily
   - Dimensions: `appId`, `countryCode`, `productTypeIdentifier`
   - Requires a vendor number. Apple delays daily reports by ~24-48 hours; the connector backs off two days from today to avoid empty / partial reports. Reports are gzipped TSV under the hood.
-- **`app_store_connect_app_revenue`** _(metric)_ - Daily developer proceeds aggregated from the SALES SUMMARY report by (date, app, country code, product type). Values are summed across rows that share a currency; rows are emitted per currency.
+- **`app_store_connect_app_revenue`** _(metric)_ - Daily developer proceeds from the SALES SUMMARY report by (date, app, country code, product type). Each sample's value is total proceeds for the row (Apple's per-unit Developer Proceeds multiplied by Units), so multi-unit rows are fully counted and refund rows (negative units) subtract. Values stay in the row's native currency and are NOT FX-normalised; one sample per currency.
   - Endpoint: `GET /v1/salesReports`
   - Unit: native currency (see currency attribute)
   - Granularity: daily
@@ -126,7 +126,7 @@ App Store Connect enforces a 3,600 requests-per-hour quota per team. The shared 
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [Apple API docs](https://developer.apple.com/documentation/appstoreconnectapi)
 - [GitHub](https://github.com/rawdash/rawdash)
 

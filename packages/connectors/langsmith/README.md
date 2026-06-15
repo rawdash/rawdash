@@ -128,7 +128,7 @@ LangSmith applies per-tenant rate limits and returns 429 with Retry-After on ove
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [LangSmith API docs](https://docs.smith.langchain.com/reference)
 - [GitHub](https://github.com/rawdash/rawdash)
 

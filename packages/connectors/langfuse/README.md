@@ -113,7 +113,7 @@ Langfuse Cloud applies per-project rate limits (around 1000 requests/min on paid
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [Langfuse API docs](https://api.reference.langfuse.com)
 - [GitHub](https://github.com/rawdash/rawdash)
 

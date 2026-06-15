@@ -116,7 +116,7 @@ Okta publishes per-endpoint quotas (commonly 600 to 1200 requests/minute on prod
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [Okta API docs](https://developer.okta.com/docs/reference/)
 - [GitHub](https://github.com/rawdash/rawdash)
 

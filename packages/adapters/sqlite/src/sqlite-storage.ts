@@ -1,6 +1,7 @@
 import { type Client, createClient } from '@libsql/client';
 import { LibsqlStorage } from '@rawdash/adapter-libsql';
 import type {
+  ConnectorHealth,
   GetStorageHandleOptions,
   ServerStorage,
   StorageHandle,
@@ -48,6 +49,10 @@ export class SqliteStorage implements ServerStorage {
     options?: GetStorageHandleOptions,
   ): StorageHandle {
     return this.inner.getStorageHandle(connectorId, options);
+  }
+
+  getHealth(connectorId: string): Promise<ConnectorHealth | null> {
+    return this.inner.getHealth(connectorId);
   }
 
   getSyncState(): Promise<SyncState> {

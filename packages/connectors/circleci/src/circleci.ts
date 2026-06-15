@@ -120,9 +120,10 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     ],
   },
   rateLimit:
-    'CircleCI enforces a per-token rate limit of roughly 3,500 requests per hour. The connector paginates pipelines newest-first and fans out one extra request per pipeline for workflows (and one more per workflow for jobs when enabled), so cap `projectSlugs` and `pipelinesLookbackDays` accordingly.',
+    'CircleCI v2 rate-limits per token at roughly 1,000 requests per minute and surfaces the budget via `X-RateLimit-*` response headers (and `Retry-After` on a 429). The shared HTTP layer backs off and retries on 429. The connector paginates pipelines newest-first and fans out one extra request per pipeline for workflows (and one more per workflow for jobs when enabled), so cap `projectSlugs` and `pipelinesLookbackDays` accordingly.',
   limitations: [
-    'CircleCI v2 has no server-side since filter for pipelines, so the connector paginates newest-first and stops once it crosses `pipelinesLookbackDays` (default 30).',
+    'CircleCI v2 has no server-side since filter for pipelines, so the connector paginates newest-first by `created_at` and stops once it crosses `pipelinesLookbackDays` (default 30).',
+    'CircleCI pipelines are immutable once created: `updated_at` is set at creation and never changes (it always equals `created_at`), and a re-run surfaces as a new pipeline with a new id and `created_at`. The connector therefore cuts off and watermarks on `created_at`; no completed-pipeline updates are lost.',
     'The `jobs` resource is off by default because it adds an extra API call per workflow. Enable it explicitly in `resources` if you need per-job entities.',
     'Insights API (pre-aggregated workflow stats) and the self-hosted CircleCI Server are out of scope for v1.',
   ],
@@ -175,7 +176,6 @@ interface CircleCIWorkflow {
   id: string;
   name: string;
   pipeline_id: string;
-  pipeline_number?: number;
   project_slug: string;
   status:
     | 'success'
@@ -191,7 +191,6 @@ interface CircleCIWorkflow {
   created_at: string;
   stopped_at?: string | null;
   started_by?: string | null;
-  tag?: string | null;
 }
 
 interface CircleCIWorkflowsResponse {
@@ -208,7 +207,6 @@ interface CircleCIJob {
   started_at?: string | null;
   stopped_at?: string | null;
   project_slug?: string;
-  dependencies?: string[];
 }
 
 interface CircleCIJobsResponse {
@@ -288,10 +286,10 @@ export const circleciResources = defineResources({
     shape: 'entity',
     filterable: [{ field: 'branch', ops: ['eq'] }],
     description:
-      'CircleCI pipelines with state, trigger, git ref, project slug, and create/update timestamps.',
+      'CircleCI pipelines with state, trigger, git ref, project slug, and created_at. Pipelines are immutable: CircleCI sets updated_at once at creation (always equal to created_at), so the entity carries only created_at.',
     endpoint: 'GET /api/v2/project/{project_slug}/pipeline',
     notes:
-      'Pipelines are paginated newest-first; the connector stops once it crosses `pipelinesLookbackDays`.',
+      'Pipelines are paginated newest-first by created_at; the connector cuts off and watermarks on created_at and stops once it crosses `pipelinesLookbackDays`. A page is only treated as the last when its oldest (final) item crosses the cutoff, so an out-of-order old pipeline mid-page never halts pagination.',
     responses: { pipelines: pipelinesResponseSchema },
   },
   circleci_workflow: {
@@ -580,15 +578,25 @@ export class CircleCIConnector extends BaseConnector<
     const pipelines = res.body.items;
 
     const inWindow: CircleCIPipeline[] = [];
-    let crossedCutoff = false;
     for (const p of pipelines) {
-      const updatedMs = parseEpoch(p.updated_at, 'iso');
-      if (cutoff !== null && updatedMs !== null && updatedMs < cutoff) {
-        crossedCutoff = true;
+      const createdMs = parseEpoch(p.created_at, 'iso');
+      if (createdMs === null) {
+        console.warn(
+          `[connector-circleci] skipping pipeline ${p.id} with unparseable created_at`,
+        );
+        continue;
+      }
+      if (cutoff !== null && createdMs < cutoff) {
         continue;
       }
       inWindow.push(p);
     }
+
+    const lastItem = pipelines[pipelines.length - 1];
+    const lastCreatedMs =
+      lastItem !== undefined ? parseEpoch(lastItem.created_at, 'iso') : null;
+    const lastCrossedCutoff =
+      cutoff !== null && lastCreatedMs !== null && lastCreatedMs < cutoff;
 
     const workflowsBySlug = new Map<string, CircleCIWorkflow[]>();
     const jobsByWorkflow = new Map<string, CircleCIJob[]>();
@@ -616,7 +624,7 @@ export class CircleCIConnector extends BaseConnector<
 
     let next: string | null;
     const nextToken = res.body.next_page_token ?? null;
-    if (nextToken !== null && !crossedCutoff) {
+    if (nextToken !== null && !lastCrossedCutoff) {
       next = this.encodePageCursor({ slug, token: nextToken });
     } else {
       const nextSlug = this.nextSlug(slug);
@@ -639,14 +647,7 @@ export class CircleCIConnector extends BaseConnector<
     const writeEvents = this.isResourceEnabled('pipeline_events');
 
     for (const p of batch.pipelines) {
-      const createdMs = parseEpoch(p.created_at, 'iso');
-      const updatedMs = parseEpoch(p.updated_at, 'iso');
-      if (createdMs === null || updatedMs === null) {
-        console.warn(
-          `[connector-circleci] skipping pipeline ${p.id} with unparseable timestamps`,
-        );
-        continue;
-      }
+      const createdMs = parseEpoch(p.created_at, 'iso')!;
 
       if (writePipelines) {
         await storage.entity({
@@ -663,9 +664,8 @@ export class CircleCIConnector extends BaseConnector<
             triggerType: p.trigger?.type ?? null,
             triggerActor: p.trigger?.actor?.login ?? null,
             createdAt: createdMs,
-            updatedAt: updatedMs,
           },
-          updated_at: updatedMs,
+          updated_at: createdMs,
         });
       }
 
@@ -689,7 +689,7 @@ export class CircleCIConnector extends BaseConnector<
           projectSlug: wf.project_slug,
           name: wf.name,
           status: wf.status,
-          startedBy: wf.started_by ?? null,
+          startedById: wf.started_by ?? null,
           createdAt: wfCreatedMs,
           stoppedAt: wfStoppedMs,
           durationMs,

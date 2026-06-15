@@ -26,3 +26,19 @@ test('dashboard shows correct widget values', async ({ page }) => {
   await expect(page.getByText('42', { exact: true })).toBeVisible();
   await expect(page.locator('span').filter({ hasText: /^15$/ })).toBeVisible();
 });
+
+test('dashboard renders per-widget status (no_data and error)', async ({
+  page,
+}) => {
+  await page.goto('/');
+
+  await expect(page.getByText('Errors Per Hour')).toBeVisible();
+  await expect(page.getByText('No matching data')).toBeVisible();
+
+  await expect(page.getByText('Deploy Frequency')).toBeVisible();
+  await expect(page.getByText('Show details')).toBeVisible();
+  await page.getByText('Show details').click();
+  await expect(
+    page.getByText('connector auth failed: token expired'),
+  ).toBeVisible();
+});

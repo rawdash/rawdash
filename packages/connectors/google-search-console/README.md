@@ -108,7 +108,7 @@ Search Console API quota is 1,200 queries per minute per project (default); 429 
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [Google Search Console API docs](https://developers.google.com/webmaster-tools/v1/api_reference_index)
 - [GitHub](https://github.com/rawdash/rawdash)
 

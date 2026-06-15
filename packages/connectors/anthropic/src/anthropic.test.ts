@@ -160,6 +160,66 @@ describe('AnthropicConnector sync', () => {
     expect(calls.some((u) => u.includes('/cost_report'))).toBe(true);
   });
 
+  it('parses a partial cache_creation / server_tool_use object and writes 0 for the missing fields', async () => {
+    installFetchMockAdvanced((url) => {
+      if (url.includes('/usage_report/messages')) {
+        return {
+          body: {
+            data: [
+              {
+                starting_at: '2026-02-10T00:00:00Z',
+                ending_at: '2026-02-11T00:00:00Z',
+                results: [
+                  {
+                    api_key_id: null,
+                    cache_creation: { ephemeral_1h_input_tokens: 100 },
+                    cache_read_input_tokens: 0,
+                    model: 'claude-opus-4-6',
+                    output_tokens: 10,
+                    server_tool_use: {},
+                    service_tier: 'standard',
+                    uncached_input_tokens: 20,
+                    workspace_id: null,
+                  },
+                ],
+              },
+            ],
+            has_more: false,
+            next_page: null,
+          },
+        };
+      }
+      return { body: { data: [], has_more: false, next_page: null } };
+    });
+
+    const storage = new InMemoryStorage();
+    const result = await makeConnector({
+      resources: [
+        'anthropic_cache_creation_tokens',
+        'anthropic_web_search_requests',
+      ],
+    }).sync({ mode: 'full' }, storage.getStorageHandle(CONNECTOR_ID));
+    expect(result).toEqual({ done: true });
+
+    const metrics = metricStoreFor<{
+      name: string;
+      value: number;
+      attributes: Record<string, unknown>;
+    }>(storage, CONNECTOR_ID);
+
+    const cacheCreation = metrics.find(
+      (m) => m.name === 'anthropic_cache_creation_tokens',
+    )!;
+    expect(cacheCreation.value).toBe(100);
+    expect(cacheCreation.attributes['ephemeral_1h_input_tokens']).toBe(100);
+    expect(cacheCreation.attributes['ephemeral_5m_input_tokens']).toBe(0);
+
+    const webSearch = metrics.find(
+      (m) => m.name === 'anthropic_web_search_requests',
+    )!;
+    expect(webSearch.value).toBe(0);
+  });
+
   it('paginates via has_more / next_page on usage_messages', async () => {
     const responses = [
       {
@@ -386,6 +446,33 @@ describe('buildUsageSamples', () => {
     expect(out.webSearchRequests[0]!.value).toBe(0);
   });
 
+  it('treats a partial cache_creation as zero for the missing ephemeral field', () => {
+    const out = buildUsageSamples([
+      {
+        starting_at: '2026-02-10T00:00:00Z',
+        ending_at: '2026-02-11T00:00:00Z',
+        results: [
+          {
+            api_key_id: null,
+            cache_creation: { ephemeral_1h_input_tokens: 100 },
+            cache_read_input_tokens: 0,
+            model: 'claude-haiku-4-5',
+            output_tokens: 10,
+            server_tool_use: {},
+            service_tier: 'standard',
+            uncached_input_tokens: 20,
+            workspace_id: null,
+          },
+        ],
+      },
+    ]);
+    expect(out.cacheCreationTokens[0]!.value).toBe(100);
+    expect(
+      out.cacheCreationTokens[0]!.attributes!['ephemeral_5m_input_tokens'],
+    ).toBe(0);
+    expect(out.webSearchRequests[0]!.value).toBe(0);
+  });
+
   it('returns empty arrays for empty input', () => {
     expect(buildUsageSamples([])).toEqual({
       inputTokens: [],
@@ -423,6 +510,7 @@ describe('buildCostSamples', () => {
     expect(out[0]!.value).toBeCloseTo(425, 6);
     expect(out[0]!.attributes!['currency']).toBe('USD');
     expect(out[0]!.attributes!['workspace_id']).toBe('wrkspc_A');
+    expect(out[0]!.attributes).not.toHaveProperty('inference_geo');
   });
 
   it('falls back to 0 when the amount is unparseable', () => {

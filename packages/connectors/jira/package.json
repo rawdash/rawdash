@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-jira",
-  "version": "0.24.0",
+  "version": "0.26.0",
   "description": "Rawdash connector for Jira Cloud — issues, status-change events, sprints, projects, and users",
   "license": "Apache-2.0",
   "type": "module",

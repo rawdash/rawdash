@@ -113,7 +113,7 @@ Statuspage rate-limits at roughly 1 request/second per page; this connector pagi
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [Atlassian Statuspage API docs](https://developer.statuspage.io/)
 - [GitHub](https://github.com/rawdash/rawdash)
 

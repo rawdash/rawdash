@@ -136,7 +136,7 @@ Zendesk Support API enforces per-account quotas (default ~700 requests/minute on
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [Zendesk API docs](https://developer.zendesk.com/api-reference/ticketing/introduction/)
 - [GitHub](https://github.com/rawdash/rawdash)
 

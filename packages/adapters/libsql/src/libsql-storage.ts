@@ -1,5 +1,6 @@
 import type { Client, InValue } from '@libsql/client/web';
 import type {
+  ConnectorHealth,
   Distribution,
   DistributionQuery,
   Edge,
@@ -20,7 +21,11 @@ import type {
   StorageHandle,
   SyncState,
 } from '@rawdash/core';
-import { dimsKey, withAbortSignal } from '@rawdash/core';
+import {
+  dimsKey,
+  healthStatusFromSyncStatus,
+  withAbortSignal,
+} from '@rawdash/core';
 import { type CompiledQuery, type Insertable, Kysely, sql } from 'kysely';
 import { LibsqlDialect } from 'kysely-libsql';
 
@@ -704,6 +709,19 @@ export class LibsqlStorage implements ServerStorage {
           )
           .execute();
       },
+    };
+  }
+
+  async getHealth(_connectorId: string): Promise<ConnectorHealth | null> {
+    const sync = await this.getSyncState();
+    if (sync.status !== 'failed') {
+      return null;
+    }
+    return {
+      status: healthStatusFromSyncStatus(sync.status),
+      lastSyncAt: sync.lastSyncAt,
+      lastError: sync.lastError,
+      syncIntervalSeconds: 0,
     };
   }
 

@@ -9,6 +9,7 @@ import {
   type ConnectorContext,
   type ConnectorCost,
   type ConnectorDoc,
+  type ConnectorLogger,
   type CredentialsSchema,
   type FetchPageResult,
   type JSONValue,
@@ -269,7 +270,7 @@ export const appStoreConnectResources = defineResources({
   [APP_INSTALLS_METRIC]: {
     shape: 'metric',
     description:
-      'Daily installs (units sold or downloaded) aggregated from the SALES SUMMARY report by (date, app, country code, product type). One sample per (day, app, country, productTypeIdentifier).',
+      'Daily units from the SALES SUMMARY report by (date, app, country code, product type). Counts units across ALL product types (paid and free downloads, app updates, redownloads, and in-app-purchase units; refunds appear as negative units), so this is not first-installs - filter by productTypeIdentifier for true installs. One sample per (day, app, country, productTypeIdentifier).',
     endpoint: 'GET /v1/salesReports',
     granularity: 'daily',
     notes:
@@ -295,7 +296,7 @@ export const appStoreConnectResources = defineResources({
   [APP_REVENUE_METRIC]: {
     shape: 'metric',
     description:
-      'Daily developer proceeds aggregated from the SALES SUMMARY report by (date, app, country code, product type). Values are summed across rows that share a currency; rows are emitted per currency.',
+      "Daily developer proceeds from the SALES SUMMARY report by (date, app, country code, product type). Each sample's value is total proceeds for the row (Apple's per-unit Developer Proceeds multiplied by Units), so multi-unit rows are fully counted and refund rows (negative units) subtract. Values stay in the row's native currency and are NOT FX-normalised; one sample per currency.",
     endpoint: 'GET /v1/salesReports',
     unit: 'native currency (see currency attribute)',
     granularity: 'daily',
@@ -647,7 +648,7 @@ export class AppStoreConnectConnector extends BaseConnector<
       if (tsv === null || tsv.length === 0) {
         continue;
       }
-      for (const sample of parseSalesReportTsv(tsv, metricName)) {
+      for (const sample of parseSalesReportTsv(tsv, metricName, this.logger)) {
         samples.push(sample);
       }
     }
@@ -816,6 +817,7 @@ export function computeSalesReportDates(
 export function parseSalesReportTsv(
   tsv: string,
   metricName: typeof APP_INSTALLS_METRIC | typeof APP_REVENUE_METRIC,
+  logger?: ConnectorLogger,
 ): MetricSample[] {
   const lines = tsv.split(/\r?\n/u).filter((l) => l.length > 0);
   if (lines.length < 2) {
@@ -832,14 +834,25 @@ export function parseSalesReportTsv(
   const currencyIdx = idx('Currency of Proceeds');
   const productTypeIdx = idx('Product Type Identifier');
 
-  if (
-    beginDateIdx === -1 ||
-    appleIdIdx === -1 ||
-    countryIdx === -1 ||
-    (metricName === APP_INSTALLS_METRIC && unitsIdx === -1) ||
-    (metricName === APP_REVENUE_METRIC &&
-      (proceedsIdx === -1 || currencyIdx === -1))
-  ) {
+  const required: Array<[string, number]> = [
+    ['Begin Date', beginDateIdx],
+    ['Apple Identifier', appleIdIdx],
+    ['Country Code', countryIdx],
+    ['Units', unitsIdx],
+  ];
+  if (metricName === APP_REVENUE_METRIC) {
+    required.push(
+      ['Developer Proceeds', proceedsIdx],
+      ['Currency of Proceeds', currencyIdx],
+    );
+  }
+  const missing = required.filter(([, i]) => i === -1).map(([name]) => name);
+  if (missing.length > 0) {
+    logger?.warn('sales report missing required column(s)', {
+      metric: metricName,
+      missing: missing.join(', '),
+      header: lines[0],
+    });
     return [];
   }
 
@@ -871,11 +884,12 @@ export function parseSalesReportTsv(
       };
       samples.push({ name: metricName, ts, value, attributes });
     } else {
-      const raw = row[proceedsIdx]?.trim() ?? '';
-      const value = Number.parseFloat(raw);
-      if (!Number.isFinite(value)) {
+      const proceedsPerUnit = Number.parseFloat(row[proceedsIdx]?.trim() ?? '');
+      const units = Number.parseFloat(row[unitsIdx]?.trim() ?? '');
+      if (!Number.isFinite(proceedsPerUnit) || !Number.isFinite(units)) {
         continue;
       }
+      const value = proceedsPerUnit * units;
       const currency = row[currencyIdx]?.trim() ?? '';
       const attributes: Record<string, JSONValue> = {
         appId,

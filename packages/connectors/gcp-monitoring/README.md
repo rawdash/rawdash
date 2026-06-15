@@ -104,7 +104,7 @@ Cloud Monitoring projects.timeSeries.list is rate-limited per project; 429 / RES
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [Google Cloud API docs](https://cloud.google.com/monitoring/api/v3)
 - [GitHub](https://github.com/rawdash/rawdash)
 

@@ -6,6 +6,7 @@ import {
   mapArmError,
 } from '@rawdash/connector-azure-shared';
 import {
+  type ConnectorLogger,
   type HttpResponse,
   connectorUserAgent,
   parseEpoch,
@@ -474,10 +475,12 @@ export const azureMonitorResources = defineResources({
 // Constants
 // ---------------------------------------------------------------------------
 
-const METRICS_API_VERSION = '2024-02-01';
-const ALERTS_API_VERSION = '2019-05-05-preview';
+const METRICS_API_VERSION = '2023-10-01';
+const ALERTS_API_VERSION = '2019-03-01';
 const DEFAULT_LOOKBACK_MINUTES = 180;
 const MS_PER_MINUTE = 60_000;
+const METRIC_RETENTION_DAYS = 92;
+const MS_PER_DAY = 86_400_000;
 
 const RESOURCE_ORDER: readonly AzureMonitorResource[] = [
   'metric_queries',
@@ -492,6 +495,7 @@ export function computeMetricsTimespan(
   options: SyncOptions,
   lookbackMinutes: number,
   now: number = Date.now(),
+  logger?: ConnectorLogger,
 ): string {
   const endMs = now;
   let startMs: number;
@@ -508,6 +512,16 @@ export function computeMetricsTimespan(
     startMs = endMs - 60 * MS_PER_MINUTE;
   } else {
     startMs = endMs - lookbackMinutes * MS_PER_MINUTE;
+  }
+  const earliestRetainedMs = endMs - METRIC_RETENTION_DAYS * MS_PER_DAY;
+  if (startMs < earliestRetainedMs) {
+    logger?.warn('metrics timespan truncated to retention floor', {
+      resource: 'metrics',
+      retentionDays: METRIC_RETENTION_DAYS,
+      requestedStartMs: startMs,
+      effectiveStartMs: earliestRetainedMs,
+    });
+    startMs = earliestRetainedMs;
   }
   return `${new Date(startMs).toISOString()}/${new Date(endMs).toISOString()}`;
 }
@@ -732,7 +746,12 @@ export class AzureMonitorConnector extends BaseAzureConnector<AzureMonitorSettin
       return true;
     }
     const lookback = this.settings.lookbackMinutes ?? DEFAULT_LOOKBACK_MINUTES;
-    const timespan = computeMetricsTimespan(options, lookback);
+    const timespan = computeMetricsTimespan(
+      options,
+      lookback,
+      Date.now(),
+      this.logger,
+    );
     const names = new Set<string>(
       queries.map((q) => `${q.metricNamespace}/${q.metric}`),
     );

@@ -104,7 +104,7 @@ Jira Cloud uses cost-based rate limiting; 429 responses with Retry-After are hon
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [Atlassian API docs](https://developer.atlassian.com/cloud/jira/platform/rest/v3/)
 - [GitHub](https://github.com/rawdash/rawdash)
 

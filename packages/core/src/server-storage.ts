@@ -1,4 +1,4 @@
-import type { StorageHandle } from './connector';
+import type { ConnectorHealth, StorageHandle } from './connector';
 import type { SyncState } from './engine';
 
 export interface GetStorageHandleOptions {
@@ -10,6 +10,7 @@ export interface ServerStorage {
     connectorId: string,
     options?: GetStorageHandleOptions,
   ): StorageHandle;
+  getHealth(connectorId: string): Promise<ConnectorHealth | null>;
   getSyncState(): Promise<SyncState>;
   markSyncQueued(): Promise<boolean>;
   markSyncRunning?(): Promise<boolean>;

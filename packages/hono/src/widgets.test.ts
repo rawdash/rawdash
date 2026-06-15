@@ -147,6 +147,24 @@ describe('createWidgetsRouter', () => {
     expect(await second.text()).toBe('');
   });
 
+  it('carries per-widget status through the response payload', async () => {
+    const storage = new InMemoryStorage();
+    const app = makeApp(storage);
+    const handle = storage.getStorageHandle(CONNECTOR_ID);
+    await handle.event({
+      name: 'deploy',
+      start_ts: Date.now(),
+      end_ts: null,
+      attributes: {},
+    });
+    await new Promise((r) => setTimeout(r, 5));
+    const res = await app.request('/dashboards/main/widgets/my_widget');
+    expect(res.status).toBe(200);
+    const widget = (await res.json()) as { status: string; data: unknown };
+    expect(widget.data).toBe(0);
+    expect(widget.status).toBe('no_data');
+  });
+
   it('cachedAt is populated after a connector writes data', async () => {
     const storage = new InMemoryStorage();
     const app = makeApp(storage);

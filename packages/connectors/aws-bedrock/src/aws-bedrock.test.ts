@@ -1,5 +1,5 @@
 import { AuthError, RateLimitError } from '@rawdash/connector-shared';
-import { InMemoryStorage } from '@rawdash/core';
+import { type ConnectorLogger, InMemoryStorage } from '@rawdash/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -66,6 +66,7 @@ function metricDataXml(
     label: string;
     timestamps: string[];
     values: number[];
+    statusCode?: string;
   }>,
   nextToken?: string,
 ): string {
@@ -76,7 +77,7 @@ function metricDataXml(
         <Label>${r.label}</Label>
         <Timestamps>${r.timestamps.map((t) => `<member>${t}</member>`).join('')}</Timestamps>
         <Values>${r.values.map((v) => `<member>${v}</member>`).join('')}</Values>
-        <StatusCode>Complete</StatusCode>
+        <StatusCode>${r.statusCode ?? 'Complete'}</StatusCode>
       </member>`,
     )
     .join('');
@@ -90,6 +91,7 @@ function staticConnector(
     lookbackDays?: number;
     granularitySeconds?: number;
   }> = {},
+  logger?: ConnectorLogger,
 ): AwsBedrockConnector {
   return new AwsBedrockConnector(
     {
@@ -97,7 +99,30 @@ function staticConnector(
       ...overrides,
     },
     { accessKeyId: 'AKIDEXAMPLE', secretAccessKey: 'secret' },
+    logger ? { logger } : undefined,
   );
+}
+
+function recordingLogger(): {
+  logger: ConnectorLogger;
+  warnings: Array<{ event: string; fields?: Record<string, unknown> }>;
+} {
+  const warnings: Array<{ event: string; fields?: Record<string, unknown> }> =
+    [];
+  const logger: ConnectorLogger = {
+    info() {},
+    warn(event, fields) {
+      warnings.push({ event, fields });
+    },
+  };
+  return { logger, warnings };
+}
+
+function startTimeFromBody(body: unknown): number {
+  const params = new URLSearchParams(String(body));
+  const startTime = params.get('StartTime');
+  expect(startTime).not.toBeNull();
+  return Date.parse(startTime!);
 }
 
 function metricsFor(
@@ -219,6 +244,38 @@ describe('getBedrockWindow / getSpendWindow', () => {
     const since = '2025-06-01T00:00:00Z';
     const w = getBedrockWindow({ mode: 'full', since }, 30, now);
     expect(w.startMs).toBe(Date.parse(since));
+  });
+
+  it('leaves the legacy three-argument signature behavior unchanged', () => {
+    const w = getBedrockWindow({ mode: 'full' }, 365, now);
+    expect(w.startMs).toBe(now - 365 * 86_400_000);
+  });
+
+  it('clamps the window to the 15-day retention floor for a 60s period', () => {
+    const lookbackDays = 30;
+    const { logger, warnings } = recordingLogger();
+    const w = getBedrockWindow({ mode: 'full' }, lookbackDays, now, 60, logger);
+    expect(w.startMs).toBe(now - 15 * 86_400_000);
+    const truncation = warnings.find(
+      (warn) => warn.event === 'window truncated to retention floor',
+    );
+    expect(truncation).toBeDefined();
+    expect(truncation!.fields).toMatchObject({
+      retentionFloorMs: 15 * 86_400_000,
+      requestedStartMs: now - 30 * 86_400_000,
+      effectiveStartMs: now - 15 * 86_400_000,
+    });
+  });
+
+  it('does not clamp a 3600s period at a 30-day lookback', () => {
+    const { logger, warnings } = recordingLogger();
+    const w = getBedrockWindow({ mode: 'full' }, 30, now, 3600, logger);
+    expect(w.startMs).toBe(now - 30 * 86_400_000);
+    expect(
+      warnings.find(
+        (warn) => warn.event === 'window truncated to retention floor',
+      ),
+    ).toBeUndefined();
   });
 
   it('computes daily start/end dates for the spend window', () => {
@@ -449,6 +506,136 @@ describe('AwsBedrockConnector.sync (static credentials)', () => {
   });
 });
 
+describe('AwsBedrockConnector.sync retention clamp', () => {
+  const DAY_MS = 86_400_000;
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('clamps a 60s-period 30-day sync StartTime to ~15 days and warns', async () => {
+    const spy = installFetch((url) => {
+      if (url.startsWith('https://ce.us-east-1')) {
+        return {
+          contentType: 'application/json',
+          body: JSON.stringify({ ResultsByTime: [] }),
+        };
+      }
+      return { body: metricDataXml([]) };
+    });
+
+    const { logger, warnings } = recordingLogger();
+    const before = Date.now();
+    await staticConnector(
+      {
+        modelIds: ['anthropic.claude-3-sonnet-20240229-v1:0'],
+        lookbackDays: 30,
+        granularitySeconds: 60,
+      },
+      logger,
+    ).sync(
+      { mode: 'full', resources: new Set([INVOCATIONS_METRIC]) },
+      new InMemoryStorage().getStorageHandle(CONNECTOR_ID),
+    );
+    const after = Date.now();
+
+    const monitoringCall = spy.mock.calls.find(([u]) =>
+      String(u).startsWith('https://monitoring.'),
+    );
+    expect(monitoringCall).toBeDefined();
+    const startMs = startTimeFromBody(monitoringCall![1].body);
+    expect(startMs).toBeGreaterThanOrEqual(before - 15 * DAY_MS - 1000);
+    expect(startMs).toBeLessThanOrEqual(after - 15 * DAY_MS + 1000);
+    expect(startMs).toBeGreaterThan(before - 30 * DAY_MS + 10 * DAY_MS);
+
+    const truncation = warnings.find(
+      (w) => w.event === 'window truncated to retention floor',
+    );
+    expect(truncation).toBeDefined();
+    expect(truncation!.fields).toMatchObject({
+      retentionFloorMs: 15 * DAY_MS,
+    });
+  });
+
+  it('warns when a GetMetricData result status is not Complete', async () => {
+    installFetch((url) => {
+      if (url.startsWith('https://ce.us-east-1')) {
+        return {
+          contentType: 'application/json',
+          body: JSON.stringify({ ResultsByTime: [] }),
+        };
+      }
+      return {
+        body: metricDataXml([
+          {
+            id: 'u0',
+            label: 'Invocations',
+            timestamps: ['2025-01-01T00:00:00Z'],
+            values: [1],
+            statusCode: 'PartialData',
+          },
+        ]),
+      };
+    });
+
+    const { logger, warnings } = recordingLogger();
+    await staticConnector(
+      { modelIds: ['anthropic.claude-3-sonnet-20240229-v1:0'] },
+      logger,
+    ).sync(
+      { mode: 'full', resources: new Set([INVOCATIONS_METRIC]) },
+      new InMemoryStorage().getStorageHandle(CONNECTOR_ID),
+    );
+
+    const warning = warnings.find(
+      (w) => w.event === 'metric result status not complete',
+    );
+    expect(warning).toBeDefined();
+    expect(warning!.fields).toMatchObject({
+      resource: 'usage',
+      id: 'u0',
+      statusCode: 'PartialData',
+    });
+  });
+
+  it('does not clamp a 3600s-period 30-day sync', async () => {
+    const spy = installFetch((url) => {
+      if (url.startsWith('https://ce.us-east-1')) {
+        return {
+          contentType: 'application/json',
+          body: JSON.stringify({ ResultsByTime: [] }),
+        };
+      }
+      return { body: metricDataXml([]) };
+    });
+
+    const { logger, warnings } = recordingLogger();
+    const before = Date.now();
+    await staticConnector(
+      {
+        modelIds: ['anthropic.claude-3-sonnet-20240229-v1:0'],
+        lookbackDays: 30,
+        granularitySeconds: 3600,
+      },
+      logger,
+    ).sync(
+      { mode: 'full', resources: new Set([INVOCATIONS_METRIC]) },
+      new InMemoryStorage().getStorageHandle(CONNECTOR_ID),
+    );
+    const after = Date.now();
+
+    const monitoringCall = spy.mock.calls.find(([u]) =>
+      String(u).startsWith('https://monitoring.'),
+    );
+    const startMs = startTimeFromBody(monitoringCall![1].body);
+    expect(startMs).toBeGreaterThanOrEqual(before - 30 * DAY_MS - 1000);
+    expect(startMs).toBeLessThanOrEqual(after - 30 * DAY_MS + 1000);
+    expect(
+      warnings.find((w) => w.event === 'window truncated to retention floor'),
+    ).toBeUndefined();
+  });
+});
+
 describe('AwsBedrockConnector error mapping', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -464,6 +651,28 @@ describe('AwsBedrockConnector error mapping', () => {
         modelIds: ['anthropic.claude-3-sonnet-20240229-v1:0'],
       }).sync(
         { mode: 'full', resources: new Set([INVOCATIONS_METRIC]) },
+        new InMemoryStorage().getStorageHandle(CONNECTOR_ID),
+      ),
+    ).rejects.toMatchObject({ name: RateLimitError.name });
+  });
+
+  it('maps a Cost Explorer LimitExceededException to a RateLimitError', async () => {
+    installFetch((url) => {
+      if (url.startsWith('https://ce.us-east-1')) {
+        return {
+          status: 400,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            __type: 'LimitExceededException',
+            message: 'rate exceeded',
+          }),
+        };
+      }
+      return { body: '<response/>' };
+    });
+    await expect(
+      staticConnector().sync(
+        { mode: 'full', resources: new Set([SPEND_METRIC]) },
         new InMemoryStorage().getStorageHandle(CONNECTOR_ID),
       ),
     ).rejects.toMatchObject({ name: RateLimitError.name });

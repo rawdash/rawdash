@@ -148,7 +148,7 @@ Salesforce caps total API calls per org per 24 hours. Responses include a Sforce
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [Salesforce API docs](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/)
 - [GitHub](https://github.com/rawdash/rawdash)
 

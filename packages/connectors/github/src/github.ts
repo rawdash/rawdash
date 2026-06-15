@@ -275,6 +275,8 @@ interface DeploymentPageItems {
 
 const CONTRIBUTORS_SKIPPED = Symbol('contributors-skipped');
 
+const WORKFLOW_RUN_RERUN_LOOKBACK_MS = 32 * 86_400_000;
+
 function dedupeByKey<T>(
   items: T[],
   keyFn: (item: T) => string,
@@ -598,9 +600,7 @@ export const githubResources = defineResources({
     endpoint: 'GET /repos/{owner}/{repo}/pulls',
     notes:
       'Review state is folded in from GET /repos/{owner}/{repo}/pulls/{number}/reviews per PR.',
-    filterable: [
-      { field: 'state', ops: ['eq'], values: ['open', 'closed', 'merged'] },
-    ],
+    filterable: [{ field: 'state', ops: ['eq'], values: ['open', 'closed'] }],
     responses: {
       pull_requests: pullRequestsSchema,
       pull_request_reviews: reviewsSchema,
@@ -872,8 +872,8 @@ export class GitHubConnector extends BaseConnector<
     const cutoffReached =
       cutoff !== null &&
       lastRun !== undefined &&
-      new Date(lastRun.created_at).getTime() < cutoff &&
-      new Date(lastRun.updated_at).getTime() < cutoff;
+      new Date(lastRun.created_at).getTime() <
+        cutoff - WORKFLOW_RUN_RERUN_LOOKBACK_MS;
 
     return {
       items: filtered,
@@ -936,6 +936,8 @@ export class GitHubConnector extends BaseConnector<
     } else {
       const u = new URL(`https://api.github.com/repos/${owner}/${repo}/issues`);
       u.searchParams.set('state', pushableState(spec.filter) ?? 'all');
+      u.searchParams.set('sort', 'updated');
+      u.searchParams.set('direction', 'asc');
       u.searchParams.set('per_page', '100');
       if (cutoff !== null) {
         u.searchParams.set('since', new Date(cutoff).toISOString());
@@ -980,11 +982,6 @@ export class GitHubConnector extends BaseConnector<
       cutoff !== null
         ? deployments.filter((d) => new Date(d.created_at).getTime() >= cutoff)
         : deployments;
-    const lastDeployment = deployments.at(-1);
-    const cutoffReached =
-      cutoff !== null &&
-      lastDeployment !== undefined &&
-      new Date(lastDeployment.created_at).getTime() < cutoff;
 
     const latestStatusById = new Map<number, GitHubDeploymentStatus | null>();
     if (this.isResourceAllowed(options, 'deployment_statuses')) {
@@ -1002,7 +999,7 @@ export class GitHubConnector extends BaseConnector<
     const items: DeploymentPageItems[] = [
       { deployments: filteredDeployments, latestStatusById },
     ];
-    return { items, next: cutoffReached ? null : nextLink };
+    return { items, next: nextLink };
   }
 
   private async fetchReleases(
@@ -1019,18 +1016,9 @@ export class GitHubConnector extends BaseConnector<
     const releases = res.body;
     const filtered =
       cutoff !== null
-        ? releases.filter((r) => {
-            const ts = new Date(r.published_at ?? r.created_at).getTime();
-            return ts >= cutoff;
-          })
+        ? releases.filter((r) => new Date(r.created_at).getTime() >= cutoff)
         : releases;
-    const lastRelease = releases.at(-1);
-    const cutoffReached =
-      cutoff !== null &&
-      lastRelease !== undefined &&
-      new Date(lastRelease.published_at ?? lastRelease.created_at).getTime() <
-        cutoff;
-    return { items: filtered, next: cutoffReached ? null : nextLink };
+    return { items: filtered, next: nextLink };
   }
 
   private async fetchContributors(

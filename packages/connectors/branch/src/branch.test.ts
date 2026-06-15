@@ -7,6 +7,7 @@ import {
   getWindow,
   installBucketToMetricSample,
   mergeInstallBuckets,
+  splitWindow,
 } from './branch';
 
 describe('configFields', () => {
@@ -82,35 +83,64 @@ describe('getWindow', () => {
   });
 });
 
+describe('splitWindow', () => {
+  it('keeps a <=7-day window as a single segment', () => {
+    const segments = splitWindow({ from: '2025-01-01', to: '2025-01-07' });
+    expect(segments).toEqual([{ from: '2025-01-01', to: '2025-01-07' }]);
+  });
+
+  it('splits a wide window into contiguous <=7-day segments', () => {
+    const segments = splitWindow({ from: '2025-01-01', to: '2025-01-30' });
+    expect(segments).toEqual([
+      { from: '2025-01-01', to: '2025-01-07' },
+      { from: '2025-01-08', to: '2025-01-14' },
+      { from: '2025-01-15', to: '2025-01-21' },
+      { from: '2025-01-22', to: '2025-01-28' },
+      { from: '2025-01-29', to: '2025-01-30' },
+    ]);
+  });
+
+  it('never spans more than 7 days between start and end', () => {
+    const segments = splitWindow({ from: '2025-01-01', to: '2025-03-31' });
+    const MS_PER_DAY = 24 * 60 * 60 * 1000;
+    for (const segment of segments) {
+      const span =
+        (Date.parse(`${segment.to}T00:00:00Z`) -
+          Date.parse(`${segment.from}T00:00:00Z`)) /
+        MS_PER_DAY;
+      expect(span).toBeLessThanOrEqual(7);
+    }
+  });
+});
+
 describe('mergeInstallBuckets', () => {
   it('merges install, open, and event rows into one bucket per (date, channel, campaign)', () => {
     const buckets = mergeInstallBuckets({
       eo_install: [
         {
-          unique_count: 120,
+          timestamp: '2025-01-15T00:00:00.000-08:00',
           result: {
-            timestamp: '2025-01-15T00:00:00Z',
+            unique_count: 120,
             last_attributed_touch_data_tilde_channel: 'facebook',
             last_attributed_touch_data_tilde_campaign: 'summer',
-            cost_in_local_currency: 45,
           },
         },
       ],
       eo_open: [
         {
-          unique_count: 220,
+          timestamp: '2025-01-15T00:00:00.000-08:00',
           result: {
-            timestamp: '2025-01-15T00:00:00Z',
+            unique_count: 220,
             last_attributed_touch_data_tilde_channel: 'facebook',
             last_attributed_touch_data_tilde_campaign: 'summer',
           },
         },
       ],
-      eo_event: [
+      eo_custom_event: [
         {
-          unique_count: 18,
+          timestamp: '2025-01-15T00:00:00.000-08:00',
           result: {
-            timestamp: '2025-01-15T00:00:00Z',
+            unique_count: 18,
             last_attributed_touch_data_tilde_channel: 'facebook',
             last_attributed_touch_data_tilde_campaign: 'summer',
           },
@@ -125,7 +155,6 @@ describe('mergeInstallBuckets', () => {
       installs: 120,
       opens: 220,
       conversions: 18,
-      costEstimated: 45,
     });
   });
 
@@ -133,24 +162,24 @@ describe('mergeInstallBuckets', () => {
     const buckets = mergeInstallBuckets({
       eo_install: [
         {
-          unique_count: 5,
+          timestamp: '2025-01-15',
           result: {
-            timestamp: '2025-01-15',
+            unique_count: 5,
             last_attributed_touch_data_tilde_channel: null,
             last_attributed_touch_data_tilde_campaign: null,
           },
         },
         {
-          unique_count: 50,
+          timestamp: '2025-01-16',
           result: {
-            timestamp: '2025-01-16',
+            unique_count: 50,
             last_attributed_touch_data_tilde_channel: 'organic',
             last_attributed_touch_data_tilde_campaign: null,
           },
         },
       ],
       eo_open: [],
-      eo_event: [],
+      eo_custom_event: [],
     });
     expect(buckets).toHaveLength(2);
     expect(buckets[0]!.date).toBe('2025-01-15');
@@ -168,13 +197,12 @@ describe('installBucketToMetricSample', () => {
       installs: 120,
       opens: 220,
       conversions: 18,
-      costEstimated: 45,
     });
     expect(sample.name).toBe('branch_install_metrics');
     expect(sample.ts).toBe(Date.UTC(2025, 0, 15));
     expect(sample.value).toBe(120);
     expect(sample.attributes['channel']).toBe('facebook');
-    expect(sample.attributes['costEstimated']).toBe(45);
+    expect(sample.attributes['conversions']).toBe(18);
   });
 
   it('returns ts=0 for an unparseable date', () => {
@@ -185,7 +213,6 @@ describe('installBucketToMetricSample', () => {
       installs: 1,
       opens: 0,
       conversions: 0,
-      costEstimated: 0,
     });
     expect(sample.ts).toBe(0);
   });
@@ -194,9 +221,9 @@ describe('installBucketToMetricSample', () => {
 describe('clickRowToEventRecord', () => {
   it('builds a stable bucket key and pins start_ts/end_ts to the day', () => {
     const event = clickRowToEventRecord({
-      unique_count: 250,
+      timestamp: '2025-01-15T00:00:00.000-08:00',
       result: {
-        timestamp: '2025-01-15T00:00:00Z',
+        unique_count: 250,
         last_attributed_touch_data_tilde_channel: 'facebook',
         last_attributed_touch_data_tilde_campaign: 'summer',
         last_attributed_touch_data_tilde_feature: 'sharing',
@@ -213,9 +240,9 @@ describe('clickRowToEventRecord', () => {
 
   it('preserves null channel/campaign/feature in the bucket key', () => {
     const event = clickRowToEventRecord({
-      unique_count: 1,
+      timestamp: '2025-01-15',
       result: {
-        timestamp: '2025-01-15',
+        unique_count: 1,
         last_attributed_touch_data_tilde_channel: null,
         last_attributed_touch_data_tilde_campaign: null,
         last_attributed_touch_data_tilde_feature: null,
@@ -292,9 +319,15 @@ function makeStorage() {
   };
 }
 
-function connector(overrides?: { resources?: string[] }) {
+function connector(overrides?: {
+  resources?: string[];
+  lookbackDays?: number;
+}) {
   return new BranchConnector(
-    { resources: overrides?.resources as never },
+    {
+      resources: overrides?.resources as never,
+      lookbackDays: overrides?.lookbackDays ?? 7,
+    },
     {
       branchKey: 'key_live_xxx',
       branchSecret: 'secret_live_xxx',
@@ -373,7 +406,44 @@ describe('BranchConnector.sync', () => {
     expect(body.aggregation).toBe('unique_count');
   });
 
-  it('makes one request per data source (install, open, event) when install_metrics is enabled', async () => {
+  it('requests no window wider than 7 days', async () => {
+    const fetchSpy = makeFetch(() => undefined);
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await connector({ resources: ['install_metrics'], lookbackDays: 90 }).sync(
+      { mode: 'full' },
+      makeStorage(),
+    );
+
+    const calls = recordCalls(fetchSpy);
+    const MS_PER_DAY = 24 * 60 * 60 * 1000;
+    for (const call of calls) {
+      const body = call.body as { start_date: string; end_date: string };
+      const span =
+        (Date.parse(`${body.end_date}T00:00:00Z`) -
+          Date.parse(`${body.start_date}T00:00:00Z`)) /
+        MS_PER_DAY;
+      expect(span).toBeLessThanOrEqual(7);
+    }
+  });
+
+  it('splits a wide lookback into one call per 7-day segment per data source', async () => {
+    const fetchSpy = makeFetch(() => undefined);
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await connector({ resources: ['install_metrics'], lookbackDays: 30 }).sync(
+      { mode: 'full' },
+      makeStorage(),
+    );
+
+    const calls = recordCalls(fetchSpy);
+    const installSegments = calls.filter(
+      (c) => (c.body as { data_source: string }).data_source === 'eo_install',
+    );
+    expect(installSegments).toHaveLength(5);
+  });
+
+  it('makes one request per data source (install, open, custom_event) for a single segment', async () => {
     const fetchSpy = makeFetch(() => undefined);
     vi.stubGlobal('fetch', fetchSpy);
 
@@ -386,7 +456,7 @@ describe('BranchConnector.sync', () => {
     const dataSources = calls.map(
       (c) => (c.body as { data_source: string }).data_source,
     );
-    expect(dataSources).toEqual(['eo_install', 'eo_open', 'eo_event']);
+    expect(dataSources).toEqual(['eo_install', 'eo_open', 'eo_custom_event']);
   });
 
   it('merges install/open/event results into one metric sample per bucket', async () => {
@@ -396,12 +466,11 @@ describe('BranchConnector.sync', () => {
         return {
           results: [
             {
-              unique_count: 120,
+              timestamp: '2025-01-15T00:00:00.000-08:00',
               result: {
-                timestamp: '2025-01-15',
+                unique_count: 120,
                 last_attributed_touch_data_tilde_channel: 'facebook',
                 last_attributed_touch_data_tilde_campaign: 'summer',
-                cost_in_local_currency: 45,
               },
             },
           ],
@@ -411,9 +480,9 @@ describe('BranchConnector.sync', () => {
         return {
           results: [
             {
-              unique_count: 220,
+              timestamp: '2025-01-15T00:00:00.000-08:00',
               result: {
-                timestamp: '2025-01-15',
+                unique_count: 220,
                 last_attributed_touch_data_tilde_channel: 'facebook',
                 last_attributed_touch_data_tilde_campaign: 'summer',
               },
@@ -421,13 +490,13 @@ describe('BranchConnector.sync', () => {
           ],
         };
       }
-      if (dataSource === 'eo_event') {
+      if (dataSource === 'eo_custom_event') {
         return {
           results: [
             {
-              unique_count: 18,
+              timestamp: '2025-01-15T00:00:00.000-08:00',
               result: {
-                timestamp: '2025-01-15',
+                unique_count: 18,
                 last_attributed_touch_data_tilde_channel: 'facebook',
                 last_attributed_touch_data_tilde_campaign: 'summer',
               },
@@ -457,7 +526,6 @@ describe('BranchConnector.sync', () => {
     expect(first.value).toBe(120);
     expect(first.attributes['opens']).toBe(220);
     expect(first.attributes['conversions']).toBe(18);
-    expect(first.attributes['costEstimated']).toBe(45);
   });
 
   it('writes one event per (date, channel, campaign, feature) click bucket', async () => {
@@ -467,9 +535,9 @@ describe('BranchConnector.sync', () => {
         return {
           results: [
             {
-              unique_count: 250,
+              timestamp: '2025-01-15T00:00:00.000-08:00',
               result: {
-                timestamp: '2025-01-15',
+                unique_count: 250,
                 last_attributed_touch_data_tilde_channel: 'facebook',
                 last_attributed_touch_data_tilde_campaign: 'summer',
                 last_attributed_touch_data_tilde_feature: 'sharing',
@@ -502,6 +570,80 @@ describe('BranchConnector.sync', () => {
     expect(event.attributes['clicks']).toBe(250);
   });
 
+  it('drains every page by following paging.next_url', async () => {
+    const NEXT_URL = 'https://api2.branch.io/v1/query/analytics?after=100';
+    const fetchSpy = vi
+      .fn()
+      .mockImplementation((url: string | URL, init?: RequestInit) => {
+        const u = typeof url === 'string' ? url : url.toString();
+        const body =
+          typeof init?.body === 'string' ? JSON.parse(init.body) : undefined;
+        if ((body as { data_source?: string })?.data_source !== 'eo_click') {
+          return Promise.resolve(jsonResponse({ results: [] }));
+        }
+        if (u === NEXT_URL) {
+          return Promise.resolve(
+            jsonResponse({
+              results: [
+                {
+                  timestamp: '2025-01-16T00:00:00.000-08:00',
+                  result: {
+                    unique_count: 2,
+                    last_attributed_touch_data_tilde_channel: 'organic',
+                    last_attributed_touch_data_tilde_campaign: 'launch',
+                    last_attributed_touch_data_tilde_feature: 'referral',
+                  },
+                },
+              ],
+              paging: { next_url: null },
+            }),
+          );
+        }
+        return Promise.resolve(
+          jsonResponse({
+            results: [
+              {
+                timestamp: '2025-01-15T00:00:00.000-08:00',
+                result: {
+                  unique_count: 1,
+                  last_attributed_touch_data_tilde_channel: 'facebook',
+                  last_attributed_touch_data_tilde_campaign: 'summer',
+                  last_attributed_touch_data_tilde_feature: 'sharing',
+                },
+              },
+            ],
+            paging: { next_url: NEXT_URL },
+          }),
+        );
+      });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const storage = makeStorage();
+    await connector({ resources: ['deep_link_events'] }).sync(
+      { mode: 'full' },
+      storage,
+    );
+
+    const clickCalls = recordCalls(fetchSpy).filter(
+      (c) => (c.body as { data_source?: string })?.data_source === 'eo_click',
+    );
+    expect(clickCalls.map((c) => c.url)).toEqual([
+      'https://api2.branch.io/v1/query/analytics',
+      NEXT_URL,
+    ]);
+    expect(storage.event.mock.calls).toHaveLength(2);
+    const bucketKeys = storage.event.mock.calls.map(
+      (c) =>
+        (c[0] as { attributes: Record<string, unknown> }).attributes[
+          'bucketKey'
+        ],
+    );
+    expect(bucketKeys).toEqual([
+      '2025-01-15|facebook|summer|sharing',
+      '2025-01-16|organic|launch|referral',
+    ]);
+  });
+
   it('honors the resources allowlist (skips deep_link_events when only install_metrics is requested)', async () => {
     const fetchSpy = makeFetch(() => undefined);
     vi.stubGlobal('fetch', fetchSpy);
@@ -528,11 +670,10 @@ describe('BranchConnector.sync', () => {
     );
 
     const calls = recordCalls(fetchSpy);
-    const installCalls = calls.filter(
-      (c) =>
-        (c.body as { data_source: string }).data_source === 'eo_install' ||
-        (c.body as { data_source: string }).data_source === 'eo_open' ||
-        (c.body as { data_source: string }).data_source === 'eo_event',
+    const installCalls = calls.filter((c) =>
+      ['eo_install', 'eo_open', 'eo_custom_event'].includes(
+        (c.body as { data_source: string }).data_source,
+      ),
     );
     expect(installCalls).toHaveLength(0);
     const clickCalls = calls.filter(

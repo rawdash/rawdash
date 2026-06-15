@@ -122,20 +122,33 @@ Returns a JSON object with a `widgets` array:
       "data": { "value": 12 },
       "cachedAt": "2026-04-25T10:00:00.000Z",
       "syncState": "fresh",
+      "status": "ok",
       "meta": { "connectorStatus": "idle" }
     }
   ]
 }
 ```
 
-| Field         | Type                                                          | Description                                                                       |
-| ------------- | ------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `widgetId`    | string                                                        | Widget key from your dashboard config                                             |
-| `connectorId` | string                                                        | ID of the connector that sourced this widget                                      |
-| `data`        | object \| `null`                                              | Computed metric result, or `null` if not yet synced                               |
-| `cachedAt`    | ISO 8601 string \| `null`                                     | Timestamp of the last successful sync (when known) for the underlying connector   |
-| `syncState`   | `"fresh" \| "stale" \| "unsynced" \| "syncing" \| "failing"`  | Optional. Per-widget sync status, derived from connector health                   |
-| `meta`        | object                                                        | Optional. Connector-specific metadata about this widget's data                    |
+| Field          | Type                                                          | Description                                                                       |
+| -------------- | ------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `widgetId`     | string                                                        | Widget key from your dashboard config                                             |
+| `connectorId`  | string                                                        | ID of the connector that sourced this widget                                      |
+| `data`         | object \| `null`                                              | Computed metric result, or `null` if not yet synced                               |
+| `cachedAt`     | ISO 8601 string \| `null`                                     | Timestamp of the last successful sync (when known) for the underlying connector   |
+| `syncState`    | `"fresh" \| "stale" \| "unsynced" \| "syncing" \| "failing"`  | Optional. Per-widget sync freshness, derived from connector health                |
+| `status`       | `"ok" \| "no_data" \| "error"`                               | Optional. The widget's own compute outcome (see below)                            |
+| `errorMessage` | string                                                        | Optional. Present when `status` is `"error"` — the compute or connector error     |
+| `meta`         | object                                                        | Optional. Connector-specific metadata about this widget's data                    |
+
+**`status` vs `syncState`.** `syncState` reflects the *connector's* sync freshness; `status` reflects the *widget's own* compute outcome and is the field to render an error/empty indicator from:
+
+| `status`   | Meaning                                                                                                                                |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `ok`       | The metric resolved against matching rows. A legitimate aggregated `0` (rows existed, summed/counted to zero) is `ok`.                 |
+| `no_data`  | The query matched **zero** underlying rows — distinct from a real `0`. Surfaces silently-empty widgets that would otherwise render `0`. |
+| `error`    | The metric compute threw, or the connector reported a failure (`error`/`auth_failed`, or any `lastError`). See `errorMessage`.         |
+
+Consumers should render a non-`ok` `status` instead of a misleading value — see the OSS `example-nextjs` app for a reference implementation.
 
 ### `GET /dashboards/:dashboardId/widgets/:widgetId`
 

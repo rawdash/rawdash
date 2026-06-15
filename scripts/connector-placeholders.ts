@@ -734,16 +734,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     requestIssue: 'RAW-421',
   },
   {
-    id: 'wiz',
-    name: 'Wiz',
-    category: 'security',
-    tagline:
-      'Sync cloud security findings by severity and remediation progress from Wiz.',
-    brandColor: '#11253E',
-    domain: 'wiz.io',
-    requestIssue: 'RAW-423',
-  },
-  {
     id: 'workos',
     name: 'WorkOS',
     category: 'security',

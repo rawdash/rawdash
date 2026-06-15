@@ -125,30 +125,30 @@ describe('AppsflyerConnector property tests', () => {
 
   it('full sync across all resources matches documented resource shapes', async () => {
     installFetchMock((url) => {
-      if (url.includes('groupings=cohort_date')) {
-        return {
-          data: [
-            {
-              cohort_date: '2025-01-15',
-              af_media_source: 'organic',
-              retained_users_day_1: 1000,
-              retained_users_day_7: 500,
-              retained_users_day_30: 200,
-            },
-          ],
-        };
-      }
-      if (url.includes('groupings=af_date')) {
+      if (url.includes('kpis=retention_day_1')) {
         return {
           data: [
             {
               af_date: '2025-01-15',
-              af_media_source: 'facebook_ads',
-              af_campaign: 'summer',
+              pid: 'organic',
+              retention_day_1: 1000,
+              retention_day_7: 500,
+              retention_day_30: 200,
+            },
+          ],
+        };
+      }
+      if (url.includes('kpis=installs')) {
+        return {
+          data: [
+            {
+              af_date: '2025-01-15',
+              pid: 'facebook_ads',
+              c: 'summer',
               installs: 120,
               cost: 45,
               revenue: 250,
-              conversions: 18,
+              loyal_users: 18,
             },
           ],
         };

@@ -5,7 +5,7 @@
 [![npm version](https://img.shields.io/npm/v/@rawdash/connector-appsflyer)](https://www.npmjs.com/package/@rawdash/connector-appsflyer)
 [![license](https://img.shields.io/npm/l/@rawdash/connector-appsflyer)](https://github.com/rawdash/rawdash/blob/main/LICENSE)
 
-Sync AppsFlyer install attribution metrics (installs, cost, revenue, conversions) and cohort retention from the Master API for mobile paid-acquisition dashboards.
+Sync AppsFlyer install attribution metrics (installs, cost, revenue, loyal users) and retention from the Master API for mobile paid-acquisition dashboards.
 
 ## Install
 
@@ -35,18 +35,18 @@ An AppsFlyer V2.0 API token with Pull/Master API access scoped to the target app
 
 ## Resources
 
-- **`appsflyer_install_metrics`** _(metric)_ - Daily AppsFlyer install metrics bucketed by media source and campaign. Primary value is `installs`; cost, revenue, and conversions are carried as attributes.
+- **`appsflyer_install_metrics`** _(metric)_ - Daily AppsFlyer install metrics bucketed by media source and campaign. Primary value is `installs`; cost, revenue, and loyal users are carried as attributes.
   - Endpoint: `GET /api/master-agg-data/v4/app/{app_id}`
   - Unit: installs
   - Granularity: day
-  - Dimensions: `date`, `mediaSource`, `campaign`, `installs`, `cost`, `revenue`, `conversions`
-  - Master API request uses `groupings=af_date,af_media_source,af_campaign` and `kpis=installs,cost,revenue,conversions`. Rows with missing media source or campaign are recorded as `null` for that attribute.
-- **`appsflyer_retention_metrics`** _(metric)_ - Cohort retention from AppsFlyer, bucketed by cohort date and media source for retention day 1, 7, and 30. Primary value is `retainedUsers`.
+  - Dimensions: `date`, `mediaSource`, `campaign`, `installs`, `cost`, `revenue`, `loyalUsers`
+  - Master API request uses `groupings=af_date,pid,c` (`pid` is the media source, `c` the campaign) and `kpis=installs,cost,revenue,loyal_users`. Rows with missing media source or campaign are recorded as `null` for that attribute.
+- **`appsflyer_retention_metrics`** _(metric)_ - Install-day cohort retention from AppsFlyer, bucketed by install date and media source for retention day 1, 7, and 30. Primary value is `retainedUsers`.
   - Endpoint: `GET /api/master-agg-data/v4/app/{app_id}`
   - Unit: users
   - Granularity: day
   - Dimensions: `cohortDate`, `mediaSource`, `period`, `retainedUsers`
-  - One sample per (cohort*date, media_source, retention period). The Master API exposes retained-users counts under `retained_users_day*<N>` KPIs.
+  - Master API request uses `groupings=af_date,pid` and `kpis=retention_day_1,retention_day_7,retention_day_30` (the Master API treats the install day as the cohort and caps retention at day 30). One sample per (install date, media source, retention period).
 
 ## Example
 
@@ -105,17 +105,18 @@ export default defineConfig({
 
 ## Rate limits
 
-AppsFlyer enforces a per-token daily request budget for the Master/Pull APIs (60 requests/hour, 200/day by default). The connector issues one request per resource per sync and respects 429 + Retry-After backoff via the shared HTTP client.
+The AppsFlyer Master/aggregate API quota is window-dependent: short date ranges (<=2 days) allow roughly 1 request per minute per app per report, while ranges of 3 days or more are capped at roughly 120 requests/day per account and 24/day per app. The connector issues one request per resource per sync and backs off on HTTP 429 via the shared HTTP client (honoring Retry-After when the response provides it).
 
 ## Limitations
 
 - Daily granularity only - the AppsFlyer Master API does not expose sub-daily buckets.
 - Re-attribution and re-engagement KPIs are out of scope (the connector only requests install KPIs to keep the cardinality bounded). Add them in a follow-up if you need them.
-- Cohort retention is fetched at the (media_source, cohort_date) granularity for retention days 1, 7, and 30. Per-campaign cohort retention is intentionally omitted to keep the metric cardinality manageable.
+- Retention uses the Master API install-day cohort (grouped by install date and media source) for retention days 1, 7, and 30 (the Master API caps retention at day 30). True acquisition-date cohorts would require the separate Cohort reporting API, which is out of scope here.
+- AppsFlyer finalizes attribution data 24-48h after the fact. The connector re-fetches a trailing lookback window on every incremental sync and overwrites the metric scope, so late-finalized days are corrected on the next run.
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [AppsFlyer API docs](https://dev.appsflyer.com/hc/reference/master-api)
 - [GitHub](https://github.com/rawdash/rawdash)
 

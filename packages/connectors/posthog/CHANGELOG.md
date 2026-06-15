@@ -1,5 +1,20 @@
 # @rawdash/connector-posthog
 
+## 0.26.0
+
+### Patch Changes
+
+- @rawdash/core@0.26.0
+
+## 0.25.0
+
+### Patch Changes
+
+- f81452a: Update the `active_users` schema to accept the additional PostHog trends-envelope and per-result fields observed upstream (RAW-482).
+- c0412a1: Update the `events_per_day` schema to accept the additional PostHog query-envelope fields observed upstream (RAW-481).
+- Updated dependencies [f99cb16]
+  - @rawdash/core@0.25.0
+
 ## 0.24.0
 
 ### Patch Changes

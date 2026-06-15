@@ -43,7 +43,7 @@ export async function getPublishedProductHubs(): Promise<NavLink[]> {
   const published = await getPublishedPageTypes();
   return PRODUCT_HUB_SECTIONS.filter((section) =>
     published.has(section.pageType),
-  ).map((section) => ({ href: `${section.basePath}/`, label: section.label }));
+  ).map((section) => ({ href: section.basePath, label: section.label }));
 }
 
 export async function hasPublishedSection(

@@ -48,7 +48,7 @@ export const configFields = defineConfigFields(
     historyPerIssue: z.number().int().positive().max(50).optional().meta({
       label: 'History entries per issue',
       description:
-        'How many history entries to pull per issue (newest first). State transitions inside this window become events. Defaults to 8. Higher values pull deeper history but lower the effective issues-per-page, since Linear scores the combined query complexity.',
+        "How many of each issue's most recent history entries to pull. State transitions inside this window become events; an issue gaining more transitions than this between two syncs keeps only its latest. Defaults to 8. Higher values pull deeper history but lower the effective issues-per-page, since Linear scores the combined query complexity.",
       placeholder: '8',
     }),
   }),
@@ -245,7 +245,7 @@ const ISSUES_QUERY = `
         cycle { id }
         labels { nodes { id name } }
         createdAt updatedAt completedAt canceledAt startedAt
-        history(first: $historyFirst) {
+        history(last: $historyFirst) {
           nodes {
             id createdAt
             actor { id }
@@ -398,7 +398,15 @@ export const linearResources = defineResources({
       {
         field: 'stateType',
         ops: ['eq'],
-        values: ['backlog', 'unstarted', 'started', 'completed', 'canceled'],
+        values: [
+          'triage',
+          'backlog',
+          'unstarted',
+          'started',
+          'completed',
+          'canceled',
+          'duplicate',
+        ],
       },
       { field: 'stateName', ops: ['eq'] },
       { field: 'priority', ops: ['eq'], values: [0, 1, 2, 3, 4] },
@@ -415,7 +423,7 @@ export const linearResources = defineResources({
       'State-transition events derived from each issue’s history (from-state to to-state), keyed by the originating actor.',
     endpoint: 'GraphQL query: issues { nodes { history { nodes { ... } } } }',
     notes:
-      'Only history entries with a non-null fromState and toState (where they differ) become events; these append-only events accumulate across incremental syncs.',
+      "Derived from each issue's most recent history entries (the connector pages the history connection backward to capture the latest transitions). Only entries with a non-null fromState and toState that differ become events; these append-only events accumulate across incremental syncs. An issue gaining more transitions than `historyPerIssue` between two syncs keeps only its latest within that window.",
   },
 });
 

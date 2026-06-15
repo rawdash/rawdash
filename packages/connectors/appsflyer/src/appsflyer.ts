@@ -82,7 +82,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
   category: 'marketing',
   brandColor: '#00C2C2',
   tagline:
-    'Sync AppsFlyer install attribution metrics (installs, cost, revenue, conversions) and cohort retention from the Master API for mobile paid-acquisition dashboards.',
+    'Sync AppsFlyer install attribution metrics (installs, cost, revenue, loyal users) and retention from the Master API for mobile paid-acquisition dashboards.',
   vendor: {
     name: 'AppsFlyer',
     domain: 'appsflyer.com',
@@ -100,11 +100,12 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     ],
   },
   rateLimit:
-    'AppsFlyer enforces a per-token daily request budget for the Master/Pull APIs (60 requests/hour, 200/day by default). The connector issues one request per resource per sync and respects 429 + Retry-After backoff via the shared HTTP client.',
+    'The AppsFlyer Master/aggregate API quota is window-dependent: short date ranges (<=2 days) allow roughly 1 request per minute per app per report, while ranges of 3 days or more are capped at roughly 120 requests/day per account and 24/day per app. The connector issues one request per resource per sync and backs off on HTTP 429 via the shared HTTP client (honoring Retry-After when the response provides it).',
   limitations: [
     'Daily granularity only - the AppsFlyer Master API does not expose sub-daily buckets.',
     'Re-attribution and re-engagement KPIs are out of scope (the connector only requests install KPIs to keep the cardinality bounded). Add them in a follow-up if you need them.',
-    'Cohort retention is fetched at the (media_source, cohort_date) granularity for retention days 1, 7, and 30. Per-campaign cohort retention is intentionally omitted to keep the metric cardinality manageable.',
+    'Retention uses the Master API install-day cohort (grouped by install date and media source) for retention days 1, 7, and 30 (the Master API caps retention at day 30). True acquisition-date cohorts would require the separate Cohort reporting API, which is out of scope here.',
+    'AppsFlyer finalizes attribution data 24-48h after the fact. The connector re-fetches a trailing lookback window on every incremental sync and overwrites the metric scope, so late-finalized days are corrected on the next run.',
   ],
 });
 
@@ -154,20 +155,20 @@ const numericLike = z.union([z.number(), z.string(), z.null()]).optional();
 
 const installRowSchema = z.object({
   af_date: isoDateString,
-  af_media_source: z.string().nullish(),
-  af_campaign: z.string().nullish(),
+  pid: z.string().nullish(),
+  c: z.string().nullish(),
   installs: numericLike,
   cost: numericLike,
   revenue: numericLike,
-  conversions: numericLike,
+  loyal_users: numericLike,
 });
 
 const retentionRowSchema = z.object({
-  cohort_date: isoDateString,
-  af_media_source: z.string().nullish(),
-  retained_users_day_1: numericLike,
-  retained_users_day_7: numericLike,
-  retained_users_day_30: numericLike,
+  af_date: isoDateString,
+  pid: z.string().nullish(),
+  retention_day_1: numericLike,
+  retention_day_7: numericLike,
+  retention_day_30: numericLike,
 });
 
 const installResponseSchema = z.object({
@@ -182,14 +183,18 @@ export const appsflyerResources = defineResources({
   [INSTALL_METRIC_NAME]: {
     shape: 'metric',
     description:
-      'Daily AppsFlyer install metrics bucketed by media source and campaign. Primary value is `installs`; cost, revenue, and conversions are carried as attributes.',
+      'Daily AppsFlyer install metrics bucketed by media source and campaign. Primary value is `installs`; cost, revenue, and loyal users are carried as attributes.',
     endpoint: 'GET /api/master-agg-data/v4/app/{app_id}',
     unit: 'installs',
     granularity: 'day',
     notes:
-      'Master API request uses `groupings=af_date,af_media_source,af_campaign` and `kpis=installs,cost,revenue,conversions`. Rows with missing media source or campaign are recorded as `null` for that attribute.',
+      'Master API request uses `groupings=af_date,pid,c` (`pid` is the media source, `c` the campaign) and `kpis=installs,cost,revenue,loyal_users`. Rows with missing media source or campaign are recorded as `null` for that attribute.',
     dimensions: [
-      { name: 'date', description: 'Calendar day of the metric sample (UTC).' },
+      {
+        name: 'date',
+        description:
+          'Calendar day of the metric sample (in the configured timezone, else UTC).',
+      },
       { name: 'mediaSource', description: 'AppsFlyer media source / partner.' },
       { name: 'campaign', description: 'AppsFlyer campaign name.' },
       { name: 'installs', description: 'Attributed installs on the day.' },
@@ -199,8 +204,9 @@ export const appsflyerResources = defineResources({
         description: 'Attributed revenue on the day (cost currency).',
       },
       {
-        name: 'conversions',
-        description: 'Attributed in-app conversion events on the day.',
+        name: 'loyalUsers',
+        description:
+          'Users who reached the AppsFlyer loyal-user threshold on the day.',
       },
     ],
     responses: { install_metrics: installResponseSchema },
@@ -208,25 +214,26 @@ export const appsflyerResources = defineResources({
   [RETENTION_METRIC_NAME]: {
     shape: 'metric',
     description:
-      'Cohort retention from AppsFlyer, bucketed by cohort date and media source for retention day 1, 7, and 30. Primary value is `retainedUsers`.',
+      'Install-day cohort retention from AppsFlyer, bucketed by install date and media source for retention day 1, 7, and 30. Primary value is `retainedUsers`.',
     endpoint: 'GET /api/master-agg-data/v4/app/{app_id}',
     unit: 'users',
     granularity: 'day',
     notes:
-      'One sample per (cohort_date, media_source, retention period). The Master API exposes retained-users counts under `retained_users_day_<N>` KPIs.',
+      'Master API request uses `groupings=af_date,pid` and `kpis=retention_day_1,retention_day_7,retention_day_30` (the Master API treats the install day as the cohort and caps retention at day 30). One sample per (install date, media source, retention period).',
     dimensions: [
       {
         name: 'cohortDate',
-        description: 'Calendar day the cohort was acquired (UTC).',
+        description:
+          'Install day that defines the retention cohort (in the configured timezone, else UTC).',
       },
       { name: 'mediaSource', description: 'AppsFlyer media source / partner.' },
       {
         name: 'period',
-        description: 'Retention day relative to cohort acquisition (1, 7, 30).',
+        description: 'Retention day relative to the install day (1, 7, 30).',
       },
       {
         name: 'retainedUsers',
-        description: 'Users still active on the retention day.',
+        description: 'Users from the cohort still active on the retention day.',
       },
     ],
     responses: { retention_metrics: retentionResponseSchema },
@@ -254,12 +261,43 @@ function startOfUtcDay(ms: number): number {
   return Math.floor(ms / MS_PER_DAY) * MS_PER_DAY;
 }
 
+export function normalizeTimezone(timezone?: string): string | undefined {
+  if (!timezone || timezone === 'preferred') {
+    return undefined;
+  }
+  try {
+    new Intl.DateTimeFormat('en-CA', { timeZone: timezone });
+    return timezone;
+  } catch (e) {
+    console.warn(
+      `appsflyer: invalid timezone "${timezone}", falling back to AppsFlyer's preferred timezone (UTC bucketing, omitted from the request)`,
+      e,
+    );
+    return undefined;
+  }
+}
+
+function startOfDayInTimezone(ms: number, timezone?: string): number {
+  if (!timezone) {
+    return startOfUtcDay(ms);
+  }
+  const localDate = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(ms));
+  const anchored = isoDateToMs(localDate);
+  return Number.isFinite(anchored) ? anchored : startOfUtcDay(ms);
+}
+
 export function getWindow(
   options: SyncOptions,
   lookbackDays: number,
+  timezone?: string,
   now: number = Date.now(),
 ): AppsflyerWindow {
-  const today = startOfUtcDay(now);
+  const today = startOfDayInTimezone(now, timezone);
   if (options.mode === 'latest') {
     return {
       from: toIsoDate(today - (INCREMENTAL_LOOKBACK_DAYS - 1) * MS_PER_DAY),
@@ -271,7 +309,9 @@ export function getWindow(
     if (Number.isFinite(sinceMs)) {
       const requested = Math.max(
         1,
-        Math.ceil((today - startOfUtcDay(sinceMs)) / MS_PER_DAY) + 1,
+        Math.ceil(
+          (today - startOfDayInTimezone(sinceMs, timezone)) / MS_PER_DAY,
+        ) + 1,
       );
       const capped = Math.min(requested, lookbackDays);
       return {
@@ -323,12 +363,12 @@ export function installRowToMetricSample(
     value: installs,
     attributes: {
       date: row.af_date,
-      mediaSource: row.af_media_source ?? null,
-      campaign: row.af_campaign ?? null,
+      mediaSource: row.pid ?? null,
+      campaign: row.c ?? null,
       installs,
       cost: parseNumber(row.cost),
       revenue: parseNumber(row.revenue),
-      conversions: parseNumber(row.conversions),
+      loyalUsers: parseNumber(row.loyal_users),
     },
   };
 }
@@ -336,20 +376,20 @@ export function installRowToMetricSample(
 export function retentionRowToMetricSamples(
   row: AppsflyerRetentionRow,
 ): MetricSample[] {
-  const ts = isoDateToMs(row.cohort_date);
+  const ts = isoDateToMs(row.af_date);
   const safeTs = Number.isFinite(ts) ? ts : 0;
   const valueByPeriod: Record<(typeof RETENTION_PERIODS)[number], number> = {
-    1: parseNumber(row.retained_users_day_1),
-    7: parseNumber(row.retained_users_day_7),
-    30: parseNumber(row.retained_users_day_30),
+    1: parseNumber(row.retention_day_1),
+    7: parseNumber(row.retention_day_7),
+    30: parseNumber(row.retention_day_30),
   };
   return RETENTION_PERIODS.map((period) => ({
     name: RETENTION_METRIC_NAME,
     ts: safeTs,
     value: valueByPeriod[period],
     attributes: {
-      cohortDate: row.cohort_date,
-      mediaSource: row.af_media_source ?? null,
+      cohortDate: row.af_date,
+      mediaSource: row.pid ?? null,
       period,
       retainedUsers: valueByPeriod[period],
     },
@@ -394,27 +434,31 @@ export class AppsflyerConnector extends BaseConnector<
     };
   }
 
-  private buildUrl(phase: AppsflyerPhase, window: AppsflyerWindow): string {
+  private buildUrl(
+    phase: AppsflyerPhase,
+    window: AppsflyerWindow,
+    timezone: string | undefined,
+  ): string {
     const url = new URL(
       `${MASTER_API_BASE}/${encodeURIComponent(this.settings.appId)}`,
     );
     url.searchParams.set('from', window.from);
     url.searchParams.set('to', window.to);
     url.searchParams.set('format', 'json');
-    if (this.settings.timezone) {
-      url.searchParams.set('timezone', this.settings.timezone);
+    if (timezone) {
+      url.searchParams.set('timezone', timezone);
     }
     if (this.settings.currency) {
       url.searchParams.set('currency', this.settings.currency);
     }
     if (phase === 'install_metrics') {
-      url.searchParams.set('groupings', 'af_date,af_media_source,af_campaign');
-      url.searchParams.set('kpis', 'installs,cost,revenue,conversions');
+      url.searchParams.set('groupings', 'af_date,pid,c');
+      url.searchParams.set('kpis', 'installs,cost,revenue,loyal_users');
     } else {
-      url.searchParams.set('groupings', 'cohort_date,af_media_source');
+      url.searchParams.set('groupings', 'af_date,pid');
       url.searchParams.set(
         'kpis',
-        RETENTION_PERIODS.map((p) => `retained_users_day_${p}`).join(','),
+        RETENTION_PERIODS.map((p) => `retention_day_${p}`).join(','),
       );
     }
     return url.toString();
@@ -423,9 +467,10 @@ export class AppsflyerConnector extends BaseConnector<
   private async fetchPhase(
     phase: AppsflyerPhase,
     window: AppsflyerWindow,
+    timezone: string | undefined,
     signal?: AbortSignal,
   ): Promise<unknown[]> {
-    const url = this.buildUrl(phase, window);
+    const url = this.buildUrl(phase, window, timezone);
     const res = await this.get<{ data?: unknown[] }>(url, {
       resource: phase,
       headers: this.buildHeaders(),
@@ -463,7 +508,8 @@ export class AppsflyerConnector extends BaseConnector<
       ? options.cursor
       : undefined;
     const lookbackDays = this.settings.lookbackDays ?? DEFAULT_LOOKBACK_DAYS;
-    const window = getWindow(options, lookbackDays);
+    const timezone = normalizeTimezone(this.settings.timezone);
+    const window = getWindow(options, lookbackDays, timezone);
 
     const phases = selectActivePhases<AppsflyerResource, AppsflyerPhase>(
       (r) => r,
@@ -477,7 +523,7 @@ export class AppsflyerConnector extends BaseConnector<
       signal,
       logger: this.logger,
       fetchPage: async (phase, _page, sig) => {
-        const items = await this.fetchPhase(phase, window, sig);
+        const items = await this.fetchPhase(phase, window, timezone, sig);
         return { items, next: null };
       },
       writeBatch: async (phase, items, page) => {

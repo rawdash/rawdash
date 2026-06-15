@@ -52,17 +52,17 @@ export const configFields = defineConfigFields(
           'Bitbucket Cloud workspace slug (the segment shown in repo URLs after bitbucket.org/).',
         placeholder: 'my-workspace',
       }),
-    username: z.string().min(1).meta({
-      label: 'Atlassian username',
+    email: z.string().min(1).meta({
+      label: 'Atlassian account email',
       description:
-        'Atlassian account username paired with the app password for Basic auth (find it under Personal settings -> Account settings).',
-      placeholder: 'janedoe',
+        'Email address of the Atlassian account that owns the API token. Used as the Basic auth username.',
+      placeholder: 'jane@example.com',
     }),
-    appPassword: z.object({ $secret: z.string() }).meta({
-      label: 'App password',
+    apiToken: z.object({ $secret: z.string() }).meta({
+      label: 'API token',
       description:
-        'Bitbucket app password with `Repositories:Read` and `Pipelines:Read` scopes. Create one at Personal settings -> App passwords.',
-      placeholder: 'ATBB...',
+        'Atlassian API token for the account, granting read access to the workspace repositories and pipelines you want to sync. Create one at https://id.atlassian.com/manage-profile/security/api-tokens.',
+      placeholder: 'ATATT...',
       secret: true,
     }),
     repoSlugs: z
@@ -106,15 +106,15 @@ export const doc: ConnectorDoc = defineConnectorDoc({
   },
   auth: {
     summary:
-      'Authenticates over HTTP Basic auth using an Atlassian account username and a Bitbucket app password. The password is scoped to the projects and repositories the account can already read.',
+      'Authenticates over HTTP Basic auth using an Atlassian account email as the username and an Atlassian API token as the password. The token grants access to the workspaces, repositories, and pipelines the account can already read.',
     setup: [
-      'Open Bitbucket -> Personal settings -> App passwords (https://bitbucket.org/account/settings/app-passwords/).',
-      'Create an app password with `Repositories:Read` and `Pipelines:Read` scopes.',
-      'Store it as a secret and reference it from the connector config as `appPassword: secret("BITBUCKET_APP_PASSWORD")`, alongside your `workspace`, `username`, and the list of `repoSlugs` to sync.',
+      'Open https://id.atlassian.com/manage-profile/security/api-tokens and create an API token for your Atlassian account. If you create a scoped token, include read access to repositories and pipelines.',
+      'Store the token as a secret and reference it from the connector config as `apiToken: secret("BITBUCKET_API_TOKEN")`.',
+      'Set `email` to the Atlassian account email that owns the token, alongside your `workspace` and the list of `repoSlugs` to sync.',
     ],
   },
   rateLimit:
-    'Bitbucket Cloud applies hourly per-IP and per-user limits (around 1,000 requests/hour for app-password auth). Pagination uses a `next` URL in each response and a configurable `pagelen` (capped at 50 here).',
+    'Bitbucket Cloud applies hourly per-IP and per-user limits (around 1,000 requests/hour for API-token Basic auth). Pagination uses a `next` URL in each response and a configurable `pagelen` (capped at 50 here).',
   limitations: [
     'Bitbucket Server / Data Center are out of scope; this connector targets Bitbucket Cloud only.',
     'Pipeline state-transition events are synthesized: one `pipeline_event` is emitted per pipeline lifecycle (created_on to completed_on/updated_on), not one per intermediate state change.',
@@ -135,12 +135,12 @@ export interface BitbucketSettings {
 }
 
 const bitbucketCredentials = {
-  username: {
-    description: 'Atlassian account username',
+  email: {
+    description: 'Atlassian account email',
     auth: 'required' as const,
   },
-  appPassword: {
-    description: 'Bitbucket app password',
+  apiToken: {
+    description: 'Atlassian API token',
     auth: 'required' as const,
   },
 } satisfies CredentialsSchema;
@@ -368,7 +368,7 @@ export const bitbucketResources = defineResources({
     description:
       'Open, merged, declined, and superseded pull requests with author, source/target branches, and close timestamp.',
     endpoint:
-      'GET /2.0/repositories/{workspace}/{repo_slug}/pullrequests?state=OPEN,MERGED,DECLINED,SUPERSEDED',
+      'GET /2.0/repositories/{workspace}/{repo_slug}/pullrequests?state=OPEN&state=MERGED&state=DECLINED&state=SUPERSEDED',
     notes:
       'Paginated newest-first by `updated_on`; the connector stops once a page is entirely older than `options.since`.',
     filterable: [
@@ -412,12 +412,14 @@ interface RepoBatch<T> {
   items: T[];
 }
 
-const PULL_REQUEST_STATES = new Set([
+const PULL_REQUEST_STATE_VALUES = [
   'OPEN',
   'MERGED',
   'DECLINED',
   'SUPERSEDED',
-]);
+] as const;
+
+const PULL_REQUEST_STATES = new Set<string>(PULL_REQUEST_STATE_VALUES);
 
 function pushablePullRequestState(
   filter: FilterClause[] | undefined,
@@ -457,7 +459,7 @@ export class BitbucketConnector extends BaseConnector<
         repoSlugs: parsed.repoSlugs,
         resources: parsed.resources,
       },
-      { username: parsed.username, appPassword: parsed.appPassword },
+      { email: parsed.email, apiToken: parsed.apiToken },
       ctx,
     );
   }
@@ -466,7 +468,7 @@ export class BitbucketConnector extends BaseConnector<
   override readonly credentials = bitbucketCredentials;
 
   private buildHeaders(): Record<string, string> {
-    const basic = btoa(`${this.creds.username}:${this.creds.appPassword}`);
+    const basic = btoa(`${this.creds.email}:${this.creds.apiToken}`);
     return {
       Authorization: `Basic ${basic}`,
       Accept: 'application/json',
@@ -570,11 +572,11 @@ export class BitbucketConnector extends BaseConnector<
     );
     u.searchParams.set('pagelen', String(PAGE_SIZE));
     u.searchParams.set('sort', '-updated_on');
-    u.searchParams.set(
-      'state',
-      pushablePullRequestState(spec?.filter) ??
-        'OPEN,MERGED,DECLINED,SUPERSEDED',
-    );
+    const pushedState = pushablePullRequestState(spec?.filter);
+    const states = pushedState ? [pushedState] : PULL_REQUEST_STATE_VALUES;
+    for (const state of states) {
+      u.searchParams.append('state', state);
+    }
     if (options.since) {
       u.searchParams.set('q', `updated_on >= ${options.since}`);
     }

@@ -1,5 +1,18 @@
 # @rawdash/connector-firebase-crashlytics
 
+## 0.26.0
+
+### Patch Changes
+
+- @rawdash/core@0.26.0
+
+## 0.25.0
+
+### Patch Changes
+
+- Updated dependencies [f99cb16]
+  - @rawdash/core@0.25.0
+
 ## 0.24.0
 
 ### Patch Changes

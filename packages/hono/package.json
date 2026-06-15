@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/hono",
-  "version": "0.24.0",
+  "version": "0.26.0",
   "description": "Hono adapter for rawdash — router factories and helpers that mount @rawdash/server handlers onto a Hono app. Runtime-agnostic (Workers, Node, Bun, Deno).",
   "license": "Apache-2.0",
   "type": "module",

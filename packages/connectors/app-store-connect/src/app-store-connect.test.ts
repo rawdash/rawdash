@@ -195,21 +195,85 @@ describe('parseSalesReportTsv', () => {
     });
   });
 
-  it('emits one revenue sample per row with native currency', () => {
+  it('emits total proceeds (per-unit proceeds times units) per row with native currency', () => {
     const samples = parseSalesReportTsv(
       sampleTsv,
       'app_store_connect_app_revenue',
     );
     expect(samples).toHaveLength(2);
-    expect(samples[0]!.value).toBeCloseTo(7);
+    expect(samples[0]!.value).toBeCloseTo(70);
     expect(samples[0]!.attributes).toMatchObject({
       currency: 'USD',
       countryCode: 'US',
     });
-    expect(samples[1]!.value).toBeCloseTo(2.1);
+    expect(samples[1]!.value).toBeCloseTo(8.4);
     expect(samples[1]!.attributes).toMatchObject({
       currency: 'EUR',
     });
+  });
+
+  it('multiplies developer proceeds by units (5 units at 2.00 yields 10.00)', () => {
+    const tsv = [
+      [
+        'Begin Date',
+        'End Date',
+        'Country Code',
+        'Apple Identifier',
+        'Units',
+        'Developer Proceeds',
+        'Currency of Proceeds',
+        'Product Type Identifier',
+      ].join('\t'),
+      ['12/01/2025', '12/01/2025', 'US', '12345', '5', '2.00', 'USD', '1'].join(
+        '\t',
+      ),
+    ].join('\n');
+    const samples = parseSalesReportTsv(tsv, 'app_store_connect_app_revenue');
+    expect(samples).toHaveLength(1);
+    expect(samples[0]!.value).toBeCloseTo(10);
+  });
+
+  it('subtracts refund rows (negative units) from revenue', () => {
+    const tsv = [
+      [
+        'Begin Date',
+        'End Date',
+        'Country Code',
+        'Apple Identifier',
+        'Units',
+        'Developer Proceeds',
+        'Currency of Proceeds',
+        'Product Type Identifier',
+      ].join('\t'),
+      [
+        '12/01/2025',
+        '12/01/2025',
+        'US',
+        '12345',
+        '-1',
+        '2.00',
+        'USD',
+        '1',
+      ].join('\t'),
+    ].join('\n');
+    const samples = parseSalesReportTsv(tsv, 'app_store_connect_app_revenue');
+    expect(samples).toHaveLength(1);
+    expect(samples[0]!.value).toBeCloseTo(-2);
+  });
+
+  it('warns and drops the report when a required column is missing', () => {
+    const logger = { info: vi.fn(), warn: vi.fn() };
+    const samples = parseSalesReportTsv(
+      'Begin Date\tCountry Code\n12/01/2025\tUS',
+      'app_store_connect_app_installs',
+      logger,
+    );
+    expect(samples).toEqual([]);
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+    const [, fields] = logger.warn.mock.calls[0]!;
+    expect(fields.missing).toContain('Apple Identifier');
+    expect(fields.missing).toContain('Units');
+    expect(fields.header).toBe('Begin Date\tCountry Code');
   });
 
   it('parses MM/DD/YYYY begin dates as UTC midnight', () => {

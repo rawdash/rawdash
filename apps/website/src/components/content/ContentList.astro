@@ -30,7 +30,7 @@ const dateFmt = new Intl.DateTimeFormat('en-US', {
       entries.map((entry) => {
         const date = entry.data.publishedAt ?? entry.data.updatedAt;
         return (
-          <a class="content-card" href={`${basePath}/${entry.data.slug}/`}>
+          <a class="content-card" href={`${basePath}/${entry.data.slug}`}>
             <h2>{entry.data.title}</h2>
             <p>{entry.data.description ?? entry.data.metaDescription}</p>
             <div class="content-card-meta">

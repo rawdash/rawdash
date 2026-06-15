@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connectors",
-  "version": "0.24.0",
+  "version": "0.26.0",
   "description": "Aggregate package bundling every built-in Rawdash connector. Depend on this one package instead of N individual @rawdash/connector-* packages.",
   "license": "Apache-2.0",
   "type": "module",
@@ -82,6 +82,7 @@
     "@rawdash/connector-stripe": "workspace:*",
     "@rawdash/connector-vercel": "workspace:*",
     "@rawdash/connector-vertex-ai": "workspace:*",
+    "@rawdash/connector-wiz": "workspace:*",
     "@rawdash/connector-zendesk": "workspace:*",
     "@rawdash/core": "workspace:*",
     "zod": "^4.4.3"

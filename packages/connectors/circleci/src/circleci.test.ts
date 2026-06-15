@@ -538,6 +538,104 @@ describe('CircleCIConnector.sync', () => {
     expect(pages).toBe(1);
   });
 
+  it('does not drop later in-window pipelines when an out-of-order old pipeline appears mid-page', async () => {
+    const oldIso = new Date(
+      Date.now() - 365 * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    installRouter((u) => {
+      if (u.includes('/pipeline/') && u.includes('/workflow')) {
+        return emptyWorkflowsResponse();
+      }
+      if (u.includes('/project/')) {
+        const token = new URL(u).searchParams.get('page-token');
+        if (token === null) {
+          return {
+            body: {
+              items: [
+                pipelineFixture('pid-recent-1'),
+                pipelineFixture('pid-old', {
+                  created_at: oldIso,
+                  updated_at: oldIso,
+                }),
+                pipelineFixture('pid-recent-2'),
+              ],
+              next_page_token: 'TOK2',
+            },
+          };
+        }
+        return {
+          body: {
+            items: [pipelineFixture('pid-recent-3')],
+            next_page_token: null,
+          },
+        };
+      }
+      return emptyPipelinesResponse();
+    });
+    const storage = makeStorage();
+    await makeConnector({
+      resources: ['pipelines'],
+      pipelinesLookbackDays: 30,
+    }).sync({ mode: 'full' }, storage);
+
+    const written = storage.entity.mock.calls
+      .map((c) => c[0] as { type: string; id: string })
+      .filter((e) => e.type === 'circleci_pipeline')
+      .map((e) => e.id);
+    expect(written).toContain('pid-recent-3');
+    expect(written).not.toContain('pid-old');
+    expect(written).toEqual(
+      expect.arrayContaining(['pid-recent-1', 'pid-recent-2', 'pid-recent-3']),
+    );
+  });
+
+  it('cuts off and watermarks on created_at, not updated_at', async () => {
+    const oldIso = new Date(
+      Date.now() - 365 * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    const recentCreated = new Date(Date.now() - 60_000).toISOString();
+    installRouter((u) => {
+      if (u.includes('/pipeline/') && u.includes('/workflow')) {
+        return emptyWorkflowsResponse();
+      }
+      if (u.includes('/project/')) {
+        return {
+          body: {
+            items: [
+              pipelineFixture('pid-fresh', {
+                created_at: recentCreated,
+                updated_at: oldIso,
+              }),
+            ],
+            next_page_token: null,
+          },
+        };
+      }
+      return emptyPipelinesResponse();
+    });
+    const storage = makeStorage();
+    await makeConnector({
+      resources: ['pipelines'],
+      pipelinesLookbackDays: 30,
+    }).sync({ mode: 'full' }, storage);
+
+    const pipelineCall = storage.entity.mock.calls
+      .map(
+        (c) =>
+          c[0] as {
+            type: string;
+            id: string;
+            updated_at: number;
+            attributes: Record<string, unknown>;
+          },
+      )
+      .find((e) => e.type === 'circleci_pipeline');
+    expect(pipelineCall).toBeDefined();
+    expect(pipelineCall!.id).toBe('pid-fresh');
+    expect(pipelineCall!.updated_at).toBe(Date.parse(recentCreated));
+    expect(pipelineCall!.attributes.createdAt).toBe(Date.parse(recentCreated));
+  });
+
   it('rejects a saved cursor whose slug is not configured', async () => {
     const { calls } = installRouter(() => emptyPipelinesResponse());
     await makeConnector({

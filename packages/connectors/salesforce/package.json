@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-salesforce",
-  "version": "0.24.0",
+  "version": "0.26.0",
   "description": "Rawdash connector for Salesforce — opportunities, stage-change events, accounts, leads, and users",
   "license": "Apache-2.0",
   "type": "module",
