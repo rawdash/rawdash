@@ -10,6 +10,8 @@ export type WidgetSyncState =
   | 'syncing'
   | 'failing';
 
+export type WidgetStatus = 'ok' | 'no_data' | 'error';
+
 export interface CachedWidget<TData = unknown> {
   widgetId: string;
   connectorId: string;
@@ -19,6 +21,8 @@ export interface CachedWidget<TData = unknown> {
   syncIntervalSeconds?: number;
   format?: ResolvedWidgetFormat;
   meta?: Record<string, unknown>;
+  status?: WidgetStatus;
+  errorMessage?: string;
 }
 
 export interface WidgetsListResponse {

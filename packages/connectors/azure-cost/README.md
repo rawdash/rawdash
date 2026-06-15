@@ -102,7 +102,7 @@ Cost Management throttles via 429 responses with Retry-After; the shared HTTP cl
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [Microsoft Azure API docs](https://learn.microsoft.com/en-us/rest/api/cost-management/)
 - [GitHub](https://github.com/rawdash/rawdash)
 

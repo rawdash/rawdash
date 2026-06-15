@@ -1,5 +1,26 @@
 # @rawdash/connector-sentry
 
+## 0.26.0
+
+### Patch Changes
+
+- 3e3524f: Fix `sentry_errors_per_hour` writing no samples when `stats_v2` response omits the top-level `intervals` field. Timestamps are now reconstructed from `start` + series length (1h buckets) when `intervals` is absent or empty.
+  - @rawdash/core@0.26.0
+
+## 0.25.0
+
+### Patch Changes
+
+- 7e2fc9d: Fix `sentry_errors_per_hour` producing no data points. The org-level `stats_v2` request now sends `project=-1` (all accessible projects) when no specific projects are configured, instead of omitting the `project` param entirely — without it Sentry returns groups with empty series and the metric writes zero rows. Groups that come back with a missing or empty series now emit explicit zero samples for each interval, so a genuine no-error window reads as a real `0` rather than no data.
+- 162a6dc: Fix incremental `sentry_release` syncs silently dropping in-window releases, and count only accepted errors in `sentry_errors_per_hour`.
+
+  The `GET /api/0/organizations/{organization}/releases/` list is ordered by `dateCreated` (date added) descending, while `dateReleased` is operator-set, nullable, and non-monotonic across pages. The incremental window now filters and short-circuits pagination on `dateCreated` only (and requests `sort=date` explicitly), so a page whose `dateReleased` values are out of `dateCreated` order no longer terminates pagination early or drops releases whose `dateCreated` is in-window. `dateReleased`/`lastEvent` are still stored as attributes.
+
+  The `stats_v2` request for `sentry_errors_per_hour` now sets `outcome=accepted`. Without an outcome filter, `sum(quantity)` aggregates across every outcome (accepted, filtered, rate_limited, invalid, etc.) — total ingested volume rather than accepted (stored) errors — overcounting the intuitive error count.
+
+- Updated dependencies [f99cb16]
+  - @rawdash/core@0.25.0
+
 ## 0.24.0
 
 ### Patch Changes

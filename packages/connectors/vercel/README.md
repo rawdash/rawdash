@@ -95,7 +95,7 @@ Vercel returns X-RateLimit-Remaining / X-RateLimit-Reset headers (Unix seconds).
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [Vercel API docs](https://vercel.com/docs/rest-api)
 - [GitHub](https://github.com/rawdash/rawdash)
 

@@ -56,7 +56,7 @@ function lastByKey<T>(items: T[], keyFn: (item: T) => string): Map<string, T> {
 function buildConnector(): BitbucketConnector {
   return new BitbucketConnector(
     { workspace: WORKSPACE, repoSlugs: [REPO_SLUG] },
-    { username: 'janedoe', appPassword: 'ATBB-test' },
+    { email: 'jane@example.com', apiToken: 'ATATT-test' },
   );
 }
 

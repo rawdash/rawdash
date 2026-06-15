@@ -130,7 +130,7 @@ Cloud Monitoring projects.timeSeries.list and BigQuery jobs.query are rate-limit
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [Google Cloud API docs](https://cloud.google.com/vertex-ai/docs/general/monitoring)
 - [GitHub](https://github.com/rawdash/rawdash)
 

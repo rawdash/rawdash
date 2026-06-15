@@ -107,7 +107,7 @@ NerdGraph enforces per-account NRQL quotas; this connector retries on 429s throu
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [New Relic API docs](https://docs.newrelic.com/docs/apis/nerdgraph/)
 - [GitHub](https://github.com/rawdash/rawdash)
 

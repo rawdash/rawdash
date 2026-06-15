@@ -59,7 +59,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
   category: 'marketing',
   brandColor: '#7CB833',
   tagline:
-    'Sync Branch install attribution metrics (installs, opens, conversions) and deep-link click events from the Cross-Platform Analytics API for mobile attribution dashboards.',
+    'Sync Branch install attribution metrics (installs, opens, conversions) and deep-link click events from the Query API for mobile attribution dashboards.',
   vendor: {
     name: 'Branch',
     domain: 'branch.io',
@@ -68,7 +68,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
   },
   auth: {
     summary:
-      'A Branch app key and secret, used together to authenticate Cross-Platform Analytics API requests.',
+      'A Branch app key and secret, sent together in the Query API request body to authenticate each call.',
     setup: [
       'In the Branch dashboard, open Account Settings -> Profile and copy the Branch Key (starts with `key_live_`).',
       'On the same screen, reveal and copy the Branch Secret (starts with `secret_live_`). Both values are app-scoped; keep them in a secret store.',
@@ -76,10 +76,10 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     ],
   },
   rateLimit:
-    'Branch enforces a per-app request quota on the Cross-Platform Analytics API (roughly 1 request/second). The connector issues one POST per data source per resource per sync and respects 429 + Retry-After backoff via the shared HTTP client.',
+    'The Branch Query API allows roughly 5 requests/second, 20/minute, and 150/hour per app. Because each sync splits its window into <=7-day segments and paginates, a wide window fans out to many requests; the connector relies on the shared HTTP client to honor 429 responses and the `Retry-After` header with backoff.',
   limitations: [
-    'Daily granularity only - the connector requests `granularity=day` from the Branch Aggregate API to keep result cardinality bounded.',
-    'Cost attribution is best-effort - Branch only exposes `cost_in_local_currency` for ad-network-integrated channels. Rows without cost data carry `costEstimated: 0`.',
+    'Daily granularity only - the connector requests `granularity=day` from the Branch Query API to keep result cardinality bounded.',
+    'Branch rejects windows wider than 7 days, so each requested range is split into <=7-day segments and fetched one segment at a time.',
     'Deep-link events are aggregated daily click counts per (date, channel, campaign, feature). Individual click-level records require the Branch Daily Export API which is intentionally out of scope.',
   ],
 });
@@ -116,6 +116,8 @@ const ANALYTICS_API_URL = 'https://api2.branch.io/v1/query/analytics';
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const DEFAULT_LOOKBACK_DAYS = 90;
 const INCREMENTAL_LOOKBACK_DAYS = 14;
+const MAX_WINDOW_DAYS = 7;
+const PAGE_LIMIT = 1000;
 
 const INSTALL_METRIC_NAME = 'branch_install_metrics';
 const DEEP_LINK_EVENT_NAME = 'branch_deep_link_event';
@@ -124,56 +126,66 @@ const CHANNEL_DIMENSION = 'last_attributed_touch_data_tilde_channel';
 const CAMPAIGN_DIMENSION = 'last_attributed_touch_data_tilde_campaign';
 const FEATURE_DIMENSION = 'last_attributed_touch_data_tilde_feature';
 
-const INSTALL_DATA_SOURCES = ['eo_install', 'eo_open', 'eo_event'] as const;
+const INSTALL_DATA_SOURCES = [
+  'eo_install',
+  'eo_open',
+  'eo_custom_event',
+] as const;
 type InstallDataSource = (typeof INSTALL_DATA_SOURCES)[number];
 
 const COUNT_FIELD_BY_DATA_SOURCE: Record<InstallDataSource, string> = {
   eo_install: 'installs',
   eo_open: 'opens',
-  eo_event: 'conversions',
+  eo_custom_event: 'conversions',
 };
 
-const isoDateString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const isoTimestampString = z
+  .string()
+  .regex(
+    /^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)?$/,
+  );
 const numericLike = z.union([z.number(), z.string(), z.null()]).optional();
+const pagingSchema = z.object({ next_url: z.string().nullish() }).nullish();
 
 const installResultRowSchema = z.object({
-  unique_count: numericLike,
+  timestamp: isoTimestampString,
   result: z.object({
-    timestamp: isoDateString,
     [CHANNEL_DIMENSION]: z.string().nullish(),
     [CAMPAIGN_DIMENSION]: z.string().nullish(),
-    cost_in_local_currency: numericLike,
+    unique_count: numericLike,
   }),
 });
 
 const installResponseSchema = z.object({
   results: z.array(installResultRowSchema),
+  paging: pagingSchema,
 });
 
 const clickResultRowSchema = z.object({
-  unique_count: numericLike,
+  timestamp: isoTimestampString,
   result: z.object({
-    timestamp: isoDateString,
     [CHANNEL_DIMENSION]: z.string().nullish(),
     [CAMPAIGN_DIMENSION]: z.string().nullish(),
     [FEATURE_DIMENSION]: z.string().nullish(),
+    unique_count: numericLike,
   }),
 });
 
 const clickResponseSchema = z.object({
   results: z.array(clickResultRowSchema),
+  paging: pagingSchema,
 });
 
 export const branchResources = defineResources({
   [INSTALL_METRIC_NAME]: {
     shape: 'metric',
     description:
-      'Daily Branch attribution metrics bucketed by channel and campaign. Primary value is `installs`; `opens`, `conversions`, and `costEstimated` are carried as attributes.',
+      'Daily Branch attribution metrics bucketed by channel and campaign. Primary value is `installs`; `opens` and `conversions` are carried as attributes.',
     endpoint: 'POST /v1/query/analytics',
     unit: 'installs',
     granularity: 'day',
     notes:
-      'Merges three Aggregate API calls (data_source=eo_install, eo_open, eo_event) keyed by (date, channel, campaign). Rows with missing channel or campaign are recorded as `null` for that attribute.',
+      'Merges three Query API calls (data_source=eo_install, eo_open, eo_custom_event) keyed by (date, channel, campaign). Rows with missing channel or campaign are recorded as `null` for that attribute.',
     dimensions: [
       { name: 'date', description: 'Calendar day of the metric sample (UTC).' },
       { name: 'channel', description: 'Branch last-attributed channel.' },
@@ -182,12 +194,7 @@ export const branchResources = defineResources({
       { name: 'opens', description: 'Attributed app opens on the day.' },
       {
         name: 'conversions',
-        description: 'Attributed in-app conversion events on the day.',
-      },
-      {
-        name: 'costEstimated',
-        description:
-          'Estimated cost in the app local currency (only populated for ad-network-integrated channels; 0 otherwise).',
+        description: 'Attributed in-app custom-event conversions on the day.',
       },
     ],
     responses: {
@@ -286,6 +293,22 @@ function isoDateToMs(date: string): number {
   return Date.UTC(y, m - 1, d);
 }
 
+export function splitWindow(window: BranchWindow): BranchWindow[] {
+  const fromMs = isoDateToMs(window.from);
+  const toMs = isoDateToMs(window.to);
+  if (!Number.isFinite(fromMs) || !Number.isFinite(toMs) || fromMs > toMs) {
+    return [window];
+  }
+  const segments: BranchWindow[] = [];
+  let startMs = fromMs;
+  while (startMs <= toMs) {
+    const endMs = Math.min(startMs + (MAX_WINDOW_DAYS - 1) * MS_PER_DAY, toMs);
+    segments.push({ from: toIsoDate(startMs), to: toIsoDate(endMs) });
+    startMs = endMs + MS_PER_DAY;
+  }
+  return segments;
+}
+
 function parseNumber(value: unknown): number {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return value;
@@ -308,7 +331,6 @@ interface InstallBucket {
   installs: number;
   opens: number;
   conversions: number;
-  costEstimated: number;
 }
 
 function bucketKey(
@@ -326,7 +348,7 @@ export function mergeInstallBuckets(
   for (const dataSource of INSTALL_DATA_SOURCES) {
     const field = COUNT_FIELD_BY_DATA_SOURCE[dataSource];
     for (const row of rowsByDataSource[dataSource]) {
-      const date = normalizeDateBucket(row.result.timestamp);
+      const date = normalizeDateBucket(row.timestamp);
       const channel =
         (row.result[CHANNEL_DIMENSION] as string | null | undefined) ?? null;
       const campaign =
@@ -341,20 +363,16 @@ export function mergeInstallBuckets(
           installs: 0,
           opens: 0,
           conversions: 0,
-          costEstimated: 0,
         };
         buckets.set(key, bucket);
       }
-      const count = parseNumber(row.unique_count);
+      const count = parseNumber(row.result.unique_count);
       if (field === 'installs') {
         bucket.installs += count;
       } else if (field === 'opens') {
         bucket.opens += count;
       } else {
         bucket.conversions += count;
-      }
-      if (dataSource === 'eo_install') {
-        bucket.costEstimated += parseNumber(row.result.cost_in_local_currency);
       }
     }
   }
@@ -378,13 +396,12 @@ export function installBucketToMetricSample(
       installs: bucket.installs,
       opens: bucket.opens,
       conversions: bucket.conversions,
-      costEstimated: bucket.costEstimated,
     },
   };
 }
 
 export function clickRowToEventRecord(row: BranchClickResultRow): Event {
-  const date = normalizeDateBucket(row.result.timestamp);
+  const date = normalizeDateBucket(row.timestamp);
   const channel =
     (row.result[CHANNEL_DIMENSION] as string | null | undefined) ?? null;
   const campaign =
@@ -392,7 +409,7 @@ export function clickRowToEventRecord(row: BranchClickResultRow): Event {
   const feature =
     (row.result[FEATURE_DIMENSION] as string | null | undefined) ?? null;
   const ts = isoDateToMs(date);
-  const clicks = parseNumber(row.unique_count);
+  const clicks = parseNumber(row.result.unique_count);
   const startTs = Number.isFinite(ts) ? ts : 0;
   return {
     name: DEEP_LINK_EVENT_NAME,
@@ -457,6 +474,7 @@ export class BranchConnector extends BaseConnector<
       aggregation: 'unique_count',
       ordered: 'ascending',
       ordered_by: 'timestamp',
+      limit: PAGE_LIMIT,
     });
   }
 
@@ -466,53 +484,86 @@ export class BranchConnector extends BaseConnector<
     dimensions: string[],
     window: BranchWindow,
     signal?: AbortSignal,
-  ): Promise<{ results?: T[] }> {
-    const res = await this.post<{ results?: T[] }>(ANALYTICS_API_URL, {
-      resource,
-      headers: this.buildHeaders(),
-      body: this.buildBody(dataSource, dimensions, window),
-      signal,
-    });
-    return res.body;
+  ): Promise<T[]> {
+    const body = this.buildBody(dataSource, dimensions, window);
+    const results: T[] = [];
+    const base = new URL(ANALYTICS_API_URL);
+    const visited = new Set<string>();
+    let url = ANALYTICS_API_URL;
+    while (!visited.has(url)) {
+      visited.add(url);
+      const res = await this.post<{
+        results?: T[];
+        paging?: { next_url?: string | null } | null;
+      }>(url, {
+        resource,
+        headers: this.buildHeaders(),
+        body,
+        signal,
+      });
+      results.push(...(res.body.results ?? []));
+      const next = res.body.paging?.next_url;
+      if (!next) {
+        break;
+      }
+      const parsedNext = new URL(next, ANALYTICS_API_URL);
+      if (
+        parsedNext.origin !== base.origin ||
+        parsedNext.pathname !== base.pathname
+      ) {
+        break;
+      }
+      url = parsedNext.toString();
+    }
+    return results;
   }
 
   private async fetchInstallBuckets(
-    window: BranchWindow,
+    segments: BranchWindow[],
     signal?: AbortSignal,
   ): Promise<InstallBucket[]> {
     const dims = [CHANNEL_DIMENSION, CAMPAIGN_DIMENSION];
-    const rowsByDataSource = {
-      eo_install: [] as BranchInstallResultRow[],
-      eo_open: [] as BranchInstallResultRow[],
-      eo_event: [] as BranchInstallResultRow[],
+    const rowsByDataSource: Record<
+      InstallDataSource,
+      BranchInstallResultRow[]
+    > = {
+      eo_install: [],
+      eo_open: [],
+      eo_custom_event: [],
     };
-    for (const dataSource of INSTALL_DATA_SOURCES) {
-      const field = COUNT_FIELD_BY_DATA_SOURCE[dataSource];
-      const tag = `install_metrics_${field}`;
-      const body = await this.fetchAggregate<BranchInstallResultRow>(
-        tag,
-        dataSource,
-        dims,
-        window,
-        signal,
-      );
-      rowsByDataSource[dataSource] = body.results ?? [];
+    for (const segment of segments) {
+      for (const dataSource of INSTALL_DATA_SOURCES) {
+        const field = COUNT_FIELD_BY_DATA_SOURCE[dataSource];
+        const tag = `install_metrics_${field}`;
+        const rows = await this.fetchAggregate<BranchInstallResultRow>(
+          tag,
+          dataSource,
+          dims,
+          segment,
+          signal,
+        );
+        rowsByDataSource[dataSource].push(...rows);
+      }
     }
     return mergeInstallBuckets(rowsByDataSource);
   }
 
   private async fetchClickRows(
-    window: BranchWindow,
+    segments: BranchWindow[],
     signal?: AbortSignal,
   ): Promise<BranchClickResultRow[]> {
-    const body = await this.fetchAggregate<BranchClickResultRow>(
-      'deep_link_events',
-      'eo_click',
-      [CHANNEL_DIMENSION, CAMPAIGN_DIMENSION, FEATURE_DIMENSION],
-      window,
-      signal,
-    );
-    return body.results ?? [];
+    const rows: BranchClickResultRow[] = [];
+    for (const segment of segments) {
+      const segmentRows = await this.fetchAggregate<BranchClickResultRow>(
+        'deep_link_events',
+        'eo_click',
+        [CHANNEL_DIMENSION, CAMPAIGN_DIMENSION, FEATURE_DIMENSION],
+        segment,
+        signal,
+      );
+      rows.push(...segmentRows);
+    }
+    return rows;
   }
 
   private async writePhase(
@@ -521,15 +572,16 @@ export class BranchConnector extends BaseConnector<
     window: BranchWindow,
     signal?: AbortSignal,
   ): Promise<void> {
+    const segments = splitWindow(window);
     if (phase === 'install_metrics') {
-      const buckets = await this.fetchInstallBuckets(window, signal);
+      const buckets = await this.fetchInstallBuckets(segments, signal);
       await storage.metrics([], { names: [INSTALL_METRIC_NAME] });
       for (const bucket of buckets) {
         await storage.metric(installBucketToMetricSample(bucket));
       }
       return;
     }
-    const rows = await this.fetchClickRows(window, signal);
+    const rows = await this.fetchClickRows(segments, signal);
     for (const row of rows) {
       await storage.event(clickRowToEventRecord(row));
     }

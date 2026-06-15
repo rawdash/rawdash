@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-mailchimp",
-  "version": "0.24.0",
+  "version": "0.26.0",
   "description": "Rawdash connector for Mailchimp — syncs campaigns, audiences (lists), automations, and per-campaign engagement stats from the Mailchimp Marketing API into the six-shape storage model",
   "license": "Apache-2.0",
   "type": "module",

@@ -104,7 +104,7 @@ GitLab returns standard `RateLimit-Remaining` / `RateLimit-Reset` headers (reset
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [GitLab API docs](https://docs.gitlab.com/ee/api/)
 - [GitHub](https://github.com/rawdash/rawdash)
 

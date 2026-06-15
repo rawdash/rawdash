@@ -1,5 +1,135 @@
 # @rawdash/connectors
 
+## 0.26.0
+
+### Patch Changes
+
+- Updated dependencies [4f88b52]
+- Updated dependencies [8f64e77]
+- Updated dependencies [c0ee2bf]
+- Updated dependencies [be37afe]
+- Updated dependencies [d088f65]
+- Updated dependencies [8bb1b2a]
+- Updated dependencies [3e3524f]
+  - @rawdash/connector-azure-cost@0.26.0
+  - @rawdash/connector-azure-monitor@0.26.0
+  - @rawdash/connector-bitbucket@0.26.0
+  - @rawdash/connector-branch@0.26.0
+  - @rawdash/connector-circleci@0.26.0
+  - @rawdash/connector-datadog@0.26.0
+  - @rawdash/connector-sentry@0.26.0
+  - @rawdash/core@0.26.0
+  - @rawdash/connector-anthropic@0.26.0
+  - @rawdash/connector-auth0@0.26.0
+  - @rawdash/connector-app-store-connect@0.26.0
+  - @rawdash/connector-appsflyer@0.26.0
+  - @rawdash/connector-aws-bedrock@0.26.0
+  - @rawdash/connector-aws-cloudwatch@0.26.0
+  - @rawdash/connector-firebase-crashlytics@0.26.0
+  - @rawdash/connector-github@0.26.0
+  - @rawdash/connector-gitlab@0.26.0
+  - @rawdash/connector-google-ads@0.26.0
+  - @rawdash/connector-google-analytics@0.26.0
+  - @rawdash/connector-google-play-console@0.26.0
+  - @rawdash/connector-google-search-console@0.26.0
+  - @rawdash/connector-greenhouse@0.26.0
+  - @rawdash/connector-stripe@0.26.0
+  - @rawdash/connector-linear@0.26.0
+  - @rawdash/connector-vercel@0.26.0
+  - @rawdash/connector-aws-cost@0.26.0
+  - @rawdash/connector-gcp-billing@0.26.0
+  - @rawdash/connector-gcp-monitoring@0.26.0
+  - @rawdash/connector-hubspot@0.26.0
+  - @rawdash/connector-intercom@0.26.0
+  - @rawdash/connector-jira@0.26.0
+  - @rawdash/connector-launchdarkly@0.26.0
+  - @rawdash/connector-klaviyo@0.26.0
+  - @rawdash/connector-mailchimp@0.26.0
+  - @rawdash/connector-meta-ads@0.26.0
+  - @rawdash/connector-mixpanel@0.26.0
+  - @rawdash/connector-netlify@0.26.0
+  - @rawdash/connector-posthog@0.26.0
+  - @rawdash/connector-salesforce@0.26.0
+  - @rawdash/connector-new-relic@0.26.0
+  - @rawdash/connector-zendesk@0.26.0
+  - @rawdash/connector-statuspage@0.26.0
+  - @rawdash/connector-revenuecat@0.26.0
+  - @rawdash/connector-firebase-analytics@0.26.0
+  - @rawdash/connector-openai@0.26.0
+  - @rawdash/connector-langfuse@0.26.0
+  - @rawdash/connector-vertex-ai@0.26.0
+  - @rawdash/connector-okta@0.26.0
+  - @rawdash/connector-langsmith@0.26.0
+
+## 0.25.0
+
+### Patch Changes
+
+- Updated dependencies [d370656]
+- Updated dependencies [faade33]
+- Updated dependencies [cc4eeaa]
+- Updated dependencies [608d014]
+- Updated dependencies [8315556]
+- Updated dependencies [bf76511]
+- Updated dependencies [52ec2cc]
+- Updated dependencies [1e1dc00]
+- Updated dependencies [4b3f3df]
+- Updated dependencies [5848686]
+- Updated dependencies [7e2fc9d]
+- Updated dependencies [162a6dc]
+- Updated dependencies [f81452a]
+- Updated dependencies [c0412a1]
+- Updated dependencies [f99cb16]
+  - @rawdash/connector-anthropic@0.25.0
+  - @rawdash/connector-app-store-connect@0.25.0
+  - @rawdash/connector-appsflyer@0.25.0
+  - @rawdash/connector-auth0@0.25.0
+  - @rawdash/connector-aws-bedrock@0.25.0
+  - @rawdash/connector-aws-cloudwatch@0.25.0
+  - @rawdash/connector-aws-cost@0.25.0
+  - @rawdash/connector-github@0.25.0
+  - @rawdash/connector-google-play-console@0.25.0
+  - @rawdash/connector-linear@0.25.0
+  - @rawdash/connector-sentry@0.25.0
+  - @rawdash/connector-posthog@0.25.0
+  - @rawdash/core@0.25.0
+  - @rawdash/connector-azure-cost@0.25.0
+  - @rawdash/connector-azure-monitor@0.25.0
+  - @rawdash/connector-bitbucket@0.25.0
+  - @rawdash/connector-branch@0.25.0
+  - @rawdash/connector-circleci@0.25.0
+  - @rawdash/connector-datadog@0.25.0
+  - @rawdash/connector-firebase-analytics@0.25.0
+  - @rawdash/connector-firebase-crashlytics@0.25.0
+  - @rawdash/connector-gcp-billing@0.25.0
+  - @rawdash/connector-gcp-monitoring@0.25.0
+  - @rawdash/connector-gitlab@0.25.0
+  - @rawdash/connector-google-ads@0.25.0
+  - @rawdash/connector-google-analytics@0.25.0
+  - @rawdash/connector-google-search-console@0.25.0
+  - @rawdash/connector-greenhouse@0.25.0
+  - @rawdash/connector-hubspot@0.25.0
+  - @rawdash/connector-intercom@0.25.0
+  - @rawdash/connector-jira@0.25.0
+  - @rawdash/connector-klaviyo@0.25.0
+  - @rawdash/connector-langfuse@0.25.0
+  - @rawdash/connector-langsmith@0.25.0
+  - @rawdash/connector-launchdarkly@0.25.0
+  - @rawdash/connector-mailchimp@0.25.0
+  - @rawdash/connector-meta-ads@0.25.0
+  - @rawdash/connector-mixpanel@0.25.0
+  - @rawdash/connector-netlify@0.25.0
+  - @rawdash/connector-new-relic@0.25.0
+  - @rawdash/connector-okta@0.25.0
+  - @rawdash/connector-openai@0.25.0
+  - @rawdash/connector-revenuecat@0.25.0
+  - @rawdash/connector-salesforce@0.25.0
+  - @rawdash/connector-statuspage@0.25.0
+  - @rawdash/connector-stripe@0.25.0
+  - @rawdash/connector-vercel@0.25.0
+  - @rawdash/connector-vertex-ai@0.25.0
+  - @rawdash/connector-zendesk@0.25.0
+
 ## 0.24.0
 
 ### Patch Changes

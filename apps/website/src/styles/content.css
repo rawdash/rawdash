@@ -72,7 +72,6 @@
 
 .content-breadcrumb {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
   font-size: 0.8rem;
@@ -82,6 +81,18 @@
 
 .content-breadcrumb a {
   color: var(--accent-light);
+  white-space: nowrap;
+}
+
+.content-breadcrumb__separator {
+  flex: none;
+}
+
+.content-breadcrumb__current {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .content-breadcrumb a:hover {

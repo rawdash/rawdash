@@ -404,13 +404,10 @@ export const sentryResources = defineResources({
   sentry_errors_per_hour: {
     shape: 'metric',
     description:
-      'Hourly count of error events, broken down by project, over the configured lookback window.',
+      'Hourly count of accepted (stored) error events across the organization over the configured lookback window.',
     endpoint: 'GET /api/0/organizations/{organization}/stats_v2/',
     unit: 'errors',
     granularity: '1h',
-    dimensions: [
-      { name: 'project', description: 'Sentry project slug or id.' },
-    ],
     responses: { error_stats: errorStatsResponseSchema },
   },
 });
@@ -580,6 +577,7 @@ export class SentryConnector extends BaseConnector<
       'per_page',
       String(clampPageSize(options.pageSize, RELEASES_PAGE_SIZE)),
     );
+    u.searchParams.set('sort', 'date');
     for (const project of this.settings.projects ?? []) {
       u.searchParams.append('project', project);
     }
@@ -594,11 +592,16 @@ export class SentryConnector extends BaseConnector<
     );
     u.searchParams.set('field', 'sum(quantity)');
     u.searchParams.set('category', 'error');
+    u.searchParams.set('outcome', 'accepted');
     u.searchParams.set('interval', '1h');
     u.searchParams.set('statsPeriod', `${lookback}h`);
-    u.searchParams.append('groupBy', 'project');
-    for (const project of this.settings.projects ?? []) {
-      u.searchParams.append('project', project);
+    const projects = this.settings.projects ?? [];
+    if (projects.length > 0) {
+      for (const project of projects) {
+        u.searchParams.append('project', project);
+      }
+    } else {
+      u.searchParams.append('project', '-1');
     }
     return u.toString();
   }
@@ -668,13 +671,13 @@ export class SentryConnector extends BaseConnector<
     const filtered =
       cutoff !== null
         ? releases.filter((r) => {
-            const ts = new Date(r.dateReleased ?? r.dateCreated).getTime();
+            const ts = new Date(r.dateCreated).getTime();
             return Number.isFinite(ts) ? ts >= cutoff : true;
           })
         : releases;
     const lastRelease = releases.at(-1);
     const lastTs = lastRelease
-      ? new Date(lastRelease.dateReleased ?? lastRelease.dateCreated).getTime()
+      ? new Date(lastRelease.dateCreated).getTime()
       : null;
     const cutoffReached =
       cutoff !== null &&
@@ -806,32 +809,48 @@ export class SentryConnector extends BaseConnector<
       value: number;
       attributes: Record<string, string | number>;
     }> = [];
-    const intervals = stats.intervals ?? [];
-    for (const group of stats.groups) {
-      const project = group.by['project'];
-      const projectKey = project !== undefined ? String(project) : 'unknown';
-      const series = group.series?.['sum(quantity)'] ?? [];
-      if (series.length === 0) {
+
+    const seriesLen = stats.groups.reduce((max, group) => {
+      const len = group.series?.['sum(quantity)']?.length ?? 0;
+      return Math.max(max, len);
+    }, 0);
+
+    let intervals = stats.intervals ?? [];
+    if (intervals.length === 0 && seriesLen > 0 && stats.start) {
+      const startMs = parseEpoch(stats.start, 'iso');
+      if (startMs !== null) {
+        intervals = Array.from({ length: seriesLen }, (_, i) =>
+          new Date(startMs + i * 3_600_000).toISOString(),
+        );
+      }
+    }
+
+    for (let i = 0; i < intervals.length; i++) {
+      const intervalIso = intervals[i];
+      if (intervalIso === undefined) {
         continue;
       }
-      for (let i = 0; i < intervals.length; i++) {
-        const intervalIso = intervals[i];
-        const rawValue = series[i];
-        if (intervalIso === undefined || rawValue === undefined) {
-          continue;
-        }
-        const ts = parseEpoch(intervalIso, 'iso');
-        const value = Number(rawValue);
-        if (ts === null || !Number.isFinite(value)) {
-          continue;
-        }
-        samples.push({
-          name: 'sentry_errors_per_hour',
-          ts,
-          value,
-          attributes: { project: projectKey },
-        });
+      const ts = parseEpoch(intervalIso, 'iso');
+      if (ts === null) {
+        continue;
       }
+      let value = 0;
+      for (const group of stats.groups) {
+        const rawValue = group.series?.['sum(quantity)']?.[i];
+        if (rawValue === undefined) {
+          continue;
+        }
+        const numeric = Number(rawValue);
+        if (Number.isFinite(numeric)) {
+          value += numeric;
+        }
+      }
+      samples.push({
+        name: 'sentry_errors_per_hour',
+        ts,
+        value,
+        attributes: {},
+      });
     }
     await storage.metrics(samples, { names: ['sentry_errors_per_hour'] });
   }
@@ -877,6 +896,9 @@ export class SentryConnector extends BaseConnector<
               await storage.entities([], { types: ['sentry_release'] });
               break;
             case 'error_stats':
+              await storage.metrics([], {
+                names: ['sentry_errors_per_hour'],
+              });
               break;
           }
         }

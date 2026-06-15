@@ -140,12 +140,12 @@ const PHASE_ENDPOINT_PATH: Record<AnthropicPhase, string> = {
 };
 
 const usageCacheCreationSchema = z.object({
-  ephemeral_1h_input_tokens: z.number().nonnegative(),
-  ephemeral_5m_input_tokens: z.number().nonnegative(),
+  ephemeral_1h_input_tokens: z.number().nonnegative().nullish(),
+  ephemeral_5m_input_tokens: z.number().nonnegative().nullish(),
 });
 
 const usageServerToolUseSchema = z.object({
-  web_search_requests: z.number().int().nonnegative(),
+  web_search_requests: z.number().int().nonnegative().nullish(),
 });
 
 const usageResultSchema = z.object({
@@ -435,7 +435,9 @@ function cacheCreationTotal(row: UsageResult): number {
   if (!c) {
     return 0;
   }
-  return c.ephemeral_1h_input_tokens + c.ephemeral_5m_input_tokens;
+  return (
+    (c.ephemeral_1h_input_tokens ?? 0) + (c.ephemeral_5m_input_tokens ?? 0)
+  );
 }
 
 function tsFromBucket(bucket: BucketPage<unknown>): number | null {
@@ -537,7 +539,6 @@ export function buildCostSamples(
           token_type: nullableString(row.token_type),
           service_tier: nullableString(row.service_tier),
           context_window: nullableString(row.context_window),
-          inference_geo: nullableString(row.inference_geo),
           currency: row.currency,
         },
       });

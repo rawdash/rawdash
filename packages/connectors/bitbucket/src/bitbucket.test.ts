@@ -41,7 +41,7 @@ describe('BitbucketConnector — resource allowlist', () => {
   it('skips phases for resources not in the allowlist', async () => {
     const connector = new BitbucketConnector(
       { workspace: 'demo-ws', repoSlugs: ['demo-repo'] },
-      { username: 'janedoe', appPassword: 'ATBB-test' },
+      { email: 'jane@example.com', apiToken: 'ATATT-test' },
     );
     const storage = new InMemoryStorage();
     const handle = storage.getStorageHandle('bitbucket');
@@ -63,7 +63,7 @@ describe('BitbucketConnector — resource allowlist', () => {
   it('syncs all phases when no allowlist is given', async () => {
     const connector = new BitbucketConnector(
       { workspace: 'demo-ws', repoSlugs: ['demo-repo'] },
-      { username: 'janedoe', appPassword: 'ATBB-test' },
+      { email: 'jane@example.com', apiToken: 'ATATT-test' },
     );
     const storage = new InMemoryStorage();
     const handle = storage.getStorageHandle('bitbucket');
@@ -79,7 +79,7 @@ describe('BitbucketConnector — resource allowlist', () => {
   it('returns done immediately when allowlist is empty', async () => {
     const connector = new BitbucketConnector(
       { workspace: 'demo-ws', repoSlugs: ['demo-repo'] },
-      { username: 'janedoe', appPassword: 'ATBB-test' },
+      { email: 'jane@example.com', apiToken: 'ATATT-test' },
     );
     const storage = new InMemoryStorage();
     const handle = storage.getStorageHandle('bitbucket');
@@ -95,7 +95,7 @@ describe('BitbucketConnector — resource allowlist', () => {
   it('iterates each configured repository on multi-repo phases', async () => {
     const connector = new BitbucketConnector(
       { workspace: 'demo-ws', repoSlugs: ['alpha', 'beta'] },
-      { username: 'janedoe', appPassword: 'ATBB-test' },
+      { email: 'jane@example.com', apiToken: 'ATATT-test' },
     );
     const storage = new InMemoryStorage();
     const handle = storage.getStorageHandle('bitbucket');
@@ -138,7 +138,7 @@ describe('BitbucketConnector — resource allowlist', () => {
 
     const connector = new BitbucketConnector(
       { workspace: 'demo-ws', repoSlugs: ['demo-repo'] },
-      { username: 'janedoe', appPassword: 'ATBB-test' },
+      { email: 'jane@example.com', apiToken: 'ATATT-test' },
     );
     const storage = new InMemoryStorage();
     const handle = storage.getStorageHandle('bitbucket');
@@ -188,7 +188,7 @@ describe('BitbucketConnector — resource allowlist', () => {
 
     const connector = new BitbucketConnector(
       { workspace: 'demo-ws', repoSlugs: ['demo-repo'] },
-      { username: 'janedoe', appPassword: 'ATBB-test' },
+      { email: 'jane@example.com', apiToken: 'ATATT-test' },
     );
     const storage = new InMemoryStorage();
     const handle = storage.getStorageHandle('bitbucket');
@@ -226,7 +226,7 @@ describe('BitbucketConnector — resource allowlist', () => {
 
     const connector = new BitbucketConnector(
       { workspace: 'demo-ws', repoSlugs: ['demo-repo'] },
-      { username: 'janedoe', appPassword: 'ATBB-test' },
+      { email: 'jane@example.com', apiToken: 'ATATT-test' },
     );
     const storage = new InMemoryStorage();
     const handle = storage.getStorageHandle('bitbucket');
@@ -280,7 +280,7 @@ describe('BitbucketConnector — filter pushdown', () => {
   it('pushes a declared state filter to the pull requests query', async () => {
     const connector = new BitbucketConnector(
       { workspace: 'demo-ws', repoSlugs: ['demo-repo'] },
-      { username: 'janedoe', appPassword: 'ATBB-test' },
+      { email: 'jane@example.com', apiToken: 'ATATT-test' },
     );
     const handle = new InMemoryStorage().getStorageHandle('bitbucket');
     await connector.sync(
@@ -301,7 +301,7 @@ describe('BitbucketConnector — filter pushdown', () => {
   it('fetches all states when multiple specs target the resource', async () => {
     const connector = new BitbucketConnector(
       { workspace: 'demo-ws', repoSlugs: ['demo-repo'] },
-      { username: 'janedoe', appPassword: 'ATBB-test' },
+      { email: 'jane@example.com', apiToken: 'ATATT-test' },
     );
     const handle = new InMemoryStorage().getStorageHandle('bitbucket');
     await connector.sync(
@@ -317,8 +317,65 @@ describe('BitbucketConnector — filter pushdown', () => {
       },
       handle,
     );
-    expect(new URL(pullRequestUrl()).searchParams.get('state')).toBe(
-      'OPEN,MERGED,DECLINED,SUPERSEDED',
+    expect(new URL(pullRequestUrl()).searchParams.getAll('state')).toEqual([
+      'OPEN',
+      'MERGED',
+      'DECLINED',
+      'SUPERSEDED',
+    ]);
+  });
+
+  it('emits repeated state params rather than a comma-joined value', async () => {
+    const connector = new BitbucketConnector(
+      { workspace: 'demo-ws', repoSlugs: ['demo-repo'] },
+      { email: 'jane@example.com', apiToken: 'ATATT-test' },
     );
+    const handle = new InMemoryStorage().getStorageHandle('bitbucket');
+    await connector.sync(
+      { mode: 'full', resources: new Set(['pull_request']) },
+      handle,
+    );
+    const raw = pullRequestUrl();
+    expect(raw).toContain(
+      'state=OPEN&state=MERGED&state=DECLINED&state=SUPERSEDED',
+    );
+    expect(raw).not.toContain('state=OPEN%2CMERGED');
+    expect(new URL(raw).searchParams.get('state')).toBe('OPEN');
+  });
+});
+
+describe('BitbucketConnector — auth header', () => {
+  let fetchSpy: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    fetchSpy = vi
+      .fn()
+      .mockImplementation(() =>
+        Promise.resolve(mockJson({ values: [], next: null })),
+      );
+    vi.stubGlobal('fetch', fetchSpy);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('builds Basic auth from the account email and API token', async () => {
+    const connector = new BitbucketConnector(
+      { workspace: 'demo-ws', repoSlugs: ['demo-repo'] },
+      { email: 'jane@example.com', apiToken: 'ATATT-secret' },
+    );
+    const handle = new InMemoryStorage().getStorageHandle('bitbucket');
+    await connector.sync(
+      { mode: 'full', resources: new Set(['pull_request']) },
+      handle,
+    );
+
+    const init = fetchSpy.mock.calls[0]![1] as {
+      headers: Record<string, string>;
+    };
+    const authHeader = init.headers.authorization ?? init.headers.Authorization;
+    expect(authHeader).toBe(`Basic ${btoa('jane@example.com:ATATT-secret')}`);
   });
 });

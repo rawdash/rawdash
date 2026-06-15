@@ -434,7 +434,9 @@ async function readRawRecords(
   }));
 }
 
-export type RollupReadResult = { used: false } | { used: true; value: unknown };
+export type RollupReadResult =
+  | { used: false }
+  | { used: true; value: unknown; matchedRows: number };
 
 function filterServeableByDims(filter: FilterClause[] | undefined): boolean {
   if (!filter) {
@@ -543,6 +545,12 @@ export async function tryComputeMetricFromRollups(
   const rawTail = await readRawRecords(handle, rawSpec(metric), watermark);
   const filteredRaw = rawTail.filter((r) => applyFilter(r, metric.filter));
 
+  const bucketRows = matchingBuckets.reduce((n, b) => n + b.partials.count, 0);
+  const rawRows = filteredRaw.filter(
+    (r) => typeof r[tsField] === 'number',
+  ).length;
+  const matchedRows = bucketRows + rawRows;
+
   if (metric.groupBy) {
     return {
       used: true,
@@ -553,6 +561,7 @@ export async function tryComputeMetricFromRollups(
         tsField,
         metric.groupBy.granularity,
       ),
+      matchedRows,
     };
   }
 
@@ -564,7 +573,7 @@ export async function tryComputeMetricFromRollups(
     merged,
     foldRecordsIntoPartials(filteredRaw, metric.field, tsField),
   );
-  return { used: true, value: aggFromPartials(metric.fn, merged) };
+  return { used: true, value: aggFromPartials(metric.fn, merged), matchedRows };
 }
 
 function rawSpec(metric: ComputedMetric): RollupSpec {

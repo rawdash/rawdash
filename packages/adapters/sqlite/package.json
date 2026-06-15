@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/adapter-sqlite",
-  "version": "0.24.0",
+  "version": "0.26.0",
   "description": "Rawdash SQLite storage adapter for local development (file-backed, survives restarts)",
   "license": "Apache-2.0",
   "type": "module",

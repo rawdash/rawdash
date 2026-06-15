@@ -95,6 +95,10 @@ describe('CloudWatchConnector property tests', () => {
         const results = sample.MetricDataResults.map((r, i) => ({
           ...r,
           Id: `q${i}`,
+          StatusCode:
+            r.StatusCode === 'InternalError'
+              ? ('Complete' as const)
+              : r.StatusCode,
         }));
         installXmlFetch(serializeMetricData({ MetricDataResults: results }));
         const queries =

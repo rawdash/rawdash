@@ -1,4 +1,3 @@
-import { AuthError, RateLimitError } from '@rawdash/connector-shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -301,18 +300,44 @@ describe('AwsCostConnector.sync', () => {
     expect(headers['x-amz-date']).toMatch(/^\d{8}T\d{6}Z$/);
   });
 
-  it('honors the resource allowlist (forecast only) and skips daily_cost', async () => {
+  it('honors the resource allowlist (aws_cost_daily only) and writes daily samples', async () => {
     const { calls } = installCeMock();
     const storage = makeStorage();
 
     await makeConnector().sync(
-      { mode: 'full', resources: new Set(['forecast']) },
+      { mode: 'full', resources: new Set(['aws_cost_daily']) },
+      storage,
+    );
+
+    const targets = calls.map((c) => targetOf(c.init));
+    expect(targets.some((t) => t.endsWith('GetCostAndUsage'))).toBe(true);
+    expect(targets.some((t) => t.endsWith('GetCostForecast'))).toBe(false);
+
+    const names = storage.metrics.mock.calls.map(
+      (c) => (c[1] as { names: string[] }).names[0],
+    );
+    expect(names).toContain('aws_cost_daily');
+    expect(names).not.toContain('aws_cost_forecast');
+  });
+
+  it('honors the resource allowlist (aws_cost_forecast only) and skips daily_cost', async () => {
+    const { calls } = installCeMock();
+    const storage = makeStorage();
+
+    await makeConnector().sync(
+      { mode: 'full', resources: new Set(['aws_cost_forecast']) },
       storage,
     );
 
     const targets = calls.map((c) => targetOf(c.init));
     expect(targets.some((t) => t.endsWith('GetCostForecast'))).toBe(true);
     expect(targets.some((t) => t.endsWith('GetCostAndUsage'))).toBe(false);
+
+    const names = storage.metrics.mock.calls.map(
+      (c) => (c[1] as { names: string[] }).names[0],
+    );
+    expect(names).toContain('aws_cost_forecast');
+    expect(names).not.toContain('aws_cost_daily');
   });
 
   it('resumes from a saved cursor at the forecast phase', async () => {
@@ -407,7 +432,27 @@ describe('AwsCostConnector.sync', () => {
     const storage = makeStorage();
     await expect(
       makeConnector().sync({ mode: 'full' }, storage),
-    ).rejects.toBeInstanceOf(RateLimitError);
+    ).rejects.toMatchObject({ kind: 'rate_limit' });
+  });
+
+  it('maps a LimitExceededException (HTTP 400) to a RateLimitError', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockImplementation(() =>
+          Promise.resolve(
+            jsonResponse(
+              { __type: 'LimitExceededException', message: 'rate exceeded' },
+              400,
+            ),
+          ),
+        ),
+    );
+    const storage = makeStorage();
+    await expect(
+      makeConnector().sync({ mode: 'full' }, storage),
+    ).rejects.toMatchObject({ kind: 'rate_limit' });
   });
 
   it('maps an AccessDenied error to an AuthError', async () => {
@@ -427,7 +472,7 @@ describe('AwsCostConnector.sync', () => {
     const storage = makeStorage();
     await expect(
       makeConnector().sync({ mode: 'full' }, storage),
-    ).rejects.toBeInstanceOf(AuthError);
+    ).rejects.toMatchObject({ kind: 'auth' });
   });
 });
 

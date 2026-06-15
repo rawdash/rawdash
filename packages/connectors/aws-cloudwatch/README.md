@@ -107,10 +107,11 @@ GetMetricData is batched at most 500 metrics per call with NextToken pagination;
 - The series name is derived from the query namespace/metric, so two queries against the same metric with different statistics or dimensions share one series name and are distinguished only by sample attributes.
 - Each query period must be a multiple of 60 seconds; sub-minute resolution is not supported.
 - A full sync uses lookbackMinutes; a latest sync uses a short window covering the last few periods.
+- Each query's window is clamped to CloudWatch's resolution-based retention floor (period < 300s keeps 15 days, < 3600s keeps 63 days, otherwise 455 days), since GetMetricData returns no points older than the floor; truncation is logged.
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [Amazon Web Services API docs](https://docs.aws.amazon.com/AmazonCloudWatch/latest/APIReference/API_GetMetricData.html)
 - [GitHub](https://github.com/rawdash/rawdash)
 

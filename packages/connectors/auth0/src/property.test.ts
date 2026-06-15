@@ -156,6 +156,9 @@ describe('Auth0Connector property tests', () => {
             return { body: { access_token: 'tok' } };
           }
           if (u.includes('/api/v2/logs')) {
+            if (new URL(u).searchParams.get('from')) {
+              return { body: [] };
+            }
             return { body: sample };
           }
           return { body: {} };

@@ -77,6 +77,12 @@ import {
   resources as circleciResources,
 } from '@rawdash/connector-circleci';
 import {
+  configFields as clerkConfigFields,
+  doc as clerkDoc,
+  id as clerkId,
+  resources as clerkResources,
+} from '@rawdash/connector-clerk';
+import {
   configFields as datadogConfigFields,
   doc as datadogDoc,
   id as datadogId,
@@ -297,6 +303,12 @@ import {
   resources as vertexAiResources,
 } from '@rawdash/connector-vertex-ai';
 import {
+  configFields as wizConfigFields,
+  doc as wizDoc,
+  id as wizId,
+  resources as wizResources,
+} from '@rawdash/connector-wiz';
+import {
   configFields as zendeskConfigFields,
   doc as zendeskDoc,
   id as zendeskId,
@@ -394,6 +406,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: circleciDoc,
     configFields: circleciConfigFields,
     resources: circleciResources,
+  },
+  {
+    id: clerkId,
+    packageName: '@rawdash/connector-clerk',
+    doc: clerkDoc,
+    configFields: clerkConfigFields,
+    resources: clerkResources,
   },
   {
     id: datadogId,
@@ -650,6 +669,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     configFields: vertexAiConfigFields,
     resources: vertexAiResources,
     cost: vertexAiCost,
+  },
+  {
+    id: wizId,
+    packageName: '@rawdash/connector-wiz',
+    doc: wizDoc,
+    configFields: wizConfigFields,
+    resources: wizResources,
   },
   {
     id: zendeskId,

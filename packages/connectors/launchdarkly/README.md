@@ -110,7 +110,7 @@ LaunchDarkly defaults to 5 requests/second per token; X-Ratelimit-Global-Remaini
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [LaunchDarkly API docs](https://apidocs.launchdarkly.com/)
 - [GitHub](https://github.com/rawdash/rawdash)
 

@@ -23,6 +23,7 @@ export const connectorLoaders: Record<string, () => Promise<ConnectorClass>> = {
     import('@rawdash/connector-bitbucket').then((m) => m.default),
   branch: () => import('@rawdash/connector-branch').then((m) => m.default),
   circleci: () => import('@rawdash/connector-circleci').then((m) => m.default),
+  clerk: () => import('@rawdash/connector-clerk').then((m) => m.default),
   datadog: () => import('@rawdash/connector-datadog').then((m) => m.default),
   'entra-id': () =>
     import('@rawdash/connector-entra-id').then((m) => m.default),
@@ -79,5 +80,6 @@ export const connectorLoaders: Record<string, () => Promise<ConnectorClass>> = {
   vercel: () => import('@rawdash/connector-vercel').then((m) => m.default),
   'vertex-ai': () =>
     import('@rawdash/connector-vertex-ai').then((m) => m.default),
+  wiz: () => import('@rawdash/connector-wiz').then((m) => m.default),
   zendesk: () => import('@rawdash/connector-zendesk').then((m) => m.default),
 };

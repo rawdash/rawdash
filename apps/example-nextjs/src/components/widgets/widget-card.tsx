@@ -2,6 +2,7 @@ import type { CachedWidget } from '@rawdash/core';
 import { Skeleton } from '@rawdash/sdk-nextjs/skeleton';
 
 import { FailingWidget } from './failing-widget';
+import { NoDataWidget } from './no-data-widget';
 import { StatWidget } from './stat-widget';
 import { StatusWidget } from './status-widget';
 import { TimeseriesWidget } from './timeseries-widget';
@@ -53,18 +54,24 @@ interface WidgetCardProps {
 }
 
 export function WidgetCard({ widget }: WidgetCardProps) {
-  const { widgetId, data, syncState, meta, cachedAt } = widget;
+  const { widgetId, data, status, errorMessage, syncState, meta, cachedAt } =
+    widget;
   const label = widgetLabel(widgetId);
 
-  if (syncState === 'failing') {
-    const status =
+  if (status === 'error' || syncState === 'failing') {
+    const connectorStatus =
       typeof meta?.['connectorStatus'] === 'string'
         ? meta['connectorStatus']
         : 'error';
     const lastError =
-      typeof meta?.['lastError'] === 'string' ? meta['lastError'] : null;
+      errorMessage ??
+      (typeof meta?.['lastError'] === 'string' ? meta['lastError'] : null);
     return (
-      <FailingWidget label={label} status={status} lastError={lastError} />
+      <FailingWidget
+        label={label}
+        status={connectorStatus}
+        lastError={lastError}
+      />
     );
   }
 
@@ -79,6 +86,10 @@ export function WidgetCard({ widget }: WidgetCardProps) {
   }
 
   const stale = syncState === 'stale';
+
+  if (status === 'no_data') {
+    return <NoDataWidget label={label} stale={stale} />;
+  }
 
   if (typeof data === 'string') {
     return <StatusWidget label={label} value={data} stale={stale} />;

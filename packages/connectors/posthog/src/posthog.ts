@@ -317,7 +317,34 @@ const dailyCountRow = z.tuple([
   z.number(),
 ]);
 
-const hogqlSchema = z.object({ results: z.array(dailyCountRow) });
+const hogqlSchema = z.object({
+  results: z.array(dailyCountRow),
+  cache_key: z.string().optional(),
+  cache_target_age: z.string().optional(),
+  calculation_trigger: z.string().optional(),
+  clickhouse: z.string().optional(),
+  columns: z.array(z.unknown()).optional(),
+  error: z.string().optional(),
+  explain: z.array(z.unknown()).optional(),
+  hasMore: z.boolean().optional(),
+  hogql: z.string().optional(),
+  is_cached: z.boolean().optional(),
+  last_refresh: z.string().optional(),
+  limit: z.number().optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  modifiers: z.record(z.string(), z.unknown()).optional(),
+  next_allowed_client_refresh: z.string().optional(),
+  offset: z.number().optional(),
+  query: z.unknown().optional(),
+  query_metadata: z.record(z.string(), z.unknown()).optional(),
+  query_status: z.unknown().optional(),
+  resolved_compare_date_range: z.unknown().optional(),
+  resolved_date_range: z.unknown().optional(),
+  timezone: z.string().optional(),
+  timings: z.array(z.unknown()).optional(),
+  types: z.array(z.unknown()).optional(),
+  warnings: z.array(z.unknown()).optional(),
+});
 
 const trendsSchema = z.object({
   results: z.array(
@@ -325,8 +352,31 @@ const trendsSchema = z.object({
       data: z.array(z.number()),
       days: z.array(z.string()),
       label: z.string().nullish(),
+      action: z.unknown().optional(),
+      count: z.number().optional(),
+      filter: z.unknown().optional(),
+      labels: z.array(z.unknown()).optional(),
+      order: z.number().optional(),
     }),
   ),
+  boxplot_data: z.unknown().optional(),
+  cache_key: z.string().optional(),
+  cache_target_age: z.string().optional(),
+  calculation_trigger: z.unknown().optional(),
+  error: z.string().optional(),
+  hasMore: z.boolean().optional(),
+  hogql: z.string().optional(),
+  is_cached: z.boolean().optional(),
+  last_refresh: z.string().optional(),
+  modifiers: z.record(z.string(), z.unknown()).optional(),
+  next_allowed_client_refresh: z.string().optional(),
+  query_metadata: z.record(z.string(), z.unknown()).optional(),
+  query_status: z.unknown().optional(),
+  resolved_compare_date_range: z.unknown().optional(),
+  resolved_date_range: z.unknown().optional(),
+  timezone: z.string().optional(),
+  timings: z.array(z.unknown()).optional(),
+  warnings: z.array(z.unknown()).optional(),
 });
 
 const funnelSchema = z.object({

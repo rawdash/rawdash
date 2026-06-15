@@ -5,7 +5,7 @@ import {
   awsAuthRefine,
   parseGetMetricData,
 } from '@rawdash/connector-aws-shared';
-import { parseEpoch } from '@rawdash/connector-shared';
+import { TransientError, parseEpoch } from '@rawdash/connector-shared';
 import {
   type ConnectorContext,
   type ConnectorCost,
@@ -101,6 +101,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'The series name is derived from the query namespace/metric, so two queries against the same metric with different statistics or dimensions share one series name and are distinguished only by sample attributes.',
     'Each query period must be a multiple of 60 seconds; sub-minute resolution is not supported.',
     'A full sync uses lookbackMinutes; a latest sync uses a short window covering the last few periods.',
+    "Each query's window is clamped to CloudWatch's resolution-based retention floor (period < 300s keeps 15 days, < 3600s keeps 63 days, otherwise 455 days), since GetMetricData returns no points older than the floor; truncation is logged.",
   ],
 });
 
@@ -181,6 +182,26 @@ const CLOUDWATCH_API_VERSION = '2010-08-01';
 const MAX_QUERIES_PER_CALL = 500;
 const DEFAULT_LOOKBACK_MINUTES = 180;
 const MS_PER_MINUTE = 60_000;
+const MS_PER_HOUR = 3_600_000;
+const MS_PER_DAY = 86_400_000;
+
+const RETENTION_FLOOR_SUB_MINUTE_MS = 3 * MS_PER_HOUR;
+const RETENTION_FLOOR_HIGH_RES_MS = 15 * MS_PER_DAY;
+const RETENTION_FLOOR_STANDARD_MS = 63 * MS_PER_DAY;
+const RETENTION_FLOOR_LONG_TERM_MS = 455 * MS_PER_DAY;
+
+function retentionFloorMs(periodSeconds: number): number {
+  if (periodSeconds < 60) {
+    return RETENTION_FLOOR_SUB_MINUTE_MS;
+  }
+  if (periodSeconds < 300) {
+    return RETENTION_FLOOR_HIGH_RES_MS;
+  }
+  if (periodSeconds < 3600) {
+    return RETENTION_FLOOR_STANDARD_MS;
+  }
+  return RETENTION_FLOOR_LONG_TERM_MS;
+}
 
 export const id = 'aws-cloudwatch';
 
@@ -234,7 +255,7 @@ export class CloudWatchConnector extends BaseAWSConnector<CloudWatchSettings> {
         ...this.settings.metricQueries.map((q) => q.periodSeconds),
         60,
       );
-      return { startMs: endMs - maxPeriod * 3 * 1000, endMs };
+      return { startMs: endMs - maxPeriod * 5 * 1000, endMs };
     }
     const lookback = this.settings.lookbackMinutes ?? DEFAULT_LOOKBACK_MINUTES;
     return { startMs: endMs - lookback * MS_PER_MINUTE, endMs };
@@ -287,52 +308,112 @@ export class CloudWatchConnector extends BaseAWSConnector<CloudWatchSettings> {
       return { done: true };
     }
 
+    if (
+      options.resources &&
+      options.resources.size > 0 &&
+      ![...names].some((name) => options.resources!.has(name))
+    ) {
+      this.logger.info('resource skipped', {
+        resource: 'metric_data',
+        reason: 'no configured metric matches requested resources',
+      });
+      return { done: true };
+    }
+
     const queriesById = new Map(queries.map((q) => [q.id, q]));
     const { startMs, endMs } = this.computeWindow(options);
 
     const samples: MetricSample[] = [];
     const host = `${CLOUDWATCH_SERVICE}.${this.settings.region}.amazonaws.com`;
 
-    for (let i = 0; i < queries.length; i += MAX_QUERIES_PER_CALL) {
-      const chunk = queries.slice(i, i + MAX_QUERIES_PER_CALL);
-      let nextToken: string | undefined;
-      let page = 0;
-      do {
-        if (signal?.aborted) {
-          return { done: false };
-        }
-        const body = this.buildGetMetricDataBody(
-          chunk,
-          startMs,
-          endMs,
-          nextToken,
-        );
-        const signingCredentials = await this.resolveSigningCredentials(signal);
-        const xml = await this.signedPost({
-          host,
-          service: CLOUDWATCH_SERVICE,
-          body,
-          signingCredentials,
+    const groupsByFloor = new Map<number, CloudWatchMetricQuery[]>();
+    for (const query of queries) {
+      const floorMs = retentionFloorMs(query.periodSeconds);
+      const group = groupsByFloor.get(floorMs);
+      if (group) {
+        group.push(query);
+      } else {
+        groupsByFloor.set(floorMs, [query]);
+      }
+    }
+
+    let internalErrorSeen = false;
+
+    for (const [floorMs, group] of groupsByFloor) {
+      const earliestRetainedMs = endMs - floorMs;
+      const effectiveStartMs = Math.max(startMs, earliestRetainedMs);
+      if (effectiveStartMs > startMs) {
+        this.logger.warn('window truncated to retention floor', {
           resource: 'metric_data',
-          signal,
+          retentionFloorMs: floorMs,
+          requestedStartMs: startMs,
+          effectiveStartMs,
+          queryIds: group.map((q) => q.id),
         });
-        const parsed = parseGetMetricData(xml);
-        for (const result of parsed.results) {
-          const query = queriesById.get(result.id);
-          if (query === undefined) {
-            continue;
+      }
+
+      for (let i = 0; i < group.length; i += MAX_QUERIES_PER_CALL) {
+        const chunk = group.slice(i, i + MAX_QUERIES_PER_CALL);
+        let nextToken: string | undefined;
+        let page = 0;
+        do {
+          if (signal?.aborted) {
+            return { done: false };
           }
-          this.collectSamples(samples, query, result);
-        }
-        nextToken = parsed.nextToken ?? undefined;
-        page += 1;
-        this.logger.info('fetched page', {
-          resource: 'metric_data',
-          page,
-          items: parsed.results.length,
-          next: nextToken ?? null,
-        });
-      } while (nextToken !== undefined);
+          const body = this.buildGetMetricDataBody(
+            chunk,
+            effectiveStartMs,
+            endMs,
+            nextToken,
+          );
+          const signingCredentials =
+            await this.resolveSigningCredentials(signal);
+          const xml = await this.signedPost({
+            host,
+            service: CLOUDWATCH_SERVICE,
+            body,
+            signingCredentials,
+            resource: 'metric_data',
+            signal,
+          });
+          const parsed = parseGetMetricData(xml);
+          for (const result of parsed.results) {
+            const query = queriesById.get(result.id);
+            if (query === undefined) {
+              continue;
+            }
+            if (result.statusCode === 'Forbidden') {
+              this.logger.warn('metric result forbidden', {
+                resource: 'metric_data',
+                queryId: query.id,
+                metric: `${query.namespace}/${query.metric}`,
+              });
+            } else if (result.statusCode === 'InternalError') {
+              internalErrorSeen = true;
+              this.logger.warn('metric result internal error', {
+                resource: 'metric_data',
+                queryId: query.id,
+                metric: `${query.namespace}/${query.metric}`,
+              });
+            }
+            this.collectSamples(samples, query, result);
+          }
+          nextToken = parsed.nextToken ?? undefined;
+          page += 1;
+          this.logger.info('fetched page', {
+            resource: 'metric_data',
+            page,
+            items: parsed.results.length,
+            next: nextToken ?? null,
+          });
+        } while (nextToken !== undefined);
+      }
+    }
+
+    if (internalErrorSeen) {
+      throw new TransientError(
+        'GetMetricData returned InternalError for one or more series; rescheduling sync',
+      );
     }
 
     await storage.metrics(samples, { names: [...names] });

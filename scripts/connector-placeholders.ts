@@ -603,17 +603,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     domain: '1password.com',
   },
   {
-    id: 'clerk',
-    name: 'Clerk',
-    category: 'security',
-    tagline:
-      'Sync users, organizations, and sign-in activity from a Clerk application.',
-    icon: 'clerk',
-    brandColor: '#6C47FF',
-    domain: 'clerk.com',
-    requestIssue: 'RAW-418',
-  },
-  {
     id: 'crowdstrike',
     name: 'CrowdStrike Falcon',
     category: 'security',
@@ -733,16 +722,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     domain: 'vanta.com',
     monogram: true,
     requestIssue: 'RAW-421',
-  },
-  {
-    id: 'wiz',
-    name: 'Wiz',
-    category: 'security',
-    tagline:
-      'Sync cloud security findings by severity and remediation progress from Wiz.',
-    brandColor: '#11253E',
-    domain: 'wiz.io',
-    requestIssue: 'RAW-423',
   },
   {
     id: 'workos',

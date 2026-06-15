@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { computeMetric } from './compute';
+import { computeMetric, computeMetricWithStatus } from './compute';
 import { InMemoryStorage } from './in-memory-storage';
 
 function makeHandle(connectorId = 'c') {
@@ -504,6 +504,55 @@ describe('computeMetric — validation', () => {
       fn: 'latest',
     });
     expect(result).toBe('run');
+  });
+});
+
+describe('computeMetricWithStatus — matchedRows', () => {
+  it('reports matchedRows for the rows feeding the aggregate', async () => {
+    const h = makeHandle();
+    await h.events([
+      { name: 'run', start_ts: NOW - 1000, end_ts: null, attributes: {} },
+      { name: 'run', start_ts: NOW - 2000, end_ts: null, attributes: {} },
+    ]);
+    const result = await computeMetricWithStatus(h, {
+      connectorId: 'c',
+      shape: 'event',
+      name: 'run',
+      field: 'start_ts',
+      fn: 'count',
+    });
+    expect(result).toEqual({ value: 2, matchedRows: 2 });
+  });
+
+  it('reports matchedRows 0 when no underlying rows match', async () => {
+    const h = makeHandle();
+    await h.events([
+      { name: 'deploy', start_ts: NOW, end_ts: null, attributes: {} },
+    ]);
+    const result = await computeMetricWithStatus(h, {
+      connectorId: 'c',
+      shape: 'event',
+      name: 'run',
+      field: 'start_ts',
+      fn: 'count',
+    });
+    expect(result).toEqual({ value: 0, matchedRows: 0 });
+  });
+
+  it('distinguishes a legitimate aggregated 0 from no_data', async () => {
+    const h = makeHandle();
+    await h.metrics([
+      { name: 'spend', ts: NOW - 1000, value: 5, attributes: {} },
+      { name: 'spend', ts: NOW - 2000, value: -5, attributes: {} },
+    ]);
+    const result = await computeMetricWithStatus(h, {
+      connectorId: 'c',
+      shape: 'metric',
+      name: 'spend',
+      field: 'value',
+      fn: 'sum',
+    });
+    expect(result).toEqual({ value: 0, matchedRows: 2 });
   });
 });
 

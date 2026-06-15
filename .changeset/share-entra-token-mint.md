@@ -1,6 +1,5 @@
 ---
-'@rawdash/connector-azure-shared': minor
 '@rawdash/connector-entra-id': patch
 ---
 
-Generalize the Azure AD token mint so Microsoft Graph connectors can share it. `fetchArmAccessToken` becomes `fetchEntraAccessToken({ scope, ... })` and `AzureAuthInput` becomes `EntraAuthInput`; the ARM scope now lives in `BaseAzureConnector`. The `entra-id` connector reuses this shared token mint, gaining the auth-error classification (a bad client secret now fails fast as `AuthError` instead of being retried as transient).
+Reuse the shared Microsoft Entra ID token mint from `azure-shared` (the same OAuth 2.0 client-credentials flow the Azure ARM connectors use) instead of an inline copy. The connector now classifies token-endpoint auth failures: a bad client secret fails fast as a fatal auth error instead of being retried as a transient error.

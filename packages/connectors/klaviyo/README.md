@@ -116,7 +116,7 @@ Klaviyo enforces per-endpoint burst and steady rate limits and signals them via 
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [Klaviyo API docs](https://developers.klaviyo.com/en/reference/api_overview)
 - [GitHub](https://github.com/rawdash/rawdash)
 

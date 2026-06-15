@@ -134,6 +134,8 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Synthetic monitor results are out of scope.',
     'Monitor entities are not cleared on a full sync - the monitor_events diff depends on the prior status being stored.',
     'Pagination URLs are pinned to the configured `api.<site>` host.',
+    'SLI values are read per SLO from the SLO history endpoint, so the SLO phase issues one extra request per SLO each sync.',
+    'The SLO list is capped at 1000 entries per sync; orgs with more SLOs will not see the remainder.',
   ],
 });
 
@@ -184,7 +186,14 @@ type DatadogSyncCursor = ChunkedSyncCursor<DatadogPhase, string>;
 
 const isDatadogSyncCursor = makeChunkedCursorGuard(PHASE_ORDER);
 
-type DatadogMonitorStatus = 'OK' | 'Alert' | 'Warn' | 'No Data' | 'Ignored';
+type DatadogMonitorStatus =
+  | 'OK'
+  | 'Alert'
+  | 'Warn'
+  | 'No Data'
+  | 'Ignored'
+  | 'Skipped'
+  | 'Unknown';
 
 interface DatadogMonitor {
   id: number;
@@ -239,23 +248,37 @@ interface DatadogSloThreshold {
   warning?: number | null;
 }
 
-interface DatadogSloStatus {
-  sli_value?: number | null;
-  indexed_at?: number | null;
-}
-
 interface DatadogSlo {
   id: string;
   name: string;
   type: string;
   thresholds: DatadogSloThreshold[];
-  overall_status?: DatadogSloStatus[] | null;
   created_at?: number | null;
   modified_at?: number | null;
 }
 
 interface DatadogSlosResponse {
   data: DatadogSlo[];
+}
+
+interface DatadogSloHistoryResponse {
+  data?: {
+    to_ts?: number | null;
+    from_ts?: number | null;
+    overall?: {
+      sli_value?: number | null;
+    } | null;
+  } | null;
+}
+
+interface SloSliSample {
+  value: number;
+  ts: number;
+}
+
+interface SlosBatchItem {
+  slo: DatadogSlo;
+  sli: SloSliSample | null;
 }
 
 interface DatadogTimeseriesResponse {
@@ -268,7 +291,7 @@ interface DatadogTimeseriesResponse {
         unit?: Array<{ name?: string } | null> | null;
       }>;
       times?: number[];
-      values?: number[][];
+      values?: Array<Array<number | null>>;
     };
   };
 }
@@ -289,7 +312,15 @@ const monitorSchema = z.object({
   id: z.number().int().nonnegative(),
   name: z.string(),
   type: z.string(),
-  status: z.enum(['OK', 'Alert', 'Warn', 'No Data', 'Ignored']),
+  status: z.enum([
+    'OK',
+    'Alert',
+    'Warn',
+    'No Data',
+    'Ignored',
+    'Skipped',
+    'Unknown',
+  ]),
   priority: z.number().int().nullable(),
   tags: z.array(z.string()),
   overall_state_modified: z.iso.datetime().nullable().optional(),
@@ -347,21 +378,28 @@ const sloSchema = z.object({
       warning: z.number().nullable().optional(),
     }),
   ),
-  overall_status: z
-    .array(
-      z.object({
-        sli_value: z.number().nullable().optional(),
-        indexed_at: z.number().nullable().optional(),
-      }),
-    )
-    .nullable()
-    .optional(),
   created_at: z.number().nullable().optional(),
   modified_at: z.number().nullable().optional(),
 });
 
 const slosResponseSchema = z.object({
   data: z.array(sloSchema),
+});
+
+const sloHistoryResponseSchema = z.object({
+  data: z
+    .object({
+      to_ts: z.number().nullable().optional(),
+      from_ts: z.number().nullable().optional(),
+      overall: z
+        .object({
+          sli_value: z.number().nullable().optional(),
+        })
+        .nullable()
+        .optional(),
+    })
+    .nullable()
+    .optional(),
 });
 
 const timeseriesResponseSchema = z.object({
@@ -377,7 +415,7 @@ const timeseriesResponseSchema = z.object({
         )
         .optional(),
       times: z.array(z.number()).optional(),
-      values: z.array(z.array(z.number())).optional(),
+      values: z.array(z.array(z.number().nullable())).optional(),
     }),
   }),
 });
@@ -386,6 +424,12 @@ const DEFAULT_SITE = 'datadoghq.com';
 const MONITORS_PAGE_SIZE = 100;
 const INCIDENTS_PAGE_SIZE = 50;
 const DEFAULT_METRICS_LOOKBACK_HOURS = 24;
+const DEFAULT_SLO_HISTORY_WINDOW_S = 7 * 24 * 60 * 60;
+const TIMEFRAME_UNIT_SECONDS: Record<string, number> = {
+  h: 60 * 60,
+  d: 24 * 60 * 60,
+  w: 7 * 24 * 60 * 60,
+};
 const INTERVAL_MS: Record<
   NonNullable<DatadogMetricQuery['interval']>,
   number
@@ -404,11 +448,19 @@ export const datadogResources = defineResources({
       {
         field: 'status',
         ops: ['eq'],
-        values: ['OK', 'Alert', 'Warn', 'No Data', 'Ignored'],
+        values: [
+          'OK',
+          'Alert',
+          'Warn',
+          'No Data',
+          'Ignored',
+          'Skipped',
+          'Unknown',
+        ],
       },
     ],
     description:
-      'Datadog monitors with name, type, current status (OK / Alert / Warn / No Data), priority, and tags.',
+      'Datadog monitors with name, type, current status (OK / Alert / Warn / No Data / Ignored / Skipped / Unknown), priority, and tags.',
     endpoint: 'GET /api/v1/monitor/search',
     responses: { monitors: monitorSearchResponseSchema },
   },
@@ -439,12 +491,14 @@ export const datadogResources = defineResources({
   datadog_slo_sli: {
     shape: 'metric',
     description:
-      'SLI value samples per SLO, one per overall_status snapshot reported by Datadog.',
+      'SLI value samples per SLO, one per sync, read from the SLO history endpoint over a window derived from the SLO threshold timeframes.',
     unit: 'percent',
+    endpoint: 'GET /api/v1/slo/{slo_id}/history',
     dimensions: [
       { name: 'sloId', description: 'Datadog SLO id.' },
       { name: 'sloType', description: 'SLO type (metric, monitor, etc.).' },
     ],
+    responses: { slo_history: sloHistoryResponseSchema },
   },
   datadog_metric: {
     shape: 'metric',
@@ -466,6 +520,19 @@ export const datadogResources = defineResources({
 });
 
 export const id = 'datadog';
+
+function parseTimeframeSeconds(timeframe: string): number | null {
+  const match = /^(\d+)([hdw])$/.exec(timeframe.trim().toLowerCase());
+  if (!match) {
+    return null;
+  }
+  const amount = Number(match[1]);
+  const unitSeconds = TIMEFRAME_UNIT_SECONDS[match[2]!];
+  if (!Number.isFinite(amount) || amount <= 0 || unitSeconds === undefined) {
+    return null;
+  }
+  return amount * unitSeconds;
+}
 
 function pushableEq(
   filter: FilterClause[] | undefined,
@@ -671,6 +738,30 @@ export class DatadogConnector extends BaseConnector<
     return u.toString();
   }
 
+  private buildSloHistoryUrl(
+    sloId: string,
+    fromTs: number,
+    toTs: number,
+  ): string {
+    const u = new URL(
+      `${this.apiBase}/api/v1/slo/${encodeURIComponent(sloId)}/history`,
+    );
+    u.searchParams.set('from_ts', String(fromTs));
+    u.searchParams.set('to_ts', String(toTs));
+    return u.toString();
+  }
+
+  private sloHistoryWindowSeconds(slo: DatadogSlo): number {
+    let maxSeconds = 0;
+    for (const threshold of slo.thresholds) {
+      const seconds = parseTimeframeSeconds(threshold.timeframe);
+      if (seconds !== null && seconds > maxSeconds) {
+        maxSeconds = seconds;
+      }
+    }
+    return maxSeconds > 0 ? maxSeconds : DEFAULT_SLO_HISTORY_WINDOW_S;
+  }
+
   private buildMetricsUrl(): string {
     return `${this.apiBase}/api/v2/query/timeseries`;
   }
@@ -742,13 +833,47 @@ export class DatadogConnector extends BaseConnector<
 
   private async fetchSlos(
     signal: AbortSignal | undefined,
-  ): Promise<{ items: DatadogSlo[]; next: string | null }> {
+  ): Promise<{ items: SlosBatchItem[]; next: string | null }> {
     const res = await this.fetch<DatadogSlosResponse>(
       this.buildSlosUrl(),
       'slos',
       signal,
     );
-    return { items: res.body.data, next: null };
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const items: SlosBatchItem[] = [];
+    for (const slo of res.body.data) {
+      signal?.throwIfAborted();
+      const sli = await this.fetchSloSli(slo, nowSeconds, signal);
+      items.push({ slo, sli });
+    }
+    return { items, next: null };
+  }
+
+  private async fetchSloSli(
+    slo: DatadogSlo,
+    nowSeconds: number,
+    signal: AbortSignal | undefined,
+  ): Promise<SloSliSample | null> {
+    const fromTs = nowSeconds - this.sloHistoryWindowSeconds(slo);
+    const res = await this.fetch<DatadogSloHistoryResponse>(
+      this.buildSloHistoryUrl(slo.id, fromTs, nowSeconds),
+      'slos',
+      signal,
+    );
+    const value = res.body.data?.overall?.sli_value;
+    if (value === null || value === undefined || !Number.isFinite(value)) {
+      return null;
+    }
+    const rawTs = res.body.data?.to_ts;
+    const tsSeconds =
+      rawTs !== null && rawTs !== undefined && Number.isFinite(rawTs)
+        ? rawTs
+        : nowSeconds;
+    const ts = parseEpoch(tsSeconds, 's');
+    if (ts === null) {
+      return null;
+    }
+    return { value, ts };
   }
 
   private async fetchMetrics(
@@ -926,7 +1051,7 @@ export class DatadogConnector extends BaseConnector<
 
   private async writeSlos(
     storage: StorageHandle,
-    slos: DatadogSlo[],
+    items: SlosBatchItem[],
   ): Promise<void> {
     const sliSamples: Array<{
       name: string;
@@ -935,7 +1060,7 @@ export class DatadogConnector extends BaseConnector<
       attributes: Record<string, string | number>;
     }> = [];
     const entities: Entity[] = [];
-    for (const s of slos) {
+    for (const { slo: s, sli } of items) {
       const createdMs =
         s.created_at !== null && s.created_at !== undefined
           ? parseEpoch(s.created_at, 's')
@@ -949,10 +1074,6 @@ export class DatadogConnector extends BaseConnector<
         target: t.target,
       }));
       const primaryTarget = s.thresholds[0]?.target ?? null;
-      const latestStatus = (s.overall_status ?? []).find(
-        (st) => st.sli_value !== null && st.sli_value !== undefined,
-      );
-      const latestSli = latestStatus?.sli_value ?? null;
       entities.push({
         type: 'datadog_slo',
         id: s.id,
@@ -962,31 +1083,18 @@ export class DatadogConnector extends BaseConnector<
           sloType: s.type,
           thresholds: targets as unknown as JSONValue,
           target: primaryTarget,
-          latestSliValue: latestSli,
+          latestSliValue: sli?.value ?? null,
           createdAt: createdMs,
           modifiedAt: modifiedMs,
         },
         updated_at: modifiedMs ?? createdMs ?? Date.now(),
       });
 
-      for (const status of s.overall_status ?? []) {
-        const ts =
-          status.indexed_at !== null && status.indexed_at !== undefined
-            ? parseEpoch(status.indexed_at, 's')
-            : null;
-        const value = status.sli_value;
-        if (
-          ts === null ||
-          value === null ||
-          value === undefined ||
-          !Number.isFinite(value)
-        ) {
-          continue;
-        }
+      if (sli !== null) {
         sliSamples.push({
           name: 'datadog_slo_sli',
-          ts,
-          value,
+          ts: sli.ts,
+          value: sli.value,
           attributes: { sloId: s.id, sloType: s.type },
         });
       }
@@ -1030,7 +1138,11 @@ export class DatadogConnector extends BaseConnector<
         for (let t = 0; t < times.length; t++) {
           const rawTs = times[t];
           const rawValue = seriesValues[t];
-          if (rawTs === undefined || rawValue === undefined) {
+          if (
+            rawTs === undefined ||
+            rawValue === undefined ||
+            rawValue === null
+          ) {
             continue;
           }
           const ts = parseEpoch(rawTs, 'ms');
@@ -1120,7 +1232,7 @@ export class DatadogConnector extends BaseConnector<
           case 'incidents':
             return this.writeIncidents(storage, items as DatadogIncident[]);
           case 'slos':
-            return this.writeSlos(storage, items as DatadogSlo[]);
+            return this.writeSlos(storage, items as SlosBatchItem[]);
           case 'metrics':
             return this.writeMetrics(storage, items as MetricsBatchItem[]);
         }

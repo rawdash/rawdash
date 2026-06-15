@@ -149,6 +149,7 @@ describe('runSync — optional markSyncRunning', () => {
     const storage: ServerStorage = {
       getStorageHandle: (id, opts): StorageHandle =>
         inner.getStorageHandle(id, opts),
+      getHealth: (id) => inner.getHealth(id),
       getSyncState: (): Promise<SyncState> => inner.getSyncState(),
       markSyncQueued: () => inner.markSyncQueued(),
       markSyncSucceeded: () => inner.markSyncSucceeded(),

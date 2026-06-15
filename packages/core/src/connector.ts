@@ -170,8 +170,6 @@ export interface StorageHandle {
   queryRollups?(q: RollupQuery): Promise<RollupBucket[]>;
   getRollupWatermark?(resource: string): Promise<number | null>;
   setRollupWatermark?(resource: string, tsUnixMs: number): Promise<void>;
-
-  getHealth?(): Promise<ConnectorHealth | null>;
 }
 
 export interface ConnectorHealth {
