@@ -146,7 +146,7 @@ Microsoft Graph applies per-app and per-tenant throttling. The shared HTTP clien
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [Microsoft Entra ID API docs](https://learn.microsoft.com/en-us/graph/api/resources/signin)
 - [GitHub](https://github.com/rawdash/rawdash)
 
