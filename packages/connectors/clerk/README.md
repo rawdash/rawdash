@@ -125,7 +125,7 @@ Clerk Backend API throttles per instance (~20 req/s for production, lower for de
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [Clerk API docs](https://clerk.com/docs/reference/backend-api)
 - [GitHub](https://github.com/rawdash/rawdash)
 
