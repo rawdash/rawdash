@@ -476,7 +476,7 @@ describe('VantaConnector.sync', () => {
     expect(calls.some((c) => c.url.includes('/v1/test-findings'))).toBe(false);
   });
 
-  it('clears entity scope on full sync but not on incremental', async () => {
+  it('clears entity scope on both full and incremental sync', async () => {
     vi.stubGlobal(
       'fetch',
       makeFetch(() => undefined),
@@ -494,7 +494,7 @@ describe('VantaConnector.sync', () => {
     expect(incr.entities).toHaveBeenCalledTimes(1);
   });
 
-  it('clears events scope only on full sync, not on incremental', async () => {
+  it('never clears events scope, preserving findings outside the lookback window', async () => {
     vi.stubGlobal(
       'fetch',
       makeFetch(() => undefined),
@@ -502,7 +502,7 @@ describe('VantaConnector.sync', () => {
 
     const full = makeStorage();
     await connector(['findings']).sync({ mode: 'full' }, full);
-    expect(full.events).toHaveBeenCalledTimes(1);
+    expect(full.events).not.toHaveBeenCalled();
 
     const incr = makeStorage();
     await connector(['findings']).sync(

@@ -459,8 +459,10 @@ export class VantaConnector extends BaseConnector<
     });
     const token = res.body.access_token;
     const expiresIn = res.body.expires_in ?? 3600;
+    const refreshSkewSeconds = Math.min(60, Math.floor(expiresIn / 2));
     this.accessToken = token;
-    this.accessTokenExpiry = Date.now() + (expiresIn - 60) * 1000;
+    this.accessTokenExpiry =
+      Date.now() + Math.max(1, expiresIn - refreshSkewSeconds) * 1000;
     return token;
   }
 
@@ -684,7 +686,6 @@ export class VantaConnector extends BaseConnector<
   private async clearScopeOnFirstPage(
     storage: StorageHandle,
     phase: VantaPhase,
-    isFull: boolean,
   ): Promise<void> {
     switch (phase) {
       case 'controls':
@@ -694,9 +695,6 @@ export class VantaConnector extends BaseConnector<
         await storage.entities([], { types: [TEST_ENTITY] });
         return;
       case 'findings':
-        if (isFull) {
-          await storage.events([], { names: [FINDING_EVENT] });
-        }
         return;
     }
   }
@@ -711,7 +709,6 @@ export class VantaConnector extends BaseConnector<
     signal?: AbortSignal,
   ): Promise<SyncResult> {
     const cursor = this.resolveCursor(options.cursor);
-    const isFull = options.mode === 'full';
 
     const phases = selectActivePhases<VantaResource, VantaPhase>(
       (r) => r,
@@ -738,7 +735,7 @@ export class VantaConnector extends BaseConnector<
       },
       writeBatch: async (phase, items, page) => {
         if (page === null) {
-          await this.clearScopeOnFirstPage(storage, phase, isFull);
+          await this.clearScopeOnFirstPage(storage, phase);
         }
         await this.writePhase(
           storage,
