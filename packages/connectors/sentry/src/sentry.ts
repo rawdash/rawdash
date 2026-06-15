@@ -896,6 +896,9 @@ export class SentryConnector extends BaseConnector<
               await storage.entities([], { types: ['sentry_release'] });
               break;
             case 'error_stats':
+              await storage.metrics([], {
+                names: ['sentry_errors_per_hour'],
+              });
               break;
           }
         }

@@ -567,6 +567,56 @@ describe('SentryConnector.sync', () => {
     expect(params.get('interval')).toBe('1h');
   });
 
+  it('clears the errors_per_hour metric scope on the first page of a full sync', async () => {
+    const connector = makeConnector({ resources: ['errors_per_hour'] });
+    installRouter((u) => {
+      if (u.includes('/stats_v2/')) {
+        return {
+          body: {
+            intervals: ['2024-05-01T00:00:00.000Z'],
+            groups: [{ by: {}, series: { 'sum(quantity)': [5] } }],
+          },
+        };
+      }
+      return { body: [] };
+    });
+    const storage = makeStorage();
+    await connector.sync({ mode: 'full' }, storage);
+
+    const cleared = storage.metrics.mock.calls.filter(
+      (c) => Array.isArray(c[0]) && (c[0] as unknown[]).length === 0,
+    );
+    expect(cleared).toHaveLength(1);
+    expect((cleared[0]![1] as { names: string[] }).names).toEqual([
+      'sentry_errors_per_hour',
+    ]);
+  });
+
+  it('does not clear the errors_per_hour metric scope in incremental mode', async () => {
+    const connector = makeConnector({ resources: ['errors_per_hour'] });
+    installRouter((u) => {
+      if (u.includes('/stats_v2/')) {
+        return {
+          body: {
+            intervals: ['2024-05-01T00:00:00.000Z'],
+            groups: [{ by: {}, series: { 'sum(quantity)': [5] } }],
+          },
+        };
+      }
+      return { body: [] };
+    });
+    const storage = makeStorage();
+    await connector.sync(
+      { mode: 'latest', since: '2024-05-01T00:00:00.000Z' },
+      storage,
+    );
+
+    const cleared = storage.metrics.mock.calls.filter(
+      (c) => Array.isArray(c[0]) && (c[0] as unknown[]).length === 0,
+    );
+    expect(cleared).toHaveLength(0);
+  });
+
   it('writes org-wide hourly error metrics from an ungrouped stats_v2 response', async () => {
     const connector = makeConnector({ resources: ['errors_per_hour'] });
     installRouter((u) => {
@@ -592,8 +642,8 @@ describe('SentryConnector.sync', () => {
     const storage = makeStorage();
     await connector.sync({ mode: 'full' }, storage);
 
-    expect(storage.metrics).toHaveBeenCalledTimes(1);
-    const [samples, scope] = storage.metrics.mock.calls[0]!;
+    expect(storage.metrics).toHaveBeenCalledTimes(2);
+    const [samples, scope] = storage.metrics.mock.calls.at(-1)!;
     expect(scope).toEqual({ names: ['sentry_errors_per_hour'] });
     const typed = samples as Array<{
       name: string;
@@ -639,7 +689,7 @@ describe('SentryConnector.sync', () => {
     const storage = makeStorage();
     await connector.sync({ mode: 'full' }, storage);
 
-    const [samples] = storage.metrics.mock.calls[0]!;
+    const [samples] = storage.metrics.mock.calls.at(-1)!;
     const typed = samples as Array<{ value: number }>;
     expect(typed).toHaveLength(3);
     expect(typed.map((s) => s.value)).toEqual([12, 3, 9]);
@@ -661,8 +711,8 @@ describe('SentryConnector.sync', () => {
     const storage = makeStorage();
     await connector.sync({ mode: 'full' }, storage);
 
-    expect(storage.metrics).toHaveBeenCalledTimes(1);
-    const [samples] = storage.metrics.mock.calls[0]!;
+    expect(storage.metrics).toHaveBeenCalledTimes(2);
+    const [samples] = storage.metrics.mock.calls.at(-1)!;
     const typed = samples as Array<{ value: number }>;
     expect(typed).toHaveLength(2);
     expect(typed.every((s) => s.value === 0)).toBe(true);
@@ -684,7 +734,7 @@ describe('SentryConnector.sync', () => {
     const storage = makeStorage();
     await connector.sync({ mode: 'full' }, storage);
 
-    const [samples] = storage.metrics.mock.calls[0]!;
+    const [samples] = storage.metrics.mock.calls.at(-1)!;
     const typed = samples as Array<{ value: number }>;
     expect(typed).toHaveLength(2);
     expect(typed.every((s) => s.value === 0)).toBe(true);
@@ -712,8 +762,8 @@ describe('SentryConnector.sync', () => {
     const storage = makeStorage();
     await connector.sync({ mode: 'full' }, storage);
 
-    expect(storage.metrics).toHaveBeenCalledTimes(1);
-    const [samples] = storage.metrics.mock.calls[0]!;
+    expect(storage.metrics).toHaveBeenCalledTimes(2);
+    const [samples] = storage.metrics.mock.calls.at(-1)!;
     const typed = samples as Array<{
       name: string;
       ts: number;
@@ -748,8 +798,8 @@ describe('SentryConnector.sync', () => {
     const storage = makeStorage();
     await connector.sync({ mode: 'full' }, storage);
 
-    expect(storage.metrics).toHaveBeenCalledTimes(1);
-    const [samples] = storage.metrics.mock.calls[0]!;
+    expect(storage.metrics).toHaveBeenCalledTimes(2);
+    const [samples] = storage.metrics.mock.calls.at(-1)!;
     const typed = samples as Array<{ value: number }>;
     expect(typed).toHaveLength(2);
     expect(typed.every((s) => s.value === 0)).toBe(true);
@@ -773,8 +823,8 @@ describe('SentryConnector.sync', () => {
     const storage = makeStorage();
     await connector.sync({ mode: 'full' }, storage);
 
-    expect(storage.metrics).toHaveBeenCalledTimes(1);
-    const [samples] = storage.metrics.mock.calls[0]!;
+    expect(storage.metrics).toHaveBeenCalledTimes(2);
+    const [samples] = storage.metrics.mock.calls.at(-1)!;
     expect(samples as unknown[]).toHaveLength(0);
   });
 
