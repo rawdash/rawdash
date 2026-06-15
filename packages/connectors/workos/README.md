@@ -142,7 +142,7 @@ WorkOS list endpoints return X-RateLimit-Remaining and X-RateLimit-Reset (Unix s
 
 ## Links
 
-- [Rawdash docs](https://rawdash.dev/docs/connectors/)
+- [Rawdash docs](https://rawdash.dev/docs/connectors)
 - [WorkOS API docs](https://workos.com/docs/reference)
 - [GitHub](https://github.com/rawdash/rawdash)
 
