@@ -550,7 +550,117 @@ describe('SentryConnector.sync', () => {
     expect(new URL(statsCall!).searchParams.get('outcome')).toBe('accepted');
   });
 
-  it('writes hourly error metrics from stats_v2', async () => {
+  it('does not send groupBy=project on the stats_v2 query', async () => {
+    const connector = makeConnector({ resources: ['errors_per_hour'] });
+    const { calls } = installRouter((u) => {
+      if (u.includes('/stats_v2/')) {
+        return { body: { intervals: [], groups: [] } };
+      }
+      return { body: [] };
+    });
+    await connector.sync({ mode: 'full' }, makeStorage());
+
+    const statsCall = calls.find((c) => c.includes('/stats_v2/'));
+    expect(statsCall).toBeDefined();
+    const params = new URL(statsCall!).searchParams;
+    expect(params.getAll('groupBy')).toEqual([]);
+    expect(params.get('interval')).toBe('1h');
+  });
+
+  it('clears the errors_per_hour metric scope on the first page of a full sync', async () => {
+    const connector = makeConnector({ resources: ['errors_per_hour'] });
+    installRouter((u) => {
+      if (u.includes('/stats_v2/')) {
+        return {
+          body: {
+            intervals: ['2024-05-01T00:00:00.000Z'],
+            groups: [{ by: {}, series: { 'sum(quantity)': [5] } }],
+          },
+        };
+      }
+      return { body: [] };
+    });
+    const storage = makeStorage();
+    await connector.sync({ mode: 'full' }, storage);
+
+    const cleared = storage.metrics.mock.calls.filter(
+      (c) => Array.isArray(c[0]) && (c[0] as unknown[]).length === 0,
+    );
+    expect(cleared).toHaveLength(1);
+    expect((cleared[0]![1] as { names: string[] }).names).toEqual([
+      'sentry_errors_per_hour',
+    ]);
+  });
+
+  it('does not clear the errors_per_hour metric scope in incremental mode', async () => {
+    const connector = makeConnector({ resources: ['errors_per_hour'] });
+    installRouter((u) => {
+      if (u.includes('/stats_v2/')) {
+        return {
+          body: {
+            intervals: ['2024-05-01T00:00:00.000Z'],
+            groups: [{ by: {}, series: { 'sum(quantity)': [5] } }],
+          },
+        };
+      }
+      return { body: [] };
+    });
+    const storage = makeStorage();
+    await connector.sync(
+      { mode: 'latest', since: '2024-05-01T00:00:00.000Z' },
+      storage,
+    );
+
+    const cleared = storage.metrics.mock.calls.filter(
+      (c) => Array.isArray(c[0]) && (c[0] as unknown[]).length === 0,
+    );
+    expect(cleared).toHaveLength(0);
+  });
+
+  it('writes org-wide hourly error metrics from an ungrouped stats_v2 response', async () => {
+    const connector = makeConnector({ resources: ['errors_per_hour'] });
+    installRouter((u) => {
+      if (u.includes('/stats_v2/')) {
+        return {
+          body: {
+            intervals: [
+              '2024-05-01T00:00:00.000Z',
+              '2024-05-01T01:00:00.000Z',
+              '2024-05-01T02:00:00.000Z',
+            ],
+            groups: [
+              {
+                by: {},
+                series: { 'sum(quantity)': [10, 0, 5] },
+              },
+            ],
+          },
+        };
+      }
+      return { body: [] };
+    });
+    const storage = makeStorage();
+    await connector.sync({ mode: 'full' }, storage);
+
+    expect(storage.metrics).toHaveBeenCalledTimes(2);
+    const [samples, scope] = storage.metrics.mock.calls.at(-1)!;
+    expect(scope).toEqual({ names: ['sentry_errors_per_hour'] });
+    const typed = samples as Array<{
+      name: string;
+      ts: number;
+      value: number;
+    }>;
+    expect(typed).toHaveLength(3);
+    expect(typed.every((s) => s.name === 'sentry_errors_per_hour')).toBe(true);
+    expect(typed.map((s) => s.value)).toEqual([10, 0, 5]);
+    expect(typed.map((s) => s.ts)).toEqual([
+      Date.parse('2024-05-01T00:00:00.000Z'),
+      Date.parse('2024-05-01T01:00:00.000Z'),
+      Date.parse('2024-05-01T02:00:00.000Z'),
+    ]);
+  });
+
+  it('sums series across groups when stats_v2 still returns multiple groups', async () => {
     const connector = makeConnector({ resources: ['errors_per_hour'] });
     installRouter((u) => {
       if (u.includes('/stats_v2/')) {
@@ -579,34 +689,20 @@ describe('SentryConnector.sync', () => {
     const storage = makeStorage();
     await connector.sync({ mode: 'full' }, storage);
 
-    expect(storage.metrics).toHaveBeenCalledTimes(1);
-    const [samples, scope] = storage.metrics.mock.calls[0]!;
-    expect(scope).toEqual({ names: ['sentry_errors_per_hour'] });
-    const typed = samples as Array<{
-      name: string;
-      value: number;
-      attributes: Record<string, string>;
-    }>;
-    expect(typed).toHaveLength(6);
-    expect(typed.every((s) => s.name === 'sentry_errors_per_hour')).toBe(true);
-    expect(typed.filter((s) => s.attributes.project === 'web')).toHaveLength(3);
-    expect(typed.filter((s) => s.attributes.project === 'api')).toHaveLength(3);
+    const [samples] = storage.metrics.mock.calls.at(-1)!;
+    const typed = samples as Array<{ value: number }>;
+    expect(typed).toHaveLength(3);
+    expect(typed.map((s) => s.value)).toEqual([12, 3, 9]);
   });
 
-  it('emits explicit zeros for stats_v2 groups missing a series (genuine 0-error windows)', async () => {
+  it('emits explicit zeros for an interval with no series value (genuine 0-error windows)', async () => {
     const connector = makeConnector({ resources: ['errors_per_hour'] });
     installRouter((u) => {
       if (u.includes('/stats_v2/')) {
         return {
           body: {
             intervals: ['2024-05-01T00:00:00.000Z', '2024-05-01T01:00:00.000Z'],
-            groups: [
-              { by: { project: 'web' } },
-              {
-                by: { project: 'api' },
-                series: { 'sum(quantity)': [2, 3] },
-              },
-            ],
+            groups: [{ by: {}, series: { 'sum(quantity)': [0, 0] } }],
           },
         };
       }
@@ -615,18 +711,33 @@ describe('SentryConnector.sync', () => {
     const storage = makeStorage();
     await connector.sync({ mode: 'full' }, storage);
 
-    expect(storage.metrics).toHaveBeenCalledTimes(1);
-    const [samples] = storage.metrics.mock.calls[0]!;
-    const typed = samples as Array<{
-      value: number;
-      attributes: Record<string, string>;
-    }>;
-    expect(typed).toHaveLength(4);
-    const web = typed.filter((s) => s.attributes.project === 'web');
-    expect(web).toHaveLength(2);
-    expect(web.every((s) => s.value === 0)).toBe(true);
-    const api = typed.filter((s) => s.attributes.project === 'api');
-    expect(api.map((s) => s.value)).toEqual([2, 3]);
+    expect(storage.metrics).toHaveBeenCalledTimes(2);
+    const [samples] = storage.metrics.mock.calls.at(-1)!;
+    const typed = samples as Array<{ value: number }>;
+    expect(typed).toHaveLength(2);
+    expect(typed.every((s) => s.value === 0)).toBe(true);
+  });
+
+  it('emits zeros across intervals when a group carries no series at all', async () => {
+    const connector = makeConnector({ resources: ['errors_per_hour'] });
+    installRouter((u) => {
+      if (u.includes('/stats_v2/')) {
+        return {
+          body: {
+            intervals: ['2024-05-01T00:00:00.000Z', '2024-05-01T01:00:00.000Z'],
+            groups: [{ by: {} }],
+          },
+        };
+      }
+      return { body: [] };
+    });
+    const storage = makeStorage();
+    await connector.sync({ mode: 'full' }, storage);
+
+    const [samples] = storage.metrics.mock.calls.at(-1)!;
+    const typed = samples as Array<{ value: number }>;
+    expect(typed).toHaveLength(2);
+    expect(typed.every((s) => s.value === 0)).toBe(true);
   });
 
   it('emits samples when intervals is absent but series data is present', async () => {
@@ -639,7 +750,7 @@ describe('SentryConnector.sync', () => {
             end: '2024-05-01T03:00:00.000Z',
             groups: [
               {
-                by: { project: 'web' },
+                by: {},
                 series: { 'sum(quantity)': [10, 20, 30] },
               },
             ],
@@ -651,20 +762,18 @@ describe('SentryConnector.sync', () => {
     const storage = makeStorage();
     await connector.sync({ mode: 'full' }, storage);
 
-    expect(storage.metrics).toHaveBeenCalledTimes(1);
-    const [samples] = storage.metrics.mock.calls[0]!;
+    expect(storage.metrics).toHaveBeenCalledTimes(2);
+    const [samples] = storage.metrics.mock.calls.at(-1)!;
     const typed = samples as Array<{
       name: string;
       ts: number;
       value: number;
-      attributes: Record<string, string>;
     }>;
     expect(typed).toHaveLength(3);
     expect(typed.map((s) => s.value)).toEqual([10, 20, 30]);
     expect(typed.every((s) => s.name === 'sentry_errors_per_hour')).toBe(true);
-    expect(typed.every((s) => s.attributes.project === 'web')).toBe(true);
-    expect(typed[0]!.ts).toBe(new Date('2024-05-01T00:00:00.000Z').getTime());
-    expect(typed[1]!.ts).toBe(new Date('2024-05-01T01:00:00.000Z').getTime());
+    expect(typed[0]!.ts).toBe(Date.parse('2024-05-01T00:00:00.000Z'));
+    expect(typed[1]!.ts).toBe(Date.parse('2024-05-01T01:00:00.000Z'));
   });
 
   it('emits explicit zeros when intervals absent and series is all zeros', async () => {
@@ -677,7 +786,7 @@ describe('SentryConnector.sync', () => {
             end: '2024-05-01T02:00:00.000Z',
             groups: [
               {
-                by: { project: 'web' },
+                by: {},
                 series: { 'sum(quantity)': [0, 0] },
               },
             ],
@@ -689,31 +798,22 @@ describe('SentryConnector.sync', () => {
     const storage = makeStorage();
     await connector.sync({ mode: 'full' }, storage);
 
-    expect(storage.metrics).toHaveBeenCalledTimes(1);
-    const [samples] = storage.metrics.mock.calls[0]!;
-    const typed = samples as Array<{
-      value: number;
-      attributes: Record<string, string>;
-    }>;
+    expect(storage.metrics).toHaveBeenCalledTimes(2);
+    const [samples] = storage.metrics.mock.calls.at(-1)!;
+    const typed = samples as Array<{ value: number }>;
     expect(typed).toHaveLength(2);
     expect(typed.every((s) => s.value === 0)).toBe(true);
-    expect(typed.every((s) => s.attributes.project === 'web')).toBe(true);
   });
 
-  it('reconstructs intervals from a later group when first group has no series', async () => {
+  it('emits nothing when a grouped response carries totals only (no series, no intervals)', async () => {
     const connector = makeConnector({ resources: ['errors_per_hour'] });
     installRouter((u) => {
       if (u.includes('/stats_v2/')) {
         return {
           body: {
-            start: '2024-05-01T00:00:00.000Z',
-            end: '2024-05-01T02:00:00.000Z',
             groups: [
-              { by: { project: 'empty-proj' } },
-              {
-                by: { project: 'api' },
-                series: { 'sum(quantity)': [7, 14] },
-              },
+              { by: { project: 'web' }, totals: { 'sum(quantity)': 1234 } },
+              { by: { project: 'api' }, totals: { 'sum(quantity)': 56 } },
             ],
           },
         };
@@ -723,20 +823,9 @@ describe('SentryConnector.sync', () => {
     const storage = makeStorage();
     await connector.sync({ mode: 'full' }, storage);
 
-    expect(storage.metrics).toHaveBeenCalledTimes(1);
-    const [samples] = storage.metrics.mock.calls[0]!;
-    const typed = samples as Array<{
-      value: number;
-      attributes: Record<string, string>;
-    }>;
-    expect(typed).toHaveLength(4);
-    const emptyProj = typed.filter(
-      (s) => s.attributes.project === 'empty-proj',
-    );
-    expect(emptyProj).toHaveLength(2);
-    expect(emptyProj.every((s) => s.value === 0)).toBe(true);
-    const api = typed.filter((s) => s.attributes.project === 'api');
-    expect(api.map((s) => s.value)).toEqual([7, 14]);
+    expect(storage.metrics).toHaveBeenCalledTimes(2);
+    const [samples] = storage.metrics.mock.calls.at(-1)!;
+    expect(samples as unknown[]).toHaveLength(0);
   });
 
   it('requests stats_v2 across all projects (project=-1) when none are configured', async () => {
