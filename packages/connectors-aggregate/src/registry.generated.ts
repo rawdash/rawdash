@@ -25,6 +25,8 @@ export const connectorLoaders: Record<string, () => Promise<ConnectorClass>> = {
   circleci: () => import('@rawdash/connector-circleci').then((m) => m.default),
   clerk: () => import('@rawdash/connector-clerk').then((m) => m.default),
   datadog: () => import('@rawdash/connector-datadog').then((m) => m.default),
+  'entra-id': () =>
+    import('@rawdash/connector-entra-id').then((m) => m.default),
   'firebase-analytics': () =>
     import('@rawdash/connector-firebase-analytics').then((m) => m.default),
   'firebase-crashlytics': () =>

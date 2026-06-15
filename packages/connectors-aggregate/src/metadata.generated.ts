@@ -89,6 +89,12 @@ import {
   resources as datadogResources,
 } from '@rawdash/connector-datadog';
 import {
+  configFields as entraIdConfigFields,
+  doc as entraIdDoc,
+  id as entraIdId,
+  resources as entraIdResources,
+} from '@rawdash/connector-entra-id';
+import {
   configFields as firebaseAnalyticsConfigFields,
   doc as firebaseAnalyticsDoc,
   id as firebaseAnalyticsId,
@@ -414,6 +420,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: datadogDoc,
     configFields: datadogConfigFields,
     resources: datadogResources,
+  },
+  {
+    id: entraIdId,
+    packageName: '@rawdash/connector-entra-id',
+    doc: entraIdDoc,
+    configFields: entraIdConfigFields,
+    resources: entraIdResources,
   },
   {
     id: firebaseAnalyticsId,
