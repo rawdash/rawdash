@@ -234,9 +234,7 @@ describe('EntraIdConnector.sync', () => {
       c.url.includes('graph.microsoft.com/v1.0/users'),
     );
     expect(apiCall).toBeDefined();
-    const authHeader =
-      apiCall!.headers['Authorization'] ?? apiCall!.headers['authorization'];
-    expect(authHeader).toBe('Bearer real_access_token');
+    expect(apiCall!.headers['authorization']).toBe('Bearer real_access_token');
   });
 
   it('writes a user entity from a users response', async () => {

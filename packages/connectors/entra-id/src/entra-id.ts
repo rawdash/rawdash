@@ -422,9 +422,7 @@ type EntraRiskyUser = z.infer<typeof riskyUserSchema>;
 function signinStatus(
   errorCode: number | null | undefined,
 ): 'success' | 'failure' {
-  return errorCode === 0 || errorCode === null || errorCode === undefined
-    ? 'success'
-    : 'failure';
+  return errorCode === 0 ? 'success' : 'failure';
 }
 
 function pageRequestPath(phase: EntraIdPhase): string {
