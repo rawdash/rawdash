@@ -89,6 +89,12 @@ import {
   resources as datadogResources,
 } from '@rawdash/connector-datadog';
 import {
+  configFields as drataConfigFields,
+  doc as drataDoc,
+  id as drataId,
+  resources as drataResources,
+} from '@rawdash/connector-drata';
+import {
   configFields as entraIdConfigFields,
   doc as entraIdDoc,
   id as entraIdId,
@@ -432,6 +438,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: datadogDoc,
     configFields: datadogConfigFields,
     resources: datadogResources,
+  },
+  {
+    id: drataId,
+    packageName: '@rawdash/connector-drata',
+    doc: drataDoc,
+    configFields: drataConfigFields,
+    resources: drataResources,
   },
   {
     id: entraIdId,

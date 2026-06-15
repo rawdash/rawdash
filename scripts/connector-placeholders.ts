@@ -612,16 +612,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     domain: 'crowdstrike.com',
   },
   {
-    id: 'drata',
-    name: 'Drata',
-    category: 'security',
-    tagline:
-      'Sync control status, failing tests, and audit-ready percentage from Drata.',
-    brandColor: '#6D2BFF',
-    domain: 'drata.com',
-    requestIssue: 'RAW-422',
-  },
-  {
     id: 'have-i-been-pwned',
     name: 'Have I Been Pwned',
     category: 'security',
