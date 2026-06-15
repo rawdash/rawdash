@@ -39,6 +39,21 @@ const content = defineCollection({
       .array(z.object({ slug: z.string(), title: z.string() }))
       .default([]),
     pitfalls: z.array(z.string()).default([]),
+    related: z
+      .array(
+        z.object({
+          slug: z.string(),
+          pageType: z.enum([
+            'blog',
+            'integration',
+            'compare',
+            'alternative',
+            'dashboard',
+            'metric',
+          ]),
+        }),
+      )
+      .default([]),
     publishedAt: z.coerce.date().optional(),
     updatedAt: z.coerce.date().optional(),
     draft: z.boolean().default(false),

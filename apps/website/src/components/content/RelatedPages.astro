@@ -1,0 +1,29 @@
+---
+import type { ContentPageType } from '../../lib/content-feed';
+import { resolveRelatedPages } from '../../lib/content';
+
+interface Props {
+  related?: { slug: string; pageType: ContentPageType }[];
+}
+
+const { related = [] } = Astro.props;
+const links = await resolveRelatedPages(related);
+---
+
+{
+  links.length > 0 && (
+    <section class="related-pages" aria-labelledby="related-pages-heading">
+      <h2 id="related-pages-heading">Related pages</h2>
+      <ul class="related-pages-list">
+        {links.map((link) => (
+          <li>
+            <a href={link.href}>{link.title}</a>
+            {link.metaDescription && (
+              <p class="related-pages-teaser">{link.metaDescription}</p>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}

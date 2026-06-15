@@ -3,6 +3,7 @@ import { render } from 'astro:content';
 import { connectors as allConnectors } from '../../generated/connectors';
 import type { ContentEntry } from '../../lib/content';
 import CloudCta from '../site/CloudCta.astro';
+import RelatedPages from './RelatedPages.astro';
 
 interface Props {
   entry: ContentEntry;
@@ -98,6 +99,8 @@ const dateFmt = new Intl.DateTimeFormat('en-US', {
       </section>
     )
   }
+
+  <RelatedPages related={data.related} />
 
   {
     data.cta ? (
