@@ -399,6 +399,43 @@ a.dashboard-connector:hover {
   border-color: var(--accent);
 }
 
+.related-pages {
+  margin-top: 3rem;
+}
+
+.related-pages h2 {
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  margin-bottom: 1.25rem;
+}
+
+.related-pages-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.related-pages-list a {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text);
+  transition: color 0.15s;
+}
+
+.related-pages-list a:hover {
+  color: var(--accent);
+}
+
+.related-pages-teaser {
+  margin: 0.25rem 0 0;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+
 @media (max-width: 600px) {
   .content-article {
     padding: 2.5rem 1rem 1rem;

@@ -9,6 +9,47 @@ import {
 
 export type ContentEntry = CollectionEntry<'content'>;
 
+export interface RelatedPageLink {
+  href: string;
+  title: string;
+  metaDescription: string;
+}
+
+const basePathByPageType = new Map<ContentPageType, string>(
+  SECTION_LIST.map((section) => [section.pageType, section.basePath]),
+);
+
+export async function resolveRelatedPages(
+  related: { slug: string; pageType: ContentPageType }[],
+): Promise<RelatedPageLink[]> {
+  if (related.length === 0) {
+    return [];
+  }
+
+  const entries = await getCollection('content');
+  const entryByKey = new Map<string, ContentEntry>(
+    entries.map((entry) => [
+      `${entry.data.pageType}/${entry.data.slug}`,
+      entry,
+    ]),
+  );
+
+  const links: RelatedPageLink[] = [];
+  for (const ref of related) {
+    const entry = entryByKey.get(`${ref.pageType}/${ref.slug}`);
+    const basePath = basePathByPageType.get(ref.pageType);
+    if (!entry || !basePath) {
+      continue;
+    }
+    links.push({
+      href: `${basePath}/${ref.slug}`,
+      title: entry.data.title,
+      metaDescription: entry.data.metaDescription,
+    });
+  }
+  return links;
+}
+
 export interface NavLink {
   href: string;
   label: string;

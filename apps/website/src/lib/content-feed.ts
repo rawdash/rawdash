@@ -29,6 +29,7 @@ export type ContentFeedItem = {
   benchmark?: { label: string; value: string }[];
   relatedMetrics?: { slug: string; title: string }[];
   pitfalls?: string[];
+  related?: { slug: string; pageType: ContentPageType }[];
   publishedAt?: string;
   updatedAt?: string;
   draft?: boolean;
