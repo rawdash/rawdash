@@ -131,7 +131,7 @@ export default defineConfig({
 
 - Issue lifecycle events are derived from each issue's createdAt / resolvedAt timestamps, not from a dedicated audit-log endpoint, so administrative reopen / re-resolve transitions inside the same sync window are collapsed to the latest state.
 - Service-account auth only; per-user OAuth is out of scope.
-- Cloud-configuration and threat-detection issues are returned by the same /issues query and are not segmented at the connector layer; filter on the `type` attribute downstream.
+- Cloud-configuration and threat-detection issues are returned by the same /issues query and are not segmented at the connector layer; filter on the `issueType` attribute downstream.
 
 ## Links
 

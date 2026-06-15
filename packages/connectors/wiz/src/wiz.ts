@@ -99,7 +99,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
   limitations: [
     "Issue lifecycle events are derived from each issue's createdAt / resolvedAt timestamps, not from a dedicated audit-log endpoint, so administrative reopen / re-resolve transitions inside the same sync window are collapsed to the latest state.",
     'Service-account auth only; per-user OAuth is out of scope.',
-    'Cloud-configuration and threat-detection issues are returned by the same /issues query and are not segmented at the connector layer; filter on the `type` attribute downstream.',
+    'Cloud-configuration and threat-detection issues are returned by the same /issues query and are not segmented at the connector layer; filter on the `issueType` attribute downstream.',
   ],
 });
 
@@ -205,9 +205,9 @@ const issuesArraySchema = z.array(issueSchema);
 
 interface IssuesResponse {
   data?: {
-    issues: {
-      nodes: z.infer<typeof issueSchema>[];
-      pageInfo: PageInfo;
+    issues?: {
+      nodes?: z.infer<typeof issueSchema>[];
+      pageInfo?: PageInfo;
     };
   };
   errors?: Array<{ message: string }>;
@@ -236,9 +236,9 @@ const vulnerabilitiesArraySchema = z.array(vulnerabilitySchema);
 
 interface VulnerabilitiesResponse {
   data?: {
-    vulnerabilityFindings: {
-      nodes: z.infer<typeof vulnerabilitySchema>[];
-      pageInfo: PageInfo;
+    vulnerabilityFindings?: {
+      nodes?: z.infer<typeof vulnerabilitySchema>[];
+      pageInfo?: PageInfo;
     };
   };
   errors?: Array<{ message: string }>;
@@ -641,22 +641,6 @@ export class WizConnector extends BaseConnector<WizSettings, WizCredentials> {
     return true;
   }
 
-  private isVulnPageAllOlderThan(
-    items: WizVulnerability[],
-    sinceMs: number | null,
-  ): boolean {
-    if (sinceMs === null || items.length === 0) {
-      return false;
-    }
-    for (const v of items) {
-      const ts = parseIsoMs(v.lastDetectedAt ?? v.firstDetectedAt);
-      if (ts !== null && ts >= sinceMs) {
-        return false;
-      }
-    }
-    return true;
-  }
-
   private async fetchIssuesPage(
     page: string | null,
     options: SyncOptions,
@@ -674,7 +658,10 @@ export class WizConnector extends BaseConnector<WizSettings, WizCredentials> {
       'issues',
       signal,
     );
-    const conn = res.body.data!.issues;
+    const conn = res.body.data?.issues;
+    if (!conn?.nodes || !conn.pageInfo) {
+      throw new Error("Wiz GraphQL response missing 'issues' connection");
+    }
     const nodes = conn.nodes;
     const next = conn.pageInfo.hasNextPage ? conn.pageInfo.endCursor : null;
     if (this.isPageAllOlderThan(nodes, sinceMs)) {
@@ -686,7 +673,6 @@ export class WizConnector extends BaseConnector<WizSettings, WizCredentials> {
   private async fetchVulnerabilitiesPage(
     page: string | null,
     options: SyncOptions,
-    sinceMs: number | null,
     signal: AbortSignal | undefined,
   ): Promise<{ items: WizVulnerability[]; next: string | null }> {
     const res = await this.graphql<VulnerabilitiesResponse>(
@@ -699,12 +685,14 @@ export class WizConnector extends BaseConnector<WizSettings, WizCredentials> {
       'vulnerabilities',
       signal,
     );
-    const conn = res.body.data!.vulnerabilityFindings;
+    const conn = res.body.data?.vulnerabilityFindings;
+    if (!conn?.nodes || !conn.pageInfo) {
+      throw new Error(
+        "Wiz GraphQL response missing 'vulnerabilityFindings' connection",
+      );
+    }
     const nodes = conn.nodes;
     const next = conn.pageInfo.hasNextPage ? conn.pageInfo.endCursor : null;
-    if (this.isVulnPageAllOlderThan(nodes, sinceMs)) {
-      return { items: nodes, next: null };
-    }
     return { items: nodes, next };
   }
 
@@ -878,7 +866,7 @@ export class WizConnector extends BaseConnector<WizSettings, WizCredentials> {
           case 'issues':
             return this.fetchIssuesPage(page, options, sinceMs, sig);
           case 'vulnerabilities':
-            return this.fetchVulnerabilitiesPage(page, options, sinceMs, sig);
+            return this.fetchVulnerabilitiesPage(page, options, sig);
         }
       },
       writeBatch: async (phase, items, page) => {
