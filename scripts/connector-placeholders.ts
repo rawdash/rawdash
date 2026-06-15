@@ -713,17 +713,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     domain: 'tenable.com',
   },
   {
-    id: 'vanta',
-    name: 'Vanta',
-    category: 'security',
-    tagline:
-      'Sync control status, failing tests, and audit-ready percentage from Vanta.',
-    brandColor: '#45D5BB',
-    domain: 'vanta.com',
-    monogram: true,
-    requestIssue: 'RAW-421',
-  },
-  {
     id: 'freshdesk',
     name: 'Freshdesk',
     category: 'support',
