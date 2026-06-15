@@ -81,6 +81,7 @@
     "@rawdash/connector-stripe": "workspace:*",
     "@rawdash/connector-vercel": "workspace:*",
     "@rawdash/connector-vertex-ai": "workspace:*",
+    "@rawdash/connector-wiz": "workspace:*",
     "@rawdash/connector-zendesk": "workspace:*",
     "@rawdash/core": "workspace:*",
     "zod": "^4.4.3"
