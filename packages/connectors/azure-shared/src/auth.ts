@@ -6,18 +6,14 @@ import {
   request as sharedRequest,
 } from '@rawdash/connector-shared';
 
-// Azure AD client-credentials token caching, scoped to ARM
-// (https://management.azure.com/.default). Both Monitor and Cost connectors
-// share an identical flow against the Microsoft Entra ID token endpoint.
-
 const TOKEN_HOST = 'login.microsoftonline.com';
-const ARM_SCOPE = 'https://management.azure.com/.default';
 const TOKEN_TTL_BUFFER_MS = 60_000;
 
-export interface AzureAuthInput {
+export interface EntraAuthInput {
   tenantId: string;
   clientId: string;
   clientSecret: string;
+  scope: string;
   connectorId: string;
 }
 
@@ -32,15 +28,15 @@ export interface TokenCacheEntry {
   expiresAt: number;
 }
 
-export async function fetchArmAccessToken(
-  input: AzureAuthInput,
+export async function fetchEntraAccessToken(
+  input: EntraAuthInput,
   signal?: AbortSignal,
 ): Promise<TokenCacheEntry> {
   const params = new URLSearchParams();
   params.set('grant_type', 'client_credentials');
   params.set('client_id', input.clientId);
   params.set('client_secret', input.clientSecret);
-  params.set('scope', ARM_SCOPE);
+  params.set('scope', input.scope);
 
   let res: HttpResponse<TokenResponse>;
   try {
@@ -66,7 +62,7 @@ export async function fetchArmAccessToken(
   const expiresIn = res.body.expires_in;
   if (typeof access !== 'string' || access.length === 0) {
     throw new AuthError(
-      'Azure AD token response did not include an access_token',
+      'Entra ID token response did not include an access_token',
     );
   }
   const ttlMs =

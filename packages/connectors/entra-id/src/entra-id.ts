@@ -1,4 +1,9 @@
 import {
+  type TokenCacheEntry,
+  fetchEntraAccessToken,
+  isTokenFresh,
+} from '@rawdash/connector-azure-shared';
+import {
   type HttpResponse,
   connectorUserAgent,
   parseEpoch,
@@ -25,7 +30,6 @@ import {
 import { z } from 'zod';
 
 const GRAPH_HOST = 'graph.microsoft.com';
-const LOGIN_HOST = 'login.microsoftonline.com';
 const API_VERSION = 'v1.0';
 
 // Entra tenant identifier: GUID, or a verified domain like contoso.onmicrosoft.com,
@@ -414,7 +418,6 @@ export const id = 'entra-id';
 type UsersResponse = z.infer<typeof usersResponseSchema>;
 type SigninsResponse = z.infer<typeof signinsResponseSchema>;
 type RiskyUsersResponse = z.infer<typeof riskyUsersResponseSchema>;
-type OauthTokenResponse = z.infer<typeof oauthTokenSchema>;
 type EntraUser = z.infer<typeof userSchema>;
 type EntraSignin = z.infer<typeof signinSchema>;
 type EntraRiskyUser = z.infer<typeof riskyUserSchema>;
@@ -476,52 +479,32 @@ export class EntraIdConnector extends BaseConnector<
   readonly id = id;
   override readonly credentials = entraIdCredentials;
 
-  private accessToken: string | null = null;
-  private accessTokenExpiry: number = 0;
-
-  private tokenUrl(): string {
-    return `https://${LOGIN_HOST}/${encodeURIComponent(this.settings.tenantId)}/oauth2/v2.0/token`;
-  }
-
-  private async refreshAccessToken(signal?: AbortSignal): Promise<string> {
-    const body = new URLSearchParams({
-      grant_type: 'client_credentials',
-      client_id: this.creds.clientId,
-      client_secret: this.creds.clientSecret,
-      scope: `https://${GRAPH_HOST}/.default`,
-    });
-    const res = await this.post<OauthTokenResponse>(this.tokenUrl(), {
-      resource: 'oauth_token',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        Accept: 'application/json',
-        'User-Agent': connectorUserAgent('entra-id'),
-      },
-      body: body.toString(),
-      signal,
-    });
-    const token = res.body.access_token;
-    const expiresIn = res.body.expires_in ?? 3600;
-    this.accessToken = token;
-    this.accessTokenExpiry = Date.now() + (expiresIn - 60) * 1000;
-    return token;
-  }
+  private tokenCache: TokenCacheEntry | null = null;
 
   private async getAccessToken(signal?: AbortSignal): Promise<string> {
-    if (!this.accessToken || Date.now() >= this.accessTokenExpiry) {
-      return this.refreshAccessToken(signal);
+    if (isTokenFresh(this.tokenCache)) {
+      return this.tokenCache!.token;
     }
-    return this.accessToken;
+    this.tokenCache = await fetchEntraAccessToken(
+      {
+        tenantId: this.settings.tenantId,
+        clientId: this.creds.clientId,
+        clientSecret: this.creds.clientSecret,
+        scope: `https://${GRAPH_HOST}/.default`,
+        connectorId: 'entra-id',
+      },
+      signal,
+    );
+    return this.tokenCache.token;
   }
 
   private async apiGet<T>(
     url: string,
     resource: string,
     signal?: AbortSignal,
-    retried = false,
   ): Promise<HttpResponse<T>> {
     const token = await this.getAccessToken(signal);
-    const res = await this.get<T>(url, {
+    return this.get<T>(url, {
       resource,
       headers: {
         Authorization: `Bearer ${token}`,
@@ -531,12 +514,6 @@ export class EntraIdConnector extends BaseConnector<
       rateLimit: entraIdRateLimit,
       signal,
     });
-    if (res.status === 401 && !retried) {
-      this.accessToken = null;
-      this.accessTokenExpiry = 0;
-      return this.apiGet<T>(url, resource, signal, true);
-    }
-    return res;
   }
 
   private signinsSince(options: SyncOptions): string {
