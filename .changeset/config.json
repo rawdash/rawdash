@@ -60,6 +60,7 @@
       "@rawdash/connector-clerk",
       "@rawdash/connector-wiz",
       "@rawdash/connector-workos",
+      "@rawdash/connector-vanta",
       "@rawdash/connectors",
       "@rawdash/adapter-libsql",
       "@rawdash/adapter-sqlite",

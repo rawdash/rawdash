@@ -290,6 +290,12 @@ import {
   resources as stripeResources,
 } from '@rawdash/connector-stripe';
 import {
+  configFields as vantaConfigFields,
+  doc as vantaDoc,
+  id as vantaId,
+  resources as vantaResources,
+} from '@rawdash/connector-vanta';
+import {
   configFields as vercelConfigFields,
   doc as vercelDoc,
   id as vercelId,
@@ -660,6 +666,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: stripeDoc,
     configFields: stripeConfigFields,
     resources: stripeResources,
+  },
+  {
+    id: vantaId,
+    packageName: '@rawdash/connector-vanta',
+    doc: vantaDoc,
+    configFields: vantaConfigFields,
+    resources: vantaResources,
   },
   {
     id: vercelId,

@@ -81,6 +81,7 @@
     "@rawdash/connector-sentry": "workspace:*",
     "@rawdash/connector-statuspage": "workspace:*",
     "@rawdash/connector-stripe": "workspace:*",
+    "@rawdash/connector-vanta": "workspace:*",
     "@rawdash/connector-vercel": "workspace:*",
     "@rawdash/connector-vertex-ai": "workspace:*",
     "@rawdash/connector-wiz": "workspace:*",
