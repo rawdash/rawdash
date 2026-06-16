@@ -502,10 +502,9 @@ export class EntraIdConnector extends BaseConnector<
     url: string,
     resource: string,
     signal?: AbortSignal,
-    retried = false,
   ): Promise<HttpResponse<T>> {
     const token = await this.getAccessToken(signal);
-    const res = await this.get<T>(url, {
+    return this.get<T>(url, {
       resource,
       headers: {
         Authorization: `Bearer ${token}`,
@@ -515,11 +514,6 @@ export class EntraIdConnector extends BaseConnector<
       rateLimit: entraIdRateLimit,
       signal,
     });
-    if (res.status === 401 && !retried) {
-      this.tokenCache = null;
-      return this.apiGet<T>(url, resource, signal, true);
-    }
-    return res;
   }
 
   private signinsSince(options: SyncOptions): string {
