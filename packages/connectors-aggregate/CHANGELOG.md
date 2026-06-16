@@ -1,5 +1,76 @@
 # @rawdash/connectors
 
+## 0.27.0
+
+### Patch Changes
+
+- ebacf62: Add `@rawdash/connector-vanta`. Syncs controls, tests, and test findings from a Vanta workspace via the Public API (`/v1/controls`, `/v1/tests`, `/v1/test-findings`) for compliance dashboards (audit-ready %, failing-test counts, open finding counts and severity breakdowns). OAuth 2.0 client-credentials auth (default `vanta-api.all:read` scope), cursor pagination, configurable findings lookback window, and full + incremental sync modes.
+- 7cb0b72: Add `@rawdash/connector-workos`. Syncs WorkOS organizations, SSO connections, directory-sync directories, and authentication events (SSO/OAuth/password/magic-auth/MFA succeeded and failed) into the six-shape storage model. Bearer-token auth via a WorkOS API key, cursor pagination via `list_metadata.after`, and `range_start` push-down for the Events API so incremental syncs only fetch events newer than the watermark.
+- Updated dependencies [16446f4]
+- Updated dependencies [810161f]
+- Updated dependencies [f789d7b]
+- Updated dependencies [828462c]
+- Updated dependencies [12e4144]
+- Updated dependencies [3c75312]
+- Updated dependencies [75021e9]
+- Updated dependencies [ebacf62]
+- Updated dependencies [7cb0b72]
+  - @rawdash/connector-wiz@0.27.0
+  - @rawdash/connector-clerk@0.27.0
+  - @rawdash/connector-drata@0.27.0
+  - @rawdash/connector-entra-id@0.27.0
+  - @rawdash/connector-sentry@0.27.0
+  - @rawdash/connector-vanta@0.27.0
+  - @rawdash/connector-workos@0.27.0
+  - @rawdash/core@0.27.0
+  - @rawdash/connector-anthropic@0.27.0
+  - @rawdash/connector-auth0@0.27.0
+  - @rawdash/connector-app-store-connect@0.27.0
+  - @rawdash/connector-appsflyer@0.27.0
+  - @rawdash/connector-aws-bedrock@0.27.0
+  - @rawdash/connector-aws-cloudwatch@0.27.0
+  - @rawdash/connector-azure-cost@0.27.0
+  - @rawdash/connector-azure-monitor@0.27.0
+  - @rawdash/connector-datadog@0.27.0
+  - @rawdash/connector-firebase-crashlytics@0.27.0
+  - @rawdash/connector-github@0.27.0
+  - @rawdash/connector-bitbucket@0.27.0
+  - @rawdash/connector-gitlab@0.27.0
+  - @rawdash/connector-google-ads@0.27.0
+  - @rawdash/connector-google-analytics@0.27.0
+  - @rawdash/connector-google-play-console@0.27.0
+  - @rawdash/connector-google-search-console@0.27.0
+  - @rawdash/connector-greenhouse@0.27.0
+  - @rawdash/connector-stripe@0.27.0
+  - @rawdash/connector-linear@0.27.0
+  - @rawdash/connector-vercel@0.27.0
+  - @rawdash/connector-aws-cost@0.27.0
+  - @rawdash/connector-circleci@0.27.0
+  - @rawdash/connector-gcp-billing@0.27.0
+  - @rawdash/connector-gcp-monitoring@0.27.0
+  - @rawdash/connector-hubspot@0.27.0
+  - @rawdash/connector-intercom@0.27.0
+  - @rawdash/connector-jira@0.27.0
+  - @rawdash/connector-launchdarkly@0.27.0
+  - @rawdash/connector-klaviyo@0.27.0
+  - @rawdash/connector-mailchimp@0.27.0
+  - @rawdash/connector-meta-ads@0.27.0
+  - @rawdash/connector-mixpanel@0.27.0
+  - @rawdash/connector-netlify@0.27.0
+  - @rawdash/connector-posthog@0.27.0
+  - @rawdash/connector-salesforce@0.27.0
+  - @rawdash/connector-new-relic@0.27.0
+  - @rawdash/connector-zendesk@0.27.0
+  - @rawdash/connector-statuspage@0.27.0
+  - @rawdash/connector-revenuecat@0.27.0
+  - @rawdash/connector-firebase-analytics@0.27.0
+  - @rawdash/connector-openai@0.27.0
+  - @rawdash/connector-langfuse@0.27.0
+  - @rawdash/connector-branch@0.27.0
+  - @rawdash/connector-vertex-ai@0.27.0
+  - @rawdash/connector-okta@0.27.0
+  - @rawdash/connector-langsmith@0.27.0
+
 ## 0.26.0
 
 ### Patch Changes

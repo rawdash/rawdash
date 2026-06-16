@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-firebase-crashlytics",
-  "version": "0.26.0",
+  "version": "0.27.0",
   "description": "Rawdash connector for Firebase Crashlytics - syncs daily crash counts, crash-free user rate, and top issues from the Crashlytics -> BigQuery export",
   "license": "Apache-2.0",
   "type": "module",
