@@ -136,7 +136,7 @@ WorkOS list endpoints return X-RateLimit-Remaining and X-RateLimit-Reset (Unix s
 
 ## Limitations
 
-- Authentication events use the WorkOS Events API filtered to authentication._ event types (sign-in success and failure across SSO, OAuth, password, magic auth, MFA). Other event categories (dsync._, organization.\*) are not synced.
+- Authentication events use the WorkOS Events API filtered to `authentication.*` event types (sign-in success and failure across SSO, OAuth, password, magic auth, MFA). Other event categories (`dsync.*`, `organization.*`) are not synced.
 - Organizations, connections, and directories are fetched in full on every sync; the WorkOS list endpoints do not expose a server-side updated_at filter, so the scope is cleared and rewritten on full syncs and left untouched on incremental syncs.
 - Directory-sync user and group rows are out of scope; this connector tracks the directory entities themselves, not their imported memberships.
 
