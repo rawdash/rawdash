@@ -5,7 +5,7 @@
 [![npm version](https://img.shields.io/npm/v/@rawdash/connector-vanta)](https://www.npmjs.com/package/@rawdash/connector-vanta)
 [![license](https://img.shields.io/npm/l/@rawdash/connector-vanta)](https://github.com/rawdash/rawdash/blob/main/LICENSE)
 
-Sync controls, tests, and test findings from a Vanta workspace for audit-ready %, failing-test count, and open-finding compliance dashboards.
+Sync controls, tests, and test findings from a Vanta workspace for audit-readiness, failing-test, and open-finding compliance dashboards.
 
 ## Install
 
@@ -120,7 +120,7 @@ Vanta enforces a per-application quota (50 requests per minute on the default ti
 ## Limitations
 
 - Only controls, tests, and test findings are synced. Frameworks, risks, vendors, audits, people, and document-evidence resources are out of scope.
-- Controls and tests are full-snapshot resources: every sync re-reads the whole list and rewrites the entity scope on the first page. Tenants with very large catalogs (10k+ controls/tests) should run the connector less often.
+- Controls and tests are full-snapshot resources: every sync re-reads the whole list and rewrites the entity scope on the first page. Tenants with large catalogs (10k+ controls/tests) should run the connector less often.
 - Test findings before the configured lookback window (default 90 days) are not refreshed; they remain whatever the most recent sync that did see them wrote.
 
 ## Links
