@@ -309,6 +309,12 @@ import {
   resources as wizResources,
 } from '@rawdash/connector-wiz';
 import {
+  configFields as workosConfigFields,
+  doc as workosDoc,
+  id as workosId,
+  resources as workosResources,
+} from '@rawdash/connector-workos';
+import {
   configFields as zendeskConfigFields,
   doc as zendeskDoc,
   id as zendeskId,
@@ -676,6 +682,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: wizDoc,
     configFields: wizConfigFields,
     resources: wizResources,
+  },
+  {
+    id: workosId,
+    packageName: '@rawdash/connector-workos',
+    doc: workosDoc,
+    configFields: workosConfigFields,
+    resources: workosResources,
   },
   {
     id: zendeskId,

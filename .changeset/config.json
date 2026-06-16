@@ -59,6 +59,7 @@
       "@rawdash/connector-langsmith",
       "@rawdash/connector-clerk",
       "@rawdash/connector-wiz",
+      "@rawdash/connector-workos",
       "@rawdash/connectors",
       "@rawdash/adapter-libsql",
       "@rawdash/adapter-sqlite",

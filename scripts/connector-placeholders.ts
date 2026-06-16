@@ -724,17 +724,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     requestIssue: 'RAW-421',
   },
   {
-    id: 'workos',
-    name: 'WorkOS',
-    category: 'security',
-    tagline:
-      'Sync organizations, SSO connections, directory-sync activity, and SSO logins from WorkOS.',
-    brandColor: '#6363F1',
-    domain: 'workos.com',
-    requestIssue: 'RAW-419',
-  },
-
-  {
     id: 'freshdesk',
     name: 'Freshdesk',
     category: 'support',
