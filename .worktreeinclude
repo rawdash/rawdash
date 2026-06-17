@@ -7,3 +7,5 @@
 **/.env.local
 **/.env.*.local
 .claude/settings.local.json
+.claude/launch.json
+.claude/plugga.json

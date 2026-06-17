@@ -10,13 +10,15 @@
   --accent: #7c3aed;
   --accent-light: #a78bfa;
   --accent-dark: #4c1d95;
-  --bg: #0d0618;
-  --bg-card: #160a2b;
-  --bg-card-border: #2e1065;
+  --bg: #0f0c1e;
+  --bg-alt: #14112a;
+  --bg-footer: #09071a;
+  --bg-card: #1b1638;
+  --bg-card-border: #2a1a58;
   --text: #f5f3ff;
   --text-muted: #a78bfa;
   --text-dim: #9085d6;
-  --code-bg: #1a0a36;
+  --code-bg: #1d1240;
   --radius: 8px;
   --font-mono:
     ui-monospace, 'Cascadia Code', 'Source Code Pro', 'Menlo', 'Consolas',
@@ -46,7 +48,7 @@ a {
   align-items: center;
   justify-content: space-between;
   padding: 1rem 2rem;
-  background: rgba(13, 6, 24, 0.85);
+  background: rgba(15, 12, 30, 0.9);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--bg-card-border);
 }
@@ -139,7 +141,7 @@ a {
   gap: 0.25rem;
   min-width: 12rem;
   padding: 0.5rem;
-  background: rgba(13, 6, 24, 0.97);
+  background: rgba(15, 12, 30, 0.98);
   backdrop-filter: blur(12px);
   border: 1px solid var(--bg-card-border);
   border-radius: var(--radius);
@@ -172,6 +174,18 @@ a {
 .nav-menu a:hover {
   color: var(--text);
   background: var(--bg-card-border);
+}
+
+.hero-band {
+  background: radial-gradient(
+    ellipse 100% 480px at 50% -5%,
+    rgba(109, 58, 237, 0.16) 0%,
+    transparent 65%
+  );
+}
+
+.band-alt {
+  background: var(--bg-alt);
 }
 
 .hero {
@@ -331,11 +345,6 @@ a {
   background: var(--bg-card);
   border: 1px solid var(--bg-card-border);
   border-radius: var(--radius);
-  transition: border-color 0.15s;
-}
-
-.feature-card:hover {
-  border-color: var(--accent);
 }
 
 .feature-icon {
@@ -405,6 +414,12 @@ a {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.connector-icon--ghost {
+  background: rgba(124, 58, 237, 0.12);
+  border: 1px solid var(--bg-card-border);
+  color: var(--accent-light);
 }
 
 .connector-name {
@@ -487,33 +502,71 @@ a {
   background: var(--bg-card);
   border: 1px solid var(--bg-card-border);
   border-radius: var(--radius);
-  padding: 1.25rem 1.5rem;
+  overflow: hidden;
 }
 
-.faq-item summary {
-  cursor: pointer;
+.faq-question {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  padding: 1.25rem 1.5rem;
+  background: none;
+  border: none;
+  color: inherit;
+  font-family: inherit;
   font-weight: 600;
   font-size: 1.05rem;
-  list-style: none;
+  text-align: left;
+  cursor: pointer;
 }
 
-.faq-item summary::-webkit-details-marker {
-  display: none;
+.faq-icon {
+  position: relative;
+  flex: none;
+  width: 1rem;
+  height: 1rem;
 }
 
-.faq-item summary::after {
-  content: '+';
-  float: right;
-  color: var(--accent-light);
-  font-weight: 700;
+.faq-icon::before,
+.faq-icon::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0.85rem;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent-light);
+  transform: translate(-50%, -50%);
+  transition: transform 0.25s ease;
 }
 
-.faq-item[open] summary::after {
-  content: '−';
+.faq-icon::after {
+  transform: translate(-50%, -50%) rotate(90deg);
 }
 
-.faq-item p {
-  margin-top: 0.85rem;
+.faq-item.open .faq-icon::after {
+  transform: translate(-50%, -50%) rotate(0deg);
+}
+
+.faq-answer {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.28s ease;
+}
+
+.faq-answer-inner {
+  overflow: hidden;
+}
+
+.faq-item.open .faq-answer {
+  grid-template-rows: 1fr;
+}
+
+.faq-answer p {
+  padding: 0 1.5rem 1.25rem;
   color: var(--text-muted);
 }
 
@@ -550,8 +603,12 @@ a {
   margin-top: 0.25rem;
 }
 
+.footer-band {
+  background: var(--bg-footer);
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
 footer {
-  border-top: 1px solid var(--bg-card-border);
   padding: 2rem;
   display: flex;
   flex-wrap: wrap;

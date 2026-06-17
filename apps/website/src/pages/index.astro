@@ -1,5 +1,5 @@
 ---
-import { connectors, connectorPlaceholders } from '../generated/connectors';
+import { connectors } from '../generated/connectors';
 import Analytics from '../components/Analytics.astro';
 import SiteNav from '../components/site/SiteNav.astro';
 import SiteFooter from '../components/site/SiteFooter.astro';
@@ -10,9 +10,24 @@ import {
 } from '../lib/seo';
 import '../styles/landing.css';
 
-const PLANNED_PREVIEW_COUNT = 12;
-const plannedPreview = connectorPlaceholders.slice(0, PLANNED_PREVIEW_COUNT);
-const plannedRemaining = connectorPlaceholders.length - plannedPreview.length;
+const FEATURED_CONNECTOR_IDS = [
+  'github-actions',
+  'linear',
+  'jira',
+  'sentry',
+  'datadog',
+  'stripe',
+  'google-analytics',
+  'hubspot',
+  'salesforce',
+  'openai',
+  'vercel',
+  'intercom',
+];
+const connectorById = new Map(connectors.map((c) => [c.id, c]));
+const featuredConnectors = FEATURED_CONNECTOR_IDS.map((id) =>
+  connectorById.get(id),
+).filter((c): c is (typeof connectors)[number] => Boolean(c));
 
 const PRODUCT_DESCRIPTION =
   'Open-source headless dashboard backend. Pre-built connectors, background ' +
@@ -85,6 +100,7 @@ const jsonLd = [
     <SiteNav />
 
     <!-- Hero -->
+    <div class="hero-band">
     <section class="hero">
       <div class="hero-badge">
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true" focusable="false">
@@ -114,8 +130,10 @@ const jsonLd = [
         <span class="cmd">npm install @rawdash/core @rawdash/server @rawdash/hono @hono/node-server @rawdash/connector-github @rawdash/adapter-turso</span>
       </div>
     </section>
+    </div>
 
     <!-- What it is -->
+    <div class="band-alt">
     <section class="section">
       <p class="section-label">What is Rawdash?</p>
       <h2 class="section-title">The data layer your dashboards deserve</h2>
@@ -156,9 +174,10 @@ const jsonLd = [
         </div>
       </div>
     </section>
+    </div>
 
     <!-- How it works -->
-    <section class="section" style="padding-top: 0;">
+    <section class="section">
       <p class="section-label">How it works</p>
       <h2 class="section-title">Three steps to a working dashboard backend</h2>
       <p class="section-subtitle">
@@ -190,7 +209,8 @@ const jsonLd = [
     </section>
 
     <!-- Connectors -->
-    <section class="section" style="padding-top: 0;">
+    <div class="band-alt">
+    <section class="section">
       <p class="section-label">Connectors</p>
       <h2 class="section-title">Your tools, pre-wired</h2>
       <p class="section-subtitle">
@@ -199,7 +219,7 @@ const jsonLd = [
       </p>
       <div class="connectors-grid">
         {
-          connectors.map((c) => (
+          featuredConnectors.map((c) => (
             <a class="connector-card available" href={c.href}>
               <div class="connector-icon" style="background:#ffffff;">
                 <img
@@ -215,68 +235,58 @@ const jsonLd = [
             </a>
           ))
         }
-        {
-          plannedPreview.map((c) => (
-            <a class="connector-card planned" href={c.href}>
-              <div class="connector-icon" style="background:#ffffff;">
-                <img
-                  src={c.iconPath}
-                  alt={`${c.name} logo`}
-                  width="26"
-                  height="26"
-                  loading="lazy"
-                />
-              </div>
-              <span class="connector-name">{c.name}</span>
-              <span class="connector-badge badge-soon">Planned</span>
-            </a>
-          ))
-        }
-        {
-          plannedRemaining > 0 && (
-            <a class="connector-card" href="/docs/connectors">
-              <div
-                class="connector-icon"
-                style="background:#1e1e2e; color: var(--text-dim);"
-              >
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" opacity="0.4" aria-hidden="true" focusable="false">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
-                </svg>
-              </div>
-              <span class="connector-name">+{plannedRemaining} more planned</span>
-              <span class="connector-badge badge-soon">Upvote</span>
-            </a>
-          )
-        }
+        <a class="connector-card" href="/docs/connectors">
+          <div class="connector-icon connector-icon--ghost">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
+              <path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z" />
+            </svg>
+          </div>
+          <span class="connector-name">View all {connectors.length} connectors</span>
+          <span class="connector-badge badge-soon">Browse →</span>
+        </a>
         <a class="connector-card" href="/docs/connector-guide">
-          <div class="connector-icon" style="background:#1e1e2e; color: var(--text-dim);">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" opacity="0.4" aria-hidden="true" focusable="false">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+          <div class="connector-icon connector-icon--ghost">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+              <polyline points="16 18 22 12 16 6" />
+              <polyline points="8 6 2 12 8 18" />
             </svg>
           </div>
           <span class="connector-name">Build your own</span>
           <span class="connector-badge badge-soon">Guide</span>
         </a>
       </div>
-      <p style="margin-top: 1.5rem; font-size: 0.875rem; color: var(--text-dim);">
-        Want to build a connector?
-        <a href="/docs/connector-guide" style="color: var(--accent-light); text-decoration: underline;">
-          Read the connector author guide →
-        </a>
-      </p>
     </section>
+    </div>
 
     <!-- FAQ -->
-    <section class="section" style="padding-top: 0;">
+    <section class="section">
       <p class="section-label">FAQ</p>
       <h2 class="section-title">Questions, answered</h2>
-      <div class="faq-list">
+      <div class="faq-list" data-faq>
         {
-          faqs.map((faq) => (
-            <details class="faq-item">
-              <summary>{faq.question}</summary>
-              <p>{faq.answer}</p>
-            </details>
+          faqs.map((faq, i) => (
+            <div class="faq-item">
+              <button
+                type="button"
+                class="faq-question"
+                id={`faq-q-${i}`}
+                aria-expanded="false"
+                aria-controls={`faq-a-${i}`}
+              >
+                <span>{faq.question}</span>
+                <span class="faq-icon" aria-hidden="true" />
+              </button>
+              <div
+                class="faq-answer"
+                id={`faq-a-${i}`}
+                role="region"
+                aria-labelledby={`faq-q-${i}`}
+              >
+                <div class="faq-answer-inner">
+                  <p>{faq.answer}</p>
+                </div>
+              </div>
+            </div>
           ))
         }
       </div>
@@ -296,5 +306,27 @@ const jsonLd = [
     </div>
 
     <SiteFooter />
+
+    <script>
+      for (const root of document.querySelectorAll('[data-faq]')) {
+        const items = [...root.querySelectorAll('.faq-item')];
+        for (const item of items) {
+          const button = item.querySelector('.faq-question');
+          button?.addEventListener('click', () => {
+            const willOpen = !item.classList.contains('open');
+            for (const other of items) {
+              other.classList.remove('open');
+              other
+                .querySelector('.faq-question')
+                ?.setAttribute('aria-expanded', 'false');
+            }
+            if (willOpen) {
+              item.classList.add('open');
+              button.setAttribute('aria-expanded', 'true');
+            }
+          });
+        }
+      }
+    </script>
   </body>
 </html>
