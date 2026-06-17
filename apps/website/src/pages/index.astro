@@ -25,9 +25,13 @@ const FEATURED_CONNECTOR_IDS = [
   'intercom',
 ];
 const connectorById = new Map(connectors.map((c) => [c.id, c]));
-const featuredConnectors = FEATURED_CONNECTOR_IDS.map((id) =>
-  connectorById.get(id),
-).filter((c): c is (typeof connectors)[number] => Boolean(c));
+const featuredConnectors = FEATURED_CONNECTOR_IDS.map((id) => {
+  const connector = connectorById.get(id);
+  if (!connector) {
+    throw new Error(`Unknown FEATURED_CONNECTOR_ID: ${id}`);
+  }
+  return connector;
+});
 
 const PRODUCT_DESCRIPTION =
   'Open-source headless dashboard backend. Pre-built connectors, background ' +

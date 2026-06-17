@@ -13,10 +13,14 @@ import {
 
 for (const file of ['.env.local', '.env']) {
   const path = fileURLToPath(new URL(file, import.meta.url));
-  if (!existsSync(path)) {continue;}
+  if (!existsSync(path)) {
+    continue;
+  }
   for (const line of readFileSync(path, 'utf8').split('\n')) {
     const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*?)\s*$/);
-    if (!match) {continue;}
+    if (!match) {
+      continue;
+    }
     const value = match[2].replace(/^(['"])(.*)\1$/, '$2');
     process.env[match[1]] ??= value;
   }

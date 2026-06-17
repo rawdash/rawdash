@@ -458,6 +458,9 @@ a.dashboard-connector:hover {
 }
 
 @media (max-width: 600px) {
+  .content-article-hero {
+    padding: 3.5rem 1rem 3rem;
+  }
   .content-article {
     padding: 2.5rem 1rem 1rem;
   }
