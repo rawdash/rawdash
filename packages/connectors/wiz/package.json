@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-wiz",
-  "version": "0.26.0",
+  "version": "0.27.0",
   "description": "Rawdash connector for Wiz — syncs cloud-security issues, issue lifecycle events, and vulnerability findings from the Wiz GraphQL API into the six-shape storage model",
   "license": "Apache-2.0",
   "type": "module",

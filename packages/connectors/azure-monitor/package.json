@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-azure-monitor",
-  "version": "0.26.0",
+  "version": "0.27.0",
   "description": "Rawdash connector for Azure Monitor — pulls declared metric queries and resource alerts from Azure Monitor into the six-shape storage model via the ARM Metrics and Alerts APIs",
   "license": "Apache-2.0",
   "type": "module",
