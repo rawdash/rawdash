@@ -32,11 +32,12 @@ A Branch app key and secret, sent together in the Query API request body to auth
 
 ## Resources
 
-- **`branch_install_metrics`** _(metric)_ - Daily Branch attribution metrics bucketed by channel and campaign. Primary value is `installs`; `opens` and `conversions` are carried as attributes.
+- **`branch_install_metrics`** _(metric)_ - Daily Branch attribution metrics bucketed by channel and campaign. The canonical value is attributed `installs`; `opens` and `conversions` are carried as measures.
   - Endpoint: `POST /v1/query/analytics`
   - Unit: installs
   - Granularity: day
-  - Dimensions: `date`, `channel`, `campaign`, `installs`, `opens`, `conversions`
+  - Dimensions: `date`, `channel`, `campaign`
+  - Measures: `opens`, `conversions`
   - Merges three Query API calls (data_source=eo_install, eo_open, eo_custom_event) keyed by (date, channel, campaign). Rows with missing channel or campaign are recorded as `null` for that attribute.
 - **`branch_deep_link_event`** _(event)_ - Daily aggregated Branch deep-link click events bucketed by channel, campaign, and feature. One event per (date, channel, campaign, feature) row carrying the daily click count.
   - Endpoint: `POST /v1/query/analytics`
@@ -80,7 +81,7 @@ export default defineConfig({
             connector: branch,
             shape: 'metric',
             name: 'branch_install_metrics',
-            field: 'installs',
+            field: 'value',
             fn: 'sum',
           }),
         },
@@ -92,7 +93,7 @@ export default defineConfig({
             connector: branch,
             shape: 'metric',
             name: 'branch_install_metrics',
-            field: 'installs',
+            field: 'value',
             fn: 'sum',
           }),
         },

@@ -69,6 +69,55 @@ describe('defineResources', () => {
       }),
     ).toThrow(/operator/i);
   });
+
+  it('rejects a metric dimension named with a reserved field', () => {
+    expect(() =>
+      defineResources({
+        bad: {
+          shape: 'metric',
+          description: 'x',
+          dimensions: [{ name: 'value', description: 'mirror' }],
+        },
+      }),
+    ).toThrow(/reserved/i);
+  });
+
+  it('rejects a metric measure named with a reserved field', () => {
+    expect(() =>
+      defineResources({
+        bad: {
+          shape: 'metric',
+          description: 'x',
+          measures: [{ name: 'ts', description: 'reserved' }],
+        },
+      }),
+    ).toThrow(/reserved/i);
+  });
+
+  it('rejects a name declared as both a dimension and a measure', () => {
+    expect(() =>
+      defineResources({
+        bad: {
+          shape: 'metric',
+          description: 'x',
+          dimensions: [{ name: 'count', description: 'dim' }],
+          measures: [{ name: 'count', description: 'measure' }],
+        },
+      }),
+    ).toThrow(/more than once/i);
+  });
+
+  it('accepts a metric with both dimensions and measures', () => {
+    const defs = defineResources({
+      ok: {
+        shape: 'metric',
+        description: 'x',
+        dimensions: [{ name: 'model', description: 'model' }],
+        measures: [{ name: 'costUsd', description: 'cost' }],
+      },
+    });
+    expect(defs.ok.shape).toBe('metric');
+  });
 });
 
 describe('schemasFromResources', () => {

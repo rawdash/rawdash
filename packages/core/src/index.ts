@@ -159,6 +159,12 @@ export type {
 } from './resource';
 
 export { defineResources, schemasFromResources } from './resource';
+export { metricSample } from './metric-emit';
+export type {
+  MetricAttributeKeys,
+  MetricAttributes,
+  MetricSampleInput,
+} from './metric-emit';
 
 export type {
   MetricIssueSeverity,
@@ -234,6 +240,7 @@ export { instantiateConnector } from './registry';
 export type { GetStorageHandleOptions, ServerStorage } from './server-storage';
 
 export { withAbortSignal } from './storage-handle-guard';
+export { withMetricResourceGuard } from './metric-guard';
 
 export { InMemoryStorage } from './in-memory-storage';
 

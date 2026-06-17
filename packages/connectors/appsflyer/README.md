@@ -35,17 +35,18 @@ An AppsFlyer V2.0 API token with Pull/Master API access scoped to the target app
 
 ## Resources
 
-- **`appsflyer_install_metrics`** _(metric)_ - Daily AppsFlyer install metrics bucketed by media source and campaign. Primary value is `installs`; cost, revenue, and loyal users are carried as attributes.
+- **`appsflyer_install_metrics`** _(metric)_ - Daily AppsFlyer install metrics bucketed by media source and campaign. Primary value is attributed installs; cost, revenue, and loyal users are carried as measures.
   - Endpoint: `GET /api/master-agg-data/v4/app/{app_id}`
   - Unit: installs
   - Granularity: day
-  - Dimensions: `date`, `mediaSource`, `campaign`, `installs`, `cost`, `revenue`, `loyalUsers`
+  - Dimensions: `date`, `mediaSource`, `campaign`
+  - Measures: `cost`, `revenue`, `loyalUsers`
   - Master API request uses `groupings=af_date,pid,c` (`pid` is the media source, `c` the campaign) and `kpis=installs,cost,revenue,loyal_users`. Rows with missing media source or campaign are recorded as `null` for that attribute.
-- **`appsflyer_retention_metrics`** _(metric)_ - Install-day cohort retention from AppsFlyer, bucketed by install date and media source for retention day 1, 7, and 30. Primary value is `retainedUsers`.
+- **`appsflyer_retention_metrics`** _(metric)_ - Install-day cohort retention from AppsFlyer, bucketed by install date and media source for retention day 1, 7, and 30. Primary value is the number of users from the cohort still active on the retention day.
   - Endpoint: `GET /api/master-agg-data/v4/app/{app_id}`
   - Unit: users
   - Granularity: day
-  - Dimensions: `cohortDate`, `mediaSource`, `period`, `retainedUsers`
+  - Dimensions: `cohortDate`, `mediaSource`, `period`
   - Master API request uses `groupings=af_date,pid` and `kpis=retention_day_1,retention_day_7,retention_day_30` (the Master API treats the install day as the cohort and caps retention at day 30). One sample per (install date, media source, retention period).
 
 ## Example
@@ -81,7 +82,7 @@ export default defineConfig({
             connector: appsflyer,
             shape: 'metric',
             name: 'appsflyer_install_metrics',
-            field: 'installs',
+            field: 'value',
             fn: 'sum',
           }),
         },
@@ -93,7 +94,7 @@ export default defineConfig({
             connector: appsflyer,
             shape: 'metric',
             name: 'appsflyer_install_metrics',
-            field: 'installs',
+            field: 'value',
             fn: 'sum',
           }),
         },

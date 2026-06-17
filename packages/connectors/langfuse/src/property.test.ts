@@ -1,6 +1,7 @@
 import {
   type InvariantViolation,
   assertConnectorResourceShapes,
+  connectorMetricConformanceViolations,
   connectorResourceShapeViolations,
   entityStoreFor,
   installFetchMock,
@@ -19,12 +20,18 @@ const HOST = 'https://cloud.langfuse.com';
 const docShapeExtra = (
   storage: InMemoryStorage,
   connectorId: string,
-): InvariantViolation[] =>
-  connectorResourceShapeViolations(
+): InvariantViolation[] => [
+  ...connectorResourceShapeViolations(
     LangfuseConnector.resources,
     storage,
     connectorId,
-  );
+  ),
+  ...connectorMetricConformanceViolations(
+    LangfuseConnector.resources,
+    storage,
+    connectorId,
+  ),
+];
 
 type TracesSample = z.infer<typeof LangfuseConnector.schemas.traces>;
 type DailyMetricsSample = z.infer<

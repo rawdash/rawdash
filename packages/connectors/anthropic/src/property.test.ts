@@ -1,5 +1,6 @@
 import {
   type InvariantViolation,
+  connectorMetricConformanceViolations,
   connectorResourceShapeViolations,
   mockJsonResponse,
   runPropertySyncTest,
@@ -14,12 +15,18 @@ const CONNECTOR_ID = 'anthropic';
 const docShapeExtra = (
   storage: InMemoryStorage,
   connectorId: string,
-): InvariantViolation[] =>
-  connectorResourceShapeViolations(
+): InvariantViolation[] => [
+  ...connectorResourceShapeViolations(
     AnthropicConnector.resources,
     storage,
     connectorId,
-  );
+  ),
+  ...connectorMetricConformanceViolations(
+    AnthropicConnector.resources,
+    storage,
+    connectorId,
+  ),
+];
 
 function makeConnector(
   resources: readonly AnthropicResource[],

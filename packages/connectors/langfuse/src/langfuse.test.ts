@@ -225,7 +225,6 @@ describe('LangfuseConnector', () => {
       value: 6,
       attributes: {
         model: 'gpt-4o',
-        countObservations: 6,
         inputTokens: 1000,
         outputTokens: 500,
         totalTokens: 1500,
@@ -259,7 +258,6 @@ describe('LangfuseConnector', () => {
       value: 7,
       attributes: {
         model: null,
-        countObservations: 7,
         costUsd: 0.1,
       },
     });
@@ -300,19 +298,20 @@ describe('LangfuseConnector', () => {
     const metrics = langfuseMetrics(storage, 'langfuse_scores');
     expect(metrics).toHaveLength(2);
     const helpfulness = metrics.find(
-      (m) => (m.attributes as { name: string }).name === 'helpfulness',
+      (m) =>
+        (m.attributes as { scoreName: string }).scoreName === 'helpfulness',
     );
     expect(helpfulness).toMatchObject({
       ts: Date.parse('2026-05-20T00:00:00.000Z'),
       value: 0.75,
-      attributes: { name: 'helpfulness', average: 0.75, count: 2 },
+      attributes: { scoreName: 'helpfulness', count: 2 },
     });
     const tone = metrics.find(
-      (m) => (m.attributes as { name: string }).name === 'tone',
+      (m) => (m.attributes as { scoreName: string }).scoreName === 'tone',
     );
     expect(tone).toMatchObject({
       value: 0,
-      attributes: { name: 'tone', average: 0, count: 1 },
+      attributes: { scoreName: 'tone', count: 1 },
     });
   });
 
@@ -369,9 +368,8 @@ describe('LangfuseConnector', () => {
     expect(metrics[0]).toMatchObject({
       ts: Date.parse('2026-05-20T00:00:00.000Z'),
       attributes: {
-        name: 'quality',
+        scoreName: 'quality',
         count: 4,
-        average: 0.5,
       },
     });
   });

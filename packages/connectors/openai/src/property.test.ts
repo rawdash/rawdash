@@ -1,5 +1,6 @@
 import {
   type InvariantViolation,
+  connectorMetricConformanceViolations,
   connectorResourceShapeViolations,
   mockJsonResponse,
   runPropertySyncTest,
@@ -14,12 +15,18 @@ const CONNECTOR_ID = 'openai';
 const docShapeExtra = (
   storage: InMemoryStorage,
   connectorId: string,
-): InvariantViolation[] =>
-  connectorResourceShapeViolations(
+): InvariantViolation[] => [
+  ...connectorResourceShapeViolations(
     OpenAIConnector.resources,
     storage,
     connectorId,
-  );
+  ),
+  ...connectorMetricConformanceViolations(
+    OpenAIConnector.resources,
+    storage,
+    connectorId,
+  ),
+];
 
 function makeConnector(resources: readonly OpenAIResource[]): OpenAIConnector {
   return new OpenAIConnector(

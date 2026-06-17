@@ -18,6 +18,7 @@ import {
   defineConnectorDoc,
   defineResources,
   makeChunkedCursorGuard,
+  metricSample,
   schemasFromResources,
   selectActivePhases,
 } from '@rawdash/core';
@@ -353,8 +354,19 @@ export const openaiResources = defineResources({
     unit: 'tokens',
     granularity: 'daily',
     dimensions: [...USAGE_DIMENSIONS_TOKENS],
+    measures: [
+      {
+        name: 'input_cached_tokens',
+        description:
+          'Cached input tokens included in the bucket total, for computing a cache-hit ratio (cached / total) at query time.',
+      },
+      {
+        name: 'input_audio_tokens',
+        description: 'Audio input tokens included in the bucket total.',
+      },
+    ],
     notes:
-      'Sample value is the total input_tokens for the bucket. input_cached_tokens and input_audio_tokens are mirrored in attributes so a cache-hit ratio (cached / total) can be computed at query time.',
+      'Sample value is the total input_tokens for the bucket. input_cached_tokens and input_audio_tokens are secondary measures so a cache-hit ratio (cached / total) can be computed at query time.',
     responses: { usage_completions: completionsResponseSchema },
   },
   openai_completions_output_tokens: {
@@ -365,8 +377,15 @@ export const openaiResources = defineResources({
     unit: 'tokens',
     granularity: 'daily',
     dimensions: [...USAGE_DIMENSIONS_TOKENS],
+    measures: [
+      {
+        name: 'output_audio_tokens',
+        description:
+          'Audio output tokens included in the bucket total, for audio-only breakdowns.',
+      },
+    ],
     notes:
-      'Sample value is the total output_tokens for the bucket. output_audio_tokens is mirrored in attributes for audio-only breakdowns. Written alongside openai_completions_input_tokens from the same usage_completions API call.',
+      'Sample value is the total output_tokens for the bucket. output_audio_tokens is a secondary measure for audio-only breakdowns. Written alongside openai_completions_input_tokens from the same usage_completions API call.',
   },
   openai_completions_requests: {
     shape: 'metric',
@@ -626,31 +645,34 @@ export function buildCompletionsSamples(
     const ts = bucket.start_time * 1000;
     for (const row of bucket.results) {
       const common = tokensCommonAttributes(row);
-      inputTokens.push({
-        name: 'openai_completions_input_tokens',
-        ts,
-        value: row.input_tokens,
-        attributes: {
-          ...common,
-          input_cached_tokens: row.input_cached_tokens ?? 0,
-          input_audio_tokens: row.input_audio_tokens ?? 0,
-        },
-      });
-      outputTokens.push({
-        name: 'openai_completions_output_tokens',
-        ts,
-        value: row.output_tokens,
-        attributes: {
-          ...common,
-          output_audio_tokens: row.output_audio_tokens ?? 0,
-        },
-      });
-      requests.push({
-        name: 'openai_completions_requests',
-        ts,
-        value: row.num_model_requests,
-        attributes: { ...common },
-      });
+      inputTokens.push(
+        metricSample(openaiResources, 'openai_completions_input_tokens', {
+          ts,
+          value: row.input_tokens,
+          attributes: {
+            ...common,
+            input_cached_tokens: row.input_cached_tokens ?? 0,
+            input_audio_tokens: row.input_audio_tokens ?? 0,
+          },
+        }),
+      );
+      outputTokens.push(
+        metricSample(openaiResources, 'openai_completions_output_tokens', {
+          ts,
+          value: row.output_tokens,
+          attributes: {
+            ...common,
+            output_audio_tokens: row.output_audio_tokens ?? 0,
+          },
+        }),
+      );
+      requests.push(
+        metricSample(openaiResources, 'openai_completions_requests', {
+          ts,
+          value: row.num_model_requests,
+          attributes: { ...common },
+        }),
+      );
     }
   }
   return { inputTokens, outputTokens, requests };
@@ -665,18 +687,20 @@ export function buildEmbeddingsSamples(
     const ts = bucket.start_time * 1000;
     for (const row of bucket.results) {
       const common = embeddingsCommonAttributes(row);
-      inputTokens.push({
-        name: 'openai_embeddings_input_tokens',
-        ts,
-        value: row.input_tokens,
-        attributes: { ...common },
-      });
-      requests.push({
-        name: 'openai_embeddings_requests',
-        ts,
-        value: row.num_model_requests,
-        attributes: { ...common },
-      });
+      inputTokens.push(
+        metricSample(openaiResources, 'openai_embeddings_input_tokens', {
+          ts,
+          value: row.input_tokens,
+          attributes: { ...common },
+        }),
+      );
+      requests.push(
+        metricSample(openaiResources, 'openai_embeddings_requests', {
+          ts,
+          value: row.num_model_requests,
+          attributes: { ...common },
+        }),
+      );
     }
   }
   return { inputTokens, requests };
@@ -691,18 +715,20 @@ export function buildImagesSamples(
     const ts = bucket.start_time * 1000;
     for (const row of bucket.results) {
       const common = imagesCommonAttributes(row);
-      count.push({
-        name: 'openai_images_count',
-        ts,
-        value: row.images,
-        attributes: { ...common },
-      });
-      requests.push({
-        name: 'openai_images_requests',
-        ts,
-        value: row.num_model_requests,
-        attributes: { ...common },
-      });
+      count.push(
+        metricSample(openaiResources, 'openai_images_count', {
+          ts,
+          value: row.images,
+          attributes: { ...common },
+        }),
+      );
+      requests.push(
+        metricSample(openaiResources, 'openai_images_requests', {
+          ts,
+          value: row.num_model_requests,
+          attributes: { ...common },
+        }),
+      );
     }
   }
   return { count, requests };
@@ -717,18 +743,20 @@ export function buildAudioSpeechesSamples(
     const ts = bucket.start_time * 1000;
     for (const row of bucket.results) {
       const common = audioCommonAttributes(row);
-      characters.push({
-        name: 'openai_audio_speeches_characters',
-        ts,
-        value: row.characters,
-        attributes: { ...common },
-      });
-      requests.push({
-        name: 'openai_audio_speeches_requests',
-        ts,
-        value: row.num_model_requests,
-        attributes: { ...common },
-      });
+      characters.push(
+        metricSample(openaiResources, 'openai_audio_speeches_characters', {
+          ts,
+          value: row.characters,
+          attributes: { ...common },
+        }),
+      );
+      requests.push(
+        metricSample(openaiResources, 'openai_audio_speeches_requests', {
+          ts,
+          value: row.num_model_requests,
+          attributes: { ...common },
+        }),
+      );
     }
   }
   return { characters, requests };
@@ -743,18 +771,20 @@ export function buildAudioTranscriptionsSamples(
     const ts = bucket.start_time * 1000;
     for (const row of bucket.results) {
       const common = audioCommonAttributes(row);
-      seconds.push({
-        name: 'openai_audio_transcriptions_seconds',
-        ts,
-        value: row.seconds,
-        attributes: { ...common },
-      });
-      requests.push({
-        name: 'openai_audio_transcriptions_requests',
-        ts,
-        value: row.num_model_requests,
-        attributes: { ...common },
-      });
+      seconds.push(
+        metricSample(openaiResources, 'openai_audio_transcriptions_seconds', {
+          ts,
+          value: row.seconds,
+          attributes: { ...common },
+        }),
+      );
+      requests.push(
+        metricSample(openaiResources, 'openai_audio_transcriptions_requests', {
+          ts,
+          value: row.num_model_requests,
+          attributes: { ...common },
+        }),
+      );
     }
   }
   return { seconds, requests };
@@ -767,17 +797,18 @@ export function buildCostSamples(
   for (const bucket of buckets) {
     const ts = bucket.start_time * 1000;
     for (const row of bucket.results) {
-      samples.push({
-        name: 'openai_cost_usd',
-        ts,
-        value: row.amount.value,
-        attributes: {
-          line_item: nullableString(row.line_item),
-          project_id: nullableString(row.project_id),
-          organization_id: nullableString(row.organization_id),
-          currency: row.amount.currency,
-        },
-      });
+      samples.push(
+        metricSample(openaiResources, 'openai_cost_usd', {
+          ts,
+          value: row.amount.value,
+          attributes: {
+            line_item: nullableString(row.line_item),
+            project_id: nullableString(row.project_id),
+            organization_id: nullableString(row.organization_id),
+            currency: row.amount.currency,
+          },
+        }),
+      );
     }
   }
   return samples;

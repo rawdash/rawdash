@@ -148,6 +148,43 @@ Rules of thumb:
 - **Don't reach for distributions unless the source gives you one.** Most sources expose raw timestamped data — write events and aggregate at query time.
 - **Edges replace, scoped by kind.** Passing `{ kinds: ['reviewed_by'] }` to `storage.edges([])` clears edges of that kind for the connector. Use this to drop stale relations on re-sync.
 
+### The metric-shape contract
+
+A metric widget's `field` must be portable: the same widget definition has to produce the same number against any connector. Metric resources earn that portability by following one contract:
+
+- **The primary numeric lives in `value`.** Always. A metric widget references it as `field: 'value'` (or omits `field` — it defaults to `value`). Never mirror the primary number into an attribute. Writing `value: count` _and_ `attributes: { count }` is the classic footgun: a widget authored as `field: 'count'` sums `attributes.count`, works against the connector that mirrors, and **silently sums to `0`** against one that doesn't.
+- **`attributes` carry declared dimensions and measures only.** Declare every attribute key in `defineResources`:
+  - `dimensions` — categorical fields you group or filter by (`model`, `channel`, `campaign`).
+  - `measures` — _secondary_ numerics carried alongside the primary value (`distinctUsers`, `costUsd`, `latency`). These are referenced as `field: '<measure>'`.
+  - The names `value`, `name`, and `ts` are reserved and cannot be declared. An attribute key that is neither a declared dimension nor a declared measure is a contract violation.
+
+```ts
+posthog_events_per_day: {
+  shape: 'metric',
+  unit: 'events',
+  dimensions: [{ name: 'event', description: 'The PostHog event name.' }],
+  measures: [{ name: 'distinctUsers', description: 'Distinct persons that day.' }],
+},
+// emit: { name, ts, value: count, attributes: { event, distinctUsers } }
+//                          ^ primary count is in `value`, never mirrored.
+```
+
+Emit metric samples through `metricSample(resources, name, { ts, value, attributes })` — it types `attributes` to exactly the named resource's declared dimensions and measures, so an undeclared key (or a mirrored value) won't compile:
+
+```ts
+import { metricSample } from '@rawdash/core';
+
+await storage.metric(
+  metricSample(posthogResources, 'posthog_events_per_day', {
+    ts,
+    value: count,
+    attributes: { event, distinctUsers }, // `count: …` here is a type error
+  }),
+);
+```
+
+This is enforced on both sides. The `connectorMetricConformanceViolations` harness (run from every connector's property test — see [§10](#10-testing-locally)) fails CI if a metric sample omits a numeric `value`, mirrors the value into an attribute, or carries an undeclared attribute key. On the consumer side, deploy/validate rejects a metric `field` that isn't `value`, a declared dimension, or a declared measure of the referenced resource.
+
 ## 3. Settings and credentials
 
 Settings are the per-instance, non-secret configuration: `owner`, `repo`, base URL, polling window, etc. Credentials are auth material.
@@ -558,6 +595,30 @@ Recommended loop:
 6. Kill the process mid-sync and restart — it should resume from the cursor (chunked-sync check).
 
 Unit-level tests live next to the source (`*.test.ts`). Mock at the `fetch` boundary; don't mock the storage handle — use `InMemoryStorage` from `@rawdash/core` if you want to assert on writes.
+
+If your connector writes metric-shape resources, run the metric conformance harness from your property test so drift fails CI. Fold it into the same `extraInvariants` helper you use for `connectorResourceShapeViolations`:
+
+```ts
+import {
+  connectorMetricConformanceViolations,
+  connectorResourceShapeViolations,
+} from '@rawdash/connector-test-utils';
+
+const docShapeExtra = (storage, connectorId) => [
+  ...connectorResourceShapeViolations(
+    MyConnector.resources,
+    storage,
+    connectorId,
+  ),
+  ...connectorMetricConformanceViolations(
+    MyConnector.resources,
+    storage,
+    connectorId,
+  ),
+];
+```
+
+It asserts every metric sample carries a finite `value`, never mirrors that value into an attribute, and only emits attribute keys declared as `dimensions` or `measures` (see [the metric-shape contract](#the-metric-shape-contract)).
 
 ## 11. Publishing
 

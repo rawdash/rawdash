@@ -1,5 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp';
-import { instantiateConnector } from '@rawdash/core';
+import { instantiateConnector, withMetricResourceGuard } from '@rawdash/core';
 import { z } from 'zod';
 
 import type { McpRuntime } from '../runtime-config';
@@ -66,7 +66,12 @@ export function registerTriggerSync(
               options.connectorRegistry!,
               options.secretsResolver,
             );
-            const handle = storage.getStorageHandle(entry.name);
+            const baseHandle = storage.getStorageHandle(entry.name);
+            const resourceDefs =
+              options.connectorRegistry![entry.connectorId]?.resources;
+            const handle = resourceDefs
+              ? withMetricResourceGuard(baseHandle, resourceDefs)
+              : baseHandle;
             await connector.sync(
               { mode: mode ?? 'latest' },
               handle,

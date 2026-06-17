@@ -50,17 +50,19 @@ A LangSmith API key with read access is required. The key is sent as the `x-api-
   - `totalCost`: Aggregate run cost in USD.
   - `latencyMs`: End-to-end latency in milliseconds.
   - `error`: Error message if the run failed.
-- **`langsmith_runs_per_day`** _(metric)_ - Per-run samples used to roll runs up to daily totals at query time. One sample is emitted per run at its start timestamp, tagged with project, run type, and status. The sample value is 1 (so summing yields the run count); token, cost, and latency are exposed as additional attribute fields.
+- **`langsmith_runs_per_day`** _(metric)_ - Per-run samples used to roll runs up to daily totals at query time. One sample is emitted per run at its start timestamp, tagged with project, run type, and status. The sample value is 1 (so summing field:`value` yields the run count); token, cost, and latency are exposed as additional measures.
   - Endpoint: `POST /api/v1/runs/query`
   - Unit: runs
   - Granularity: Per-run (query-time rollup)
-  - Dimensions: `sessionId`, `sessionName`, `runType`, `status`, `count`, `totalTokens`, `promptTokens`, `completionTokens`, `costUsd`, `latencyMs`
+  - Dimensions: `sessionId`, `sessionName`, `runType`, `status`
+  - Measures: `totalTokens`, `promptTokens`, `completionTokens`, `costUsd`, `latencyMs`
   - No server-side aggregation - widgets group by day, project, or run type to produce the rollup.
-- **`langsmith_feedback`** _(metric)_ - Feedback rows from LangSmith, one sample per feedback row at its created_at timestamp. The sample value is the numeric score (zero for non-numeric feedback) and the attribute `count` is 1 so summing yields feedback counts per (day, project, key).
+- **`langsmith_feedback`** _(metric)_ - Feedback rows from LangSmith, one sample per feedback row at its created_at timestamp. The sample value is the numeric score (zero for non-numeric feedback) and the measure `count` is 1 so summing it yields feedback counts per (day, project, key).
   - Endpoint: `GET /api/v1/feedback`
   - Unit: score
   - Granularity: Per-feedback (query-time rollup)
-  - Dimensions: `key`, `sessionId`, `runId`, `count`, `score`, `hasNumericScore`
+  - Dimensions: `key`, `sessionId`, `runId`
+  - Measures: `count`, `hasNumericScore`
   - Non-numeric feedback (string, boolean, JSON value) is still emitted but with score 0; use `count` to count rows and average `score` for numeric trends.
 
 ## Example
@@ -96,7 +98,7 @@ export default defineConfig({
             shape: 'metric',
             name: 'langsmith_runs_per_day',
             fn: 'sum',
-            field: 'count',
+            field: 'value',
           }),
         },
         spend_today: {

@@ -1,6 +1,7 @@
 import {
   type InvariantViolation,
   assertConnectorResourceShapes,
+  connectorMetricConformanceViolations,
   connectorResourceShapeViolations,
   entityStoreFor,
   installFetchMock,
@@ -19,12 +20,18 @@ const TOKEN = 'META_TOKEN' as unknown as { $secret: string };
 const docShapeExtra = (
   storage: InMemoryStorage,
   connectorId: string,
-): InvariantViolation[] =>
-  connectorResourceShapeViolations(
+): InvariantViolation[] => [
+  ...connectorResourceShapeViolations(
     MetaAdsConnector.resources,
     storage,
     connectorId,
-  );
+  ),
+  ...connectorMetricConformanceViolations(
+    MetaAdsConnector.resources,
+    storage,
+    connectorId,
+  ),
+];
 
 type CampaignsSample = z.infer<typeof MetaAdsConnector.schemas.campaigns>;
 type CampaignInsightsSample = z.infer<

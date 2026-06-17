@@ -1,6 +1,7 @@
 import {
   type InvariantViolation,
   assertConnectorResourceShapes,
+  connectorMetricConformanceViolations,
   connectorResourceShapeViolations,
   eventStoreFor,
   installFetchMock,
@@ -20,12 +21,18 @@ const SECRET = 'BRANCH_SECRET' as unknown as { $secret: string };
 const docShapeExtra = (
   storage: InMemoryStorage,
   connectorId: string,
-): InvariantViolation[] =>
-  connectorResourceShapeViolations(
+): InvariantViolation[] => [
+  ...connectorResourceShapeViolations(
     BranchConnector.resources,
     storage,
     connectorId,
-  );
+  ),
+  ...connectorMetricConformanceViolations(
+    BranchConnector.resources,
+    storage,
+    connectorId,
+  ),
+];
 
 type InstallSample = z.infer<
   typeof BranchConnector.schemas.install_metrics_installs
