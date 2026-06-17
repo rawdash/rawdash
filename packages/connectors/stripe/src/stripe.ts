@@ -129,6 +129,7 @@ interface StripePrice {
 }
 
 interface StripeSubscriptionItem {
+  id?: string;
   price: StripePrice;
   quantity: number | null;
 }
@@ -137,7 +138,7 @@ interface StripeSubscription {
   id: string;
   customer: string;
   status: string;
-  items: { data: StripeSubscriptionItem[] };
+  items: { data: StripeSubscriptionItem[]; has_more?: boolean };
   current_period_start: number;
   current_period_end: number;
   cancel_at_period_end: boolean;
@@ -356,6 +357,7 @@ const subscriptionSchema = z.object({
         quantity: z.number().int().nullable(),
       }),
     ),
+    has_more: z.boolean().optional(),
   }),
   current_period_start: z.number().int().nonnegative(),
   current_period_end: z.number().int().nonnegative(),
@@ -708,12 +710,12 @@ export class StripeConnector extends BaseConnector<
     if (!options.since) {
       return undefined;
     }
+    if (phase === 'subscriptions') {
+      return undefined;
+    }
     const sinceMs = new Date(options.since).getTime();
     if (options.mode === 'latest') {
       return String(Math.floor((sinceMs - 7 * 24 * 60 * 60 * 1000) / 1000));
-    }
-    if (phase === 'subscriptions') {
-      return undefined;
     }
     return String(Math.floor(sinceMs / 1000));
   }
@@ -723,6 +725,46 @@ export class StripeConnector extends BaseConnector<
       return undefined;
     }
     return String(Math.floor(new Date(options.since).getTime() / 1000));
+  }
+
+  private async fetchAllSubscriptionItems(
+    subscriptionId: string,
+    signal?: AbortSignal,
+  ): Promise<StripeSubscriptionItem[]> {
+    const items: StripeSubscriptionItem[] = [];
+    let startingAfter: string | undefined;
+    for (;;) {
+      const url = this.buildListUrl('subscription_items', {
+        subscription: subscriptionId,
+        starting_after: startingAfter,
+      });
+      const res = await this.fetch<StripeListResponse<StripeSubscriptionItem>>(
+        url,
+        'subscriptions',
+        signal,
+      );
+      const { data, has_more } = res.body;
+      items.push(...data);
+      if (!has_more || data.length === 0) {
+        return items;
+      }
+      startingAfter = data.at(-1)!.id;
+    }
+  }
+
+  private async backfillSubscriptionItems(
+    subscriptions: StripeSubscription[],
+    signal?: AbortSignal,
+  ): Promise<void> {
+    for (const subscription of subscriptions) {
+      if (subscription.items.has_more) {
+        subscription.items.data = await this.fetchAllSubscriptionItems(
+          subscription.id,
+          signal,
+        );
+        subscription.items.has_more = false;
+      }
+    }
   }
 
   private singleSpec(
@@ -978,6 +1020,12 @@ export class StripeConnector extends BaseConnector<
           sig,
         );
         const { data, has_more } = res.body;
+        if (phase === 'subscriptions') {
+          await this.backfillSubscriptionItems(
+            data as unknown as StripeSubscription[],
+            sig,
+          );
+        }
         const next = has_more && data.length > 0 ? data.at(-1)!.id : null;
         return { items: data, next };
       },
