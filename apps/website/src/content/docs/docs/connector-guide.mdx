@@ -11,23 +11,35 @@ authoring a connector from scratch.
 
 ## Anatomy of a connector
 
-Every connector implements the `Connector` interface from `@rawdash/core`:
+Every connector implements the `Connector` interface from `@rawdash/core`. In
+practice you extend `BaseConnector`, which supplies `serializeConfig`, secret
+resolution, and retry helpers — leaving `sync()` as the only method to write:
 
 ```ts
-import type { Connector, SyncOptions, StorageHandle } from '@rawdash/core';
+import { BaseConnector } from '@rawdash/core';
+import { z } from 'zod';
 
-export class MyConnector implements Connector {
+export class MyConnector extends BaseConnector<MySettings, MyCredentialsSchema> {
+  static readonly id = 'my-connector';
+  static readonly schemas = {
+    'my-item': z.array(z.object({ id: z.string(), name: z.string() })),
+  } as const;
   readonly id = 'my-connector';
 
-  async sync(request: SyncOptions, storage: StorageHandle, signal?: AbortSignal): Promise<void> {
+  async sync(options, storage, signal) {
     // Fetch data and write to storage
+    return { done: true };
   }
 }
 ```
 
 The `sync()` method is called by the background sync engine. It writes fetched
 data into `storage` using typed write methods (`storage.events()`,
-`storage.entities()`, etc.) and returns `Promise<void>`.
+`storage.entities()`, etc.) and returns a `SyncResult` (`{ done, cursor?,
+transientError? }`). Single-call connectors return `{ done: true }`; connectors
+that page across multiple ticks return `{ done: false, cursor }` to resume later.
+See the [Authoring a Connector](https://github.com/rawdash/rawdash/blob/main/docs/authoring-a-connector.md)
+guide for the full contract, including chunked syncs and the `static schemas` map.
 
 ## Full example: a custom connector
 
@@ -53,24 +65,29 @@ data into `storage` using typed write methods (`storage.events()`,
 3. **Implement the connector**
 
    `defineConnector` is curried — call it with the settings type first, then
-   pass the definition object. The `sync` function receives `(request, storage,
-   signal?)` and writes data using `storage` methods:
+   pass the definition object. Declare a `credentials` schema for any auth
+   material so secret references get resolved before `sync` runs and land on
+   `this.creds`; non-secret settings stay on `this.settings`. The `sync`
+   function receives `(options, storage, signal?)`, writes data using `storage`
+   methods, and returns a `SyncResult`:
 
    ```ts title="src/connectors/my-api/index.ts"
    import { defineConnector } from '@rawdash/core';
 
    interface MyConnectorSettings {
-     apiKey: string;
      baseUrl?: string;
    }
 
    export const MyConnector = defineConnector<MyConnectorSettings>()({
      id: 'my-api',
-     async sync(request, storage, signal) {
+     credentials: {
+       apiKey: { description: 'My API key', auth: 'required' as const },
+     },
+     async sync(options, storage, signal) {
        const res = await fetch(
          `${this.settings.baseUrl ?? 'https://api.example.com'}/items`,
          {
-           headers: { Authorization: `Bearer ${this.settings.apiKey}` },
+           headers: { Authorization: `Bearer ${this.creds.apiKey}` },
            signal,
          },
        );
@@ -95,6 +112,8 @@ data into `storage` using typed write methods (`storage.events()`,
          })),
          { types: ['my-item'] },
        );
+
+       return { done: true };
      },
    });
    ```

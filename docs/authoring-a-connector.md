@@ -513,9 +513,7 @@ Concrete implications:
 
 For most connectors, sending a `RateLimitPolicy` to `request()` is enough — the shared client classifies 429s as `RateLimitError`, the host catches it, and reschedules.
 
-Where you can do better: when you know in advance that the budget is gone (the response headers say `X-RateLimit-Remaining: 0`), tell the host to defer the next invocation instead of waiting for the next 429. Connectors can populate `SyncResult.rateLimitUpdates` (when supported by your `@rawdash/core` version) with the parsed `RateLimitState` so the host can schedule accordingly.
-
-For pre-built policies (`githubRateLimit`, `sentryRateLimit`, `linearRateLimit`) the parsing is handled for you — the policy goes on the request, the parsed state shows up on the response. Add a new policy to `@rawdash/connector-shared` if your API uses a header convention that isn't there yet, so every future connector for that API can share it.
+Build the policy from `standardRateLimitPolicy` in `@rawdash/connector-shared`, which parses the common `X-RateLimit-*` / `Retry-After` header conventions and honors back-off on 429. Each connector declares its own local policy (e.g. `const githubRateLimit = standardRateLimitPolicy({ ... })`) rather than importing a vendor-named shared export. If your API uses a header convention `standardRateLimitPolicy` doesn't cover, extend it (or add a shared helper) so future connectors for that API can reuse the parsing.
 
 ## 9. Using `@rawdash/connector-shared`
 
@@ -527,10 +525,10 @@ import {
   type HttpRequest,
   type HttpResponse,
   RateLimitError,
-  githubRateLimit,
   paginateLink,
   parseLinkHeader,
   request,
+  standardRateLimitPolicy,
 } from '@rawdash/connector-shared';
 ```
 
@@ -539,7 +537,7 @@ What it gives you:
 - `request()` — `fetch` with sensible defaults: timeouts, retry with backoff and jitter, automatic JSON parsing, typed errors on non-2xx, default `User-Agent`.
 - Typed errors: `AuthError`, `RateLimitError`, `TransientError`, `UpstreamBugError`, `ClientBugError`. Branch on `instanceof` or `.kind`, never regex on `.message`.
 - Pagination iterators: `paginateLink` (Web Linking / GitHub / Sentry), `paginateCursor` (Linear, modern REST), `paginatePage` (`?page=N`). Each runs every page through `request()` so retry and error handling are uniform.
-- Rate-limit parsers and `Retry-After` honor on 429.
+- `standardRateLimitPolicy` — a configurable `RateLimitPolicy` that parses the common `X-RateLimit-*` / `Retry-After` header conventions and honors back-off on 429.
 
 See [`packages/connector-shared/README.md`](../packages/connector-shared/README.md) for the full surface, including the rules for bundling (you depend on it via `workspace:*` in `devDependencies`, and add `noExternal: ['@rawdash/connector-shared']` to your `tsup.config.ts`).
 
@@ -554,7 +552,7 @@ Recommended loop:
 
 1. `pnpm --filter @rawdash/connector-<name> build` (or rely on `@rawdash/source` exports for live TS).
 2. Wire your connector into `apps/example-server/rawdash.config.ts`.
-3. `pnpm --filter @rawdash/example-server dev` and watch the sync logs.
+3. `pnpm --filter example-server dev` and watch the sync logs.
 4. Inspect the storage backend (`file:rawdash.db` by default) to verify the rows are shaped how you expect.
 5. Re-run the sync — it should be a no-op against unchanged data (idempotency check).
 6. Kill the process mid-sync and restart — it should resume from the cursor (chunked-sync check).
