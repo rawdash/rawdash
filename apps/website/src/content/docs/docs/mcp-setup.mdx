@@ -10,8 +10,52 @@ Rawdash exposes a [Model Context Protocol](https://modelcontextprotocol.io/)
 
 ## Prerequisites
 
-- A running Rawdash server (see [OSS Quickstart](/docs/quickstart))
+- A Rawdash config and a storage backend (see [OSS Quickstart](/docs/quickstart))
 - [Claude Code](https://claude.ai/code) or [Claude Desktop](https://claude.ai/download)
+
+## How it works
+
+`@rawdash/mcp` is a library, not a standalone CLI. It exports
+`createMcpServer({ config, storage })`, which returns an MCP server bound to your
+Rawdash config and storage. You write a small entry script that connects it to a
+stdio transport, then point Claude Code or Claude Desktop at that script with
+`node`. The server reads directly from your storage — there's no HTTP URL to
+configure.
+
+## Write the entry script
+
+<Steps>
+
+1. **Install the package**
+
+   ```sh
+   npm install @rawdash/mcp @modelcontextprotocol/sdk
+   ```
+
+2. **Create the server entry point**
+
+   Reuse the same `config` and `storage` you built in the Quickstart:
+
+   ```ts title="mcp-server.ts"
+   import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio';
+   import { createMcpServer } from '@rawdash/mcp';
+
+   import { config, storage } from './rawdash.config';
+
+   const server = createMcpServer({ config, storage });
+   await server.connect(new StdioServerTransport());
+   ```
+
+   Export `config` (from `defineConfig`) and `storage` (e.g. a `LibsqlStorage`
+   instance) from your config module so the script above can import them.
+
+3. **Build it to a runnable JS file**
+
+   Compile `mcp-server.ts` with your bundler/`tsc` (or run it through `tsx`).
+   Note the absolute path to the resulting entry point — you'll reference it from
+   the Claude config below.
+
+</Steps>
 
 ## Claude Code
 
@@ -27,17 +71,15 @@ Rawdash exposes a [Model Context Protocol](https://modelcontextprotocol.io/)
    {
      "mcpServers": {
        "rawdash": {
-         "command": "npx",
-         "args": ["-y", "@rawdash/mcp"],
-         "env": {
-           "RAWDASH_URL": "http://localhost:3000/api/rawdash"
-         }
+         "command": "node",
+         "args": ["/absolute/path/to/mcp-server.js"]
        }
      }
    }
    ```
 
-   Replace `RAWDASH_URL` with the URL of your Rawdash server.
+   Point `args` at the entry script you built above. Add any env vars your
+   `rawdash.config` needs (e.g. `GITHUB_TOKEN`, `TURSO_URL`) under an `"env"` key.
 
 3. **Restart Claude Code**
 
@@ -79,15 +121,16 @@ Rawdash exposes a [Model Context Protocol](https://modelcontextprotocol.io/)
    {
      "mcpServers": {
        "rawdash": {
-         "command": "npx",
-         "args": ["-y", "@rawdash/mcp"],
-         "env": {
-           "RAWDASH_URL": "https://your-rawdash-server.example.com/api/rawdash"
-         }
+         "command": "node",
+         "args": ["/absolute/path/to/mcp-server.js"]
        }
      }
    }
    ```
+
+   Use the same entry script described in [Write the entry
+   script](#write-the-entry-script). Add any env vars your config needs under an
+   `"env"` key.
 
 3. **Restart Claude Desktop**
 
@@ -114,14 +157,7 @@ Once connected, Claude has access to these tools:
 
 ## Scoping access
 
-By default, the MCP server exposes all dashboards. To restrict access to
-specific dashboards, pass a `RAWDASH_DASHBOARD_IDS` env var:
-
-```json
-{
-  "env": {
-    "RAWDASH_URL": "http://localhost:3000/api/rawdash",
-    "RAWDASH_DASHBOARD_IDS": "eng,design"
-  }
-}
-```
+The MCP server exposes every dashboard in the `config` you pass to
+`createMcpServer`. To restrict what Claude can see, build a narrower
+`DashboardConfig` (with only the dashboards you want to expose) in your entry
+script and pass that instead of your full config.

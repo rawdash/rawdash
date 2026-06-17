@@ -15,17 +15,17 @@ and mounting the request handler in a Node.js server.
    <Tabs>
      <TabItem label="npm">
        ```sh
-       npm install @rawdash/core @rawdash/server @rawdash/hono @rawdash/connector-github @rawdash/adapter-turso @hono/node-server
+       npm install @rawdash/core @rawdash/server @rawdash/hono @rawdash/connector-github @rawdash/adapter-libsql @libsql/client @hono/node-server
        ```
      </TabItem>
      <TabItem label="pnpm">
        ```sh
-       pnpm add @rawdash/core @rawdash/server @rawdash/hono @rawdash/connector-github @rawdash/adapter-turso @hono/node-server
+       pnpm add @rawdash/core @rawdash/server @rawdash/hono @rawdash/connector-github @rawdash/adapter-libsql @libsql/client @hono/node-server
        ```
      </TabItem>
      <TabItem label="yarn">
        ```sh
-       yarn add @rawdash/core @rawdash/server @rawdash/hono @rawdash/connector-github @rawdash/adapter-turso @hono/node-server
+       yarn add @rawdash/core @rawdash/server @rawdash/hono @rawdash/connector-github @rawdash/adapter-libsql @libsql/client @hono/node-server
        ```
      </TabItem>
    </Tabs>
@@ -66,9 +66,10 @@ and mounting the request handler in a Node.js server.
 
    ```ts title="rawdash.config.ts"
    import { serve as honoServe } from '@hono/node-server';
+   import { createClient } from '@libsql/client';
    import { defineConfig, defineDashboard, secret } from '@rawdash/core';
-   import { GitHubActionsConnector } from '@rawdash/connector-github';
-   import { TursoStorage } from '@rawdash/adapter-turso';
+   import { GitHubConnector } from '@rawdash/connector-github';
+   import { LibsqlStorage } from '@rawdash/adapter-libsql';
    import { mountEngine } from '@rawdash/hono';
 
    const { app } = mountEngine(
@@ -89,10 +90,12 @@ and mounting the request handler in a Node.js server.
        },
      }),
      {
-       connectorRegistry: { 'github-actions': GitHubActionsConnector },
-       storage: new TursoStorage({
-         url: process.env.TURSO_URL ?? 'file:rawdash.db',
-         authToken: process.env.TURSO_AUTH_TOKEN,
+       connectorRegistry: { 'github-actions': GitHubConnector },
+       storage: new LibsqlStorage({
+         client: createClient({
+           url: process.env.TURSO_URL ?? 'file:rawdash.db',
+           authToken: process.env.TURSO_AUTH_TOKEN,
+         }),
        }),
      },
    );

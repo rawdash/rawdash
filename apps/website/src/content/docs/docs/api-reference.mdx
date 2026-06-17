@@ -97,6 +97,49 @@ Returns `{ "queued": false }` if a sync is already in flight (`status` is
 
 ---
 
+## Config
+
+### `POST /config/validate`
+
+Statically validates a config's widget metrics against the connector registry's
+declared resources — the same check the cloud web UI runs before saving a
+config. Mounted only when the host wires up `createConfigValidateRouter`.
+
+**Request body**
+
+A `DashboardConfig` object with `connectors` (array) and `dashboards` (object).
+
+**Response (200)**
+
+```json
+{
+  "errors": [],
+  "warnings": [
+    {
+      "ref": "Dashboard \"eng\", widget \"revenue\"",
+      "severity": "warning",
+      "message": "sums \"amount\" which connector \"stripe\" declares in cents ..."
+    }
+  ]
+}
+```
+
+| Field      | Type                  | Description                                                       |
+| ---------- | --------------------- | ---------------------------------------------------------------- |
+| `errors`   | array of issue objects | Validation errors — a non-empty array means the config is invalid |
+| `warnings` | array of issue objects | Non-fatal warnings (e.g. currency-unit mismatches)               |
+
+Each issue object has `ref` (string — the dashboard/widget it concerns),
+`severity` (`"error" \| "warning"`), and `message` (string).
+
+**Response (400)**
+
+```json
+{ "error": "Body must be a config with \"connectors\" and \"dashboards\"" }
+```
+
+---
+
 ## Widgets
 
 ### `GET /dashboards/:dashboardId/widgets`
@@ -139,6 +182,8 @@ Returns a JSON object with a `widgets` array:
 | `status`       | `"ok" \| "no_data" \| "error"`                               | Optional. The widget's own compute outcome (see below)                            |
 | `errorMessage` | string                                                        | Optional. Present when `status` is `"error"` — the compute or connector error     |
 | `meta`         | object                                                        | Optional. Connector-specific metadata about this widget's data                    |
+| `syncIntervalSeconds` | number                                                 | Optional. The widget's configured refresh interval, when set                      |
+| `format`       | object                                                        | Optional. Resolved display-format hints for the widget (e.g. currency)            |
 
 **`status` vs `syncState`.** `syncState` reflects the *connector's* sync freshness; `status` reflects the *widget's own* compute outcome and is the field to render an error/empty indicator from:
 
