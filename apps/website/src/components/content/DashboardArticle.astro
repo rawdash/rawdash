@@ -30,24 +30,30 @@ const dateFmt = new Intl.DateTimeFormat('en-US', {
 });
 ---
 
+<div class="content-article-hero">
+  <div class="content-article-hero-inner">
+    <nav class="content-breadcrumb" aria-label="Breadcrumb">
+      <a href={basePath}>{sectionLabel}</a>
+      <span class="content-breadcrumb__separator" aria-hidden="true">/</span>
+      <span class="content-breadcrumb__current" aria-current="page">
+        {data.title}
+      </span>
+    </nav>
+
+    <header class="content-article-header">
+      <h1>{data.title}</h1>
+      <div class="content-article-meta">
+        {
+          date && (
+            <time datetime={date.toISOString()}>{dateFmt.format(date)}</time>
+          )
+        }
+      </div>
+    </header>
+  </div>
+</div>
+
 <article class="content-article">
-  <nav class="content-breadcrumb" aria-label="Breadcrumb">
-    <a href={basePath}>{sectionLabel}</a>
-    <span class="content-breadcrumb__separator" aria-hidden="true">/</span>
-    <span class="content-breadcrumb__current" aria-current="page">{data.title}</span>
-  </nav>
-
-  <header class="content-article-header">
-    <h1>{data.title}</h1>
-    <div class="content-article-meta">
-      {
-        date && (
-          <time datetime={date.toISOString()}>{dateFmt.format(date)}</time>
-        )
-      }
-    </div>
-  </header>
-
   {
     connectors.length > 0 && (
       <section class="dashboard-connectors" aria-label="Connectors">

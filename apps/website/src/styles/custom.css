@@ -1,26 +1,56 @@
 :root {
-  --sl-color-accent-low: #2d1b69;
+  --sl-color-accent-low: #1f1640;
   --sl-color-accent: #7c3aed;
   --sl-color-accent-high: #c4b5fd;
-  --sl-color-white: #ffffff;
-  --sl-color-gray-1: #f0edff;
-  --sl-color-gray-2: #c0b4f5;
-  --sl-color-gray-3: #8c81c2;
-  --sl-color-gray-4: #3a2b6a;
-  --sl-color-gray-5: #211448;
-  --sl-color-gray-6: #130b2e;
-  --sl-color-black: #0c081e;
+  --sl-color-white: #f5f3ff;
+  --sl-color-gray-1: #e8e2fb;
+  --sl-color-gray-2: #c5bae8;
+  --sl-color-gray-3: #9085d6;
+  --sl-color-gray-4: #6b6098;
+  --sl-color-gray-5: #2a1f54;
+  --sl-color-gray-6: #14112a;
+  --sl-color-black: #0f0c1e;
+
+  --sl-color-bg: #0f0c1e;
+  --sl-color-bg-nav: rgba(15, 12, 30, 0.9);
+  --sl-color-bg-sidebar: #14112a;
+  --sl-color-hairline-shade: #221a44;
+  --sl-color-hairline: #221a44;
+  --sl-color-text-accent: #a78bfa;
+  --sl-color-bg-inline-code: #1d1240;
+}
+
+header.header {
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--sl-color-hairline-shade);
+}
+
+.sidebar-pane {
+  border-inline-end: 1px solid var(--sl-color-hairline-shade);
+}
+
+nav.sidebar a[aria-current='page'],
+nav.sidebar a[aria-current='page']:hover,
+nav.sidebar a[aria-current='page']:focus {
+  color: var(--sl-color-white);
+  background-color: rgba(124, 58, 237, 0.22);
+  border: 1px solid rgba(124, 58, 237, 0.4);
 }
 
 .expressive-code {
+  --ec-frm-edBg: #1d1240;
+  --ec-brdCol: #2a1f54;
+  --ec-frm-frameBoxShdCol: transparent;
   --ec-frm-trmTtbDotsFg: #c0b4f5;
   --ec-frm-trmTtbDotsOpa: 0.7;
 }
 
-:root[data-theme='light'] {
-  --sl-color-accent-low: #ede9fe;
-  --sl-color-accent: #7c3aed;
-  --sl-color-accent-high: #4c1d95;
+starlight-theme-select {
+  display: none;
+}
+
+.social-icons::after {
+  display: none;
 }
 
 /* Connector catalog — shared by the connectors index (category cards) and the
@@ -94,9 +124,10 @@
 }
 .category-card-head {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.5rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  min-width: 0;
 }
 .category-card-name {
   font-weight: 600;

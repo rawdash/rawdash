@@ -1,6 +1,8 @@
 import sitemap from '@astrojs/sitemap';
 import starlight from '@astrojs/starlight';
 import { defineConfig } from 'astro/config';
+import { existsSync, readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 import { fetchPublishedFeedItems } from './src/lib/content-feed';
 import { SECTION_LIST } from './src/lib/sections';
@@ -8,6 +10,21 @@ import {
   buildSitemapLastmod,
   sitemapIndexLastmod,
 } from './src/lib/sitemap-lastmod';
+
+for (const file of ['.env.local', '.env']) {
+  const path = fileURLToPath(new URL(file, import.meta.url));
+  if (!existsSync(path)) {
+    continue;
+  }
+  for (const line of readFileSync(path, 'utf8').split('\n')) {
+    const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*?)\s*$/);
+    if (!match) {
+      continue;
+    }
+    const value = match[2].replace(/^(['"])(.*)\1$/, '$2');
+    process.env[match[1]] ??= value;
+  }
+}
 
 const feedItems = await fetchPublishedFeedItems();
 const publishedPageTypes = new Set(feedItems.map((item) => item.pageType));
@@ -38,7 +55,10 @@ const ga4Head = ga4Id
 export default defineConfig({
   site: 'https://rawdash.dev',
   trailingSlash: 'never',
-  build: { format: 'file' },
+  build: { format: 'directory' },
+  redirects: {
+    '/docs': '/docs/getting-started',
+  },
   integrations: [
     sitemap({
       filter: (page) =>
@@ -55,7 +75,13 @@ export default defineConfig({
       title: 'Rawdash',
       description: 'Headless dashboard backend for any team.',
       routeMiddleware: './src/starlightRouteData.ts',
-      head: ga4Head,
+      head: [
+        ...ga4Head,
+        {
+          tag: 'script',
+          content: `document.documentElement.dataset.theme='dark';try{localStorage.setItem('starlight-theme','dark')}catch(e){}`,
+        },
+      ],
       logo: {
         light: './src/assets/logo.svg',
         dark: './src/assets/logo-dark.svg',
