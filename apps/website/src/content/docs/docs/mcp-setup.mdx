@@ -42,8 +42,15 @@ configure.
 
    import { config, storage } from './rawdash.config';
 
-   const server = createMcpServer({ config, storage });
-   await server.connect(new StdioServerTransport());
+   async function main() {
+     const server = createMcpServer({ config, storage });
+     await server.connect(new StdioServerTransport());
+   }
+
+   main().catch((error) => {
+     console.error('Failed to start MCP server:', error);
+     process.exit(1);
+   });
    ```
 
    Export `config` (from `defineConfig`) and `storage` (e.g. a `LibsqlStorage`
