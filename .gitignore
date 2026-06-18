@@ -46,3 +46,5 @@ Thumbs.db
 apps/website/src/content/docs/docs/connectors/
 apps/website/public/connectors/
 apps/website/src/generated/
+apps/website/public/llms.txt
+apps/website/public/llms-full.txt

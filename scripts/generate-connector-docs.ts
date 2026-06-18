@@ -32,7 +32,21 @@ const DOCS_CONNECTORS_DIR = join(
   'docs',
   'connectors',
 );
-const PUBLIC_ICONS_DIR = join(WEBSITE_DIR, 'public', 'connectors');
+const PUBLIC_DIR = join(WEBSITE_DIR, 'public');
+const PUBLIC_ICONS_DIR = join(PUBLIC_DIR, 'connectors');
+const GUIDES_DIR = join(WEBSITE_DIR, 'src', 'content', 'docs', 'docs');
+const LLMS_INDEX_FILE = join(PUBLIC_DIR, 'llms.txt');
+const LLMS_FULL_FILE = join(PUBLIC_DIR, 'llms-full.txt');
+const SITE_URL = 'https://rawdash.dev';
+const GUIDE_ORDER = [
+  'index',
+  'getting-started',
+  'quickstart',
+  'cloud-quickstart',
+  'connector-guide',
+  'mcp-setup',
+  'api-reference',
+];
 const PLACEHOLDER_ICONS_DIR = join(ROOT, 'scripts', 'connector-icons');
 const BRANDFETCH_CLIENT_ID = '1idWBskC-5Zk9ZNyvDS';
 const LANDING_DATA_FILE = join(
@@ -75,6 +89,13 @@ interface LoadedPlaceholder {
   iconSvg?: string;
   iconHref: string;
   requestIssue?: string;
+}
+
+interface LoadedGuide {
+  slug: string;
+  title: string;
+  description: string;
+  body: string;
 }
 
 interface ConfigField {
@@ -879,6 +900,284 @@ function renderLandingData(
   ].join('\n');
 }
 
+function parseFrontmatter(src: string): {
+  data: Record<string, string>;
+  body: string;
+} {
+  const match = /^---\n([\s\S]*?)\n---\n?/.exec(src);
+  if (!match) {
+    return { data: {}, body: src };
+  }
+  const data: Record<string, string> = {};
+  for (const line of match[1].split('\n')) {
+    const kv = /^(\w+):\s*(.*)$/.exec(line);
+    if (!kv) {
+      continue;
+    }
+    let value = kv[2].trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    data[kv[1]] = value;
+  }
+  return { data, body: src.slice(match[0].length) };
+}
+
+function stripMdxBody(body: string): string {
+  return body
+    .split('\n')
+    .filter((line) => !/^\s*import\s.+from\s.+;?\s*$/.test(line))
+    .join('\n')
+    .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function loadGuides(): LoadedGuide[] {
+  const guides = readdirSync(GUIDES_DIR, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith('.mdx'))
+    .map((entry) => {
+      const slug = entry.name.replace(/\.mdx$/, '');
+      const { data, body } = parseFrontmatter(
+        readFileSync(join(GUIDES_DIR, entry.name), 'utf8'),
+      );
+      return {
+        slug,
+        title: data.title ?? slug,
+        description: data.description ?? '',
+        body: stripMdxBody(body),
+      };
+    });
+  const rank = (slug: string): number => {
+    const i = GUIDE_ORDER.indexOf(slug);
+    return i === -1 ? GUIDE_ORDER.length : i;
+  };
+  guides.sort(
+    (a, b) => rank(a.slug) - rank(b.slug) || a.slug.localeCompare(b.slug),
+  );
+  return guides;
+}
+
+function guideUrl(slug: string): string {
+  return slug === 'index' ? `${SITE_URL}/docs` : `${SITE_URL}/docs/${slug}`;
+}
+
+function orderedCategories(
+  byCategory: Map<string, LoadedConnector[]>,
+): string[] {
+  return Object.keys(CATEGORY_LABELS).filter((c) => byCategory.has(c));
+}
+
+function renderResponseSchemas(resources: ResourceDefinitions): string {
+  const blocks: string[] = [];
+  for (const [name, r] of Object.entries(resources)) {
+    if (!r.responses) {
+      continue;
+    }
+    for (const [tag, schema] of Object.entries(r.responses)) {
+      let json: string;
+      try {
+        json = JSON.stringify(z.toJSONSchema(schema), null, 2);
+      } catch (err) {
+        console.warn(
+          `Could not serialize response schema for ${name}.${tag}: ${String(err)}`,
+        );
+        continue;
+      }
+      blocks.push(`#### Response shape: \`${name}\` (${tag})`);
+      blocks.push('');
+      blocks.push('```json');
+      blocks.push(json);
+      blocks.push('```');
+      blocks.push('');
+    }
+  }
+  return blocks.join('\n').trim();
+}
+
+function renderConnectorFull(c: LoadedConnector): string {
+  const core = renderCore(c);
+  const { doc, packageName } = c;
+  const parts: string[] = [];
+  parts.push(`## ${doc.displayName}`);
+  parts.push('');
+  parts.push(doc.tagline);
+  parts.push('');
+  const meta: string[] = [
+    `- Package: \`${packageName}\``,
+    `- Category: ${CATEGORY_LABELS[doc.category] ?? doc.category}`,
+    `- Rawdash docs: ${SITE_URL}${connectorUrl(c)}`,
+    `- Vendor: ${doc.vendor.name}${doc.vendor.website ? ` (${doc.vendor.website})` : ''}`,
+  ];
+  if (doc.vendor.apiDocs) {
+    meta.push(`- Vendor API docs: ${doc.vendor.apiDocs}`);
+  }
+  parts.push(meta.join('\n'));
+  parts.push('');
+  if (c.cost) {
+    parts.push(`Cost & frequency: ${renderCostLines(c.cost).join(' ')}`);
+    parts.push('');
+  }
+  parts.push('### Authentication');
+  parts.push('');
+  parts.push(core.auth);
+  parts.push('');
+  parts.push('### Configuration');
+  parts.push('');
+  parts.push(core.config);
+  parts.push('');
+  parts.push('### Resources');
+  parts.push('');
+  parts.push(core.resources);
+  parts.push('');
+  const responses = renderResponseSchemas(c.resources);
+  if (responses) {
+    parts.push('### API response schemas');
+    parts.push('');
+    parts.push(responses);
+    parts.push('');
+  }
+  parts.push('### Example config');
+  parts.push('');
+  parts.push('```ts');
+  parts.push(c.example);
+  parts.push('```');
+  if (doc.rateLimit) {
+    parts.push('');
+    parts.push('### Rate limits');
+    parts.push('');
+    parts.push(doc.rateLimit);
+  }
+  if (doc.limitations?.length) {
+    parts.push('');
+    parts.push('### Limitations');
+    parts.push('');
+    for (const l of doc.limitations) {
+      parts.push(`- ${l}`);
+    }
+  }
+  return parts.join('\n');
+}
+
+function renderLlmsIndex(
+  guides: LoadedGuide[],
+  connectors: LoadedConnector[],
+  byCategory: Map<string, LoadedConnector[]>,
+  placeholders: LoadedPlaceholder[],
+  date: string,
+): string {
+  const parts: string[] = [];
+  parts.push('# Rawdash');
+  parts.push('');
+  parts.push(
+    '> Rawdash is an open-source framework for building internal dashboards. ' +
+      'Typed connectors sync data from third-party APIs into a queryable storage ' +
+      'engine that your widgets read from. This file indexes the documentation and ' +
+      'every built-in connector so LLMs can navigate the project.',
+  );
+  parts.push('');
+  parts.push(
+    `Last updated: ${date}. The full text of these docs, including every ` +
+      `connector's authentication, configuration, resources, and API response ` +
+      `schemas, is available at ${SITE_URL}/llms-full.txt.`,
+  );
+  parts.push('');
+  parts.push('## Documentation');
+  parts.push('');
+  for (const g of guides) {
+    const note = g.description ? `: ${g.description}` : '';
+    parts.push(`- [${g.title}](${guideUrl(g.slug)})${note}`);
+  }
+  parts.push('');
+  parts.push('## Connectors');
+  parts.push('');
+  parts.push(
+    `Rawdash ships ${connectors.length} built-in connectors. Each links to its ` +
+      `full integration docs (authentication, configuration, resources, and the ` +
+      `upstream API).`,
+  );
+  parts.push('');
+  for (const category of orderedCategories(byCategory)) {
+    parts.push(`### ${CATEGORY_LABELS[category] ?? category}`);
+    parts.push('');
+    for (const c of byCategory.get(category) ?? []) {
+      parts.push(
+        `- [${c.doc.displayName}](${SITE_URL}${connectorUrl(c)}): ${c.doc.tagline}`,
+      );
+    }
+    parts.push('');
+  }
+  if (placeholders.length) {
+    parts.push('## Optional');
+    parts.push('');
+    parts.push('Planned connectors, on the roadmap but not built yet:');
+    parts.push('');
+    for (const p of placeholders) {
+      parts.push(
+        `- [${p.name}](${SITE_URL}${placeholderUrl(p)}): ${p.tagline}`,
+      );
+    }
+    parts.push('');
+  }
+  return (
+    parts
+      .join('\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trimEnd() + '\n'
+  );
+}
+
+function renderLlmsFull(
+  guides: LoadedGuide[],
+  connectors: LoadedConnector[],
+  byCategory: Map<string, LoadedConnector[]>,
+  date: string,
+): string {
+  const parts: string[] = [];
+  parts.push('# Rawdash - full documentation');
+  parts.push('');
+  parts.push(
+    '> Rawdash is an open-source framework for building internal dashboards. ' +
+      'Typed connectors sync data from third-party APIs into a queryable storage ' +
+      'engine that your widgets read from. This file contains the full text of the ' +
+      'documentation and every built-in connector, generated from connector metadata.',
+  );
+  parts.push('');
+  parts.push(`Last updated: ${date}. Source: ${SITE_URL}`);
+  parts.push('');
+  parts.push('# Guides');
+  parts.push('');
+  for (const g of guides) {
+    parts.push(`## ${g.title}`);
+    parts.push('');
+    parts.push(`Source: ${guideUrl(g.slug)}`);
+    parts.push('');
+    if (g.body) {
+      parts.push(g.body);
+      parts.push('');
+    }
+  }
+  parts.push('# Connectors');
+  parts.push('');
+  for (const category of orderedCategories(byCategory)) {
+    parts.push(`# ${CATEGORY_LABELS[category] ?? category} connectors`);
+    parts.push('');
+    for (const c of byCategory.get(category) ?? []) {
+      parts.push(renderConnectorFull(c));
+      parts.push('');
+    }
+  }
+  return (
+    parts
+      .join('\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trimEnd() + '\n'
+  );
+}
+
 interface OutFile {
   path: string;
   content: string;
@@ -902,6 +1201,8 @@ async function formatOutput(file: OutFile): Promise<string> {
 function collectOutputs(
   connectors: LoadedConnector[],
   placeholders: LoadedPlaceholder[],
+  guides: LoadedGuide[],
+  date: string,
 ): OutFile[] {
   const out: OutFile[] = [];
   const byCategory = groupByCategory(connectors);
@@ -959,6 +1260,24 @@ function collectOutputs(
     content: renderLandingData(connectors, byCategory, placeholders),
     tracked: false,
   });
+  out.push({
+    path: LLMS_INDEX_FILE,
+    content: renderLlmsIndex(
+      guides,
+      connectors,
+      byCategory,
+      placeholders,
+      date,
+    ),
+    raw: true,
+    tracked: false,
+  });
+  out.push({
+    path: LLMS_FULL_FILE,
+    content: renderLlmsFull(guides, connectors, byCategory, date),
+    raw: true,
+    tracked: false,
+  });
   return out;
 }
 
@@ -1000,8 +1319,10 @@ async function main(): Promise<void> {
     connectors.map((c) => c.doc.displayName.toLowerCase()),
   );
   const placeholders = loadPlaceholders(realIds, realNames);
+  const guides = loadGuides();
+  const date = new Date().toISOString().slice(0, 10);
 
-  const outputs = collectOutputs(connectors, placeholders);
+  const outputs = collectOutputs(connectors, placeholders, guides, date);
   const drifted: string[] = [];
   const dashes: string[] = [];
   for (const file of outputs) {
