@@ -10,7 +10,6 @@ import {
   createDefaultConnectorLogger,
   fetchSpecsForConnector,
   instantiateConnector,
-  withMetricResourceGuard,
 } from '@rawdash/core';
 
 export const FULL_SYNC_TIMEOUT_MS = 300_000;
@@ -88,17 +87,10 @@ export async function runSync(
         return;
       }
       const controller = new AbortController();
-      const baseHandle = storage.getStorageHandle(entry.name, {
+      const handle = storage.getStorageHandle(entry.name, {
         signal: controller.signal,
       });
       const connectorLogger = safeLogger(entry.name);
-      const resourceDefs =
-        options.connectorRegistry[entry.connectorId]?.resources;
-      const handle = resourceDefs
-        ? withMetricResourceGuard(baseHandle, resourceDefs, (message) =>
-            connectorLogger.warn('metric_guard', { message }),
-          )
-        : baseHandle;
       const syncStart = Date.now();
       let timer: ReturnType<typeof setTimeout> | undefined;
       let status: 'succeeded' | 'failed' = 'succeeded';

@@ -240,7 +240,6 @@ export { instantiateConnector } from './registry';
 export type { GetStorageHandleOptions, ServerStorage } from './server-storage';
 
 export { withAbortSignal } from './storage-handle-guard';
-export { withMetricResourceGuard } from './metric-guard';
 
 export { InMemoryStorage } from './in-memory-storage';
 
