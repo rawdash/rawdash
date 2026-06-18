@@ -14,16 +14,6 @@ export interface ConnectorPlaceholder {
 
 export const connectorPlaceholders: ConnectorPlaceholder[] = [
   {
-    id: 'asana',
-    name: 'Asana',
-    category: 'engineering',
-    tagline:
-      'Sync tasks, projects, and completion activity from an Asana workspace.',
-    icon: 'asana',
-    domain: 'asana.com',
-    requestIssue: 'RAW-424',
-  },
-  {
     id: 'basecamp',
     name: 'Basecamp',
     category: 'engineering',

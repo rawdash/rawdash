@@ -37,6 +37,7 @@
     "@rawdash/connector-anthropic": "workspace:*",
     "@rawdash/connector-app-store-connect": "workspace:*",
     "@rawdash/connector-appsflyer": "workspace:*",
+    "@rawdash/connector-asana": "workspace:*",
     "@rawdash/connector-auth0": "workspace:*",
     "@rawdash/connector-aws-bedrock": "workspace:*",
     "@rawdash/connector-aws-cloudwatch": "workspace:*",
