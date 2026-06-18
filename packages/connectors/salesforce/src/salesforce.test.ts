@@ -262,7 +262,7 @@ describe('SalesforceConnector.sync', () => {
               IsClosed: true,
               IsWon: true,
               CreatedDate: '2024-01-01T00:00:00.000Z',
-              LastModifiedDate: '2024-03-15T12:00:00.000Z',
+              SystemModstamp: '2024-03-15T12:00:00.000Z',
             },
           ],
         };
@@ -286,6 +286,61 @@ describe('SalesforceConnector.sync', () => {
     expect(entity.attributes.stage).toBe('Closed Won');
     expect(entity.attributes.isWon).toBe(true);
     expect(entity.updated_at).toBe(Date.parse('2024-03-15T12:00:00.000Z'));
+  });
+
+  it('derives the opportunity updated_at high-water mark from SystemModstamp, not LastModifiedDate', async () => {
+    const fetchSpy = makeFetch((url, _method) => {
+      if (url.includes('FROM+Opportunity')) {
+        return {
+          totalSize: 1,
+          done: true,
+          records: [
+            {
+              Id: '006xx0000000002',
+              Name: 'Flow-touched',
+              StageName: 'Prospecting',
+              Amount: 1000,
+              CloseDate: '2024-06-01',
+              OwnerId: '005xx00000000A1',
+              Probability: 10,
+              ForecastCategoryName: 'Pipeline',
+              IsClosed: false,
+              IsWon: false,
+              CreatedDate: '2024-01-01T00:00:00.000Z',
+              LastModifiedDate: '2024-01-05T00:00:00.000Z',
+              SystemModstamp: '2024-04-20T00:00:00.000Z',
+            },
+          ],
+        };
+      }
+      return undefined;
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const storage = makeStorage();
+    await connector(['opportunities']).sync({ mode: 'full' }, storage);
+
+    const entity = storage.entity.mock.calls[0]![0] as { updated_at: number };
+    expect(entity.updated_at).toBe(Date.parse('2024-04-20T00:00:00.000Z'));
+  });
+
+  it('filters and orders the opportunities query by SystemModstamp on incremental sync', async () => {
+    const fetchSpy = makeFetch(() => undefined);
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await connector(['opportunities']).sync(
+      { mode: 'latest', since: '2024-01-01T00:00:00Z' },
+      makeStorage(),
+    );
+
+    const queryCall = recordCalls(fetchSpy).find((c) =>
+      c.url.includes('FROM+Opportunity'),
+    );
+    expect(queryCall).toBeDefined();
+    const soql = new URL(queryCall!.url).searchParams.get('q')!;
+    expect(soql).toContain('SystemModstamp >= 2024-01-01T00:00:00Z');
+    expect(soql).toContain('ORDER BY SystemModstamp ASC');
+    expect(soql).not.toContain('LastModifiedDate');
   });
 
   it('emits opportunity stage-change events from OpportunityFieldHistory', async () => {
@@ -394,7 +449,7 @@ describe('SalesforceConnector.sync', () => {
     );
     expect(queryCall).toBeDefined();
     const soql = new URL(queryCall!.url).searchParams.get('q')!;
-    expect(soql).toContain('LastModifiedDate >= 2024-01-01T00:00:00Z');
+    expect(soql).toContain('SystemModstamp >= 2024-01-01T00:00:00Z');
     expect(soql).not.toContain('.123Z');
   });
 
@@ -446,7 +501,7 @@ describe('SalesforceConnector.sync', () => {
                   AnnualRevenue: null,
                   OwnerId: null,
                   CreatedDate: '2024-01-01T00:00:00.000Z',
-                  LastModifiedDate: '2024-01-02T00:00:00.000Z',
+                  SystemModstamp: '2024-01-02T00:00:00.000Z',
                 },
               ],
             }),
@@ -466,7 +521,7 @@ describe('SalesforceConnector.sync', () => {
                   AnnualRevenue: null,
                   OwnerId: null,
                   CreatedDate: '2024-01-03T00:00:00.000Z',
-                  LastModifiedDate: '2024-01-04T00:00:00.000Z',
+                  SystemModstamp: '2024-01-04T00:00:00.000Z',
                 },
               ],
             }),

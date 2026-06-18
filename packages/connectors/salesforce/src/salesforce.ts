@@ -110,6 +110,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
   limitations: [
     'Custom objects are out of scope for v1; only the standard objects listed above are synced.',
     'Salesforce Marketing Cloud is tracked under a separate connector.',
+    'Opportunity stage-change events come from OpportunityFieldHistory, which Salesforce retains for roughly 18 months by default (longer only with Field Audit Trail). Stage-change history older than the retention window is not available to backfill.',
   ],
 });
 
@@ -187,7 +188,7 @@ interface SalesforceAccount {
   AnnualRevenue: number | null;
   OwnerId: string | null;
   CreatedDate: string;
-  LastModifiedDate: string;
+  SystemModstamp: string;
 }
 
 interface SalesforceLead {
@@ -197,7 +198,7 @@ interface SalesforceLead {
   LeadSource: string | null;
   ConvertedDate: string | null;
   CreatedDate: string;
-  LastModifiedDate: string;
+  SystemModstamp: string;
 }
 
 interface SalesforceOpportunity {
@@ -212,7 +213,7 @@ interface SalesforceOpportunity {
   IsClosed: boolean;
   IsWon: boolean;
   CreatedDate: string;
-  LastModifiedDate: string;
+  SystemModstamp: string;
 }
 
 interface SalesforceFieldHistory {
@@ -247,7 +248,7 @@ const accountSchema = z.object({
   AnnualRevenue: z.number().nullable(),
   OwnerId: z.string().nullable(),
   CreatedDate: isoDate,
-  LastModifiedDate: isoDate,
+  SystemModstamp: isoDate,
 });
 
 const leadSchema = z.object({
@@ -257,7 +258,7 @@ const leadSchema = z.object({
   LeadSource: z.string().nullable(),
   ConvertedDate: z.string().nullable(),
   CreatedDate: isoDate,
-  LastModifiedDate: isoDate,
+  SystemModstamp: isoDate,
 });
 
 const opportunitySchema = z.object({
@@ -272,7 +273,7 @@ const opportunitySchema = z.object({
   IsClosed: z.boolean(),
   IsWon: z.boolean(),
   CreatedDate: isoDate,
-  LastModifiedDate: isoDate,
+  SystemModstamp: isoDate,
 });
 
 const fieldHistorySchema = z.object({
@@ -309,7 +310,7 @@ export const salesforceResources = defineResources({
     description:
       'Accounts (companies), keyed by account id, with industry, annual revenue, owner, and creation time.',
     endpoint: 'GET /services/data/v{version}/query (SOQL: FROM Account)',
-    notes: 'Upserts by id; incremental syncs filter on LastModifiedDate.',
+    notes: 'Upserts by id; incremental syncs filter on SystemModstamp.',
     fields: [
       { name: 'name', description: 'Account name.' },
       { name: 'industry', description: 'Industry classification.' },
@@ -334,7 +335,7 @@ export const salesforceResources = defineResources({
     description:
       'Leads, keyed by lead id, with email, status, source, and conversion time.',
     endpoint: 'GET /services/data/v{version}/query (SOQL: FROM Lead)',
-    notes: 'Upserts by id; incremental syncs filter on LastModifiedDate.',
+    notes: 'Upserts by id; incremental syncs filter on SystemModstamp.',
     fields: [
       { name: 'email', description: 'Lead email address.' },
       { name: 'status', description: 'Lead status.' },
@@ -358,7 +359,7 @@ export const salesforceResources = defineResources({
     description:
       'Opportunities, keyed by opportunity id, with stage, amount, close date, owner, probability, forecast category, and closed/won flags.',
     endpoint: 'GET /services/data/v{version}/query (SOQL: FROM Opportunity)',
-    notes: 'Upserts by id; incremental syncs filter on LastModifiedDate.',
+    notes: 'Upserts by id; incremental syncs filter on SystemModstamp.',
     fields: [
       { name: 'name', description: 'Opportunity name.' },
       { name: 'stage', description: 'Current StageName.' },
@@ -411,20 +412,20 @@ export const salesforceResources = defineResources({
 const PHASE_SOQL: Record<SalesforcePhase, string> = {
   users: 'SELECT Id, Name, Email, IsActive FROM User',
   accounts:
-    'SELECT Id, Name, Industry, AnnualRevenue, OwnerId, CreatedDate, LastModifiedDate FROM Account',
+    'SELECT Id, Name, Industry, AnnualRevenue, OwnerId, CreatedDate, SystemModstamp FROM Account',
   leads:
-    'SELECT Id, Email, Status, LeadSource, ConvertedDate, CreatedDate, LastModifiedDate FROM Lead',
+    'SELECT Id, Email, Status, LeadSource, ConvertedDate, CreatedDate, SystemModstamp FROM Lead',
   opportunities:
-    'SELECT Id, Name, StageName, Amount, CloseDate, OwnerId, Probability, ForecastCategoryName, IsClosed, IsWon, CreatedDate, LastModifiedDate FROM Opportunity',
+    'SELECT Id, Name, StageName, Amount, CloseDate, OwnerId, Probability, ForecastCategoryName, IsClosed, IsWon, CreatedDate, SystemModstamp FROM Opportunity',
   opportunity_events:
     "SELECT Id, OpportunityId, Field, OldValue, NewValue, CreatedDate, CreatedById FROM OpportunityFieldHistory WHERE Field = 'StageName'",
 };
 
 const PHASE_TIMESTAMP: Record<SalesforcePhase, string> = {
   users: '',
-  accounts: 'LastModifiedDate',
-  leads: 'LastModifiedDate',
-  opportunities: 'LastModifiedDate',
+  accounts: 'SystemModstamp',
+  leads: 'SystemModstamp',
+  opportunities: 'SystemModstamp',
   opportunity_events: 'CreatedDate',
 };
 
@@ -698,7 +699,7 @@ export class SalesforceConnector extends BaseConnector<
           ownerId: a.OwnerId,
           createdAt: parseDateMs(a.CreatedDate),
         },
-        updated_at: parseDateMs(a.LastModifiedDate) ?? 0,
+        updated_at: parseDateMs(a.SystemModstamp) ?? 0,
       });
     }
   }
@@ -718,7 +719,7 @@ export class SalesforceConnector extends BaseConnector<
           convertedAt: parseDateMs(l.ConvertedDate),
           createdAt: parseDateMs(l.CreatedDate),
         },
-        updated_at: parseDateMs(l.LastModifiedDate) ?? 0,
+        updated_at: parseDateMs(l.SystemModstamp) ?? 0,
       });
     }
   }
@@ -743,7 +744,7 @@ export class SalesforceConnector extends BaseConnector<
           isWon: o.IsWon,
           createdAt: parseDateMs(o.CreatedDate),
         },
-        updated_at: parseDateMs(o.LastModifiedDate) ?? 0,
+        updated_at: parseDateMs(o.SystemModstamp) ?? 0,
       });
     }
   }
