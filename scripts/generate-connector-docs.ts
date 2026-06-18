@@ -5,6 +5,7 @@ import type {
   ResourceDefinition,
   ResourceDefinitions,
 } from '@rawdash/core';
+import matter from 'gray-matter';
 import {
   existsSync,
   mkdirSync,
@@ -16,7 +17,11 @@ import {
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import * as prettier from 'prettier';
+import { remark } from 'remark';
+import remarkMdx from 'remark-mdx';
 import * as simpleIcons from 'simple-icons';
+import type { Node, Parent } from 'unist';
+import { SKIP, visit } from 'unist-util-visit';
 import { z } from 'zod';
 
 import { connectorPlaceholders } from './connector-placeholders';
@@ -900,57 +905,55 @@ function renderLandingData(
   ].join('\n');
 }
 
-function parseFrontmatter(src: string): {
-  data: Record<string, string>;
-  body: string;
-} {
-  const match = /^---\n([\s\S]*?)\n---\n?/.exec(src);
-  if (!match) {
-    return { data: {}, body: src };
-  }
-  const data: Record<string, string> = {};
-  for (const line of match[1].split('\n')) {
-    const kv = /^(\w+):\s*(.*)$/.exec(line);
-    if (!kv) {
-      continue;
-    }
-    let value = kv[2].trim();
-    if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
-    ) {
-      value = value.slice(1, -1);
-    }
-    data[kv[1]] = value;
-  }
-  return { data, body: src.slice(match[0].length) };
-}
+const MDX_NODE_TYPES = new Set([
+  'mdxjsEsm',
+  'mdxFlowExpression',
+  'mdxTextExpression',
+  'mdxJsxFlowElement',
+  'mdxJsxTextElement',
+]);
 
-function stripMdxBody(body: string): string {
-  return body
-    .split('\n')
-    .filter((line) => !/^\s*import\s.+from\s.+;?\s*$/.test(line))
-    .join('\n')
-    .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
-}
-
-function loadGuides(): LoadedGuide[] {
-  const guides = readdirSync(GUIDES_DIR, { withFileTypes: true })
-    .filter((entry) => entry.isFile() && entry.name.endsWith('.mdx'))
-    .map((entry) => {
-      const slug = entry.name.replace(/\.mdx$/, '');
-      const { data, body } = parseFrontmatter(
-        readFileSync(join(GUIDES_DIR, entry.name), 'utf8'),
-      );
-      return {
-        slug,
-        title: data.title ?? slug,
-        description: data.description ?? '',
-        body: stripMdxBody(body),
-      };
+function stripMdxNodes(): (tree: Node) => void {
+  return (tree) => {
+    visit(tree, (node, index, parent) => {
+      if (
+        parent &&
+        typeof index === 'number' &&
+        MDX_NODE_TYPES.has(node.type)
+      ) {
+        (parent as Parent).children.splice(index, 1);
+        return [SKIP, index];
+      }
+      return undefined;
     });
+  };
+}
+
+const mdxProcessor = remark().use(remarkMdx).use(stripMdxNodes);
+
+async function mdxToMarkdown(body: string): Promise<string> {
+  const file = await mdxProcessor.process(body);
+  return String(file).trim();
+}
+
+async function loadGuides(): Promise<LoadedGuide[]> {
+  const guides = await Promise.all(
+    readdirSync(GUIDES_DIR, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && entry.name.endsWith('.mdx'))
+      .map(async (entry) => {
+        const slug = entry.name.replace(/\.mdx$/, '');
+        const { data, content } = matter(
+          readFileSync(join(GUIDES_DIR, entry.name), 'utf8'),
+        );
+        const meta = data as { title?: string; description?: string };
+        return {
+          slug,
+          title: meta.title ?? slug,
+          description: meta.description ?? '',
+          body: await mdxToMarkdown(content),
+        };
+      }),
+  );
   const rank = (slug: string): number => {
     const i = GUIDE_ORDER.indexOf(slug);
     return i === -1 ? GUIDE_ORDER.length : i;
@@ -1319,7 +1322,7 @@ async function main(): Promise<void> {
     connectors.map((c) => c.doc.displayName.toLowerCase()),
   );
   const placeholders = loadPlaceholders(realIds, realNames);
-  const guides = loadGuides();
+  const guides = await loadGuides();
   const date = new Date().toISOString().slice(0, 10);
 
   const outputs = collectOutputs(connectors, placeholders, guides, date);
