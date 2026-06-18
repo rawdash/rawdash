@@ -146,11 +146,22 @@ Rules of thumb:
 - **Events are not the source's events.** They're _your_ append-only facts. A "PR was opened" is an event; the PR itself is an entity.
 - **Entities upsert.** Writing an entity with the same `(type, id)` overwrites the previous version. Use `updated_at` to track freshness.
 - **Don't reach for distributions unless the source gives you one.** Most sources expose raw timestamped data — write events and aggregate at query time.
+- **Metrics are pre-aggregated numbers, not raw rows.** Reach for `metric` only when the source hands you a number already rolled up to a timestamp (a daily count, a gauge, an SLI) and you can't get the underlying records. If you _can_ fetch the individual occurrences, write `event` instead and aggregate at query time — you keep full slicing power and avoid baking the source's bucketing into storage.
 - **Edges replace, scoped by kind.** Passing `{ kinds: ['reviewed_by'] }` to `storage.edges([])` clears edges of that kind for the connector. Use this to drop stale relations on re-sync.
 
 ### The metric-shape contract
 
-A metric widget's `field` must be portable: the same widget definition has to produce the same number against any connector. Metric resources earn that portability by following one contract:
+**First, is it actually a metric?** A metric sample is _one number measured at a timestamp_, optionally sliced by a few low-cardinality dimensions: `(name, ts, value, attributes)`. Good fits are upstream-aggregated series you only ever read as a rolled-up number over time — "events per day", daily/weekly active users, an SLO's current SLI, spend per campaign per day, token usage per model.
+
+It is **not** a metric when:
+
+- **The source gives you the raw occurrences.** A list of individual errors, runs, deploys, or charges is an `event` — write one row per occurrence and let widgets `count`/`sum`/`avg` at query time. Pre-bucketing into a metric throws away the ability to re-slice later and bakes the source's window into storage.
+- **The thing has identity and state.** A repo, user, issue, or subscription you'd look up by id or filter by current status is an `entity`, even if it carries numbers (a count is just an attribute on it).
+- **It's a distribution snapshot.** p50/p95 buckets or a histogram at a timestamp is a `distribution`, not a single `value`.
+
+Decisive test: if you'd ever want to drill into the individual records behind the number, write `event`s; if you only ever consume the rolled-up number over time, it's a `metric`.
+
+Once it _is_ a metric, a widget's `field` must be portable: the same widget definition has to produce the same number against any connector. Metric resources earn that portability by following one contract:
 
 - **The primary numeric lives in `value`.** Always. A metric widget references it as `field: 'value'` (or omits `field` — it defaults to `value`). Never mirror the primary number into an attribute. Writing `value: count` _and_ `attributes: { count }` is the classic footgun: a widget authored as `field: 'count'` sums `attributes.count`, works against the connector that mirrors, and **silently sums to `0`** against one that doesn't.
 - **`attributes` carry declared dimensions and measures only.** Declare every attribute key in `defineResources`:
