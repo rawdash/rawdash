@@ -70,7 +70,9 @@ export function registerTriggerSync(
             const resourceDefs =
               options.connectorRegistry![entry.connectorId]?.resources;
             const handle = resourceDefs
-              ? withMetricResourceGuard(baseHandle, resourceDefs)
+              ? withMetricResourceGuard(baseHandle, resourceDefs, (message) =>
+                  console.warn(`[metric_guard][${entry.name}] ${message}`),
+                )
               : baseHandle;
             await connector.sync(
               { mode: mode ?? 'latest' },

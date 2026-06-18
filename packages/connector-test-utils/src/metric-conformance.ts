@@ -84,7 +84,7 @@ export function assertConnectorMetricConformance(
   if (violations.length > 0) {
     throw new Error(
       `Connector "${connectorId}" metric-shape conformance failures:\n  - ${violations
-        .map((v) => `${v.invariant}: ${v.detail}`)
+        .map((v) => `${v.location}: ${v.invariant}: ${v.detail}`)
         .join('\n  - ')}`,
     );
   }

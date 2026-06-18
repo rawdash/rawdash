@@ -9,7 +9,6 @@ import {
   type ConnectorContext,
   type ConnectorDoc,
   type CredentialsSchema,
-  type JSONValue,
   type MetricSample,
   type StorageHandle,
   type SyncOptions,
@@ -586,9 +585,25 @@ function nullableBoolean(value: boolean | null | undefined): boolean | null {
   return value === undefined || value === null ? null : value;
 }
 
+interface UsageCommonAttributes {
+  model: string | null;
+  project_id: string | null;
+  api_key_id: string | null;
+  user_id: string | null;
+}
+
+interface CompletionsCommonAttributes extends UsageCommonAttributes {
+  batch: boolean | null;
+}
+
+interface ImagesCommonAttributes extends UsageCommonAttributes {
+  source: string | null;
+  size: string | null;
+}
+
 function tokensCommonAttributes(
   row: CompletionsResult,
-): Record<string, JSONValue> {
+): CompletionsCommonAttributes {
   return {
     model: nullableString(row.model),
     project_id: nullableString(row.project_id),
@@ -600,7 +615,7 @@ function tokensCommonAttributes(
 
 function embeddingsCommonAttributes(
   row: EmbeddingsResult,
-): Record<string, JSONValue> {
+): UsageCommonAttributes {
   return {
     model: nullableString(row.model),
     project_id: nullableString(row.project_id),
@@ -609,7 +624,7 @@ function embeddingsCommonAttributes(
   };
 }
 
-function imagesCommonAttributes(row: ImagesResult): Record<string, JSONValue> {
+function imagesCommonAttributes(row: ImagesResult): ImagesCommonAttributes {
   return {
     model: nullableString(row.model),
     project_id: nullableString(row.project_id),
@@ -622,7 +637,7 @@ function imagesCommonAttributes(row: ImagesResult): Record<string, JSONValue> {
 
 function audioCommonAttributes(
   row: AudioSpeechesResult | AudioTranscriptionsResult,
-): Record<string, JSONValue> {
+): UsageCommonAttributes {
   return {
     model: nullableString(row.model),
     project_id: nullableString(row.project_id),

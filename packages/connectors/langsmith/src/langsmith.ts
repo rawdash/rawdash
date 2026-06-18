@@ -344,7 +344,7 @@ export const langsmithResources = defineResources({
     unit: 'score',
     granularity: 'Per-feedback (query-time rollup)',
     notes:
-      'Non-numeric feedback (string, boolean, JSON value) is still emitted but with score 0; use `count` to count rows and average `score` for numeric trends.',
+      'Non-numeric feedback (string, boolean, JSON value) is still emitted but with score 0; use `count` to count rows and average the sample `value` for numeric score trends.',
     dimensions: [
       {
         name: 'key',
@@ -537,7 +537,7 @@ export class LangSmithConnector extends BaseConnector<
               promptTokens: finiteNumber(run.prompt_tokens),
               completionTokens: finiteNumber(run.completion_tokens),
               costUsd: finiteNumber(run.total_cost),
-              latencyMs: latencyMs ?? 0,
+              ...(latencyMs === null ? {} : { latencyMs }),
             },
           }),
         );

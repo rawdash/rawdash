@@ -63,7 +63,7 @@ A LangSmith API key with read access is required. The key is sent as the `x-api-
   - Granularity: Per-feedback (query-time rollup)
   - Dimensions: `key`, `sessionId`, `runId`
   - Measures: `count`, `hasNumericScore`
-  - Non-numeric feedback (string, boolean, JSON value) is still emitted but with score 0; use `count` to count rows and average `score` for numeric trends.
+  - Non-numeric feedback (string, boolean, JSON value) is still emitted but with score 0; use `count` to count rows and average the sample `value` for numeric score trends.
 
 ## Example
 

@@ -55,7 +55,9 @@ export function withMetricResourceGuard(
       }
       delete stripped[key];
       warn(
-        `[rawdash storage] stripping undeclared attribute "${key}" from metric "${m.name}" (not a declared dimension or measure)`,
+        RESERVED_METRIC_FIELDS.has(key)
+          ? `[rawdash storage] stripping reserved field "${key}" from metric "${m.name}" attributes (the primary numeric lives in "value", not attributes)`
+          : `[rawdash storage] stripping undeclared attribute "${key}" from metric "${m.name}" (not a declared dimension or measure)`,
       );
     }
     return stripped === null ? m : { ...m, attributes: stripped };

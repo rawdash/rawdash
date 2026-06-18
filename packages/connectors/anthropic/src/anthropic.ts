@@ -8,7 +8,6 @@ import {
   type ConnectorContext,
   type ConnectorDoc,
   type CredentialsSchema,
-  type JSONValue,
   type MetricSample,
   type StorageHandle,
   type SyncOptions,
@@ -438,7 +437,18 @@ function nullableString(value: string | null | undefined): string | null {
   return value === undefined || value === null ? null : value;
 }
 
-function usageDimensionAttributes(row: UsageResult): Record<string, JSONValue> {
+interface UsageDimensionAttributes {
+  model: string | null;
+  workspace_id: string | null;
+  api_key_id: string | null;
+  service_tier: string | null;
+  context_window: string | null;
+  inference_geo: string | null;
+  account_id: string | null;
+  service_account_id: string | null;
+}
+
+function usageDimensionAttributes(row: UsageResult): UsageDimensionAttributes {
   return {
     model: nullableString(row.model),
     workspace_id: nullableString(row.workspace_id),
