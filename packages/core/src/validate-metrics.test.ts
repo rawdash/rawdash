@@ -17,6 +17,18 @@ const acmeResources = defineResources({
     unit: 'users',
     dimensions: [{ name: 'window', description: 'dau, wau, or mau.' }],
   },
+  acme_errors_per_hour: {
+    shape: 'metric',
+    description: 'Errors per hour with no dimensions.',
+    unit: 'errors',
+  },
+  acme_tokens_per_day: {
+    shape: 'metric',
+    description: 'Token usage per day with a secondary measure.',
+    unit: 'tokens',
+    dimensions: [{ name: 'model', description: 'Model name.' }],
+    measures: [{ name: 'costUsd', description: 'Cost in USD.', unit: 'usd' }],
+  },
   acme_charge: {
     shape: 'event',
     description: 'Charge attempts.',
@@ -85,6 +97,49 @@ describe('validateConfigMetrics', () => {
     expect(errors[0]?.message).toContain('field "count" is not a field');
     expect(errors[0]?.message).toContain('window');
     expect(errors[0]?.message).toContain('value');
+  });
+
+  it('rejects a non-value field on a metric with no declared dimensions (silent-zero gap)', () => {
+    const config = configWith(
+      defineMetric({
+        connector: acme,
+        shape: 'metric',
+        name: 'acme_errors_per_hour',
+        field: 'count',
+        fn: 'sum',
+      }),
+    );
+    const { errors } = validateConfigMetrics(config, resourcesByConnectorId);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]?.message).toContain('field "count" is not a field');
+    expect(errors[0]?.message).toContain('value');
+  });
+
+  it('accepts field:value (default) on a metric with no declared dimensions', () => {
+    const config = configWith(
+      defineMetric({
+        connector: acme,
+        shape: 'metric',
+        name: 'acme_errors_per_hour',
+        fn: 'sum',
+      }),
+    );
+    const { errors } = validateConfigMetrics(config, resourcesByConnectorId);
+    expect(errors).toEqual([]);
+  });
+
+  it('accepts a declared measure as a metric field', () => {
+    const config = configWith(
+      defineMetric({
+        connector: acme,
+        shape: 'metric',
+        name: 'acme_tokens_per_day',
+        field: 'costUsd',
+        fn: 'sum',
+      }),
+    );
+    const { errors } = validateConfigMetrics(config, resourcesByConnectorId);
+    expect(errors).toEqual([]);
   });
 
   it('rejects an unknown resource name', () => {

@@ -1,6 +1,7 @@
 import {
   type InvariantViolation,
   assertConnectorResourceShapes,
+  connectorMetricConformanceViolations,
   connectorResourceShapeViolations,
   installFetchMock,
   metricStoreFor,
@@ -18,12 +19,18 @@ const TOKEN = 'APPSFLYER_TOKEN' as unknown as { $secret: string };
 const docShapeExtra = (
   storage: InMemoryStorage,
   connectorId: string,
-): InvariantViolation[] =>
-  connectorResourceShapeViolations(
+): InvariantViolation[] => [
+  ...connectorResourceShapeViolations(
     AppsflyerConnector.resources,
     storage,
     connectorId,
-  );
+  ),
+  ...connectorMetricConformanceViolations(
+    AppsflyerConnector.resources,
+    storage,
+    connectorId,
+  ),
+];
 
 type InstallMetricsSample = z.infer<
   typeof AppsflyerConnector.schemas.install_metrics

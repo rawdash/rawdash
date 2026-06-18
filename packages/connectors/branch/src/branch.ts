@@ -14,6 +14,7 @@ import {
   defineConnectorDoc,
   defineResources,
   makeChunkedCursorGuard,
+  metricSample,
   paginateChunked,
   schemasFromResources,
   selectActivePhases,
@@ -180,7 +181,7 @@ export const branchResources = defineResources({
   [INSTALL_METRIC_NAME]: {
     shape: 'metric',
     description:
-      'Daily Branch attribution metrics bucketed by channel and campaign. Primary value is `installs`; `opens` and `conversions` are carried as attributes.',
+      'Daily Branch attribution metrics bucketed by channel and campaign. The canonical value is attributed `installs`; `opens` and `conversions` are carried as measures.',
     endpoint: 'POST /v1/query/analytics',
     unit: 'installs',
     granularity: 'day',
@@ -190,7 +191,8 @@ export const branchResources = defineResources({
       { name: 'date', description: 'Calendar day of the metric sample (UTC).' },
       { name: 'channel', description: 'Branch last-attributed channel.' },
       { name: 'campaign', description: 'Branch last-attributed campaign.' },
-      { name: 'installs', description: 'Attributed installs on the day.' },
+    ],
+    measures: [
       { name: 'opens', description: 'Attributed app opens on the day.' },
       {
         name: 'conversions',
@@ -385,19 +387,17 @@ export function installBucketToMetricSample(
   bucket: InstallBucket,
 ): MetricSample {
   const ts = isoDateToMs(bucket.date);
-  return {
-    name: INSTALL_METRIC_NAME,
+  return metricSample(branchResources, INSTALL_METRIC_NAME, {
     ts: Number.isFinite(ts) ? ts : 0,
     value: bucket.installs,
     attributes: {
       date: bucket.date,
       channel: bucket.channel,
       campaign: bucket.campaign,
-      installs: bucket.installs,
       opens: bucket.opens,
       conversions: bucket.conversions,
     },
-  };
+  });
 }
 
 export function clickRowToEventRecord(row: BranchClickResultRow): Event {

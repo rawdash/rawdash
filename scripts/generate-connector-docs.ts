@@ -427,6 +427,11 @@ function renderResource(name: string, r: ResourceDefinition): string {
         `Dimensions: ${r.dimensions.map((d) => `\`${d.name}\``).join(', ')}`,
       );
     }
+    if (r.measures?.length) {
+      detail.push(
+        `Measures: ${r.measures.map((m) => `\`${m.name}\``).join(', ')}`,
+      );
+    }
   } else if (r.shape === 'distribution') {
     if (r.kind) {
       detail.push(`Buckets: ${r.kind}`);

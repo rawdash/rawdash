@@ -43,13 +43,15 @@ A PostHog personal API key with read access to the project is required, along wi
   - Endpoint: `POST /api/projects/{projectId}/query (HogQLQuery)`
   - Unit: events
   - Granularity: Daily (UTC)
-  - Dimensions: `event`, `count`, `distinctUsers`
+  - Dimensions: `event`
+  - Measures: `distinctUsers`
   - Rollup metrics are stamped at UTC midnight of the day they cover.
 - **`posthog_feature_flag_usage`** _(metric)_ - Daily `$feature_flag_called` volume rolled up by flag key via HogQL. One sample per (day, flag) over the lookback window.
   - Endpoint: `POST /api/projects/{projectId}/query (HogQLQuery)`
   - Unit: calls
   - Granularity: Daily (UTC)
-  - Dimensions: `flagKey`, `callCount`, `uniqueUsers`
+  - Dimensions: `flagKey`
+  - Measures: `uniqueUsers`
   - Rollup metrics are stamped at UTC midnight of the day they cover.
 - **`posthog_active_users`** _(metric)_ - Daily active-user counts from a TrendsQuery, with one sample per day per rolling window (daily, weekly, and monthly active users).
   - Endpoint: `POST /api/projects/{projectId}/query (TrendsQuery)`
@@ -61,7 +63,8 @@ A PostHog personal API key with read access to the project is required, along wi
   - Endpoint: `POST /api/projects/{projectId}/query (FunnelsQuery)`
   - Unit: users
   - Granularity: Snapshot per sync (start of UTC day)
-  - Dimensions: `funnel`, `step`, `stepName`, `users`, `conversionRate`
+  - Dimensions: `funnel`, `step`, `stepName`
+  - Measures: `conversionRate`
   - A single conversion snapshot measured over the lookback window, stamped at the start of the current UTC day, not a per-day time series.
 
 ## Example

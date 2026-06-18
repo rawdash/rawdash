@@ -61,7 +61,7 @@ function declaredFields(
     return resource.fields;
   }
   if (resource.shape === 'metric') {
-    return resource.dimensions;
+    return [...(resource.dimensions ?? []), ...(resource.measures ?? [])];
   }
   return undefined;
 }
@@ -74,7 +74,9 @@ function fieldUnit(
     if (fieldName === undefined || fieldName === 'value') {
       return resource.unit;
     }
-    return resource.dimensions?.find((d) => d.name === fieldName)?.unit;
+    return [...(resource.dimensions ?? []), ...(resource.measures ?? [])].find(
+      (d) => d.name === fieldName,
+    )?.unit;
   }
   if (resource.shape === 'entity' || resource.shape === 'event') {
     return resource.fields?.find((f) => f.name === fieldName)?.unit;

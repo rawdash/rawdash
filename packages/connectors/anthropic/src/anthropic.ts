@@ -8,7 +8,6 @@ import {
   type ConnectorContext,
   type ConnectorDoc,
   type CredentialsSchema,
-  type JSONValue,
   type MetricSample,
   type StorageHandle,
   type SyncOptions,
@@ -17,6 +16,7 @@ import {
   defineConnectorDoc,
   defineResources,
   makeChunkedCursorGuard,
+  metricSample,
   schemasFromResources,
   selectActivePhases,
 } from '@rawdash/core';
@@ -237,6 +237,14 @@ const USAGE_DIMENSIONS = [
     description:
       'Inference geo the request ran in (global, us, not_available), or null.',
   },
+  {
+    name: 'account_id',
+    description: 'Account id the usage is attributed to (or null).',
+  },
+  {
+    name: 'service_account_id',
+    description: 'Service account id the usage is attributed to (or null).',
+  },
 ] as const;
 
 const COST_DIMENSIONS = [
@@ -325,8 +333,20 @@ export const anthropicResources = defineResources({
     unit: 'tokens',
     granularity: 'daily',
     dimensions: [...USAGE_DIMENSIONS],
+    measures: [
+      {
+        name: 'ephemeral_1h_input_tokens',
+        description:
+          'Input tokens written into the 1-hour ephemeral prompt cache (a component of the sample value).',
+      },
+      {
+        name: 'ephemeral_5m_input_tokens',
+        description:
+          'Input tokens written into the 5-minute ephemeral prompt cache (a component of the sample value).',
+      },
+    ],
     notes:
-      'The per-cache-bucket counts (ephemeral_1h_input_tokens, ephemeral_5m_input_tokens) are mirrored in attributes for finer-grained widgets.',
+      'The per-cache-bucket counts (ephemeral_1h_input_tokens, ephemeral_5m_input_tokens) are declared measures for finer-grained widgets.',
   },
   anthropic_web_search_requests: {
     shape: 'metric',
@@ -417,7 +437,18 @@ function nullableString(value: string | null | undefined): string | null {
   return value === undefined || value === null ? null : value;
 }
 
-function usageDimensionAttributes(row: UsageResult): Record<string, JSONValue> {
+interface UsageDimensionAttributes {
+  model: string | null;
+  workspace_id: string | null;
+  api_key_id: string | null;
+  service_tier: string | null;
+  context_window: string | null;
+  inference_geo: string | null;
+  account_id: string | null;
+  service_account_id: string | null;
+}
+
+function usageDimensionAttributes(row: UsageResult): UsageDimensionAttributes {
   return {
     model: nullableString(row.model),
     workspace_id: nullableString(row.workspace_id),
@@ -466,42 +497,47 @@ export function buildUsageSamples(
     for (const row of bucket.results) {
       const common = usageDimensionAttributes(row);
       const cacheCreation = row.cache_creation;
-      inputTokens.push({
-        name: 'anthropic_input_tokens',
-        ts,
-        value: row.uncached_input_tokens,
-        attributes: { ...common },
-      });
-      outputTokens.push({
-        name: 'anthropic_output_tokens',
-        ts,
-        value: row.output_tokens,
-        attributes: { ...common },
-      });
-      cacheReadTokens.push({
-        name: 'anthropic_cache_read_tokens',
-        ts,
-        value: row.cache_read_input_tokens,
-        attributes: { ...common },
-      });
-      cacheCreationTokens.push({
-        name: 'anthropic_cache_creation_tokens',
-        ts,
-        value: cacheCreationTotal(row),
-        attributes: {
-          ...common,
-          ephemeral_1h_input_tokens:
-            cacheCreation?.ephemeral_1h_input_tokens ?? 0,
-          ephemeral_5m_input_tokens:
-            cacheCreation?.ephemeral_5m_input_tokens ?? 0,
-        },
-      });
-      webSearchRequests.push({
-        name: 'anthropic_web_search_requests',
-        ts,
-        value: row.server_tool_use?.web_search_requests ?? 0,
-        attributes: { ...common },
-      });
+      inputTokens.push(
+        metricSample(anthropicResources, 'anthropic_input_tokens', {
+          ts,
+          value: row.uncached_input_tokens,
+          attributes: { ...common },
+        }),
+      );
+      outputTokens.push(
+        metricSample(anthropicResources, 'anthropic_output_tokens', {
+          ts,
+          value: row.output_tokens,
+          attributes: { ...common },
+        }),
+      );
+      cacheReadTokens.push(
+        metricSample(anthropicResources, 'anthropic_cache_read_tokens', {
+          ts,
+          value: row.cache_read_input_tokens,
+          attributes: { ...common },
+        }),
+      );
+      cacheCreationTokens.push(
+        metricSample(anthropicResources, 'anthropic_cache_creation_tokens', {
+          ts,
+          value: cacheCreationTotal(row),
+          attributes: {
+            ...common,
+            ephemeral_1h_input_tokens:
+              cacheCreation?.ephemeral_1h_input_tokens ?? 0,
+            ephemeral_5m_input_tokens:
+              cacheCreation?.ephemeral_5m_input_tokens ?? 0,
+          },
+        }),
+      );
+      webSearchRequests.push(
+        metricSample(anthropicResources, 'anthropic_web_search_requests', {
+          ts,
+          value: row.server_tool_use?.web_search_requests ?? 0,
+          attributes: { ...common },
+        }),
+      );
     }
   }
   return {
@@ -527,21 +563,22 @@ export function buildCostSamples(
       const value = Number.isFinite(rawAmount)
         ? rawAmount / COST_AMOUNT_DIVISOR
         : 0;
-      samples.push({
-        name: 'anthropic_cost_usd',
-        ts,
-        value,
-        attributes: {
-          workspace_id: nullableString(row.workspace_id),
-          description: nullableString(row.description),
-          cost_type: nullableString(row.cost_type),
-          model: nullableString(row.model),
-          token_type: nullableString(row.token_type),
-          service_tier: nullableString(row.service_tier),
-          context_window: nullableString(row.context_window),
-          currency: row.currency,
-        },
-      });
+      samples.push(
+        metricSample(anthropicResources, 'anthropic_cost_usd', {
+          ts,
+          value,
+          attributes: {
+            workspace_id: nullableString(row.workspace_id),
+            description: nullableString(row.description),
+            cost_type: nullableString(row.cost_type),
+            model: nullableString(row.model),
+            token_type: nullableString(row.token_type),
+            service_tier: nullableString(row.service_tier),
+            context_window: nullableString(row.context_window),
+            currency: row.currency,
+          },
+        }),
+      );
     }
   }
   return samples;

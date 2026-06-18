@@ -6,6 +6,7 @@ import {
   type CredentialsSchema,
   type FetchSpec,
   type FilterClause,
+  type MetricSample,
   type StorageHandle,
   type SyncOptions,
   type SyncResult,
@@ -13,6 +14,7 @@ import {
   defineConnectorDoc,
   defineResources,
   makeChunkedCursorGuard,
+  metricSample,
   paginateChunked,
   schemasFromResources,
   selectActivePhases,
@@ -348,9 +350,10 @@ export const metaAdsResources = defineResources({
       { name: 'date', description: 'Calendar day of the metric sample (UTC).' },
       { name: 'campaignId', description: 'Meta campaign id.' },
       { name: 'campaignName', description: 'Meta campaign name.' },
+    ],
+    measures: [
       { name: 'impressions', description: 'Total impressions on the day.' },
       { name: 'clicks', description: 'Total clicks on the day.' },
-      { name: 'spend', description: 'Total spend (account currency).' },
       { name: 'reach', description: 'Unique reach on the day.' },
       { name: 'conversions', description: 'Total attributed actions.' },
       {
@@ -375,9 +378,10 @@ export const metaAdsResources = defineResources({
       { name: 'campaignName', description: 'Parent campaign name.' },
       { name: 'adsetId', description: 'Meta adset id.' },
       { name: 'adsetName', description: 'Meta adset name.' },
+    ],
+    measures: [
       { name: 'impressions', description: 'Total impressions on the day.' },
       { name: 'clicks', description: 'Total clicks on the day.' },
-      { name: 'spend', description: 'Total spend (account currency).' },
       { name: 'reach', description: 'Unique reach on the day.' },
       { name: 'conversions', description: 'Total attributed actions.' },
       {
@@ -404,9 +408,10 @@ export const metaAdsResources = defineResources({
       { name: 'adsetName', description: 'Parent adset name.' },
       { name: 'adId', description: 'Meta ad id.' },
       { name: 'adName', description: 'Meta ad name.' },
+    ],
+    measures: [
       { name: 'impressions', description: 'Total impressions on the day.' },
       { name: 'clicks', description: 'Total clicks on the day.' },
-      { name: 'spend', description: 'Total spend (account currency).' },
       { name: 'reach', description: 'Unique reach on the day.' },
       { name: 'conversions', description: 'Total attributed actions.' },
       {
@@ -501,7 +506,6 @@ function buildInsightAttributes(
 ): Record<string, string | number | null> {
   const impressions = parseNumber(row.impressions);
   const clicks = parseNumber(row.clicks);
-  const spend = parseNumber(row.spend);
   const reach = parseNumber(row.reach);
   const conversions = (row.actions ?? []).length
     ? sumActionValues(row.actions)
@@ -511,7 +515,6 @@ function buildInsightAttributes(
     date: row.date_start,
     impressions,
     clicks,
-    spend,
     reach,
     conversions,
     conversion_value: conversionValue,
@@ -521,31 +524,45 @@ function buildInsightAttributes(
 export function insightRowToMetricSample(
   row: MetaCampaignInsight | MetaAdsetInsight | MetaAdInsight,
   phase: 'campaign_insights' | 'adset_insights' | 'ad_insights',
-): {
-  name: string;
-  ts: number;
-  value: number;
-  attributes: Record<string, string | number | null>;
-} {
-  const attributes = buildInsightAttributes(row);
-  attributes['campaignId'] = row.campaign_id;
-  attributes['campaignName'] = row.campaign_name ?? null;
-  if (phase !== 'campaign_insights') {
-    const ar = row as MetaAdsetInsight;
-    attributes['adsetId'] = ar.adset_id;
-    attributes['adsetName'] = ar.adset_name ?? null;
-  }
-  if (phase === 'ad_insights') {
-    const ar = row as MetaAdInsight;
-    attributes['adId'] = ar.ad_id;
-    attributes['adName'] = ar.ad_name ?? null;
-  }
-  return {
-    name: METRIC_NAME[phase],
-    ts: metaDateToMs(row.date_start),
-    value: parseNumber(row.spend),
-    attributes,
+): MetricSample {
+  const base = buildInsightAttributes(row);
+  const ts = metaDateToMs(row.date_start);
+  const value = parseNumber(row.spend);
+  const campaignAttributes = {
+    ...base,
+    campaignId: row.campaign_id,
+    campaignName: row.campaign_name ?? null,
   };
+  if (phase === 'campaign_insights') {
+    return metricSample(metaAdsResources, 'meta_campaign_insights', {
+      ts,
+      value,
+      attributes: campaignAttributes,
+    });
+  }
+  const adsetRow = row as MetaAdsetInsight;
+  const adsetAttributes = {
+    ...campaignAttributes,
+    adsetId: adsetRow.adset_id,
+    adsetName: adsetRow.adset_name ?? null,
+  };
+  if (phase === 'adset_insights') {
+    return metricSample(metaAdsResources, 'meta_adset_insights', {
+      ts,
+      value,
+      attributes: adsetAttributes,
+    });
+  }
+  const adRow = row as MetaAdInsight;
+  return metricSample(metaAdsResources, 'meta_ad_insights', {
+    ts,
+    value,
+    attributes: {
+      ...adsetAttributes,
+      adId: adRow.ad_id,
+      adName: adRow.ad_name ?? null,
+    },
+  });
 }
 
 const CAMPAIGN_FIELDS = [

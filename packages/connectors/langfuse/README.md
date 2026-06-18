@@ -50,13 +50,15 @@ A Langfuse public + secret API key pair scoped to one project is required. The c
   - Endpoint: `GET /api/public/metrics/daily`
   - Unit: observations
   - Granularity: Daily (UTC)
-  - Dimensions: `model`, `countObservations`, `inputTokens`, `outputTokens`, `totalTokens`, `costUsd`
+  - Dimensions: `model`
+  - Measures: `inputTokens`, `outputTokens`, `totalTokens`, `costUsd`
   - Rollup metrics are stamped at UTC midnight of the day they cover.
 - **`langfuse_scores`** _(metric)_ - Daily Langfuse score rollups by score name. One sample per (day, name): the mean numeric value across that day and the count of scores written.
   - Endpoint: `GET /api/public/scores`
   - Unit: scores
   - Granularity: Daily (UTC)
-  - Dimensions: `name`, `average`, `count`
+  - Dimensions: `scoreName`
+  - Measures: `count`
   - Only numeric scores contribute to the average; non-numeric scores still increment the count.
 
 ## Example

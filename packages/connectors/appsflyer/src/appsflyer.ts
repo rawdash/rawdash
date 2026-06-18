@@ -13,6 +13,7 @@ import {
   defineConnectorDoc,
   defineResources,
   makeChunkedCursorGuard,
+  metricSample,
   paginateChunked,
   schemasFromResources,
   selectActivePhases,
@@ -183,7 +184,7 @@ export const appsflyerResources = defineResources({
   [INSTALL_METRIC_NAME]: {
     shape: 'metric',
     description:
-      'Daily AppsFlyer install metrics bucketed by media source and campaign. Primary value is `installs`; cost, revenue, and loyal users are carried as attributes.',
+      'Daily AppsFlyer install metrics bucketed by media source and campaign. Primary value is attributed installs; cost, revenue, and loyal users are carried as measures.',
     endpoint: 'GET /api/master-agg-data/v4/app/{app_id}',
     unit: 'installs',
     granularity: 'day',
@@ -197,7 +198,8 @@ export const appsflyerResources = defineResources({
       },
       { name: 'mediaSource', description: 'AppsFlyer media source / partner.' },
       { name: 'campaign', description: 'AppsFlyer campaign name.' },
-      { name: 'installs', description: 'Attributed installs on the day.' },
+    ],
+    measures: [
       { name: 'cost', description: 'Media spend on the day (cost currency).' },
       {
         name: 'revenue',
@@ -214,7 +216,7 @@ export const appsflyerResources = defineResources({
   [RETENTION_METRIC_NAME]: {
     shape: 'metric',
     description:
-      'Install-day cohort retention from AppsFlyer, bucketed by install date and media source for retention day 1, 7, and 30. Primary value is `retainedUsers`.',
+      'Install-day cohort retention from AppsFlyer, bucketed by install date and media source for retention day 1, 7, and 30. Primary value is the number of users from the cohort still active on the retention day.',
     endpoint: 'GET /api/master-agg-data/v4/app/{app_id}',
     unit: 'users',
     granularity: 'day',
@@ -230,10 +232,6 @@ export const appsflyerResources = defineResources({
       {
         name: 'period',
         description: 'Retention day relative to the install day (1, 7, 30).',
-      },
-      {
-        name: 'retainedUsers',
-        description: 'Users from the cohort still active on the retention day.',
       },
     ],
     responses: { retention_metrics: retentionResponseSchema },
@@ -357,20 +355,18 @@ export function installRowToMetricSample(
 ): MetricSample {
   const ts = isoDateToMs(row.af_date);
   const installs = parseNumber(row.installs);
-  return {
-    name: INSTALL_METRIC_NAME,
+  return metricSample(appsflyerResources, INSTALL_METRIC_NAME, {
     ts: Number.isFinite(ts) ? ts : 0,
     value: installs,
     attributes: {
       date: row.af_date,
       mediaSource: row.pid ?? null,
       campaign: row.c ?? null,
-      installs,
       cost: parseNumber(row.cost),
       revenue: parseNumber(row.revenue),
       loyalUsers: parseNumber(row.loyal_users),
     },
-  };
+  });
 }
 
 export function retentionRowToMetricSamples(
@@ -383,17 +379,17 @@ export function retentionRowToMetricSamples(
     7: parseNumber(row.retention_day_7),
     30: parseNumber(row.retention_day_30),
   };
-  return RETENTION_PERIODS.map((period) => ({
-    name: RETENTION_METRIC_NAME,
-    ts: safeTs,
-    value: valueByPeriod[period],
-    attributes: {
-      cohortDate: row.af_date,
-      mediaSource: row.pid ?? null,
-      period,
-      retainedUsers: valueByPeriod[period],
-    },
-  }));
+  return RETENTION_PERIODS.map((period) =>
+    metricSample(appsflyerResources, RETENTION_METRIC_NAME, {
+      ts: safeTs,
+      value: valueByPeriod[period],
+      attributes: {
+        cohortDate: row.af_date,
+        mediaSource: row.pid ?? null,
+        period,
+      },
+    }),
+  );
 }
 
 export const id = 'appsflyer';

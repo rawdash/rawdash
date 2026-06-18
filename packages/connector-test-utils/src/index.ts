@@ -21,3 +21,7 @@ export {
   assertConnectorResourceShapes,
   connectorResourceShapeViolations,
 } from './doc-shapes';
+export {
+  assertConnectorMetricConformance,
+  connectorMetricConformanceViolations,
+} from './metric-conformance';

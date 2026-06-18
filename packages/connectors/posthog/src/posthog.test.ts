@@ -159,7 +159,7 @@ describe('PostHogConnector', () => {
     expect(metrics[0]).toMatchObject({
       value: 120,
       ts: Date.parse('2026-05-20T00:00:00.000Z'),
-      attributes: { event: 'pageview', count: 120, distinctUsers: 80 },
+      attributes: { event: 'pageview', distinctUsers: 80 },
     });
   });
 
@@ -233,7 +233,6 @@ describe('PostHogConnector', () => {
       attributes: {
         funnel: 'Checkout',
         stepName: 'Purchased',
-        users: 24,
         conversionRate: 0.24,
       },
     });

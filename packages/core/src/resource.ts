@@ -40,6 +40,7 @@ export type ResourceDefinition =
       unit?: string;
       granularity?: string;
       dimensions?: ResourceField[];
+      measures?: ResourceField[];
     })
   | (ResourceDefBase & {
       shape: 'distribution';
@@ -72,6 +73,36 @@ export function defineResources<const T extends ResourceDefinitions>(
     }
     if (!def.description || def.description.trim().length === 0) {
       throw new Error(`Resource "${name}" must have a non-empty description.`);
+    }
+    if (def.shape === 'metric') {
+      const reserved = new Set(['name', 'ts', 'value']);
+      const seen = new Set<string>();
+      const declared: Array<['dimension' | 'measure', ResourceField]> = [
+        ...(def.dimensions ?? []).map(
+          (f) => ['dimension', f] as ['dimension', ResourceField],
+        ),
+        ...(def.measures ?? []).map(
+          (f) => ['measure', f] as ['measure', ResourceField],
+        ),
+      ];
+      for (const [kind, field] of declared) {
+        if (!field.name || field.name.trim().length === 0) {
+          throw new Error(
+            `Metric resource "${name}" has a ${kind} with an empty "name".`,
+          );
+        }
+        if (reserved.has(field.name)) {
+          throw new Error(
+            `Metric resource "${name}" declares a ${kind} named "${field.name}", which is reserved. The primary numeric lives in "value"; reference it as field:'value' (or omit field).`,
+          );
+        }
+        if (seen.has(field.name)) {
+          throw new Error(
+            `Metric resource "${name}" declares "${field.name}" more than once across dimensions/measures; names must be unique.`,
+          );
+        }
+        seen.add(field.name);
+      }
     }
     if (def.shape === 'entity' || def.shape === 'event') {
       if (!Array.isArray(def.filterable)) {

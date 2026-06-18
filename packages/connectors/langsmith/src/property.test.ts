@@ -1,6 +1,7 @@
 import {
   type InvariantViolation,
   assertConnectorResourceShapes,
+  connectorMetricConformanceViolations,
   connectorResourceShapeViolations,
   metricStoreFor,
   mockJsonResponse,
@@ -17,12 +18,18 @@ const CONNECTOR_ID = 'langsmith';
 const docShapeExtra = (
   storage: InMemoryStorage,
   connectorId: string,
-): InvariantViolation[] =>
-  connectorResourceShapeViolations(
+): InvariantViolation[] => [
+  ...connectorResourceShapeViolations(
     LangSmithConnector.resources,
     storage,
     connectorId,
-  );
+  ),
+  ...connectorMetricConformanceViolations(
+    LangSmithConnector.resources,
+    storage,
+    connectorId,
+  ),
+];
 
 function makeConnector(
   overrides: Partial<{

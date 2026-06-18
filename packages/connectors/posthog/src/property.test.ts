@@ -1,6 +1,7 @@
 import {
   type InvariantViolation,
   assertConnectorResourceShapes,
+  connectorMetricConformanceViolations,
   connectorResourceShapeViolations,
   entityStoreFor,
   installFetchMock,
@@ -20,12 +21,18 @@ const HOST = 'https://us.posthog.com';
 const docShapeExtra = (
   storage: InMemoryStorage,
   connectorId: string,
-): InvariantViolation[] =>
-  connectorResourceShapeViolations(
+): InvariantViolation[] => [
+  ...connectorResourceShapeViolations(
     PostHogConnector.resources,
     storage,
     connectorId,
-  );
+  ),
+  ...connectorMetricConformanceViolations(
+    PostHogConnector.resources,
+    storage,
+    connectorId,
+  ),
+];
 
 type FeatureFlagsSample = z.infer<
   typeof PostHogConnector.schemas.feature_flags

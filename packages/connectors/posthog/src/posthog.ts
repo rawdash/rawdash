@@ -13,6 +13,7 @@ import {
   defineConnectorDoc,
   defineResources,
   makeChunkedCursorGuard,
+  metricSample,
   paginateChunked,
   schemasFromResources,
   selectActivePhases,
@@ -407,9 +408,8 @@ export const posthogResources = defineResources({
     unit: 'events',
     granularity: 'Daily (UTC)',
     notes: 'Rollup metrics are stamped at UTC midnight of the day they cover.',
-    dimensions: [
-      { name: 'event', description: 'The PostHog event name.' },
-      { name: 'count', description: 'Total event occurrences that day.' },
+    dimensions: [{ name: 'event', description: 'The PostHog event name.' }],
+    measures: [
       {
         name: 'distinctUsers',
         description: 'Distinct persons who fired the event that day.',
@@ -430,10 +430,8 @@ export const posthogResources = defineResources({
         name: 'flagKey',
         description: 'The feature flag key that was evaluated.',
       },
-      {
-        name: 'callCount',
-        description: 'Number of flag evaluations that day.',
-      },
+    ],
+    measures: [
       {
         name: 'uniqueUsers',
         description: 'Distinct persons who evaluated the flag that day.',
@@ -477,7 +475,8 @@ export const posthogResources = defineResources({
         name: 'stepName',
         description: 'The event name for the step, if returned.',
       },
-      { name: 'users', description: 'Users who reached this step.' },
+    ],
+    measures: [
       {
         name: 'conversionRate',
         description: 'Step users divided by first-step users (0 when no base).',
@@ -659,16 +658,16 @@ export class PostHogConnector extends BaseConnector<
         continue;
       }
       const count = finiteNumber(row[2]);
-      await storage.metric({
-        name: EVENTS_PER_DAY_METRIC,
-        ts,
-        value: count,
-        attributes: {
-          event: stringOrNull(row[1]),
-          count,
-          distinctUsers: finiteNumber(row[3]),
-        },
-      });
+      await storage.metric(
+        metricSample(posthogResources, EVENTS_PER_DAY_METRIC, {
+          ts,
+          value: count,
+          attributes: {
+            event: stringOrNull(row[1]),
+            distinctUsers: finiteNumber(row[3]),
+          },
+        }),
+      );
     }
   }
 
@@ -708,16 +707,16 @@ export class PostHogConnector extends BaseConnector<
         continue;
       }
       const callCount = finiteNumber(row[2]);
-      await storage.metric({
-        name: FLAG_USAGE_METRIC,
-        ts,
-        value: callCount,
-        attributes: {
-          flagKey: stringOrNull(row[1]),
-          callCount,
-          uniqueUsers: finiteNumber(row[3]),
-        },
-      });
+      await storage.metric(
+        metricSample(posthogResources, FLAG_USAGE_METRIC, {
+          ts,
+          value: callCount,
+          attributes: {
+            flagKey: stringOrNull(row[1]),
+            uniqueUsers: finiteNumber(row[3]),
+          },
+        }),
+      );
     }
   }
 
@@ -757,12 +756,13 @@ export class PostHogConnector extends BaseConnector<
         if (ts === null) {
           continue;
         }
-        await storage.metric({
-          name: ACTIVE_USERS_METRIC,
-          ts,
-          value: finiteNumber(data[j]),
-          attributes: { window },
-        });
+        await storage.metric(
+          metricSample(posthogResources, ACTIVE_USERS_METRIC, {
+            ts,
+            value: finiteNumber(data[j]),
+            attributes: { window },
+          }),
+        );
       }
     }
   }
@@ -806,18 +806,18 @@ export class PostHogConnector extends BaseConnector<
       )?.step.count;
       const baseUsers = finiteNumber(base);
       const conversionRate = baseUsers > 0 ? users / baseUsers : 0;
-      await storage.metric({
-        name: FUNNEL_METRIC,
-        ts,
-        value: users,
-        attributes: {
-          funnel: funnel.name,
-          step: finiteNumber(step.order),
-          stepName: stringOrNull(step.name),
-          users,
-          conversionRate,
-        },
-      });
+      await storage.metric(
+        metricSample(posthogResources, FUNNEL_METRIC, {
+          ts,
+          value: users,
+          attributes: {
+            funnel: funnel.name,
+            step: finiteNumber(step.order),
+            stepName: stringOrNull(step.name),
+            conversionRate,
+          },
+        }),
+      );
     }
   }
 

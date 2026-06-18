@@ -11,6 +11,7 @@ import {
   defineConnectorDoc,
   defineResources,
   makeChunkedCursorGuard,
+  metricSample,
   paginateChunked,
   schemasFromResources,
   selectActivePhases,
@@ -315,10 +316,8 @@ export const langfuseResources = defineResources({
         name: 'model',
         description: 'The model id the observations ran against.',
       },
-      {
-        name: 'countObservations',
-        description: 'Observations recorded that day for this model.',
-      },
+    ],
+    measures: [
       {
         name: 'inputTokens',
         description: 'Input tokens consumed that day for this model.',
@@ -348,12 +347,9 @@ export const langfuseResources = defineResources({
     notes:
       'Only numeric scores contribute to the average; non-numeric scores still increment the count.',
     dimensions: [
-      { name: 'name', description: 'Score name as set by the SDK.' },
-      {
-        name: 'average',
-        description:
-          'Mean numeric score value for the day (zero if no numeric values).',
-      },
+      { name: 'scoreName', description: 'Score name as set by the SDK.' },
+    ],
+    measures: [
       { name: 'count', description: 'Number of scores written that day.' },
     ],
     responses: { scores: scoresResponseSchema },
@@ -510,19 +506,19 @@ export class LangfuseConnector extends BaseConnector<
       const usage = row.usage ?? [];
       if (usage.length === 0) {
         const count = finiteNumber(row.countObservations);
-        await storage.metric({
-          name: OBSERVATIONS_METRIC,
-          ts,
-          value: count,
-          attributes: {
-            model: null,
-            countObservations: count,
-            inputTokens: 0,
-            outputTokens: 0,
-            totalTokens: 0,
-            costUsd: finiteNumber(row.totalCost),
-          },
-        });
+        await storage.metric(
+          metricSample(langfuseResources, OBSERVATIONS_METRIC, {
+            ts,
+            value: count,
+            attributes: {
+              model: null,
+              inputTokens: 0,
+              outputTokens: 0,
+              totalTokens: 0,
+              costUsd: finiteNumber(row.totalCost),
+            },
+          }),
+        );
         continue;
       }
       for (const entry of usage) {
@@ -533,19 +529,19 @@ export class LangfuseConnector extends BaseConnector<
           entry.totalUsage !== null && entry.totalUsage !== undefined
             ? finiteNumber(entry.totalUsage)
             : input + output;
-        await storage.metric({
-          name: OBSERVATIONS_METRIC,
-          ts,
-          value: count,
-          attributes: {
-            model: entry.model ?? null,
-            countObservations: count,
-            inputTokens: input,
-            outputTokens: output,
-            totalTokens,
-            costUsd: finiteNumber(entry.totalCost),
-          },
-        });
+        await storage.metric(
+          metricSample(langfuseResources, OBSERVATIONS_METRIC, {
+            ts,
+            value: count,
+            attributes: {
+              model: entry.model ?? null,
+              inputTokens: input,
+              outputTokens: output,
+              totalTokens,
+              costUsd: finiteNumber(entry.totalCost),
+            },
+          }),
+        );
       }
     }
   }
@@ -618,16 +614,16 @@ export class LangfuseConnector extends BaseConnector<
       const name = key.slice(sep + 1);
       const average =
         scoreAcc.numericCount > 0 ? scoreAcc.sum / scoreAcc.numericCount : 0;
-      await storage.metric({
-        name: SCORES_METRIC,
-        ts: dayMs,
-        value: average,
-        attributes: {
-          name,
-          average,
-          count: scoreAcc.count,
-        },
-      });
+      await storage.metric(
+        metricSample(langfuseResources, SCORES_METRIC, {
+          ts: dayMs,
+          value: average,
+          attributes: {
+            scoreName: name,
+            count: scoreAcc.count,
+          },
+        }),
+      );
     }
   }
 

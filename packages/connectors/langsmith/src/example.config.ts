@@ -28,7 +28,7 @@ export default defineConfig({
             shape: 'metric',
             name: 'langsmith_runs_per_day',
             fn: 'sum',
-            field: 'count',
+            field: 'value',
           }),
         },
         spend_today: {

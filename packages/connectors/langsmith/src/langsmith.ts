@@ -11,6 +11,7 @@ import {
   defineConnectorDoc,
   defineResources,
   makeChunkedCursorGuard,
+  metricSample,
   paginateChunked,
   schemasFromResources,
   selectActivePhases,
@@ -287,7 +288,7 @@ export const langsmithResources = defineResources({
   langsmith_runs_per_day: {
     shape: 'metric',
     description:
-      'Per-run samples used to roll runs up to daily totals at query time. One sample is emitted per run at its start timestamp, tagged with project, run type, and status. The sample value is 1 (so summing yields the run count); token, cost, and latency are exposed as additional attribute fields.',
+      'Per-run samples used to roll runs up to daily totals at query time. One sample is emitted per run at its start timestamp, tagged with project, run type, and status. The sample value is 1 (so summing field:`value` yields the run count); token, cost, and latency are exposed as additional measures.',
     endpoint: 'POST /api/v1/runs/query',
     unit: 'runs',
     granularity: 'Per-run (query-time rollup)',
@@ -310,11 +311,8 @@ export const langsmithResources = defineResources({
         name: 'status',
         description: 'Run status (success, error, pending).',
       },
-      {
-        name: 'count',
-        description:
-          'One per run; sum to get run counts. Also exposed as the sample value.',
-      },
+    ],
+    measures: [
       {
         name: 'totalTokens',
         description: 'Total tokens consumed by the run.',
@@ -341,12 +339,12 @@ export const langsmithResources = defineResources({
   langsmith_feedback: {
     shape: 'metric',
     description:
-      'Feedback rows from LangSmith, one sample per feedback row at its created_at timestamp. The sample value is the numeric score (zero for non-numeric feedback) and the attribute `count` is 1 so summing yields feedback counts per (day, project, key).',
+      'Feedback rows from LangSmith, one sample per feedback row at its created_at timestamp. The sample value is the numeric score (zero for non-numeric feedback) and the measure `count` is 1 so summing it yields feedback counts per (day, project, key).',
     endpoint: 'GET /api/v1/feedback',
     unit: 'score',
     granularity: 'Per-feedback (query-time rollup)',
     notes:
-      'Non-numeric feedback (string, boolean, JSON value) is still emitted but with score 0; use `count` to count rows and average `score` for numeric trends.',
+      'Non-numeric feedback (string, boolean, JSON value) is still emitted but with score 0; use `count` to count rows and average the sample `value` for numeric score trends.',
     dimensions: [
       {
         name: 'key',
@@ -360,14 +358,11 @@ export const langsmithResources = defineResources({
         name: 'runId',
         description: 'Run the feedback is attached to, if any.',
       },
+    ],
+    measures: [
       {
         name: 'count',
         description: 'One per feedback row; sum to count rows.',
-      },
-      {
-        name: 'score',
-        description:
-          'Numeric score, or 0 for non-numeric feedback. Also exposed as the sample value.',
       },
       {
         name: 'hasNumericScore',
@@ -529,23 +524,23 @@ export class LangSmithConnector extends BaseConnector<
         });
       }
       if (wantMetric && startMs !== null) {
-        await storage.metric({
-          name: RUNS_PER_DAY_METRIC,
-          ts: startMs,
-          value: 1,
-          attributes: {
-            sessionId: run.session_id ?? null,
-            sessionName: run.session_name ?? null,
-            runType: run.run_type ?? null,
-            status: run.status ?? null,
-            count: 1,
-            totalTokens: finiteNumber(run.total_tokens),
-            promptTokens: finiteNumber(run.prompt_tokens),
-            completionTokens: finiteNumber(run.completion_tokens),
-            costUsd: finiteNumber(run.total_cost),
-            latencyMs: latencyMs ?? 0,
-          },
-        });
+        await storage.metric(
+          metricSample(langsmithResources, RUNS_PER_DAY_METRIC, {
+            ts: startMs,
+            value: 1,
+            attributes: {
+              sessionId: run.session_id ?? null,
+              sessionName: run.session_name ?? null,
+              runType: run.run_type ?? null,
+              status: run.status ?? null,
+              totalTokens: finiteNumber(run.total_tokens),
+              promptTokens: finiteNumber(run.prompt_tokens),
+              completionTokens: finiteNumber(run.completion_tokens),
+              costUsd: finiteNumber(run.total_cost),
+              ...(latencyMs === null ? {} : { latencyMs }),
+            },
+          }),
+        );
       }
     }
   }
@@ -593,19 +588,19 @@ export class LangSmithConnector extends BaseConnector<
       const numeric =
         typeof row.score === 'number' && Number.isFinite(row.score);
       const score = numeric ? (row.score as number) : 0;
-      await storage.metric({
-        name: FEEDBACK_METRIC,
-        ts,
-        value: score,
-        attributes: {
-          key: row.key,
-          sessionId: row.session_id ?? null,
-          runId: row.run_id ?? null,
-          count: 1,
-          score,
-          hasNumericScore: numeric ? 1 : 0,
-        },
-      });
+      await storage.metric(
+        metricSample(langsmithResources, FEEDBACK_METRIC, {
+          ts,
+          value: score,
+          attributes: {
+            key: row.key,
+            sessionId: row.session_id ?? null,
+            runId: row.run_id ?? null,
+            count: 1,
+            hasNumericScore: numeric ? 1 : 0,
+          },
+        }),
+      );
     }
   }
 

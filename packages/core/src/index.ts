@@ -159,6 +159,12 @@ export type {
 } from './resource';
 
 export { defineResources, schemasFromResources } from './resource';
+export { metricSample } from './metric-emit';
+export type {
+  MetricAttributeKeys,
+  MetricAttributes,
+  MetricSampleInput,
+} from './metric-emit';
 
 export type {
   MetricIssueSeverity,
