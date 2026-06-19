@@ -47,6 +47,7 @@
     "@rawdash/connector-branch": "workspace:*",
     "@rawdash/connector-circleci": "workspace:*",
     "@rawdash/connector-clerk": "workspace:*",
+    "@rawdash/connector-clickup": "workspace:*",
     "@rawdash/connector-datadog": "workspace:*",
     "@rawdash/connector-drata": "workspace:*",
     "@rawdash/connector-entra-id": "workspace:*",

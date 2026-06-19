@@ -52,16 +52,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     requestIssue: 'RAW-224',
   },
   {
-    id: 'clickup',
-    name: 'ClickUp',
-    category: 'engineering',
-    tagline:
-      'Sync tasks, lists, and completion throughput from a ClickUp workspace.',
-    icon: 'clickup',
-    domain: 'clickup.com',
-    requestIssue: 'RAW-425',
-  },
-  {
     id: 'codacy',
     name: 'Codacy',
     category: 'engineering',
