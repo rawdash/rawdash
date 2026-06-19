@@ -40,7 +40,7 @@ A HubSpot private app access token with read scopes for the resources you sync (
 - **`hubspot_deal_stage_change`** _(event)_ - Deal stage-change events derived from deal property history, one event per stage transition.
   - Endpoint: `GET /crm/v3/objects/deals?propertiesWithHistory=dealstage`
 - **`hubspot_email_campaign`** _(entity)_ - Marketing email campaigns with name, subject, sender, type, send date, and recipient count.
-  - Endpoint: `GET /email/public/v1/campaigns`
+  - Endpoint: `GET /email/public/v1/campaigns/by-id`
 - **`hubspot_email_stats`** _(metric)_ - Per-campaign marketing email engagement stats (sent, delivered, opened, clicked, bounced, unsubscribed) timestamped at the campaign send time.
   - Endpoint: `GET /email/public/v1/campaigns/{id}`
   - Unit: emails
@@ -95,7 +95,6 @@ HubSpot allows 100 requests / 10s; the Search API caps results at 10,000 per que
 
 - Deal stage-change events are rewritten on every sync because the deal list endpoint has no incremental `since` filter.
 - Marketing email campaign data comes from the legacy email campaigns API and is only available for marketing emails.
-- Very large CRM portfolios may not backfill in full because the Search API caps at 10,000 results per query.
 
 ## Links
 

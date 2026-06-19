@@ -80,7 +80,6 @@ export const doc: ConnectorDoc = defineConnectorDoc({
   limitations: [
     'Deal stage-change events are rewritten on every sync because the deal list endpoint has no incremental `since` filter.',
     'Marketing email campaign data comes from the legacy email campaigns API and is only available for marketing emails.',
-    'Very large CRM portfolios may not backfill in full because the Search API caps at 10,000 results per query.',
   ],
 });
 
@@ -175,6 +174,7 @@ const isHubSpotSyncCursor = makeChunkedCursorGuard(PHASE_ORDER);
 const BASE_URL = 'https://api.hubapi.com';
 const SEARCH_LIMIT = 100;
 const LIST_LIMIT = 100;
+const SEARCH_RESULT_CEILING = 10_000;
 
 type CrmObjectPhase = 'contacts' | 'companies' | 'deals';
 
@@ -241,6 +241,86 @@ function finiteNumberOrNull(value: string | null | undefined): number | null {
 
 function counterValue(value: number | undefined): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+interface SearchPage {
+  after: string | null;
+  floorMs: number | null;
+}
+
+function parseSearchPage(token: string | null): SearchPage {
+  if (token === null) {
+    return { after: null, floorMs: null };
+  }
+  try {
+    const parsed: unknown = JSON.parse(token);
+    if (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      ('after' in parsed || 'floorMs' in parsed)
+    ) {
+      const obj = parsed as { after?: unknown; floorMs?: unknown };
+      return {
+        after: typeof obj.after === 'string' ? obj.after : null,
+        floorMs: typeof obj.floorMs === 'number' ? obj.floorMs : null,
+      };
+    }
+  } catch {
+    return { after: token, floorMs: null };
+  }
+  return { after: token, floorMs: null };
+}
+
+function encodeSearchPage(page: SearchPage): string {
+  return JSON.stringify(page);
+}
+
+function effectiveSinceMs(
+  page: SearchPage,
+  options: SyncOptions,
+): number | null {
+  let floor = page.floorMs;
+  if (options.since) {
+    const ms = new Date(options.since).getTime();
+    if (Number.isFinite(ms)) {
+      floor = floor === null ? ms : Math.max(floor, ms);
+    }
+  }
+  return floor;
+}
+
+function maxModifiedMs(
+  phase: CrmObjectPhase,
+  results: CrmRecord[],
+): number | null {
+  const modifiedProperty = MODIFIED_PROPERTY[phase];
+  let max: number | null = null;
+  for (const record of results) {
+    const ms =
+      parseEpoch(record.properties[modifiedProperty], 'ms') ??
+      parseEpoch(record.updatedAt, 'iso');
+    if (ms !== null && (max === null || ms > max)) {
+      max = ms;
+    }
+  }
+  return max;
+}
+
+function nextSearchPage(
+  phase: CrmObjectPhase,
+  page: SearchPage,
+  results: CrmRecord[],
+  rawAfter: string | null,
+): string | null {
+  if (rawAfter === null) {
+    return null;
+  }
+  const nextOffset = Number(rawAfter);
+  if (Number.isFinite(nextOffset) && nextOffset >= SEARCH_RESULT_CEILING) {
+    const floorMs = maxModifiedMs(phase, results) ?? page.floorMs;
+    return floorMs === null ? null : encodeSearchPage({ after: null, floorMs });
+  }
+  return encodeSearchPage({ after: rawAfter, floorMs: page.floorMs });
 }
 
 const idString = z.string().min(1);
@@ -374,7 +454,7 @@ export const hubspotResources = defineResources({
     filterable: [],
     description:
       'Marketing email campaigns with name, subject, sender, type, send date, and recipient count.',
-    endpoint: 'GET /email/public/v1/campaigns',
+    endpoint: 'GET /email/public/v1/campaigns/by-id',
     responses: { email_campaigns: campaignsSchema },
   },
   hubspot_email_stats: {
@@ -489,20 +569,18 @@ export class HubSpotConnector extends BaseConnector<
 
   private buildSearchBody(
     phase: CrmObjectPhase,
-    after: string | null,
+    page: SearchPage,
     options: SyncOptions,
   ): Record<string, unknown> {
     const modifiedProperty = MODIFIED_PROPERTY[phase];
     const filters: unknown[] = [];
-    if (options.since) {
-      const sinceMs = new Date(options.since).getTime();
-      if (Number.isFinite(sinceMs)) {
-        filters.push({
-          propertyName: modifiedProperty,
-          operator: 'GTE',
-          value: String(sinceMs),
-        });
-      }
+    const sinceMs = effectiveSinceMs(page, options);
+    if (sinceMs !== null) {
+      filters.push({
+        propertyName: modifiedProperty,
+        operator: 'GTE',
+        value: String(sinceMs),
+      });
     }
     const pushMap = SEARCH_PUSH_FIELDS[phase];
     if (pushMap) {
@@ -523,26 +601,33 @@ export class HubSpotConnector extends BaseConnector<
       sorts: [{ propertyName: modifiedProperty, direction: 'ASCENDING' }],
       properties: SEARCH_PROPERTIES[phase],
       limit: SEARCH_LIMIT,
-      ...(after ? { after } : {}),
+      ...(page.after ? { after: page.after } : {}),
     };
   }
 
   private async fetchSearchPage(
     phase: CrmObjectPhase,
-    after: string | null,
+    token: string | null,
     options: SyncOptions,
     signal?: AbortSignal,
   ): Promise<{ items: unknown[]; next: string | null }> {
-    const body = this.buildSearchBody(phase, after, options);
+    const page = parseSearchPage(token);
+    const body = this.buildSearchBody(phase, page, options);
     const res = await this.apiPost<CrmSearchResponse>(
       `${BASE_URL}/crm/v3/objects/${phase}/search`,
       phase,
       body,
       signal,
     );
+    const results = res.body.results;
     return {
-      items: res.body.results,
-      next: res.body.paging?.next?.after ?? null,
+      items: results,
+      next: nextSearchPage(
+        phase,
+        page,
+        results,
+        res.body.paging?.next?.after ?? null,
+      ),
     };
   }
 
@@ -663,7 +748,7 @@ export class HubSpotConnector extends BaseConnector<
     after: string | null,
     signal?: AbortSignal,
   ): Promise<{ items: unknown[]; next: string | null }> {
-    const url = new URL(`${BASE_URL}/email/public/v1/campaigns`);
+    const url = new URL(`${BASE_URL}/email/public/v1/campaigns/by-id`);
     url.searchParams.set('limit', String(LIST_LIMIT));
     if (after) {
       url.searchParams.set('offset', after);

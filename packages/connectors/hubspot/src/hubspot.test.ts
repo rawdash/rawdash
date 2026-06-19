@@ -64,7 +64,7 @@ function makeFetch(route: (url: string, method: string) => unknown) {
     if (u.includes('/search')) {
       return Promise.resolve(jsonResponse({ total: 0, results: [] }));
     }
-    if (/\/email\/public\/v1\/campaigns\/[^?]/.test(u)) {
+    if (/\/email\/public\/v1\/campaigns\/\d/.test(u)) {
       return Promise.resolve(jsonResponse({ id: 0, counters: {} }));
     }
     if (u.includes('/email/public/v1/campaigns')) {
@@ -458,6 +458,125 @@ describe('HubSpotConnector.sync', () => {
 
     const headers = recordCalls(fetchSpy)[0]!.headers;
     expect(headers['authorization']).toBe('Bearer HUBSPOT_TOKEN');
+  });
+
+  it('re-anchors the modified-date filter when search hits the 10,000 result ceiling', async () => {
+    const firstPageRecord = {
+      id: 'c1',
+      properties: {
+        email: 'a@example.com',
+        lastmodifieddate: '1700000000000',
+      },
+      createdAt: '2023-11-14T22:13:20.000Z',
+      updatedAt: '2023-11-14T22:13:20.000Z',
+    };
+    let searchCalls = 0;
+    const fetchSpy = makeFetch((url, method) => {
+      if (method === 'POST' && url.includes('/contacts/search')) {
+        searchCalls += 1;
+        if (searchCalls === 1) {
+          return {
+            results: [firstPageRecord],
+            paging: { next: { after: '10000' } },
+          };
+        }
+        return { results: [] };
+      }
+      return undefined;
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await connector(['contacts']).sync({ mode: 'full' }, makeStorage());
+
+    const searches = recordCalls(fetchSpy).filter((c) =>
+      c.url.includes('/contacts/search'),
+    );
+    expect(searches).toHaveLength(2);
+
+    const second = searches[1]!.body as {
+      after?: string;
+      filterGroups: Array<{
+        filters: Array<{
+          propertyName: string;
+          operator: string;
+          value: string;
+        }>;
+      }>;
+    };
+    expect(second.after).toBeUndefined();
+    expect(second.filterGroups[0]!.filters).toContainEqual({
+      propertyName: 'lastmodifieddate',
+      operator: 'GTE',
+      value: '1700000000000',
+    });
+  });
+
+  it('carries the user since floor forward across re-anchored pages', async () => {
+    const record = {
+      id: 'c1',
+      properties: { lastmodifieddate: '1700000000000' },
+      createdAt: '2023-11-14T22:13:20.000Z',
+      updatedAt: '2023-11-14T22:13:20.000Z',
+    };
+    let searchCalls = 0;
+    const fetchSpy = makeFetch((url, method) => {
+      if (method === 'POST' && url.includes('/contacts/search')) {
+        searchCalls += 1;
+        if (searchCalls === 1) {
+          return {
+            results: [record],
+            paging: { next: { after: '10000' } },
+          };
+        }
+        return { results: [] };
+      }
+      return undefined;
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const since = '2023-11-14T22:13:20.000Z';
+    await connector(['contacts']).sync(
+      { mode: 'latest', since },
+      makeStorage(),
+    );
+
+    const second = recordCalls(fetchSpy).filter((c) =>
+      c.url.includes('/contacts/search'),
+    )[1]!.body as {
+      filterGroups: Array<{
+        filters: Array<{ propertyName: string; value: string }>;
+      }>;
+    };
+    expect(second.filterGroups[0]!.filters[0]!.value).toBe(
+      String(Date.parse(since)),
+    );
+  });
+
+  it('enumerates campaigns via the by-id endpoint to include inactive campaigns', async () => {
+    const fetchSpy = makeFetch((url) => {
+      if (/\/email\/public\/v1\/campaigns\/by-id/.test(url)) {
+        return { campaigns: [{ id: 42 }], hasMore: false };
+      }
+      if (/\/email\/public\/v1\/campaigns\/42/.test(url)) {
+        return {
+          id: 42,
+          lastProcessingFinishedAt: 1700000000000,
+          counters: {},
+        };
+      }
+      return undefined;
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await connector(['email_campaigns']).sync({ mode: 'full' }, makeStorage());
+
+    const calls = recordCalls(fetchSpy);
+    expect(
+      calls.some((c) => c.url.includes('/email/public/v1/campaigns/by-id')),
+    ).toBe(true);
+    expect(
+      calls.some((c) => /\/email\/public\/v1\/campaigns\?/.test(c.url)),
+    ).toBe(false);
   });
 });
 
