@@ -1,8 +1,29 @@
-import type { ComputedMetric } from './config';
+import type { AggFn, ComputedMetric } from './config';
 import type { StorageHandle } from './connector';
 import { applyFilter } from './filter-match';
 import { tryComputeMetricFromRollups } from './rollup';
 import { parseWindowMs, truncateToGranularity } from './time-buckets';
+
+export function aggregateNumeric(numbers: number[], fn: AggFn): number | null {
+  if (fn === 'count') {
+    return numbers.length;
+  }
+  if (numbers.length === 0) {
+    return fn === 'sum' ? 0 : null;
+  }
+  switch (fn) {
+    case 'sum':
+      return numbers.reduce((a, b) => a + b, 0);
+    case 'avg':
+      return numbers.reduce((a, b) => a + b, 0) / numbers.length;
+    case 'min':
+      return numbers.reduce((a, b) => (a < b ? a : b));
+    case 'max':
+      return numbers.reduce((a, b) => (a > b ? a : b));
+    default:
+      return null;
+  }
+}
 
 function computeAgg(
   records: Record<string, unknown>[],
@@ -30,26 +51,7 @@ function computeAgg(
       `computeAgg: fn "${fn}" requires numeric values for field "${field}", got ${typeof nonNumeric} (${String(nonNumeric)})`,
     );
   }
-  const numbers = values as number[];
-  if (fn === 'sum') {
-    return numbers.reduce((a, b) => a + b, 0);
-  }
-  if (fn === 'avg') {
-    return numbers.length > 0
-      ? numbers.reduce((a, b) => a + b, 0) / numbers.length
-      : null;
-  }
-  if (fn === 'min') {
-    return numbers.length > 0
-      ? numbers.reduce((a, b) => (a < b ? a : b))
-      : null;
-  }
-  if (fn === 'max') {
-    return numbers.length > 0
-      ? numbers.reduce((a, b) => (a > b ? a : b))
-      : null;
-  }
-  return null;
+  return aggregateNumeric(values as number[], fn as AggFn);
 }
 
 function sortByTs(

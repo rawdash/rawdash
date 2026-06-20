@@ -5,6 +5,7 @@ import type {
   Shape,
   Widget,
 } from './config';
+import { widgetMetrics } from './config';
 import type {
   JSONValue,
   RollupBucket,
@@ -189,9 +190,11 @@ export interface RollupSpec {
 
 export type ConnectorRollupSpecs = Map<string, RollupSpec>;
 
-function widgetGranularity(widget: Widget): Granularity {
-  const metricGran =
-    widget.kind === 'status' ? undefined : widget.metric.groupBy?.granularity;
+function widgetGranularity(
+  widget: Widget,
+  metric: ComputedMetric,
+): Granularity {
+  const metricGran = metric.groupBy?.granularity;
   if (metricGran) {
     return metricGran;
   }
@@ -243,46 +246,50 @@ export function computeRollupSpecs(
       if (widget.kind === 'status') {
         continue;
       }
-      const metric = widget.metric;
-      if (!isRollupShape(metric.shape)) {
-        continue;
-      }
-      const resource = metric.name;
-      if (resource === undefined) {
-        continue;
-      }
+      for (const metric of widgetMetrics(widget)) {
+        if (!isRollupShape(metric.shape)) {
+          continue;
+        }
+        const resource = metric.name;
+        if (resource === undefined) {
+          continue;
+        }
 
-      let resources = acc.get(metric.connectorId);
-      if (!resources) {
-        resources = new Map<string, SpecAccumulator>();
-        acc.set(metric.connectorId, resources);
-      }
+        let resources = acc.get(metric.connectorId);
+        if (!resources) {
+          resources = new Map<string, SpecAccumulator>();
+          acc.set(metric.connectorId, resources);
+        }
 
-      let entry = resources.get(resource);
-      if (!entry) {
-        entry = {
-          resource,
-          shape: metric.shape,
-          granularity: widgetGranularity(widget),
-          dimFields: new Set<string>(),
-          signatures: new Map<string, RollupSignature>(),
-        };
-        resources.set(resource, entry);
-      } else {
-        if (entry.shape !== metric.shape) {
-          throw new Error(
-            `computeRollupSpecs: resource "${resource}" on connector "${metric.connectorId}" is used by multiple shapes (${entry.shape}, ${metric.shape})`,
+        let entry = resources.get(resource);
+        if (!entry) {
+          entry = {
+            resource,
+            shape: metric.shape,
+            granularity: widgetGranularity(widget, metric),
+            dimFields: new Set<string>(),
+            signatures: new Map<string, RollupSignature>(),
+          };
+          resources.set(resource, entry);
+        } else {
+          if (entry.shape !== metric.shape) {
+            throw new Error(
+              `computeRollupSpecs: resource "${resource}" on connector "${metric.connectorId}" is used by multiple shapes (${entry.shape}, ${metric.shape})`,
+            );
+          }
+          entry.granularity = finerGranularity(
+            entry.granularity,
+            widgetGranularity(widget, metric),
           );
         }
-        entry.granularity = finerGranularity(
-          entry.granularity,
-          widgetGranularity(widget),
-        );
-      }
 
-      collectDimFields(metric.filter, entry.dimFields);
-      const signature: RollupSignature = { fn: metric.fn, field: metric.field };
-      entry.signatures.set(signatureKey(signature), signature);
+        collectDimFields(metric.filter, entry.dimFields);
+        const signature: RollupSignature = {
+          fn: metric.fn,
+          field: metric.field,
+        };
+        entry.signatures.set(signatureKey(signature), signature);
+      }
     }
   }
 

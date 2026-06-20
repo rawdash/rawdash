@@ -66,6 +66,7 @@ export const computedMetricSchema = z
     window: z.string().optional(),
     filter: z.array(filterClauseSchema).optional(),
     groupBy: groupBySchema.optional(),
+    label: z.string().optional(),
   })
   .refine((m) => m.fn === 'count' || m.field !== undefined, {
     message: 'field is required unless fn is "count"',
@@ -76,17 +77,39 @@ export const computedMetricSchema = z
     path: ['name'],
   });
 
+export const metricOrMetricsSchema = z.union([
+  computedMetricSchema,
+  z.array(computedMetricSchema).min(1),
+]);
+
+export const mergeFnSchema = z.enum(['count', 'sum', 'avg', 'min', 'max']);
+
+export const metricAggregateSchema = z.object({
+  fn: mergeFnSchema,
+  label: z.string().optional(),
+});
+
 const titleField = z
   .string()
   .meta({ label: 'Title', description: 'Widget title.' });
 
+const metricField = metricOrMetricsSchema.meta({
+  label: 'Metric',
+  description:
+    'One computed metric, or an array of metrics (one per connector) for a multi-connector widget.',
+});
+
+const aggregateField = metricAggregateSchema.optional().meta({
+  label: 'Aggregate',
+  description:
+    'Optional server-side merge of the per-connector series into a single combined value placed in data.',
+});
+
 export const statWidgetSchema = z.object({
   kind: z.literal('stat'),
   title: titleField,
-  metric: computedMetricSchema.meta({
-    label: 'Metric',
-    description: 'Computed metric definition.',
-  }),
+  metric: metricField,
+  aggregate: aggregateField,
   window: z
     .string()
     .optional()
@@ -103,19 +126,18 @@ export const statWidgetSchema = z.object({
 export const statusWidgetSchema = z.object({
   kind: z.literal('status'),
   title: titleField,
-  source: z.string().meta({
+  source: z.union([z.string(), z.array(z.string()).min(1)]).meta({
     label: 'Source',
-    description: 'Connector or data source reference.',
+    description:
+      'A connector reference, or an array of connectors for a combined health badge.',
   }),
 });
 
 export const timeseriesWidgetSchema = z.object({
   kind: z.literal('timeseries'),
   title: titleField,
-  metric: computedMetricSchema.meta({
-    label: 'Metric',
-    description: 'Computed metric definition.',
-  }),
+  metric: metricField,
+  aggregate: aggregateField,
   window: z
     .string()
     .meta({ label: 'Window', description: "Time window, e.g. '30d'." }),
@@ -131,10 +153,8 @@ export const timeseriesWidgetSchema = z.object({
 export const distributionWidgetSchema = z.object({
   kind: z.literal('distribution'),
   title: titleField,
-  metric: computedMetricSchema.meta({
-    label: 'Metric',
-    description: 'Computed metric definition.',
-  }),
+  metric: metricField,
+  aggregate: aggregateField,
   window: z
     .string()
     .meta({ label: 'Window', description: "Time window, e.g. '7d'." }),
