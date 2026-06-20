@@ -12,10 +12,24 @@ export type WidgetSyncState =
 
 export type WidgetStatus = 'ok' | 'no_data' | 'error';
 
+export interface WidgetSeries<TData = unknown> {
+  key: string;
+  connectorId: string;
+  label: string;
+  data: TData | null;
+  status?: WidgetStatus;
+  syncState?: WidgetSyncState;
+  syncIntervalSeconds?: number;
+  matchedRows?: number;
+  format?: ResolvedWidgetFormat;
+  errorMessage?: string;
+}
+
 export interface CachedWidget<TData = unknown> {
   widgetId: string;
   connectorId: string;
   data: TData | null;
+  series?: WidgetSeries<TData>[];
   cachedAt: string | null;
   syncState?: WidgetSyncState;
   syncIntervalSeconds?: number;

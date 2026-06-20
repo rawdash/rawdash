@@ -1,4 +1,4 @@
-import type { CachedWidget } from '@rawdash/core';
+import type { CachedWidget, WidgetSeries } from '@rawdash/core';
 import { Skeleton } from '@rawdash/sdk-nextjs/skeleton';
 
 import { FailingWidget } from './failing-widget';
@@ -54,8 +54,16 @@ interface WidgetCardProps {
 }
 
 export function WidgetCard({ widget }: WidgetCardProps) {
-  const { widgetId, data, status, errorMessage, syncState, meta, cachedAt } =
-    widget;
+  const {
+    widgetId,
+    data,
+    series,
+    status,
+    errorMessage,
+    syncState,
+    meta,
+    cachedAt,
+  } = widget;
   const label = widgetLabel(widgetId);
 
   if (status === 'error' || syncState === 'failing') {
@@ -75,6 +83,25 @@ export function WidgetCard({ widget }: WidgetCardProps) {
     );
   }
 
+  const stale = syncState === 'stale';
+
+  if (series && series.some((s) => s.data !== null && s.data !== undefined)) {
+    const timeseries = series
+      .map((s) => ({ label: s.label, entries: toTimeseriesEntries(s.data) }))
+      .filter(
+        (
+          s,
+        ): s is { label: string; entries: { date: string; count: number }[] } =>
+          s.entries !== null,
+      );
+    if (timeseries.length > 0) {
+      return (
+        <TimeseriesWidget label={label} series={timeseries} stale={stale} />
+      );
+    }
+    return <MultiStatWidget label={label} series={series} stale={stale} />;
+  }
+
   if (data === null || syncState === 'syncing' || syncState === 'unsynced') {
     return (
       <SkeletonCard
@@ -84,8 +111,6 @@ export function WidgetCard({ widget }: WidgetCardProps) {
       />
     );
   }
-
-  const stale = syncState === 'stale';
 
   if (status === 'no_data') {
     return <NoDataWidget label={label} stale={stale} />;
@@ -118,6 +143,37 @@ export function WidgetCard({ widget }: WidgetCardProps) {
   }
 
   return null;
+}
+
+function MultiStatWidget({
+  label,
+  series,
+  stale,
+}: {
+  label: string;
+  series: WidgetSeries[];
+  stale?: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-3 rounded-xl border border-gray-100 bg-white px-5 py-4 shadow-sm sm:px-6 sm:py-5">
+      <span className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-widest text-gray-400">
+        {label}
+      </span>
+      <div className="flex flex-col gap-2">
+        {series.map((s) => (
+          <div key={s.key} className="flex items-baseline justify-between">
+            <span className="text-xs text-gray-500">{s.label}</span>
+            <span className="text-lg font-semibold text-gray-900">
+              {typeof s.data === 'number'
+                ? s.data.toLocaleString()
+                : String(s.data ?? '—')}
+            </span>
+          </div>
+        ))}
+      </div>
+      {stale && <span className="text-[10px] text-amber-500">stale</span>}
+    </div>
+  );
 }
 
 function SkeletonCard({

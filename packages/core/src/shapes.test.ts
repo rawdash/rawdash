@@ -352,6 +352,136 @@ describe('defineConfig validation', () => {
     ).toThrow(/either name or entityType is required/);
   });
 
+  it('accepts a list of metrics across multiple connectors', () => {
+    const ios = { name: 'ios', connectorId: 'asc', config: {} };
+    const android = { name: 'android', connectorId: 'play', config: {} };
+    expect(() =>
+      defineConfig({
+        connectors: [ios, android],
+        dashboards: {
+          main: defineDashboard({
+            widgets: {
+              w: {
+                kind: 'timeseries',
+                title: 'Downloads',
+                window: '30d',
+                metric: [
+                  defineMetric({
+                    connector: ios,
+                    shape: 'metric',
+                    name: 'downloads',
+                    field: 'value',
+                    fn: 'sum',
+                  }),
+                  defineMetric({
+                    connector: android,
+                    shape: 'metric',
+                    name: 'downloads',
+                    field: 'value',
+                    fn: 'sum',
+                  }),
+                ],
+              },
+            },
+          }),
+        },
+      }),
+    ).not.toThrow();
+  });
+
+  it('throws when a metric in the list references an unlisted connector', () => {
+    const ios = { name: 'ios', connectorId: 'asc', config: {} };
+    expect(() =>
+      defineConfig({
+        connectors: [ios],
+        dashboards: {
+          main: defineDashboard({
+            widgets: {
+              w: {
+                kind: 'timeseries',
+                title: 'Downloads',
+                window: '30d',
+                metric: [
+                  defineMetric({
+                    connector: ios,
+                    shape: 'metric',
+                    name: 'downloads',
+                    field: 'value',
+                    fn: 'sum',
+                  }),
+                  {
+                    connectorId: 'android',
+                    shape: 'metric',
+                    name: 'downloads',
+                    field: 'value',
+                    fn: 'sum',
+                  },
+                ],
+              },
+            },
+          }),
+        },
+      }),
+    ).toThrow('connector "android" is not listed');
+  });
+
+  it('rejects an empty metric array', () => {
+    const ios = { name: 'ios', connectorId: 'asc', config: {} };
+    expect(() =>
+      defineDashboard({
+        widgets: {
+          w: {
+            kind: 'stat',
+            title: 'W',
+            metric: [],
+          },
+        },
+      }),
+    ).toThrow();
+    void ios;
+  });
+
+  it('accepts a list of sources on a status widget', () => {
+    const ios = { name: 'ios', connectorId: 'asc', config: {} };
+    const android = { name: 'android', connectorId: 'play', config: {} };
+    expect(() =>
+      defineConfig({
+        connectors: [ios, android],
+        dashboards: {
+          main: defineDashboard({
+            widgets: {
+              w: {
+                kind: 'status',
+                title: 'Health',
+                source: ['ios', 'android'],
+              },
+            },
+          }),
+        },
+      }),
+    ).not.toThrow();
+  });
+
+  it('throws when a status source is not a listed connector', () => {
+    const ios = { name: 'ios', connectorId: 'asc', config: {} };
+    expect(() =>
+      defineConfig({
+        connectors: [ios],
+        dashboards: {
+          main: defineDashboard({
+            widgets: {
+              w: {
+                kind: 'status',
+                title: 'Health',
+                source: ['ios', 'android'],
+              },
+            },
+          }),
+        },
+      }),
+    ).toThrow('connector "android" is not listed');
+  });
+
   it('throws for dashboard key with URL-unsafe characters', () => {
     expect(() =>
       defineConfig({

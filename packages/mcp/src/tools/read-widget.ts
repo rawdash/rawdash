@@ -1,5 +1,11 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp';
-import { computeMetric } from '@rawdash/core';
+import {
+  computeMetric,
+  mergeSeries,
+  mergeSeriesScalar,
+  statusSources,
+  widgetMetrics,
+} from '@rawdash/core';
 import { z } from 'zod';
 
 import type { McpRuntime } from '../runtime-config';
@@ -31,35 +37,62 @@ export function registerReadWidget(
 
         if (widget.kind === 'status') {
           const syncState = await storage.getSyncState();
+          const sources = statusSources(widget);
           return text({
             id: widget_id,
             widgetId: widget_id,
-            connectorId: widget.source,
+            connectorId: sources[0],
             data: null,
             cachedAt: syncState.lastSyncAt,
           });
         }
 
-        const { connectorId } = widget.metric;
-        const connectorEntry = runtime
-          .getConnectors()
-          .find((e) => e.name === connectorId);
-        if (!connectorEntry) {
+        const metrics = widgetMetrics(widget);
+        const knownNames = new Set(runtime.getConnectors().map((e) => e.name));
+        const missing = metrics.find((m) => !knownNames.has(m.connectorId));
+        if (missing) {
           return err(
             'CONNECTOR_NOT_FOUND',
-            `Connector "${connectorId}" not found`,
+            `Connector "${missing.connectorId}" not found`,
           );
         }
 
-        const handle = storage.getStorageHandle(connectorId);
-        const data = await computeMetric(handle, widget.metric);
+        const series = await Promise.all(
+          metrics.map(async (metric) => ({
+            key: metric.label ?? metric.connectorId,
+            connectorId: metric.connectorId,
+            label: metric.label ?? metric.connectorId,
+            data: await computeMetric(
+              storage.getStorageHandle(metric.connectorId),
+              metric,
+            ),
+          })),
+        );
         const syncState = await storage.getSyncState();
+        const isMulti = Array.isArray(widget.metric);
+
+        if (!isMulti) {
+          return text({
+            id: widget_id,
+            widgetId: widget_id,
+            connectorId: series[0]!.connectorId,
+            data: series[0]!.data,
+            cachedAt: syncState.lastSyncAt,
+          });
+        }
+
+        const aggregated = widget.aggregate
+          ? widget.kind === 'stat'
+            ? mergeSeriesScalar(series, { fn: widget.aggregate.fn })
+            : mergeSeries(series, { fn: widget.aggregate.fn })
+          : null;
 
         return text({
           id: widget_id,
           widgetId: widget_id,
-          connectorId,
-          data,
+          connectorId: series[0]!.connectorId,
+          data: aggregated,
+          series,
           cachedAt: syncState.lastSyncAt,
         });
       } catch (e) {

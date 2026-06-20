@@ -8,7 +8,12 @@ import type {
   Widget,
   WidgetsListResponse,
 } from '@rawdash/core';
-import { computeWidgetEtag, isSyncActive, resolveWidget } from '@rawdash/core';
+import {
+  computeWidgetEtag,
+  isSyncActive,
+  resolveWidget,
+  widgetConnectorIds,
+} from '@rawdash/core';
 import type { DashboardConfig, ServerStorage } from '@rawdash/core';
 
 import type { EngineContext } from './context';
@@ -205,16 +210,26 @@ export async function getWidget(
   }
   const storage = await ctx.getStorage();
   const connectorNames = config.connectors.map((c) => c.name);
-  const connectorId =
-    widget.kind === 'status' ? widget.source : widget.metric.connectorId;
-  if (!connectorNames.includes(connectorId)) {
+  const connectorIds = widgetConnectorIds(widget);
+  if (!connectorIds.some((id) => connectorNames.includes(id))) {
     throw new RawdashError(404, 'WIDGET_NOT_FOUND', 'Widget not found');
   }
 
   if (ifNoneMatch) {
-    const health = await storage.getHealth(connectorId);
-    if (health?.lastSyncAt) {
-      const probeEtag = computeWidgetEtag(health.lastSyncAt, widget);
+    const healths = await Promise.all(
+      connectorIds.map((id) => storage.getHealth(id)),
+    );
+    const lastSyncAt = healths.reduce<string | null>((newest, health) => {
+      if (!health?.lastSyncAt) {
+        return newest;
+      }
+      if (newest === null || health.lastSyncAt > newest) {
+        return health.lastSyncAt;
+      }
+      return newest;
+    }, null);
+    if (lastSyncAt) {
+      const probeEtag = computeWidgetEtag(lastSyncAt, widget);
       if (probeEtag === ifNoneMatch) {
         return { status: 'not-modified', etag: probeEtag };
       }

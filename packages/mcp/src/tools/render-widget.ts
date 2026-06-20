@@ -1,5 +1,11 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp';
-import { computeMetric } from '@rawdash/core';
+import {
+  computeMetric,
+  mergeSeries,
+  mergeSeriesScalar,
+  statusSources,
+  widgetMetrics,
+} from '@rawdash/core';
 import { z } from 'zod';
 
 import type { McpRuntime } from '../runtime-config';
@@ -85,39 +91,75 @@ export function registerRenderWidget(
             content: [
               {
                 type: 'text' as const,
-                text: renderStatus(widget.title, widget.source, syncState),
+                text: renderStatus(
+                  widget.title,
+                  statusSources(widget).join(', '),
+                  syncState,
+                ),
               },
             ],
           };
         }
 
-        const { connectorId } = widget.metric;
-        const connectorEntry = runtime
-          .getConnectors()
-          .find((e) => e.name === connectorId);
-        if (!connectorEntry) {
+        const metrics = widgetMetrics(widget);
+        const knownNames = new Set(runtime.getConnectors().map((e) => e.name));
+        const missing = metrics.find((m) => !knownNames.has(m.connectorId));
+        if (missing) {
           return err(
             'CONNECTOR_NOT_FOUND',
-            `Connector "${connectorId}" not found`,
+            `Connector "${missing.connectorId}" not found`,
           );
         }
 
-        const handle = storage.getStorageHandle(connectorId);
-        const data = await computeMetric(handle, widget.metric);
+        const series = await Promise.all(
+          metrics.map(async (metric) => ({
+            key: metric.label ?? metric.connectorId,
+            connectorId: metric.connectorId,
+            label: metric.label ?? metric.connectorId,
+            data: await computeMetric(
+              storage.getStorageHandle(metric.connectorId),
+              metric,
+            ),
+          })),
+        );
+        const isMulti = Array.isArray(widget.metric);
+
+        const renderOne = (title: string, data: unknown): string => {
+          if (widget.kind === 'stat') {
+            return renderStat(title, data);
+          }
+          if (widget.kind === 'timeseries') {
+            const points = Array.isArray(data)
+              ? (data as Array<{ date: string; value: unknown }>)
+              : [];
+            return renderTimeseries(title, points);
+          }
+          if (widget.kind === 'distribution') {
+            return renderDistribution(title, data);
+          }
+          return `## ${title}\n\n\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\`\n`;
+        };
 
         let rendered: string;
-
-        if (widget.kind === 'stat') {
-          rendered = renderStat(widget.title, data);
-        } else if (widget.kind === 'timeseries') {
-          const points = Array.isArray(data)
-            ? (data as Array<{ date: string; value: unknown }>)
-            : [];
-          rendered = renderTimeseries(widget.title, points);
-        } else if (widget.kind === 'distribution') {
-          rendered = renderDistribution(widget.title, data);
+        if (!isMulti) {
+          rendered = renderOne(widget.title, series[0]!.data);
         } else {
-          rendered = `## ${(widget as { title: string }).title}\n\n\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\`\n`;
+          const sections = series.map((s) =>
+            renderOne(`${widget.title} — ${s.label}`, s.data),
+          );
+          if (widget.aggregate) {
+            const aggregated =
+              widget.kind === 'stat'
+                ? mergeSeriesScalar(series, { fn: widget.aggregate.fn })
+                : mergeSeries(series, { fn: widget.aggregate.fn });
+            sections.unshift(
+              renderOne(
+                `${widget.title} — ${widget.aggregate.label ?? 'Combined'}`,
+                aggregated,
+              ),
+            );
+          }
+          rendered = sections.join('\n');
         }
 
         const cachedNote = syncState.lastSyncAt

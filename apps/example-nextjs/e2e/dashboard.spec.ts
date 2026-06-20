@@ -19,6 +19,16 @@ test('dashboard renders widgets without JS errors', async ({ page }) => {
   expect(errors).toHaveLength(0);
 });
 
+test('renders a multi-connector widget with a per-series legend', async ({
+  page,
+}) => {
+  await page.goto('/');
+
+  await expect(page.getByText('Downloads By Platform')).toBeVisible();
+  await expect(page.getByText('iOS', { exact: true })).toBeVisible();
+  await expect(page.getByText('Android', { exact: true })).toBeVisible();
+});
+
 test('dashboard shows correct widget values', async ({ page }) => {
   await page.goto('/');
 

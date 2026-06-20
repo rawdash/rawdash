@@ -59,6 +59,39 @@ const WIDGETS = [
     cachedAt,
   },
   {
+    id: 'downloads_by_platform',
+    widgetId: 'downloads_by_platform',
+    connectorId: 'app-store-connect',
+    data: null,
+    series: [
+      {
+        key: 'iOS',
+        connectorId: 'app-store-connect',
+        label: 'iOS',
+        data: [
+          { date: '2026-05-01', value: 120 },
+          { date: '2026-05-02', value: 140 },
+          { date: '2026-05-03', value: 175 },
+        ],
+        syncState: 'fresh',
+      },
+      {
+        key: 'Android',
+        connectorId: 'google-play',
+        label: 'Android',
+        data: [
+          { date: '2026-05-01', value: 90 },
+          { date: '2026-05-02', value: 110 },
+          { date: '2026-05-03', value: 130 },
+        ],
+        syncState: 'fresh',
+      },
+    ],
+    cachedAt,
+    syncState: 'fresh',
+    status: 'ok',
+  },
+  {
     id: 'errors_per_hour',
     widgetId: 'errors_per_hour',
     connectorId: 'github-actions',

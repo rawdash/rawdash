@@ -1,4 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp';
+import { statusSources, widgetConnectorIds } from '@rawdash/core';
 import { z } from 'zod';
 
 import type { McpRuntime } from '../runtime-config';
@@ -23,14 +24,19 @@ export function registerListWidgets(
           err('NOT_FOUND', `Dashboard "${dashboard_id}" not found`),
         );
       }
-      const widgets = Object.entries(dashboard.widgets).map(([id, widget]) => ({
-        id,
-        kind: widget.kind,
-        title: widget.title,
-        ...(widget.kind !== 'status'
-          ? { connectorId: widget.metric.connectorId }
-          : { source: widget.source }),
-      }));
+      const widgets = Object.entries(dashboard.widgets).map(([id, widget]) => {
+        const connectorIds =
+          widget.kind === 'status'
+            ? statusSources(widget)
+            : widgetConnectorIds(widget);
+        return {
+          id,
+          kind: widget.kind,
+          title: widget.title,
+          connectorId: connectorIds[0],
+          connectorIds,
+        };
+      });
       return Promise.resolve(text({ dashboard_id, widgets }));
     },
   );
