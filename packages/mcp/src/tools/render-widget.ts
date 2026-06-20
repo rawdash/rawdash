@@ -1,9 +1,15 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp';
-import { computeMetric } from '@rawdash/core';
+import {
+  mergeSeries,
+  mergeSeriesScalar,
+  statusSources,
+  widgetMetrics,
+} from '@rawdash/core';
 import { z } from 'zod';
 
 import type { McpRuntime } from '../runtime-config';
 import type { McpServerOptions } from '../types';
+import { resolveMcpSeries } from './series';
 import { err } from './shared';
 
 function renderStat(title: string, value: unknown): string {
@@ -85,39 +91,66 @@ export function registerRenderWidget(
             content: [
               {
                 type: 'text' as const,
-                text: renderStatus(widget.title, widget.source, syncState),
+                text: renderStatus(
+                  widget.title,
+                  statusSources(widget).join(', '),
+                  syncState,
+                ),
               },
             ],
           };
         }
 
-        const { connectorId } = widget.metric;
-        const connectorEntry = runtime
-          .getConnectors()
-          .find((e) => e.name === connectorId);
-        if (!connectorEntry) {
+        const resolved = await resolveMcpSeries(
+          widgetMetrics(widget),
+          runtime,
+          storage,
+        );
+        if (!resolved.ok) {
           return err(
             'CONNECTOR_NOT_FOUND',
-            `Connector "${connectorId}" not found`,
+            `Connector "${resolved.connectorId}" not found`,
           );
         }
+        const { series } = resolved;
+        const isMulti = Array.isArray(widget.metric);
 
-        const handle = storage.getStorageHandle(connectorId);
-        const data = await computeMetric(handle, widget.metric);
+        const renderOne = (title: string, data: unknown): string => {
+          if (widget.kind === 'stat') {
+            return renderStat(title, data);
+          }
+          if (widget.kind === 'timeseries') {
+            const points = Array.isArray(data)
+              ? (data as Array<{ date: string; value: unknown }>)
+              : [];
+            return renderTimeseries(title, points);
+          }
+          if (widget.kind === 'distribution') {
+            return renderDistribution(title, data);
+          }
+          return `## ${title}\n\n\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\`\n`;
+        };
 
         let rendered: string;
-
-        if (widget.kind === 'stat') {
-          rendered = renderStat(widget.title, data);
-        } else if (widget.kind === 'timeseries') {
-          const points = Array.isArray(data)
-            ? (data as Array<{ date: string; value: unknown }>)
-            : [];
-          rendered = renderTimeseries(widget.title, points);
-        } else if (widget.kind === 'distribution') {
-          rendered = renderDistribution(widget.title, data);
+        if (!isMulti) {
+          rendered = renderOne(widget.title, series[0]!.data);
         } else {
-          rendered = `## ${(widget as { title: string }).title}\n\n\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\`\n`;
+          const sections = series.map((s) =>
+            renderOne(`${widget.title} — ${s.label}`, s.data),
+          );
+          if (widget.aggregate && widget.kind !== 'distribution') {
+            const aggregated =
+              widget.kind === 'stat'
+                ? mergeSeriesScalar(series, { fn: widget.aggregate.fn })
+                : mergeSeries(series, { fn: widget.aggregate.fn });
+            sections.unshift(
+              renderOne(
+                `${widget.title} — ${widget.aggregate.label ?? 'Combined'}`,
+                aggregated,
+              ),
+            );
+          }
+          rendered = sections.join('\n');
         }
 
         const cachedNote = syncState.lastSyncAt

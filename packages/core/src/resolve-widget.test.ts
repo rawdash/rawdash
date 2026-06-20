@@ -346,6 +346,164 @@ describe('resolveWidget', () => {
     expect(w?.status).toBe('ok');
   });
 
+  it('multi-metric: populates per-connector series and leaves data null without aggregate', async () => {
+    const storage = new InMemoryStorage();
+    await storage.getStorageHandle('ios').metric({
+      name: 'downloads',
+      ts: Date.now(),
+      value: 100,
+      attributes: {},
+    });
+    await storage.getStorageHandle('android').metric({
+      name: 'downloads',
+      ts: Date.now(),
+      value: 40,
+      attributes: {},
+    });
+    await new Promise((r) => setTimeout(r, 5));
+    const widget: Widget = {
+      kind: 'stat',
+      title: 'Downloads',
+      metric: [
+        {
+          connectorId: 'ios',
+          shape: 'metric',
+          name: 'downloads',
+          field: 'value',
+          fn: 'sum',
+          label: 'iOS',
+        },
+        {
+          connectorId: 'android',
+          shape: 'metric',
+          name: 'downloads',
+          field: 'value',
+          fn: 'sum',
+          label: 'Android',
+        },
+      ],
+    };
+    const w = await resolveWidget('d', 'w', widget, undefined, storage);
+    expect(w?.data).toBeNull();
+    expect(w?.series).toHaveLength(2);
+    expect(w?.series?.map((s) => [s.label, s.data])).toEqual([
+      ['iOS', 100],
+      ['Android', 40],
+    ]);
+    expect(w?.meta?.['connectorIds']).toEqual(['ios', 'android']);
+  });
+
+  it('multi-metric with aggregate: merges series into top-level data', async () => {
+    const storage = new InMemoryStorage();
+    await storage.getStorageHandle('ios').metric({
+      name: 'downloads',
+      ts: Date.now(),
+      value: 100,
+      attributes: {},
+    });
+    await storage.getStorageHandle('android').metric({
+      name: 'downloads',
+      ts: Date.now(),
+      value: 40,
+      attributes: {},
+    });
+    await new Promise((r) => setTimeout(r, 5));
+    const widget: Widget = {
+      kind: 'stat',
+      title: 'Downloads',
+      aggregate: { fn: 'sum' },
+      metric: [
+        {
+          connectorId: 'ios',
+          shape: 'metric',
+          name: 'downloads',
+          field: 'value',
+          fn: 'sum',
+        },
+        {
+          connectorId: 'android',
+          shape: 'metric',
+          name: 'downloads',
+          field: 'value',
+          fn: 'sum',
+        },
+      ],
+    };
+    const w = await resolveWidget('d', 'w', widget, undefined, storage);
+    expect(w?.data).toBe(140);
+    expect(w?.series).toHaveLength(2);
+  });
+
+  it('multi-metric: drops series whose connector is not in the allowlist', async () => {
+    const storage = new InMemoryStorage();
+    await storage.getStorageHandle('ios').metric({
+      name: 'downloads',
+      ts: Date.now(),
+      value: 100,
+      attributes: {},
+    });
+    await new Promise((r) => setTimeout(r, 5));
+    const widget: Widget = {
+      kind: 'stat',
+      title: 'Downloads',
+      metric: [
+        {
+          connectorId: 'ios',
+          shape: 'metric',
+          name: 'downloads',
+          field: 'value',
+          fn: 'sum',
+        },
+        {
+          connectorId: 'android',
+          shape: 'metric',
+          name: 'downloads',
+          field: 'value',
+          fn: 'sum',
+        },
+      ],
+    };
+    const w = await resolveWidget('d', 'w', widget, ['ios'], storage);
+    expect(w?.series).toHaveLength(1);
+    expect(w?.series?.[0]?.connectorId).toBe('ios');
+  });
+
+  it('multi-source status: combines health worst-of across connectors', async () => {
+    const healths: Record<string, ConnectorHealth> = {
+      ios: {
+        status: 'idle',
+        lastSyncAt: new Date().toISOString(),
+        lastError: null,
+        syncIntervalSeconds: 600,
+      },
+      android: {
+        status: 'auth_failed',
+        lastSyncAt: null,
+        lastError: 'token expired',
+        syncIntervalSeconds: 600,
+      },
+    };
+    const inner = new InMemoryStorage();
+    const storage: ServerStorage = {
+      getStorageHandle: (id) => inner.getStorageHandle(id),
+      getHealth: async (id: string) => healths[id] ?? null,
+      getSyncState: () => inner.getSyncState(),
+      markSyncQueued: () => inner.markSyncQueued(),
+      markSyncRunning: () => inner.markSyncRunning(),
+      markSyncSucceeded: () => inner.markSyncSucceeded(),
+      markSyncFailed: (e) => inner.markSyncFailed(e),
+    };
+    const widget: Widget = {
+      kind: 'status',
+      title: 'CI',
+      source: ['ios', 'android'],
+    };
+    const w = await resolveWidget('d', 'w', widget, undefined, storage);
+    expect(w?.syncState).toBe('failing');
+    expect(w?.status).toBe('error');
+    expect(w?.series).toHaveLength(2);
+  });
+
   it('with InMemoryStorage: "unsynced" before any write, "stale" after a write (window=0)', async () => {
     const storage = new InMemoryStorage();
     const before = await resolveWidget(

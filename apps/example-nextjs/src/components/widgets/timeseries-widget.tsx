@@ -4,6 +4,7 @@ import {
   Area,
   AreaChart,
   CartesianGrid,
+  Legend,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -12,8 +13,12 @@ import {
 
 import { StaleBadge } from './stale-badge';
 
+const SERIES_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+
 interface TooltipPayloadItem {
+  name?: string;
   value: number;
+  color?: string;
 }
 
 interface CustomTooltipProps {
@@ -27,7 +32,16 @@ function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
   return (
     <div className="rounded-lg border border-gray-100 bg-white px-3 py-2 shadow-lg">
       <p className="text-xs text-gray-400">{label}</p>
-      <p className="text-sm font-semibold text-gray-900">{payload[0]?.value}</p>
+      {payload.map((item) => (
+        <p
+          key={item.name ?? 'value'}
+          className="text-sm font-semibold text-gray-900"
+          style={{ color: item.color }}
+        >
+          {item.name ? `${item.name}: ` : ''}
+          {item.value}
+        </p>
+      ))}
     </div>
   );
 }
@@ -37,23 +51,48 @@ interface TimeseriesEntry {
   count: number;
 }
 
-interface TimeseriesWidgetProps {
+interface TimeseriesSeries {
+  key: string;
   label: string;
   entries: TimeseriesEntry[];
+}
+
+interface TimeseriesWidgetProps {
+  label: string;
+  entries?: TimeseriesEntry[];
+  series?: TimeseriesSeries[];
   stale?: boolean;
+}
+
+function formatDate(date: string): string {
+  const d = new Date(date);
+  return !isNaN(d.getTime())
+    ? `${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
+    : date.slice(5, 10);
 }
 
 export function TimeseriesWidget({
   label,
   entries,
+  series,
   stale,
 }: TimeseriesWidgetProps) {
-  const data = entries.map((e) => {
-    const d = new Date(e.date);
-    const formatted = !isNaN(d.getTime())
-      ? `${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
-      : e.date.slice(5, 10);
-    return { date: formatted, value: e.count };
+  const seriesList: TimeseriesSeries[] = series ?? [
+    { key: 'value', label: 'value', entries: entries ?? [] },
+  ];
+  const isMulti = seriesList.length > 1;
+
+  const dateKeys = [
+    ...new Set(seriesList.flatMap((s) => s.entries.map((e) => e.date))),
+  ].sort();
+
+  const data = dateKeys.map((date) => {
+    const row: Record<string, string | number> = { date: formatDate(date) };
+    for (const s of seriesList) {
+      const match = s.entries.find((e) => e.date === date);
+      row[s.key] = match ? match.count : 0;
+    }
+    return row;
   });
 
   return (
@@ -68,10 +107,27 @@ export function TimeseriesWidget({
           margin={{ top: 4, right: 4, bottom: 0, left: -8 }}
         >
           <defs>
-            <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#6366f1" stopOpacity={0.12} />
-              <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
-            </linearGradient>
+            {seriesList.map((s, i) => (
+              <linearGradient
+                key={s.key}
+                id={`areaGradient-${i}`}
+                x1="0"
+                y1="0"
+                x2="0"
+                y2="1"
+              >
+                <stop
+                  offset="5%"
+                  stopColor={SERIES_COLORS[i % SERIES_COLORS.length]}
+                  stopOpacity={0.12}
+                />
+                <stop
+                  offset="95%"
+                  stopColor={SERIES_COLORS[i % SERIES_COLORS.length]}
+                  stopOpacity={0}
+                />
+              </linearGradient>
+            ))}
           </defs>
           <CartesianGrid
             vertical={false}
@@ -97,21 +153,26 @@ export function TimeseriesWidget({
             content={<CustomTooltip />}
             cursor={{ stroke: '#e5e7eb', strokeWidth: 1 }}
           />
-          <Area
-            type="monotone"
-            dataKey="value"
-            stroke="#6366f1"
-            strokeWidth={2}
-            fill="url(#areaGradient)"
-            dot={false}
-            activeDot={{
-              r: 4,
-              fill: '#6366f1',
-              stroke: 'white',
-              strokeWidth: 2,
-            }}
-            isAnimationActive={false}
-          />
+          {isMulti && <Legend wrapperStyle={{ fontSize: 11 }} />}
+          {seriesList.map((s, i) => (
+            <Area
+              key={s.key}
+              type="monotone"
+              dataKey={s.key}
+              name={s.label}
+              stroke={SERIES_COLORS[i % SERIES_COLORS.length]}
+              strokeWidth={2}
+              fill={`url(#areaGradient-${i})`}
+              dot={false}
+              activeDot={{
+                r: 4,
+                fill: SERIES_COLORS[i % SERIES_COLORS.length],
+                stroke: 'white',
+                strokeWidth: 2,
+              }}
+              isAnimationActive={false}
+            />
+          ))}
         </AreaChart>
       </ResponsiveContainer>
     </div>

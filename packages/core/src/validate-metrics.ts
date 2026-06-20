@@ -1,4 +1,5 @@
 import type { ComputedMetric, DashboardConfig, Shape, Widget } from './config';
+import { widgetMetrics } from './config';
 import type { FilterClause } from './filters';
 import { MINOR_CURRENCY_UNITS, currencyScaleFromUnit } from './format';
 import type { ConnectorRegistry } from './registry';
@@ -240,16 +241,18 @@ export function validateConfigMetrics(
         continue;
       }
       const ref = `Dashboard "${dashboardKey}", widget "${widgetKey}"`;
-      validateMetric(
-        widget.metric,
-        widget,
-        widgetKey,
-        ref,
-        config,
-        resourcesByConnectorId,
-        errors,
-        warnings,
-      );
+      for (const metric of widgetMetrics(widget)) {
+        validateMetric(
+          metric,
+          widget,
+          widgetKey,
+          ref,
+          config,
+          resourcesByConnectorId,
+          errors,
+          warnings,
+        );
+      }
     }
   }
 

@@ -1,7 +1,11 @@
 import type { FilterClause, FilterCondition, FilterOperator } from './filters';
 import type { WidgetFormat } from './format';
 import type { RetentionConfig } from './retention';
-import { getWidgetSchema, widgetSchemas } from './widget-schemas';
+import {
+  computedMetricSchema,
+  getWidgetSchema,
+  widgetSchemas,
+} from './widget-schemas';
 import type { WidgetKind } from './widget-schemas';
 
 export type { WidgetFormat };
@@ -34,6 +38,7 @@ export interface Metric {
   window?: string;
   filter?: FilterClause[];
   groupBy?: GroupBy;
+  label?: string;
 }
 
 export interface ComputedMetric {
@@ -46,12 +51,21 @@ export interface ComputedMetric {
   readonly window?: string;
   readonly filter?: FilterClause[];
   readonly groupBy?: GroupBy;
+  readonly label?: string;
+}
+
+export type MergeFn = 'count' | 'sum' | 'avg' | 'min' | 'max';
+
+export interface MetricAggregate {
+  fn: MergeFn;
+  label?: string;
 }
 
 export interface StatWidget {
   kind: 'stat';
   title: string;
-  metric: ComputedMetric;
+  metric: ComputedMetric | ComputedMetric[];
+  aggregate?: MetricAggregate;
   window?: string;
   compare?: 'none' | 'previous-period';
   format?: WidgetFormat;
@@ -60,13 +74,14 @@ export interface StatWidget {
 export interface StatusWidget {
   kind: 'status';
   title: string;
-  source: string;
+  source: string | string[];
 }
 
 export interface TimeseriesWidget {
   kind: 'timeseries';
   title: string;
-  metric: ComputedMetric;
+  metric: ComputedMetric | ComputedMetric[];
+  aggregate?: MetricAggregate;
   window: string;
   granularity?: 'hour' | 'day' | 'week';
   format?: WidgetFormat;
@@ -75,7 +90,8 @@ export interface TimeseriesWidget {
 export interface DistributionWidget {
   kind: 'distribution';
   title: string;
-  metric: ComputedMetric;
+  metric: ComputedMetric | ComputedMetric[];
+  aggregate?: MetricAggregate;
   window: string;
   format?: WidgetFormat;
 }
@@ -87,6 +103,24 @@ export type Widget =
   | DistributionWidget;
 
 export type { WidgetKind };
+
+export function widgetMetrics(widget: Widget): ComputedMetric[] {
+  if (widget.kind === 'status') {
+    return [];
+  }
+  return Array.isArray(widget.metric) ? widget.metric : [widget.metric];
+}
+
+export function statusSources(widget: StatusWidget): string[] {
+  return Array.isArray(widget.source) ? widget.source : [widget.source];
+}
+
+export function widgetConnectorIds(widget: Widget): string[] {
+  if (widget.kind === 'status') {
+    return statusSources(widget);
+  }
+  return widgetMetrics(widget).map((m) => m.connectorId);
+}
 
 export interface ConfiguredConnector {
   name: string;
@@ -118,6 +152,14 @@ export function defineDashboard(options: {
         `Widget "${key}": unknown kind "${widget.kind}". Must be one of: ${[...VALID_WIDGET_KINDS].join(', ')}`,
       );
     }
+    for (const metric of widgetMetrics(widget)) {
+      const metricResult = computedMetricSchema.safeParse(metric);
+      if (!metricResult.success) {
+        throw new Error(
+          `Widget "${key}" (kind "${widget.kind}"): ${metricResult.error.issues.map((i) => i.message).join('; ')}`,
+        );
+      }
+    }
     const schema = getWidgetSchema(widget.kind as WidgetKind);
     const result = schema.safeParse(widget);
     if (!result.success) {
@@ -142,6 +184,7 @@ export function defineMetric(options: Metric): ComputedMetric {
     window: options.window,
     filter: options.filter,
     groupBy: options.groupBy,
+    label: options.label,
   };
 }
 
@@ -257,23 +300,39 @@ function validateConfig(config: DashboardConfig): void {
       }
 
       if (widget.kind === 'status') {
+        const sources = statusSources(widget);
+        if (sources.length === 0) {
+          throw new Error(`${ref}: must reference at least one source`);
+        }
+        for (const source of sources) {
+          if (!connectorNames.has(source)) {
+            throw new Error(
+              `${ref}: connector "${source}" is not listed in connectors`,
+            );
+          }
+        }
         continue;
       }
 
-      const { connectorId, shape, fn } = widget.metric;
-
-      if (!connectorNames.has(connectorId)) {
-        throw new Error(
-          `${ref}: connector "${connectorId}" is not listed in connectors`,
-        );
+      const metrics = widgetMetrics(widget);
+      if (metrics.length === 0) {
+        throw new Error(`${ref}: must define at least one metric`);
       }
 
-      if (!VALID_SHAPES.has(shape)) {
-        throw new Error(`${ref}: invalid shape "${shape}"`);
-      }
+      for (const { connectorId, shape, fn } of metrics) {
+        if (!connectorNames.has(connectorId)) {
+          throw new Error(
+            `${ref}: connector "${connectorId}" is not listed in connectors`,
+          );
+        }
 
-      if (!VALID_FNS.has(fn)) {
-        throw new Error(`${ref}: invalid fn "${fn}"`);
+        if (!VALID_SHAPES.has(shape)) {
+          throw new Error(`${ref}: invalid shape "${shape}"`);
+        }
+
+        if (!VALID_FNS.has(fn)) {
+          throw new Error(`${ref}: invalid fn "${fn}"`);
+        }
       }
     }
   }

@@ -1,9 +1,15 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp';
-import { computeMetric } from '@rawdash/core';
+import {
+  mergeSeries,
+  mergeSeriesScalar,
+  statusSources,
+  widgetMetrics,
+} from '@rawdash/core';
 import { z } from 'zod';
 
 import type { McpRuntime } from '../runtime-config';
 import type { McpServerOptions } from '../types';
+import { resolveMcpSeries } from './series';
 import { err, text } from './shared';
 
 export function registerReadWidget(
@@ -31,35 +37,56 @@ export function registerReadWidget(
 
         if (widget.kind === 'status') {
           const syncState = await storage.getSyncState();
+          const sources = statusSources(widget);
           return text({
             id: widget_id,
             widgetId: widget_id,
-            connectorId: widget.source,
+            connectorId: sources[0],
             data: null,
             cachedAt: syncState.lastSyncAt,
           });
         }
 
-        const { connectorId } = widget.metric;
-        const connectorEntry = runtime
-          .getConnectors()
-          .find((e) => e.name === connectorId);
-        if (!connectorEntry) {
+        const resolved = await resolveMcpSeries(
+          widgetMetrics(widget),
+          runtime,
+          storage,
+        );
+        if (!resolved.ok) {
           return err(
             'CONNECTOR_NOT_FOUND',
-            `Connector "${connectorId}" not found`,
+            `Connector "${resolved.connectorId}" not found`,
           );
         }
-
-        const handle = storage.getStorageHandle(connectorId);
-        const data = await computeMetric(handle, widget.metric);
+        const { series } = resolved;
         const syncState = await storage.getSyncState();
+        const isMulti = Array.isArray(widget.metric);
+
+        if (!isMulti) {
+          return text({
+            id: widget_id,
+            widgetId: widget_id,
+            connectorId: series[0]!.connectorId,
+            data: series[0]!.data,
+            cachedAt: syncState.lastSyncAt,
+          });
+        }
+
+        let aggregated: unknown = null;
+        if (widget.aggregate) {
+          if (widget.kind === 'stat') {
+            aggregated = mergeSeriesScalar(series, { fn: widget.aggregate.fn });
+          } else if (widget.kind === 'timeseries') {
+            aggregated = mergeSeries(series, { fn: widget.aggregate.fn });
+          }
+        }
 
         return text({
           id: widget_id,
           widgetId: widget_id,
-          connectorId,
-          data,
+          connectorId: series[0]!.connectorId,
+          data: aggregated,
+          series,
           cachedAt: syncState.lastSyncAt,
         });
       } catch (e) {

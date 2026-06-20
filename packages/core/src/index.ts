@@ -67,6 +67,7 @@ export type {
   FilterOperator,
   GroupBy,
   Metric,
+  MetricAggregate,
   ComputedMetric,
   Shape,
   StatWidget,
@@ -77,7 +78,14 @@ export type {
   WidgetKind,
 } from './config';
 
-export { defineConfig, defineDashboard, defineMetric } from './config';
+export {
+  defineConfig,
+  defineDashboard,
+  defineMetric,
+  statusSources,
+  widgetConnectorIds,
+  widgetMetrics,
+} from './config';
 
 export {
   aggFnSchema,
@@ -88,6 +96,9 @@ export {
   getWidgetSchema,
   groupBySchema,
   computedMetricSchema,
+  mergeFnSchema,
+  metricAggregateSchema,
+  metricOrMetricsSchema,
   shapeSchema,
   statWidgetSchema,
   statusWidgetSchema,
@@ -98,6 +109,9 @@ export {
 } from './widget-schemas';
 
 export type { ResolvedWidgetFormat } from './wire';
+
+export type { MergeFn, MergedPoint, MergeSeriesOptions } from './series-merge';
+export { mergeSeries, mergeSeriesScalar } from './series-merge';
 
 export { currencyScaleFromUnit } from './format';
 
@@ -114,6 +128,7 @@ export type {
   HealthResponse,
   ServerDataSource,
   TriggerSyncResponse,
+  WidgetSeries,
   WidgetStatus,
   WidgetSyncState,
   WidgetsListResponse,

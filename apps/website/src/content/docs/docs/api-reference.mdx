@@ -176,7 +176,8 @@ Returns a JSON object with a `widgets` array:
 | -------------- | ------------------------------------------------------------- | --------------------------------------------------------------------------------- |
 | `widgetId`     | string                                                        | Widget key from your dashboard config                                             |
 | `connectorId`  | string                                                        | ID of the connector that sourced this widget                                      |
-| `data`         | object \| `null`                                              | Computed metric result, or `null` if not yet synced                               |
+| `data`         | number \| string \| object \| array \| `null`                 | Computed metric result (shape depends on widget kind), or `null` if not yet synced. For a multi-connector widget this is `null` unless `aggregate` is set, in which case it holds the merged result |
+| `series`       | array                                                         | Optional. Present for multi-connector widgets — one `{ key, connectorId, label, data, ... }` entry per connector |
 | `cachedAt`     | ISO 8601 string \| `null`                                     | Timestamp of the last successful sync (when known) for the underlying connector   |
 | `syncState`    | `"fresh" \| "stale" \| "unsynced" \| "syncing" \| "failing"`  | Optional. Per-widget sync freshness, derived from connector health                |
 | `status`       | `"ok" \| "no_data" \| "error"`                               | Optional. The widget's own compute outcome (see below)                            |
@@ -194,6 +195,34 @@ Returns a JSON object with a `widgets` array:
 | `error`    | The metric compute threw, or the connector reported a failure (`error`/`auth_failed`, or any `lastError`). See `errorMessage`.         |
 
 Consumers should render a non-`ok` `status` instead of a misleading value — see the OSS `example-nextjs` app for a reference implementation.
+
+**Multi-connector widgets.** A widget's `metric` accepts either a single metric or an
+array of metrics — one per connector — so a single chart can combine data from more than
+one connector (e.g. iOS App Store + Google Play downloads). Each metric carries its own
+`connectorId`, `name`, `field`, `fn`, and an optional `label` used to name its output
+series:
+
+```ts
+daily_downloads: {
+  kind: 'timeseries',
+  title: 'Downloads',
+  window: '30d',
+  aggregate: { fn: 'sum', label: 'Total' }, // optional server-side merge
+  metric: [
+    defineMetric({ connector: ios,     shape: 'metric', name: 'app_installs', field: 'value', fn: 'sum', groupBy: { field: 'ts', granularity: 'day' }, label: 'iOS' }),
+    defineMetric({ connector: android, shape: 'metric', name: 'installs',     field: 'value', fn: 'sum', groupBy: { field: 'ts', granularity: 'day' }, label: 'Android' }),
+  ],
+}
+```
+
+Resolved multi-connector widgets carry a per-connector `series[]`. By default the
+top-level `data` is `null` (render the breakdown from `series`). Add `aggregate: { fn }`
+to merge the series server-side into `data`. To merge on the client instead, call
+`mergeSeries(widget.series, { fn: 'sum' })` (or `mergeSeriesScalar` for stat widgets),
+exported from `@rawdash/core`, `@rawdash/sdk-client`, and `@rawdash/sdk-nextjs`.
+
+A `status` widget's `source` likewise accepts an array of connectors, producing a single
+combined health badge (worst-of across the listed connectors).
 
 ### `GET /dashboards/:dashboardId/widgets/:widgetId`
 

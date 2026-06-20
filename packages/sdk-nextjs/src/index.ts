@@ -10,14 +10,22 @@ export type {
   CachedWidget,
   DataSource,
   HealthResponse,
+  MergedPoint,
+  MergeSeriesOptions,
   SyncState,
   SyncStatus,
   TriggerSyncResponse,
+  WidgetSeries,
   WidgetSyncState,
   WidgetsListResponse,
 } from '@rawdash/core';
 
-export { ACTIVE_SYNC_STATUSES, isSyncActive } from '@rawdash/core';
+export {
+  ACTIVE_SYNC_STATUSES,
+  isSyncActive,
+  mergeSeries,
+  mergeSeriesScalar,
+} from '@rawdash/core';
 
 const RAWDASH_CACHE_TAG = 'rawdash';
 
