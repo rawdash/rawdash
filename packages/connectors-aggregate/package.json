@@ -74,6 +74,7 @@
     "@rawdash/connector-mailchimp": "workspace:*",
     "@rawdash/connector-meta-ads": "workspace:*",
     "@rawdash/connector-mixpanel": "workspace:*",
+    "@rawdash/connector-monday": "workspace:*",
     "@rawdash/connector-netlify": "workspace:*",
     "@rawdash/connector-new-relic": "workspace:*",
     "@rawdash/connector-okta": "workspace:*",

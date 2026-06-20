@@ -200,16 +200,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     domain: 'microsoft.com',
   },
   {
-    id: 'monday',
-    name: 'Monday.com',
-    category: 'engineering',
-    tagline:
-      'Sync items, boards, and status throughput from a Monday.com workspace.',
-    brandColor: '#FF3D57',
-    domain: 'monday.com',
-    requestIssue: 'RAW-426',
-  },
-  {
     id: 'mysql',
     name: 'MySQL',
     category: 'engineering',
