@@ -4,6 +4,7 @@ import { defineConfig } from 'astro/config';
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
+import { CLOUD_UTM_FORWARD_SCRIPT } from './src/lib/cloud-cta';
 import { fetchPublishedFeedItems } from './src/lib/content-feed';
 import { SECTION_LIST } from './src/lib/sections';
 import {
@@ -80,6 +81,10 @@ export default defineConfig({
         {
           tag: 'script',
           content: `document.documentElement.dataset.theme='dark';try{localStorage.setItem('starlight-theme','dark')}catch(e){}`,
+        },
+        {
+          tag: 'script',
+          content: CLOUD_UTM_FORWARD_SCRIPT,
         },
       ],
       logo: {

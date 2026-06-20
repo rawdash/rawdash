@@ -1,4 +1,6 @@
 ---
+import { CLOUD_SIGNUP_URL } from '../../lib/cloud-cta';
+
 interface Props {
   heading?: string;
   body?: string;
@@ -9,7 +11,7 @@ interface Props {
 const {
   heading = 'Try Rawdash Cloud',
   body = 'Managed hosting, automatic syncs, and a hosted dashboard UI — no infra required.',
-  href = 'https://cloud.rawdash.dev',
+  href = CLOUD_SIGNUP_URL,
   label = 'Go to Cloud ↗',
 } = Astro.props;
 ---
