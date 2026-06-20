@@ -89,6 +89,9 @@ importers:
       '@rawdash/hono':
         specifier: workspace:*
         version: link:../../packages/hono
+      '@rawdash/sdk-client':
+        specifier: workspace:*
+        version: link:../../packages/sdk-client
       '@rawdash/sdk-nextjs':
         specifier: workspace:*
         version: link:../../packages/sdk-nextjs
@@ -141,6 +144,9 @@ importers:
       concurrently:
         specifier: ^9.0.0
         version: 9.2.1
+      hono:
+        specifier: ^4.0.0
+        version: 4.12.12
       postcss:
         specifier: ^8
         version: 8.5.9

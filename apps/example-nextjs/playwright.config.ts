@@ -29,7 +29,7 @@ export default defineConfig({
       reuseExistingServer: !process.env.CI,
       timeout: 60_000,
       env: {
-        RAWDASH_URL: 'http://localhost:8080',
+        NEXT_PUBLIC_RAWDASH_PROXY_URL: 'http://localhost:8080',
       },
     },
   ],
