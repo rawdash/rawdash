@@ -3,6 +3,10 @@ const VISITOR_TTL_SECONDS = 60 * 60 * 24 * 365 * 2;
 const DEFAULT_COOKIE_DOMAIN = '.rawdash.dev';
 const DEFAULT_INTERNAL_TOKEN_HEADER = 'X-Internal-Token';
 const ATTRIBUTION_TIMEOUT_MS = 3_000;
+const STATIC_ASSET_EXTENSION =
+  /\.(?:js|mjs|css|png|jpe?g|gif|webp|avif|svg|ico|woff2?|ttf|otf|eot|map|json|xml|txt|webmanifest)$/;
+
+let loggedMissingAttributionConfig = false;
 
 interface PagesFunctionEnv {
   ATTRIBUTION_ENDPOINT?: string;
@@ -89,7 +93,7 @@ function shouldSkipPath(pathname: string): boolean {
     pathname === '/robots.txt' ||
     pathname === '/sitemap.xml' ||
     pathname === '/sitemap-index.xml' ||
-    /\.[^/]+$/.test(pathname)
+    STATIC_ASSET_EXTENSION.test(pathname)
   );
 }
 
@@ -186,9 +190,12 @@ export const onRequest = async (
   const endpoint = env.ATTRIBUTION_ENDPOINT;
   const token = env.INTERNAL_API_TOKEN;
   if (!endpoint || !token) {
-    console.error(
-      'ATTRIBUTION_ENDPOINT or INTERNAL_API_TOKEN is not set; skipping attribution event',
-    );
+    if (!loggedMissingAttributionConfig) {
+      loggedMissingAttributionConfig = true;
+      console.warn(
+        'ATTRIBUTION_ENDPOINT or INTERNAL_API_TOKEN is not set; skipping attribution event',
+      );
+    }
     return response;
   }
 
