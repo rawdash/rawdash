@@ -52,6 +52,7 @@ interface TimeseriesEntry {
 }
 
 interface TimeseriesSeries {
+  key: string;
   label: string;
   entries: TimeseriesEntry[];
 }
@@ -77,7 +78,7 @@ export function TimeseriesWidget({
   stale,
 }: TimeseriesWidgetProps) {
   const seriesList: TimeseriesSeries[] = series ?? [
-    { label: 'value', entries: entries ?? [] },
+    { key: 'value', label: 'value', entries: entries ?? [] },
   ];
   const isMulti = seriesList.length > 1;
 
@@ -89,7 +90,7 @@ export function TimeseriesWidget({
     const row: Record<string, string | number> = { date: formatDate(date) };
     for (const s of seriesList) {
       const match = s.entries.find((e) => e.date === date);
-      row[s.label] = match ? match.count : 0;
+      row[s.key] = match ? match.count : 0;
     }
     return row;
   });
@@ -108,7 +109,7 @@ export function TimeseriesWidget({
           <defs>
             {seriesList.map((s, i) => (
               <linearGradient
-                key={s.label}
+                key={s.key}
                 id={`areaGradient-${i}`}
                 x1="0"
                 y1="0"
@@ -155,9 +156,10 @@ export function TimeseriesWidget({
           {isMulti && <Legend wrapperStyle={{ fontSize: 11 }} />}
           {seriesList.map((s, i) => (
             <Area
-              key={s.label}
+              key={s.key}
               type="monotone"
-              dataKey={s.label}
+              dataKey={s.key}
+              name={s.label}
               stroke={SERIES_COLORS[i % SERIES_COLORS.length]}
               strokeWidth={2}
               fill={`url(#areaGradient-${i})`}

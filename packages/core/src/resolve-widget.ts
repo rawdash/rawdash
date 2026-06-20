@@ -300,10 +300,11 @@ export async function resolveWidget(
 
   let data: unknown = null;
   if (widget.aggregate) {
-    data =
-      widget.kind === 'stat'
-        ? mergeSeriesScalar(series, { fn: widget.aggregate.fn })
-        : mergeSeries(series, { fn: widget.aggregate.fn });
+    if (widget.kind === 'stat') {
+      data = mergeSeriesScalar(series, { fn: widget.aggregate.fn });
+    } else if (widget.kind === 'timeseries') {
+      data = mergeSeries(series, { fn: widget.aggregate.fn });
+    }
   }
 
   const meta: Record<string, unknown> = {

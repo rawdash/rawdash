@@ -176,7 +176,7 @@ Returns a JSON object with a `widgets` array:
 | -------------- | ------------------------------------------------------------- | --------------------------------------------------------------------------------- |
 | `widgetId`     | string                                                        | Widget key from your dashboard config                                             |
 | `connectorId`  | string                                                        | ID of the connector that sourced this widget                                      |
-| `data`         | object \| `null`                                              | Computed metric result, or `null` if not yet synced. For a multi-connector widget this is `null` unless `aggregate` is set, in which case it holds the merged result |
+| `data`         | number \| string \| object \| array \| `null`                 | Computed metric result (shape depends on widget kind), or `null` if not yet synced. For a multi-connector widget this is `null` unless `aggregate` is set, in which case it holds the merged result |
 | `series`       | array                                                         | Optional. Present for multi-connector widgets — one `{ key, connectorId, label, data, ... }` entry per connector |
 | `cachedAt`     | ISO 8601 string \| `null`                                     | Timestamp of the last successful sync (when known) for the underlying connector   |
 | `syncState`    | `"fresh" \| "stale" \| "unsynced" \| "syncing" \| "failing"`  | Optional. Per-widget sync freshness, derived from connector health                |

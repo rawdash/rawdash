@@ -85,21 +85,31 @@ export function WidgetCard({ widget }: WidgetCardProps) {
 
   const stale = syncState === 'stale';
 
-  if (series && series.some((s) => s.data !== null && s.data !== undefined)) {
-    const timeseries = series
-      .map((s) => ({ label: s.label, entries: toTimeseriesEntries(s.data) }))
+  const hasRenderableSeries =
+    series?.some((s) => Array.isArray(s.data) || typeof s.data === 'number') ??
+    false;
+  if (hasRenderableSeries) {
+    const timeseries = series!
+      .map((s) => ({
+        key: s.key,
+        label: s.label,
+        entries: toTimeseriesEntries(s.data),
+      }))
       .filter(
         (
           s,
-        ): s is { label: string; entries: { date: string; count: number }[] } =>
-          s.entries !== null,
+        ): s is {
+          key: string;
+          label: string;
+          entries: { date: string; count: number }[];
+        } => s.entries !== null,
       );
     if (timeseries.length > 0) {
       return (
         <TimeseriesWidget label={label} series={timeseries} stale={stale} />
       );
     }
-    return <MultiStatWidget label={label} series={series} stale={stale} />;
+    return <MultiStatWidget label={label} series={series!} stale={stale} />;
   }
 
   if (data === null || syncState === 'syncing' || syncState === 'unsynced') {

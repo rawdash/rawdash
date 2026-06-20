@@ -54,8 +54,10 @@ export interface ComputedMetric {
   readonly label?: string;
 }
 
+export type MergeFn = 'count' | 'sum' | 'avg' | 'min' | 'max';
+
 export interface MetricAggregate {
-  fn: AggFn;
+  fn: MergeFn;
   label?: string;
 }
 
@@ -298,7 +300,11 @@ function validateConfig(config: DashboardConfig): void {
       }
 
       if (widget.kind === 'status') {
-        for (const source of statusSources(widget)) {
+        const sources = statusSources(widget);
+        if (sources.length === 0) {
+          throw new Error(`${ref}: must reference at least one source`);
+        }
+        for (const source of sources) {
           if (!connectorNames.has(source)) {
             throw new Error(
               `${ref}: connector "${source}" is not listed in connectors`,

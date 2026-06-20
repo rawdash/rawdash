@@ -1,5 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp';
-import { statusSources, widgetConnectorIds } from '@rawdash/core';
+import { widgetConnectorIds } from '@rawdash/core';
 import { z } from 'zod';
 
 import type { McpRuntime } from '../runtime-config';
@@ -25,10 +25,7 @@ export function registerListWidgets(
         );
       }
       const widgets = Object.entries(dashboard.widgets).map(([id, widget]) => {
-        const connectorIds =
-          widget.kind === 'status'
-            ? statusSources(widget)
-            : widgetConnectorIds(widget);
+        const connectorIds = widgetConnectorIds(widget);
         return {
           id,
           kind: widget.kind,

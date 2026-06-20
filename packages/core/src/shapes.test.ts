@@ -462,6 +462,16 @@ describe('defineConfig validation', () => {
     ).not.toThrow();
   });
 
+  it('rejects an empty status source list', () => {
+    expect(() =>
+      defineDashboard({
+        widgets: {
+          w: { kind: 'status', title: 'Health', source: [] },
+        },
+      }),
+    ).toThrow();
+  });
+
   it('throws when a status source is not a listed connector', () => {
     const ios = { name: 'ios', connectorId: 'asc', config: {} };
     expect(() =>

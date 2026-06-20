@@ -96,6 +96,7 @@ export {
   getWidgetSchema,
   groupBySchema,
   computedMetricSchema,
+  mergeFnSchema,
   metricAggregateSchema,
   metricOrMetricsSchema,
   shapeSchema,
@@ -109,7 +110,7 @@ export {
 
 export type { ResolvedWidgetFormat } from './wire';
 
-export type { MergedPoint, MergeSeriesOptions } from './series-merge';
+export type { MergeFn, MergedPoint, MergeSeriesOptions } from './series-merge';
 export { mergeSeries, mergeSeriesScalar } from './series-merge';
 
 export { currencyScaleFromUnit } from './format';

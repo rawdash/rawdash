@@ -1,6 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp';
 import {
-  computeMetric,
   mergeSeries,
   mergeSeriesScalar,
   statusSources,
@@ -10,6 +9,7 @@ import { z } from 'zod';
 
 import type { McpRuntime } from '../runtime-config';
 import type { McpServerOptions } from '../types';
+import { resolveMcpSeries } from './series';
 import { err, text } from './shared';
 
 export function registerReadWidget(
@@ -47,27 +47,18 @@ export function registerReadWidget(
           });
         }
 
-        const metrics = widgetMetrics(widget);
-        const knownNames = new Set(runtime.getConnectors().map((e) => e.name));
-        const missing = metrics.find((m) => !knownNames.has(m.connectorId));
-        if (missing) {
+        const resolved = await resolveMcpSeries(
+          widgetMetrics(widget),
+          runtime,
+          storage,
+        );
+        if (!resolved.ok) {
           return err(
             'CONNECTOR_NOT_FOUND',
-            `Connector "${missing.connectorId}" not found`,
+            `Connector "${resolved.connectorId}" not found`,
           );
         }
-
-        const series = await Promise.all(
-          metrics.map(async (metric) => ({
-            key: metric.label ?? metric.connectorId,
-            connectorId: metric.connectorId,
-            label: metric.label ?? metric.connectorId,
-            data: await computeMetric(
-              storage.getStorageHandle(metric.connectorId),
-              metric,
-            ),
-          })),
-        );
+        const { series } = resolved;
         const syncState = await storage.getSyncState();
         const isMulti = Array.isArray(widget.metric);
 
@@ -81,11 +72,14 @@ export function registerReadWidget(
           });
         }
 
-        const aggregated = widget.aggregate
-          ? widget.kind === 'stat'
-            ? mergeSeriesScalar(series, { fn: widget.aggregate.fn })
-            : mergeSeries(series, { fn: widget.aggregate.fn })
-          : null;
+        let aggregated: unknown = null;
+        if (widget.aggregate) {
+          if (widget.kind === 'stat') {
+            aggregated = mergeSeriesScalar(series, { fn: widget.aggregate.fn });
+          } else if (widget.kind === 'timeseries') {
+            aggregated = mergeSeries(series, { fn: widget.aggregate.fn });
+          }
+        }
 
         return text({
           id: widget_id,

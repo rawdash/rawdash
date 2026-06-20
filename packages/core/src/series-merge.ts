@@ -1,6 +1,8 @@
 import { aggregateNumeric } from './compute';
-import type { AggFn } from './config';
+import type { MergeFn } from './config';
 import type { WidgetSeries } from './wire';
+
+export type { MergeFn };
 
 export interface MergedPoint {
   date: string;
@@ -8,7 +10,7 @@ export interface MergedPoint {
 }
 
 export interface MergeSeriesOptions {
-  fn?: AggFn;
+  fn?: MergeFn;
 }
 
 export function mergeSeries(

@@ -82,8 +82,10 @@ export const metricOrMetricsSchema = z.union([
   z.array(computedMetricSchema).min(1),
 ]);
 
+export const mergeFnSchema = z.enum(['count', 'sum', 'avg', 'min', 'max']);
+
 export const metricAggregateSchema = z.object({
-  fn: aggFnSchema,
+  fn: mergeFnSchema,
   label: z.string().optional(),
 });
 
