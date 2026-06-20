@@ -4,6 +4,8 @@ import { GitHubConnector } from '@rawdash/connector-github';
 import type { ServerStorage } from '@rawdash/core';
 import { InMemoryStorage } from '@rawdash/core';
 import { mountEngine } from '@rawdash/hono';
+import { Hono } from 'hono';
+import { cors } from 'hono/cors';
 
 import config from './rawdash.config.mts';
 
@@ -33,4 +35,9 @@ const { app } = mountEngine(config, {
   connectorRegistry: { 'github-actions': GitHubConnector },
   storage: resolveStorage(),
 });
-honoServe({ fetch: app.fetch, port: resolvePort() });
+
+const root = new Hono();
+root.use('*', cors());
+root.route('/', app);
+
+honoServe({ fetch: root.fetch, port: resolvePort() });

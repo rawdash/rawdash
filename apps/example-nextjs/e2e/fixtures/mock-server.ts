@@ -85,10 +85,34 @@ const HEALTH = {
   lastError: null,
 };
 
+const WIDGETS_BY_ID = new Map(WIDGETS.map((w) => [w.widgetId, w]));
+
 const server = createServer((req, res) => {
   res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', '*');
+
+  if (req.method === 'OPTIONS') {
+    res.statusCode = 204;
+    res.end();
+    return;
+  }
+
+  const widgetMatch = req.url?.match(
+    /^\/dashboards\/github\/widgets\/([^/?]+)/,
+  );
+
   if (req.method === 'GET' && req.url === '/dashboards/github/widgets') {
     res.end(JSON.stringify({ widgets: WIDGETS }));
+  } else if (req.method === 'GET' && widgetMatch) {
+    const widget = WIDGETS_BY_ID.get(decodeURIComponent(widgetMatch[1]!));
+    if (widget) {
+      res.end(JSON.stringify(widget));
+    } else {
+      res.statusCode = 404;
+      res.end(JSON.stringify({ error: 'Not found' }));
+    }
   } else if (req.method === 'GET' && req.url === '/health') {
     res.end(JSON.stringify(HEALTH));
   } else if (req.method === 'POST' && req.url === '/sync') {
