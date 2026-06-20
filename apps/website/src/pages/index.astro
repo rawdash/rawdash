@@ -3,6 +3,8 @@ import { connectors } from '../generated/connectors';
 import Analytics from '../components/Analytics.astro';
 import SiteNav from '../components/site/SiteNav.astro';
 import SiteFooter from '../components/site/SiteFooter.astro';
+import CloudCtaScript from '../components/site/CloudCtaScript.astro';
+import { CLOUD_SIGNUP_URL } from '../lib/cloud-cta';
 import {
   faqPageJsonLd,
   serializeJsonLd,
@@ -303,13 +305,14 @@ const jsonLd = [
           <h2>Try Rawdash Cloud</h2>
           <p>Managed hosting, automatic syncs, and a hosted dashboard UI — no infra required.</p>
         </div>
-        <a href="https://cloud.rawdash.dev" class="btn-primary">
+        <a href={CLOUD_SIGNUP_URL} class="btn-primary">
           Go to Cloud ↗
         </a>
       </div>
     </div>
 
     <SiteFooter />
+    <CloudCtaScript />
 
     <script>
       for (const root of document.querySelectorAll('[data-faq]')) {

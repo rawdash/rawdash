@@ -1,0 +1,45 @@
+---
+import { CLOUD_HOST } from '../../lib/cloud-cta';
+---
+
+<script is:inline define:vars={{ cloudHost: CLOUD_HOST }}>
+  (function () {
+    function forwardUtm() {
+      const current = new URLSearchParams(window.location.search);
+      const utm = [];
+      current.forEach((value, key) => {
+        if (key.indexOf('utm_') === 0 && value) {
+          utm.push([key, value]);
+        }
+      });
+      if (utm.length === 0) {
+        return;
+      }
+      const anchors = document.querySelectorAll(`a[href*="${cloudHost}"]`);
+      anchors.forEach((anchor) => {
+        const url = new URL(anchor.href);
+        if (url.hostname !== cloudHost) {
+          return;
+        }
+        for (const [key, value] of utm) {
+          if (!url.searchParams.has(key)) {
+            url.searchParams.set(key, value);
+          }
+        }
+        anchor.href = url.toString();
+      });
+    }
+    function run() {
+      try {
+        forwardUtm();
+      } catch (err) {
+        console.warn('Cloud UTM forwarding failed:', err);
+      }
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', run);
+    } else {
+      run();
+    }
+  })();
+</script>

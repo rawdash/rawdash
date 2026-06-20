@@ -120,6 +120,7 @@ export default defineConfig({
         },
       ],
       components: {
+        Head: './src/components/starlight/Head.astro',
         Pagination: './src/components/Pagination.astro',
       },
       customCss: ['./src/styles/custom.css'],
