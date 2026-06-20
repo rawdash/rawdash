@@ -42,6 +42,7 @@ A GitLab Personal Access Token (PAT) with the `read_api` scope is required. The 
   - Endpoint: `GET /api/v4/projects/{id}/merge_requests`
 - **`pipeline`** _(entity)_ - CI/CD pipelines with status, ref, commit sha, source, duration, and start/finish timestamps.
   - Endpoint: `GET /api/v4/projects/{id}/pipelines`
+  - The pipelines list response omits duration and finished_at; each pipeline is enriched via GET /api/v4/projects/{id}/pipelines/{pipeline_id} to populate duration and finish time.
 - **`pipeline_event`** _(event)_ - Pipeline lifecycle events. One event per pipeline covering created_at to finished_at (or updated_at if not yet finished), tagged with the terminal status.
   - Endpoint: `GET /api/v4/projects/{id}/pipelines`
   - Derived from the same pipelines response that builds the `pipeline` resource; the GitLab API does not expose an intermediate state-transition history endpoint.

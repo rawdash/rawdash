@@ -1,3 +1,4 @@
+import { eventStoreFor } from '@rawdash/connector-test-utils';
 import { InMemoryStorage } from '@rawdash/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -237,6 +238,78 @@ describe('GitLabConnector — resource allowlist', () => {
 
     const stored = await handle.queryEntities({ type: 'issue' });
     expect(stored.map((e) => e.id)).toEqual(['42:1']);
+  });
+});
+
+describe('GitLabConnector — pipeline detail enrichment', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('populates pipeline duration_ms and finished_at from the single-pipeline endpoint', async () => {
+    const listPipeline = {
+      id: 555,
+      iid: 7,
+      project_id: 42,
+      status: 'success',
+      ref: 'main',
+      sha: 'abc123',
+      source: 'push',
+      web_url: 'https://gitlab.example.com/group/demo/-/pipelines/555',
+      created_at: '2026-05-01T00:00:00Z',
+      updated_at: '2026-05-01T00:10:00Z',
+    };
+    const detailPipeline = {
+      ...listPipeline,
+      started_at: '2026-05-01T00:01:00Z',
+      finished_at: '2026-05-01T00:06:00Z',
+      duration: 300,
+    };
+
+    const fetchSpy = vi.fn().mockImplementation((url: string | URL) => {
+      const u = typeof url === 'string' ? url : url.toString();
+      if (u.match(/\/projects\/\d+\/pipelines\/\d+/)) {
+        return Promise.resolve(mockJson(detailPipeline));
+      }
+      if (u.match(/\/projects\/\d+\/pipelines/)) {
+        return Promise.resolve(mockJson([listPipeline]));
+      }
+      return Promise.resolve(mockJson([]));
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const connector = new GitLabConnector(
+      { host: 'gitlab.example.com', projectIds: [42] },
+      { apiToken: 'glpat-test' },
+    );
+    const storage = new InMemoryStorage();
+    const handle = storage.getStorageHandle('gitlab');
+
+    await connector.sync(
+      { mode: 'full', resources: new Set(['pipeline', 'pipeline_event']) },
+      handle,
+    );
+
+    const finishedMs = new Date('2026-05-01T00:06:00Z').getTime();
+    const [pipeline] = await handle.queryEntities({ type: 'pipeline' });
+    expect(pipeline).toBeDefined();
+    expect(pipeline!.attributes.duration_ms).toBe(300_000);
+    expect(pipeline!.attributes.finished_at).toBe(finishedMs);
+
+    const events = eventStoreFor<{
+      name: string;
+      end_ts: number;
+      attributes: Record<string, unknown>;
+    }>(storage, 'gitlab').filter((e) => e.name === 'pipeline_event');
+    expect(events).toHaveLength(1);
+    expect(events[0]!.end_ts).toBe(finishedMs);
+    expect(events[0]!.attributes.duration_ms).toBe(300_000);
+
+    const detailCalls = fetchSpy.mock.calls
+      .map((c) => String(c[0]))
+      .filter((u) => /\/pipelines\/\d+/.test(u));
+    expect(detailCalls).toHaveLength(1);
   });
 });
 
