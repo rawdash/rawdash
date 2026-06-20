@@ -17,7 +17,7 @@ that sits in front of the static site (in production, served at `<host>/api/*`).
 same-origin, the app uses the **relative `/api` base** by default, so no proxy URL needs to be baked
 into the static build.
 
-```
+```text
 browser ──> /api/dashboards/github/widgets ──(same-origin proxy injects API key)──> rawdash API
 ```
 

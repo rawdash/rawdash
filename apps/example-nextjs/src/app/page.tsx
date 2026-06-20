@@ -6,8 +6,18 @@ import { rawdashSource } from '@/lib/rawdash';
 import { useDashboard } from '@rawdash/sdk-nextjs/client';
 
 export default function DashboardPage() {
-  const { widgets } = useDashboard(rawdashSource, 'github');
+  const { widgets, error } = useDashboard(rawdashSource, 'github');
   const list = Object.values(widgets);
+
+  if (error && list.length === 0) {
+    return (
+      <div className="flex h-[calc(100vh-3rem)] items-center justify-center">
+        <span className="text-sm text-red-400">
+          Couldn’t load dashboard data — check the rawdash API connection.
+        </span>
+      </div>
+    );
+  }
 
   if (list.length === 0) {
     return (

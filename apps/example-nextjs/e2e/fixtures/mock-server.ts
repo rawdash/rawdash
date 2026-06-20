@@ -100,13 +100,21 @@ const server = createServer((req, res) => {
   }
 
   const widgetMatch = req.url?.match(
-    /^\/dashboards\/github\/widgets\/([^/?]+)/,
+    /^\/dashboards\/github\/widgets\/([^/?]+)(?:\?.*)?$/,
   );
 
   if (req.method === 'GET' && req.url === '/dashboards/github/widgets') {
     res.end(JSON.stringify({ widgets: WIDGETS }));
   } else if (req.method === 'GET' && widgetMatch) {
-    const widget = WIDGETS_BY_ID.get(decodeURIComponent(widgetMatch[1]!));
+    let widgetId: string;
+    try {
+      widgetId = decodeURIComponent(widgetMatch[1]!);
+    } catch {
+      res.statusCode = 400;
+      res.end(JSON.stringify({ error: 'Invalid widget id' }));
+      return;
+    }
+    const widget = WIDGETS_BY_ID.get(widgetId);
     if (widget) {
       res.end(JSON.stringify(widget));
     } else {
