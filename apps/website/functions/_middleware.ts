@@ -1,12 +1,14 @@
 const VISITOR_COOKIE = 'rd_vid';
 const VISITOR_TTL_SECONDS = 60 * 60 * 24 * 365 * 2;
-const COOKIE_DOMAIN = '.rawdash.dev';
-const ATTRIBUTION_ENDPOINT = 'https://api.rawdash.dev/attribution/event';
-const INTERNAL_TOKEN_HEADER = 'X-Internal-Token';
+const DEFAULT_COOKIE_DOMAIN = '.rawdash.dev';
+const DEFAULT_INTERNAL_TOKEN_HEADER = 'X-Internal-Token';
 const ATTRIBUTION_TIMEOUT_MS = 3_000;
 
 interface PagesFunctionEnv {
+  ATTRIBUTION_ENDPOINT?: string;
   INTERNAL_API_TOKEN?: string;
+  INTERNAL_TOKEN_HEADER?: string;
+  COOKIE_DOMAIN?: string;
 }
 
 interface PagesFunctionContext {
@@ -104,10 +106,10 @@ function readVisitorCookie(cookieHeader: string | null): string | undefined {
   return undefined;
 }
 
-function buildVisitorCookie(visitorId: string): string {
+function buildVisitorCookie(visitorId: string, cookieDomain: string): string {
   return [
     `${VISITOR_COOKIE}=${visitorId}`,
-    `Domain=${COOKIE_DOMAIN}`,
+    `Domain=${cookieDomain}`,
     'Path=/',
     'HttpOnly',
     'Secure',
@@ -116,22 +118,31 @@ function buildVisitorCookie(visitorId: string): string {
   ].join('; ');
 }
 
-function withVisitorCookie(response: Response, visitorId: string): Response {
+function withVisitorCookie(
+  response: Response,
+  visitorId: string,
+  cookieDomain: string,
+): Response {
   const next = new Response(response.body, response);
-  next.headers.append('Set-Cookie', buildVisitorCookie(visitorId));
+  next.headers.append(
+    'Set-Cookie',
+    buildVisitorCookie(visitorId, cookieDomain),
+  );
   return next;
 }
 
 async function recordAttributionEvent(
+  endpoint: string,
+  tokenHeader: string,
   token: string,
   payload: AttributionEventPayload,
 ): Promise<void> {
   try {
-    const response = await fetch(ATTRIBUTION_ENDPOINT, {
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        [INTERNAL_TOKEN_HEADER]: token,
+        [tokenHeader]: token,
       },
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(ATTRIBUTION_TIMEOUT_MS),
@@ -159,11 +170,12 @@ export const onRequest = async (
 
   const upstream = await context.next();
 
+  const cookieDomain = env.COOKIE_DOMAIN ?? DEFAULT_COOKIE_DOMAIN;
   const existingId = readVisitorCookie(request.headers.get('cookie'));
   const visitorId = existingId ?? crypto.randomUUID();
   const response = existingId
     ? upstream
-    : withVisitorCookie(upstream, visitorId);
+    : withVisitorCookie(upstream, visitorId, cookieDomain);
 
   const utm = parseUtmParams(url.searchParams);
   const referer = request.headers.get('referer');
@@ -171,14 +183,19 @@ export const onRequest = async (
     return response;
   }
 
+  const endpoint = env.ATTRIBUTION_ENDPOINT;
   const token = env.INTERNAL_API_TOKEN;
-  if (!token) {
-    console.error('INTERNAL_API_TOKEN is not set; skipping attribution event');
+  if (!endpoint || !token) {
+    console.error(
+      'ATTRIBUTION_ENDPOINT or INTERNAL_API_TOKEN is not set; skipping attribution event',
+    );
     return response;
   }
 
+  const tokenHeader =
+    env.INTERNAL_TOKEN_HEADER ?? DEFAULT_INTERNAL_TOKEN_HEADER;
   context.waitUntil(
-    recordAttributionEvent(token, {
+    recordAttributionEvent(endpoint, tokenHeader, token, {
       visitorId,
       ...utm,
       landingPath: url.pathname,
