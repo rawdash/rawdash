@@ -65,6 +65,7 @@
       "@rawdash/connector-vanta",
       "@rawdash/connector-drata",
       "@rawdash/connector-shopify",
+      "@rawdash/connector-monday",
       "@rawdash/connectors",
       "@rawdash/adapter-libsql",
       "@rawdash/adapter-sqlite",

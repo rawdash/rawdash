@@ -66,6 +66,7 @@ export const connectorLoaders: Record<string, () => Promise<ConnectorClass>> = {
   'meta-ads': () =>
     import('@rawdash/connector-meta-ads').then((m) => m.default),
   mixpanel: () => import('@rawdash/connector-mixpanel').then((m) => m.default),
+  monday: () => import('@rawdash/connector-monday').then((m) => m.default),
   netlify: () => import('@rawdash/connector-netlify').then((m) => m.default),
   'new-relic': () =>
     import('@rawdash/connector-new-relic').then((m) => m.default),

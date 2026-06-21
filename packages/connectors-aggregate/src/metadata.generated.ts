@@ -248,6 +248,12 @@ import {
   resources as mixpanelResources,
 } from '@rawdash/connector-mixpanel';
 import {
+  configFields as mondayConfigFields,
+  doc as mondayDoc,
+  id as mondayId,
+  resources as mondayResources,
+} from '@rawdash/connector-monday';
+import {
   configFields as netlifyConfigFields,
   doc as netlifyDoc,
   id as netlifyId,
@@ -641,6 +647,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     configFields: mixpanelConfigFields,
     resources: mixpanelResources,
     cost: mixpanelCost,
+  },
+  {
+    id: mondayId,
+    packageName: '@rawdash/connector-monday',
+    doc: mondayDoc,
+    configFields: mondayConfigFields,
+    resources: mondayResources,
   },
   {
     id: netlifyId,
