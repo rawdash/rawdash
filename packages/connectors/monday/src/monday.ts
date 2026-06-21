@@ -28,11 +28,18 @@ export const configFields = defineConfigFields(
       placeholder: 'eyJhbGciOi...',
       secret: true,
     }),
-    boardIds: z.array(z.string().min(1)).nonempty().optional().meta({
-      label: 'Board IDs (optional)',
-      description:
-        'Restrict the sync to specific board IDs. Omit to discover and sync every board the token can see.',
-    }),
+    boardIds: z
+      .array(z.string().min(1))
+      .nonempty()
+      .refine((ids) => new Set(ids).size === ids.length, {
+        error: 'Board IDs must be unique.',
+      })
+      .optional()
+      .meta({
+        label: 'Board IDs (optional)',
+        description:
+          'Restrict the sync to specific board IDs. Omit to discover and sync every board the token can see.',
+      }),
     resources: z
       .array(z.enum(['boards', 'items', 'item_events']))
       .nonempty()
@@ -490,7 +497,11 @@ export class MondayConnector extends BaseConnector<
       );
       return { items: res.body.data!.boards, next: null };
     }
-    const p = page ? Number(page) : 1;
+    const parsedPage = page === null ? 1 : Number(page);
+    const p =
+      Number.isFinite(parsedPage) && parsedPage >= 1
+        ? Math.floor(parsedPage)
+        : 1;
     const limit = clampPageSize(
       options.pageSize,
       DEFAULT_BOARD_PAGE_SIZE,
