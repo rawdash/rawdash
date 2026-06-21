@@ -25,6 +25,7 @@ export const connectorLoaders: Record<string, () => Promise<ConnectorClass>> = {
   branch: () => import('@rawdash/connector-branch').then((m) => m.default),
   circleci: () => import('@rawdash/connector-circleci').then((m) => m.default),
   clerk: () => import('@rawdash/connector-clerk').then((m) => m.default),
+  clickup: () => import('@rawdash/connector-clickup').then((m) => m.default),
   datadog: () => import('@rawdash/connector-datadog').then((m) => m.default),
   drata: () => import('@rawdash/connector-drata').then((m) => m.default),
   'entra-id': () =>

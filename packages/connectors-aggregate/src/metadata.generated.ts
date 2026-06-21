@@ -89,6 +89,12 @@ import {
   resources as clerkResources,
 } from '@rawdash/connector-clerk';
 import {
+  configFields as clickupConfigFields,
+  doc as clickupDoc,
+  id as clickupId,
+  resources as clickupResources,
+} from '@rawdash/connector-clickup';
+import {
   configFields as datadogConfigFields,
   doc as datadogDoc,
   id as datadogId,
@@ -444,6 +450,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: clerkDoc,
     configFields: clerkConfigFields,
     resources: clerkResources,
+  },
+  {
+    id: clickupId,
+    packageName: '@rawdash/connector-clickup',
+    doc: clickupDoc,
+    configFields: clickupConfigFields,
+    resources: clickupResources,
   },
   {
     id: datadogId,

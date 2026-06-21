@@ -59,6 +59,7 @@
       "@rawdash/connector-okta",
       "@rawdash/connector-langsmith",
       "@rawdash/connector-clerk",
+      "@rawdash/connector-clickup",
       "@rawdash/connector-wiz",
       "@rawdash/connector-workos",
       "@rawdash/connector-vanta",
