@@ -83,7 +83,7 @@ export function WidgetCard({ widget }: WidgetCardProps) {
     );
   }
 
-  const stale = syncState === 'stale';
+  const stale = syncState === 'stale' || syncState === 'syncing';
 
   const hasRenderableSeries =
     series?.some((s) => Array.isArray(s.data) || typeof s.data === 'number') ??
@@ -112,7 +112,7 @@ export function WidgetCard({ widget }: WidgetCardProps) {
     return <MultiStatWidget label={label} series={series!} stale={stale} />;
   }
 
-  if (data === null || syncState === 'syncing' || syncState === 'unsynced') {
+  if (data === null) {
     return (
       <SkeletonCard
         label={label}
