@@ -19,6 +19,12 @@ import {
   resources as appsflyerResources,
 } from '@rawdash/connector-appsflyer';
 import {
+  configFields as asanaConfigFields,
+  doc as asanaDoc,
+  id as asanaId,
+  resources as asanaResources,
+} from '@rawdash/connector-asana';
+import {
   configFields as auth0ConfigFields,
   doc as auth0Doc,
   id as auth0Id,
@@ -357,6 +363,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: appsflyerDoc,
     configFields: appsflyerConfigFields,
     resources: appsflyerResources,
+  },
+  {
+    id: asanaId,
+    packageName: '@rawdash/connector-asana',
+    doc: asanaDoc,
+    configFields: asanaConfigFields,
+    resources: asanaResources,
   },
   {
     id: auth0Id,

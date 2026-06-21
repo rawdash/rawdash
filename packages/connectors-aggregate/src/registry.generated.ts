@@ -8,6 +8,7 @@ export const connectorLoaders: Record<string, () => Promise<ConnectorClass>> = {
     import('@rawdash/connector-app-store-connect').then((m) => m.default),
   appsflyer: () =>
     import('@rawdash/connector-appsflyer').then((m) => m.default),
+  asana: () => import('@rawdash/connector-asana').then((m) => m.default),
   auth0: () => import('@rawdash/connector-auth0').then((m) => m.default),
   'aws-bedrock': () =>
     import('@rawdash/connector-aws-bedrock').then((m) => m.default),
