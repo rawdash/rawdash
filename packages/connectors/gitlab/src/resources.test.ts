@@ -17,6 +17,16 @@ function mockJson(
   } as Response;
 }
 
+function notFound(): Response {
+  return {
+    ok: false,
+    status: 404,
+    statusText: 'Not Found',
+    headers: new Headers({ 'content-type': 'application/json' }),
+    text: () => Promise.resolve(JSON.stringify({ message: '404 Not found' })),
+  } as Response;
+}
+
 describe('GitLabConnector — resource allowlist', () => {
   let fetchSpy: ReturnType<typeof vi.fn>;
 
@@ -310,6 +320,51 @@ describe('GitLabConnector — pipeline detail enrichment', () => {
       .map((c) => String(c[0]))
       .filter((u) => /\/pipelines\/\d+/.test(u));
     expect(detailCalls).toHaveLength(1);
+  });
+
+  it('keeps syncing when a pipeline detail fetch returns 404', async () => {
+    const listPipeline = {
+      id: 555,
+      iid: 7,
+      project_id: 42,
+      status: 'success',
+      ref: 'main',
+      sha: 'abc123',
+      source: 'push',
+      web_url: 'https://gitlab.example.com/group/demo/-/pipelines/555',
+      created_at: '2026-05-01T00:00:00Z',
+      updated_at: '2026-05-01T00:10:00Z',
+    };
+
+    const fetchSpy = vi.fn().mockImplementation((url: string | URL) => {
+      const u = typeof url === 'string' ? url : url.toString();
+      if (u.match(/\/projects\/\d+\/pipelines\/\d+/)) {
+        return Promise.resolve(notFound());
+      }
+      if (u.match(/\/projects\/\d+\/pipelines/)) {
+        return Promise.resolve(mockJson([listPipeline]));
+      }
+      return Promise.resolve(mockJson([]));
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const connector = new GitLabConnector(
+      { host: 'gitlab.example.com', projectIds: [42] },
+      { apiToken: 'glpat-test' },
+    );
+    const storage = new InMemoryStorage();
+    const handle = storage.getStorageHandle('gitlab');
+
+    const result = await connector.sync(
+      { mode: 'full', resources: new Set(['pipeline', 'pipeline_event']) },
+      handle,
+    );
+    expect(result.done).toBe(true);
+
+    const [pipeline] = await handle.queryEntities({ type: 'pipeline' });
+    expect(pipeline).toBeDefined();
+    expect(pipeline!.attributes.finished_at).toBeNull();
+    expect(pipeline!.attributes.duration_ms).toBeNull();
   });
 });
 

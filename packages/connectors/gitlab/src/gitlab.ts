@@ -1,6 +1,7 @@
 import {
   type HttpResponse,
   connectorUserAgent,
+  mapWithConcurrency,
   parseLinkHeader,
   standardRateLimitPolicy,
 } from '@rawdash/connector-shared';
@@ -151,6 +152,7 @@ type GitLabCredentials = typeof gitlabCredentials;
 
 const DEFAULT_HOST = 'gitlab.com';
 const PAGE_SIZE = 100;
+const PIPELINE_DETAIL_CONCURRENCY = 5;
 
 const gitlabRateLimit = standardRateLimitPolicy({
   remainingHeader: 'ratelimit-remaining',
@@ -679,12 +681,21 @@ export class GitLabConnector extends BaseConnector<
     signal: AbortSignal | undefined,
   ): Promise<GitLabPipelineDetail | null> {
     const url = `${this.apiBase()}/projects/${projectId}/pipelines/${pipelineId}`;
-    const res = await this.fetch<GitLabPipelineDetail>(
-      url,
-      'pipeline_detail',
-      signal,
-    );
-    return res.body;
+    try {
+      const res = await this.fetch<GitLabPipelineDetail>(
+        url,
+        'pipeline_detail',
+        signal,
+      );
+      return res.body;
+    } catch (err: unknown) {
+      const status = (err as { response?: { status?: number } })?.response
+        ?.status;
+      if (status === 404 || status === 410) {
+        return null;
+      }
+      throw err;
+    }
   }
 
   private async enrichPipelineBatches(
@@ -693,18 +704,22 @@ export class GitLabConnector extends BaseConnector<
   ): Promise<void> {
     const batches = items as ProjectBatch<GitLabPipeline>[];
     for (const batch of batches) {
-      for (const pipeline of batch.items) {
-        const detail = await this.fetchPipelineDetail(
-          batch.projectId,
-          pipeline.id,
-          signal,
-        );
-        if (detail) {
-          pipeline.started_at = detail.started_at ?? null;
-          pipeline.finished_at = detail.finished_at ?? null;
-          pipeline.duration = detail.duration ?? null;
-        }
-      }
+      await mapWithConcurrency(
+        batch.items,
+        PIPELINE_DETAIL_CONCURRENCY,
+        async (pipeline) => {
+          const detail = await this.fetchPipelineDetail(
+            batch.projectId,
+            pipeline.id,
+            signal,
+          );
+          if (detail) {
+            pipeline.started_at = detail.started_at ?? null;
+            pipeline.finished_at = detail.finished_at ?? null;
+            pipeline.duration = detail.duration ?? null;
+          }
+        },
+      );
     }
   }
 
