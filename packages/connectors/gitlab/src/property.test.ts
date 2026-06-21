@@ -198,6 +198,11 @@ describe('GitLabConnector property tests', () => {
       extraInvariants: [extra, docShapeExtra],
       run: async (sample, storage) => {
         installFetchMock((url) => {
+          const detail = url.match(/\/projects\/\d+\/pipelines\/(\d+)/);
+          if (detail) {
+            const id = Number(detail[1]);
+            return { body: sample.find((p) => p.id === id) ?? {} };
+          }
           if (url.match(/\/projects\/\d+\/pipelines/)) {
             return { body: sample };
           }

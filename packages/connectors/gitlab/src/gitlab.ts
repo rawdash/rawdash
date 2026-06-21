@@ -1,6 +1,7 @@
 import {
   type HttpResponse,
   connectorUserAgent,
+  mapWithConcurrency,
   parseLinkHeader,
   standardRateLimitPolicy,
 } from '@rawdash/connector-shared';
@@ -151,6 +152,7 @@ type GitLabCredentials = typeof gitlabCredentials;
 
 const DEFAULT_HOST = 'gitlab.com';
 const PAGE_SIZE = 100;
+const PIPELINE_DETAIL_CONCURRENCY = 5;
 
 const gitlabRateLimit = standardRateLimitPolicy({
   remainingHeader: 'ratelimit-remaining',
@@ -246,6 +248,13 @@ interface GitLabPipeline {
   finished_at?: string | null;
   duration?: number | null;
   web_url: string;
+}
+
+interface GitLabPipelineDetail {
+  id: number;
+  started_at?: string | null;
+  finished_at?: string | null;
+  duration?: number | null;
 }
 
 interface GitLabIssue {
@@ -389,6 +398,8 @@ export const gitlabResources = defineResources({
     description:
       'CI/CD pipelines with status, ref, commit sha, source, duration, and start/finish timestamps.',
     endpoint: 'GET /api/v4/projects/{id}/pipelines',
+    notes:
+      'The pipelines list response omits duration and finished_at; each pipeline is enriched via GET /api/v4/projects/{id}/pipelines/{pipeline_id} to populate duration and finish time.',
     filterable: [{ field: 'status', ops: ['eq'] }],
     responses: { pipelines: pipelinesResponseSchema },
   },
@@ -662,6 +673,54 @@ export class GitLabConnector extends BaseConnector<
     const res = await this.fetch<GitLabProject>(url, 'project', signal);
     this.projectMetadataCache.set(projectId, res.body);
     return res.body;
+  }
+
+  private async fetchPipelineDetail(
+    projectId: number,
+    pipelineId: number,
+    signal: AbortSignal | undefined,
+  ): Promise<GitLabPipelineDetail | null> {
+    const url = `${this.apiBase()}/projects/${projectId}/pipelines/${pipelineId}`;
+    try {
+      const res = await this.fetch<GitLabPipelineDetail>(
+        url,
+        'pipeline_detail',
+        signal,
+      );
+      return res.body;
+    } catch (err: unknown) {
+      const status = (err as { response?: { status?: number } })?.response
+        ?.status;
+      if (status === 404 || status === 410) {
+        return null;
+      }
+      throw err;
+    }
+  }
+
+  private async enrichPipelineBatches(
+    items: unknown[],
+    signal: AbortSignal | undefined,
+  ): Promise<void> {
+    const batches = items as ProjectBatch<GitLabPipeline>[];
+    for (const batch of batches) {
+      await mapWithConcurrency(
+        batch.items,
+        PIPELINE_DETAIL_CONCURRENCY,
+        async (pipeline) => {
+          const detail = await this.fetchPipelineDetail(
+            batch.projectId,
+            pipeline.id,
+            signal,
+          );
+          if (detail) {
+            pipeline.started_at = detail.started_at ?? null;
+            pipeline.finished_at = detail.finished_at ?? null;
+            pipeline.duration = detail.duration ?? null;
+          }
+        },
+      );
+    }
   }
 
   private async fetchProjectsPhase(
@@ -1035,14 +1094,17 @@ export class GitLabConnector extends BaseConnector<
               'merge_requests',
               (mr) => new Date(mr.updated_at).getTime(),
             );
-          case 'pipelines':
-            return this.fetchListPhase<GitLabPipeline>(
+          case 'pipelines': {
+            const result = await this.fetchListPhase<GitLabPipeline>(
               options,
               page,
               sig,
               'pipelines',
               (p) => new Date(p.updated_at).getTime(),
             );
+            await this.enrichPipelineBatches(result.items, sig);
+            return result;
+          }
           case 'issues':
             return this.fetchListPhase<GitLabIssue>(
               options,
