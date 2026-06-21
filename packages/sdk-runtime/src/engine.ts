@@ -5,6 +5,7 @@ export interface SubscribeCallbacks {
   onWidgetUnchanged?: (widget: CachedWidget) => void;
   onWidgetFailing?: (widget: CachedWidget) => void;
   onError?: (error: unknown) => void;
+  onBootstrapped?: () => void;
 }
 
 export interface SubscribeOptions {
@@ -84,6 +85,15 @@ export function subscribe(
   let stopped = false;
   let visibilityCleanup: (() => void) | null = null;
   let bootstrapRetryHandle: Timer | null = null;
+  let bootstrapSettled = false;
+
+  function settleBootstrap(): void {
+    if (bootstrapSettled) {
+      return;
+    }
+    bootstrapSettled = true;
+    callbacks.onBootstrapped?.();
+  }
 
   function schedule(t: WidgetTracker, delayMs: number): void {
     if (stopped) {
@@ -158,11 +168,13 @@ export function subscribe(
       for (const widget of widgets) {
         applyWidget(widget);
       }
+      settleBootstrap();
     } catch (err) {
       if (stopped) {
         return;
       }
       callbacks.onError?.(err);
+      settleBootstrap();
       if (bootstrapRetryHandle !== null) {
         clearTimer(bootstrapRetryHandle);
       }

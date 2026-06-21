@@ -271,6 +271,39 @@ describe('subscribe()', () => {
     unsub();
   });
 
+  it('fires onBootstrapped once after the first getWidgets resolves, even when empty', async () => {
+    const source = fakeSource([]);
+    const cb = makeCallbacks();
+    const onBootstrapped = vi.fn();
+    const unsub = subscribe(
+      source,
+      'd',
+      { ...cb, onBootstrapped },
+      { jitterMs: 0, visibility: null, random: () => 0 },
+    );
+    await vi.runOnlyPendingTimersAsync();
+    expect(cb.updated).toHaveLength(0);
+    expect(onBootstrapped).toHaveBeenCalledTimes(1);
+    unsub();
+  });
+
+  it('fires onBootstrapped once when the first getWidgets rejects', async () => {
+    const source = fakeSource([]);
+    source.getWidgets.mockRejectedValueOnce(new Error('boom'));
+    const cb = makeCallbacks();
+    const onBootstrapped = vi.fn();
+    const unsub = subscribe(
+      source,
+      'd',
+      { ...cb, onBootstrapped },
+      { jitterMs: 0, visibility: null, random: () => 0 },
+    );
+    await vi.runOnlyPendingTimersAsync();
+    expect(cb.errors).toHaveLength(1);
+    expect(onBootstrapped).toHaveBeenCalledTimes(1);
+    unsub();
+  });
+
   it('does not poll while document is hidden, resumes on visibility', async () => {
     const widgets: CachedWidget[] = [
       widget({
