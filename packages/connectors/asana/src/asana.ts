@@ -331,6 +331,8 @@ export class AsanaConnector extends BaseConnector<
   readonly id = id;
   override readonly credentials = asanaCredentials;
 
+  private taskSeen = new Set<string>();
+
   private buildHeaders(): Record<string, string> {
     return {
       Authorization: `Bearer ${this.creds.apiToken}`,
@@ -406,7 +408,6 @@ export class AsanaConnector extends BaseConnector<
       {
         workspace: this.settings.workspaceGid,
         opt_fields: PROJECT_FIELDS,
-        archived: 'false',
       },
       page,
       PROJECTS_PAGE_SIZE,
@@ -510,7 +511,6 @@ export class AsanaConnector extends BaseConnector<
       next = projectsPage.next;
     }
 
-    const seen = new Set<string>();
     const items: AsanaTaskWithContext[] = [];
     for (const projectGid of projectGids) {
       const tasks = await this.fetchTasksForProject(
@@ -519,10 +519,10 @@ export class AsanaConnector extends BaseConnector<
         signal,
       );
       for (const task of tasks) {
-        if (seen.has(task.gid)) {
+        if (this.taskSeen.has(task.gid)) {
           continue;
         }
-        seen.add(task.gid);
+        this.taskSeen.add(task.gid);
         const stories = wantEvents
           ? await this.fetchStoriesForTask(task.gid, signal)
           : [];
@@ -643,6 +643,9 @@ export class AsanaConnector extends BaseConnector<
     const cursor = isAsanaSyncCursor(options.cursor)
       ? options.cursor
       : undefined;
+    if (!cursor) {
+      this.taskSeen.clear();
+    }
     const isFull = options.mode === 'full';
     const sinceMs = options.since ? parseEpoch(options.since, 'iso') : null;
     const phases = this.activePhases();
