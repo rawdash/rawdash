@@ -442,6 +442,127 @@ describe('StripeConnector.sync', () => {
       expect(calledUrls.some((u) => u.includes(path))).toBe(true);
     }
   });
+
+  it('re-reads all subscriptions in latest mode without a created filter', async () => {
+    const connector = new StripeConnector(
+      {},
+      { apiKey: 'sk_test_abc' as unknown as { $secret: string } },
+    );
+
+    const fetchSpy = mockFetch({});
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const storage = makeStorage();
+    await connector.sync(
+      { mode: 'latest', since: new Date(Date.now() - 60_000).toISOString() },
+      storage,
+    );
+
+    const calledUrls: string[] = fetchSpy.mock.calls.map(
+      (c: unknown[]) => c[0] as string,
+    );
+    const subscriptionsUrl = calledUrls.find((u) =>
+      u.includes('/v1/subscriptions'),
+    );
+    const customersUrl = calledUrls.find((u) => u.includes('/v1/customers'));
+
+    expect(subscriptionsUrl).toBeDefined();
+    expect(subscriptionsUrl).not.toContain('created');
+    expect(subscriptionsUrl).toContain('status=all');
+    expect(customersUrl).toContain('created');
+  });
+
+  it('paginates subscription items and sums MRR across all of them when items.has_more', async () => {
+    const firstItem = {
+      id: 'si_1',
+      price: {
+        id: 'price_1',
+        product: 'prod_1',
+        unit_amount: 1000,
+        currency: 'usd',
+        recurring: { interval: 'month', interval_count: 1 },
+        active: true,
+        created: 1700000000,
+      },
+      quantity: 1,
+    };
+    const subscription = {
+      id: 'sub_multi',
+      customer: 'cus_x',
+      status: 'active',
+      items: { data: [firstItem], has_more: true },
+      current_period_start: 1700000000,
+      current_period_end: 1702592000,
+      cancel_at_period_end: false,
+      canceled_at: null,
+      trial_end: null,
+      currency: 'usd',
+      created: 1700000000,
+    };
+    const secondItem = {
+      id: 'si_2',
+      price: {
+        id: 'price_2',
+        product: 'prod_2',
+        unit_amount: 2500,
+        currency: 'usd',
+        recurring: { interval: 'month', interval_count: 1 },
+        active: true,
+        created: 1700000000,
+      },
+      quantity: 2,
+    };
+
+    const connector = new StripeConnector(
+      { resources: ['subscriptions'] },
+      { apiKey: 'sk_test_abc' as unknown as { $secret: string } },
+    );
+
+    const fetchSpy = mockFetch({
+      'starting_after=si_1': {
+        object: 'list',
+        data: [secondItem],
+        has_more: false,
+        url: '/v1/subscription_items',
+      },
+      '/v1/subscription_items': {
+        object: 'list',
+        data: [firstItem],
+        has_more: true,
+        url: '/v1/subscription_items',
+      },
+      '/v1/subscriptions': {
+        object: 'list',
+        data: [subscription],
+        has_more: false,
+        url: '/v1/subscriptions',
+      },
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const storage = makeStorage();
+    await connector.sync({ mode: 'full' }, storage);
+
+    const calledUrls: string[] = fetchSpy.mock.calls.map(
+      (c: unknown[]) => c[0] as string,
+    );
+    const subItemsUrls = calledUrls.filter((u) =>
+      u.includes('/v1/subscription_items'),
+    );
+    expect(subItemsUrls).toHaveLength(2);
+    expect(subItemsUrls[0]).toContain('subscription=sub_multi');
+    expect(subItemsUrls[0]).not.toContain('starting_after');
+    expect(subItemsUrls[1]).toContain('starting_after=si_1');
+
+    const subEntity = storage.entity.mock.calls.find(
+      (c) => (c[0] as { id: string }).id === 'sub_multi',
+    );
+    expect(subEntity).toBeDefined();
+    expect(
+      (subEntity![0] as { attributes: { mrrAmount: number } }).attributes
+        .mrrAmount,
+    ).toBe(6000);
+  });
 });
 
 describe('StripeConnector.create', () => {
