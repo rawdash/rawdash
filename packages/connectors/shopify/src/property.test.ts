@@ -2,6 +2,7 @@ import {
   type InvariantViolation,
   connectorResourceShapeViolations,
   entityStoreFor,
+  eventStoreFor,
   mockJsonResponse,
   runPropertySyncTest,
 } from '@rawdash/connector-test-utils';
@@ -180,6 +181,21 @@ describe('ShopifyConnector property tests', () => {
           invariant: 'one shopify_order entity per unique order id',
           location: 'orders phase',
           detail: `expected ${unique} entities, got ${written}`,
+        });
+      }
+
+      const expectedRefunds = sample.reduce(
+        (sum, order) => sum + order.refunds.length,
+        0,
+      );
+      const refundEvents = eventStoreFor(storage, CONNECTOR_ID).filter(
+        (e) => e.name === 'shopify_refund',
+      ).length;
+      if (refundEvents !== expectedRefunds) {
+        violations.push({
+          invariant: 'one shopify_refund event per refund in sampled orders',
+          location: 'orders phase',
+          detail: `expected ${expectedRefunds} events, got ${refundEvents}`,
         });
       }
       return violations;

@@ -544,7 +544,9 @@ export class ShopifyConnector extends BaseConnector<
   private async writeOrders(
     storage: StorageHandle,
     orders: ShopifyOrder[],
+    since?: string,
   ): Promise<void> {
+    const sinceMs = since ? Date.parse(since) : null;
     for (const o of orders) {
       const money = o.currentTotalPriceSet.shopMoney;
       await storage.entity({
@@ -565,9 +567,17 @@ export class ShopifyConnector extends BaseConnector<
       });
 
       for (const r of o.refunds) {
+        const createdMs = r.createdAt ? Date.parse(r.createdAt) : NaN;
+        if (
+          sinceMs !== null &&
+          Number.isFinite(createdMs) &&
+          createdMs <= sinceMs
+        ) {
+          continue;
+        }
         const refundMoney = r.totalRefundedSet.shopMoney;
-        const refundTs = r.createdAt
-          ? new Date(r.createdAt).getTime()
+        const refundTs = Number.isFinite(createdMs)
+          ? createdMs
           : new Date(o.updatedAt).getTime();
         await storage.event({
           name: 'shopify_refund',
@@ -640,7 +650,11 @@ export class ShopifyConnector extends BaseConnector<
           case 'customers':
             return this.writeCustomers(storage, items as ShopifyCustomer[]);
           case 'orders':
-            return this.writeOrders(storage, items as ShopifyOrder[]);
+            return this.writeOrders(
+              storage,
+              items as ShopifyOrder[],
+              options.since,
+            );
         }
       },
     });
