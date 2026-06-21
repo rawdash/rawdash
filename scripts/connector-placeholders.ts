@@ -1604,16 +1604,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     requestIssue: 'RAW-207',
   },
   {
-    id: 'shopify',
-    name: 'Shopify',
-    category: 'sales',
-    tagline:
-      'Sync orders, customers, and products plus revenue and order-volume metrics from a Shopify store.',
-    icon: 'shopify',
-    domain: 'shopify.com',
-    requestIssue: 'RAW-427',
-  },
-  {
     id: 'zoominfo',
     name: 'ZoomInfo',
     category: 'sales',

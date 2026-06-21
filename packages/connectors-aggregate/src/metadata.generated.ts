@@ -296,6 +296,12 @@ import {
   resources as sentryResources,
 } from '@rawdash/connector-sentry';
 import {
+  configFields as shopifyConfigFields,
+  doc as shopifyDoc,
+  id as shopifyId,
+  resources as shopifyResources,
+} from '@rawdash/connector-shopify';
+import {
   configFields as statuspageConfigFields,
   doc as statuspageDoc,
   id as statuspageId,
@@ -691,6 +697,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: sentryDoc,
     configFields: sentryConfigFields,
     resources: sentryResources,
+  },
+  {
+    id: shopifyId,
+    packageName: '@rawdash/connector-shopify',
+    doc: shopifyDoc,
+    configFields: shopifyConfigFields,
+    resources: shopifyResources,
   },
   {
     id: statuspageId,
