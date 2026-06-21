@@ -45,8 +45,8 @@ A personal access token is optional for public repositories but required for pri
   - The latest status is folded in from GET /repos/{owner}/{repo}/deployments/{id}/statuses.
 - **`release`** _(entity)_ - Published, draft, and prerelease GitHub releases.
   - Endpoint: `GET /repos/{owner}/{repo}/releases`
-- **`contributor`** _(entity)_ - Per-author commit activity (commits, additions, deletions) for the repository.
-  - Endpoint: `GET /repos/{owner}/{repo}/stats/contributors`
+- **`contributor`** _(entity)_ - Per-author commit counts for the repository.
+  - Endpoint: `GET /repos/{owner}/{repo}/contributors`
 
 ## Example
 

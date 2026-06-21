@@ -70,7 +70,7 @@ describe('GitHubConnector — resource allowlist', () => {
       if (u.includes('/releases')) {
         return Promise.resolve(mockJson([]));
       }
-      if (u.includes('/stats/contributors')) {
+      if (u.includes('/contributors')) {
         return Promise.resolve(mockJson([]));
       }
       return Promise.resolve(
@@ -106,7 +106,7 @@ describe('GitHubConnector — resource allowlist', () => {
     const urls = fetchSpy.mock.calls.map((c) => String(c[0]));
     expect(urls.some((u) => u.includes('/deployments'))).toBe(false);
     expect(urls.some((u) => u.includes('/releases'))).toBe(false);
-    expect(urls.some((u) => u.includes('/stats/contributors'))).toBe(false);
+    expect(urls.some((u) => u.includes('/contributors'))).toBe(false);
     expect(urls.some((u) => u.endsWith('/repos/o/r'))).toBe(true);
     expect(urls.some((u) => u.includes('/actions/runs'))).toBe(true);
     expect(urls.some((u) => u.includes('/pulls'))).toBe(true);
@@ -178,7 +178,7 @@ describe('GitHubConnector — numeric repo ID cursor resume', () => {
       if (u.includes('/releases')) {
         return Promise.resolve(mockJsonWithLink([], null));
       }
-      if (u.includes('/stats/contributors')) {
+      if (u.includes('/contributors')) {
         return Promise.resolve(mockJsonWithLink([], null));
       }
       return Promise.resolve(

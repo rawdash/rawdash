@@ -150,10 +150,9 @@ interface GitHubRelease {
   author: { login: string };
 }
 
-interface GitHubContributorStats {
-  total: number;
-  weeks: Array<{ w: number; a: number; d: number; c: number }>;
-  author: { login: string };
+interface GitHubContributor {
+  login: string;
+  contributions: number;
 }
 
 interface GitHubRepo {
@@ -272,8 +271,6 @@ interface DeploymentPageItems {
   deployments: GitHubDeployment[];
   latestStatusById: Map<number, GitHubDeploymentStatus | null>;
 }
-
-const CONTRIBUTORS_SKIPPED = Symbol('contributors-skipped');
 
 const WORKFLOW_RUN_RERUN_LOOKBACK_MS = 32 * 86_400_000;
 
@@ -530,16 +527,8 @@ const releasesSchema = z.array(
 
 const contributorsSchema = z.array(
   z.object({
-    total: z.number().int(),
-    weeks: z.array(
-      z.object({
-        w: z.number().int(),
-        a: z.number().int(),
-        d: z.number().int(),
-        c: z.number().int(),
-      }),
-    ),
-    author: z.object({ login: z.string().min(1) }),
+    login: z.string().min(1),
+    contributions: z.number().int(),
   }),
 );
 
@@ -637,9 +626,8 @@ export const githubResources = defineResources({
   contributor: {
     shape: 'entity',
     filterable: [],
-    description:
-      'Per-author commit activity (commits, additions, deletions) for the repository.',
-    endpoint: 'GET /repos/{owner}/{repo}/stats/contributors',
+    description: 'Per-author commit counts for the repository.',
+    endpoint: 'GET /repos/{owner}/{repo}/contributors',
     responses: { contributors: contributorsSchema },
   },
 });
@@ -711,8 +699,9 @@ export class GitHubConnector extends BaseConnector<
         return `/repos/${owner}/${repo}/deployments`;
       case 'releases':
         return `/repos/${owner}/${repo}/releases`;
-      case 'repo_stats':
       case 'contributors':
+        return `/repos/${owner}/${repo}/contributors`;
+      case 'repo_stats':
         return null;
     }
   }
@@ -1022,34 +1011,20 @@ export class GitHubConnector extends BaseConnector<
   }
 
   private async fetchContributors(
+    page: string | null,
     signal: AbortSignal | undefined,
   ): Promise<FetchPageResult<string>> {
     const { owner, repo } = this.settings;
-    const contributors = await this.withRetry<GitHubContributorStats[]>(
-      async (sig) => {
-        const res = await this.fetch<GitHubContributorStats[] | null>(
-          `https://api.github.com/repos/${owner}/${repo}/stats/contributors`,
-          'contributors',
-          sig,
-        );
-        if (res.status === 202) {
-          return { status: 'retry' };
-        }
-        return {
-          status: 'done',
-          value: (res.body ?? []) as GitHubContributorStats[],
-        };
-      },
-      { maxAttempts: 15, initialDelayMs: 1000, maxDelayMs: 10000, signal },
+    const url =
+      page ??
+      `https://api.github.com/repos/${owner}/${repo}/contributors?per_page=100`;
+    const res = await this.fetch<GitHubContributor[]>(
+      url,
+      'contributors',
+      signal,
     );
-
-    if (!contributors) {
-      console.warn(
-        '[github-actions] Stats endpoint never became ready — skipping contributor sync and keeping previous data.',
-      );
-      return { items: [CONTRIBUTORS_SKIPPED], next: null };
-    }
-    return { items: contributors, next: null };
+    const nextLink = parseLinkHeader(res.headers.get('link'))['next'] ?? null;
+    return { items: res.body, next: nextLink };
   }
 
   private async writeRepoStats(
@@ -1351,34 +1326,25 @@ export class GitHubConnector extends BaseConnector<
   private async writeContributors(
     storage: StorageHandle,
     items: unknown[],
+    page: string | null,
   ): Promise<void> {
-    if (items[0] === CONTRIBUTORS_SKIPPED) {
-      return;
+    if (page === null) {
+      await storage.entities([], { types: ['contributor'] });
     }
     const contributors = dedupeByKey(
-      items as GitHubContributorStats[],
-      (c) => c.author.login,
+      items as GitHubContributor[],
+      (c) => c.login,
       'contributors',
     );
-    await storage.entities(
-      contributors.map((c) => {
-        const additions = c.weeks.reduce((sum, w) => sum + w.a, 0);
-        const deletions = c.weeks.reduce((sum, w) => sum + w.d, 0);
-        const latestWeek = [...c.weeks].reverse().find((w) => w.c > 0);
-        return {
-          type: 'contributor',
-          id: c.author.login,
-          attributes: {
-            commits: c.total,
-            additions,
-            deletions,
-            latest_commit_at: latestWeek ? latestWeek.w * 1000 : null,
-          },
-          updated_at: latestWeek ? latestWeek.w * 1000 : 0,
-        };
-      }),
-      { types: ['contributor'] },
-    );
+    const observedAt = Date.now();
+    for (const c of contributors) {
+      await storage.entity({
+        type: 'contributor',
+        id: c.login,
+        attributes: { commits: c.contributions },
+        updated_at: observedAt,
+      });
+    }
   }
 
   async sync(
@@ -1443,7 +1409,7 @@ export class GitHubConnector extends BaseConnector<
           case 'releases':
             return this.fetchReleases(page, sig, cutoffFor(phase, spec));
           case 'contributors':
-            return this.fetchContributors(sig);
+            return this.fetchContributors(page, sig);
         }
       },
       writeBatch: async (phase, items, page, specIndex) => {
@@ -1475,7 +1441,7 @@ export class GitHubConnector extends BaseConnector<
           case 'releases':
             return this.writeReleases(storage, items, page, specIndex);
           case 'contributors':
-            return this.writeContributors(storage, items);
+            return this.writeContributors(storage, items, page);
         }
       },
     });

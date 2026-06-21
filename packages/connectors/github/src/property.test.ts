@@ -414,7 +414,7 @@ describe('GitHubConnector property tests', () => {
       sample: z.infer<typeof S.contributors>,
     ): InvariantViolation[] => {
       const violations: InvariantViolation[] = [];
-      const lastByLogin = lastByKey(sample, (c) => c.author.login);
+      const lastByLogin = lastByKey(sample, (c) => c.login);
       const stored = entityStoreFor(storage).get('contributor') ?? new Map();
       if (stored.size !== lastByLogin.size) {
         violations.push({
@@ -433,7 +433,7 @@ describe('GitHubConnector property tests', () => {
           });
           continue;
         }
-        if (e.attributes.commits !== c.total) {
+        if (e.attributes.commits !== c.contributions) {
           violations.push({
             invariant: 'last-write-wins: stored attributes match latest copy',
             location: 'contributors phase',
@@ -452,7 +452,7 @@ describe('GitHubConnector property tests', () => {
       extraInvariants: [extra, docShapeExtra],
       run: async (sample, storage) => {
         installFetchMock((url) => {
-          if (url.includes('/stats/contributors')) {
+          if (url.includes('/contributors')) {
             return { body: sample };
           }
           return safeDefaultResponse(url);
