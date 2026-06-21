@@ -499,22 +499,19 @@ describe('StripeConnector.sync', () => {
       currency: 'usd',
       created: 1700000000,
     };
-    const allItems = [
-      firstItem,
-      {
-        id: 'si_2',
-        price: {
-          id: 'price_2',
-          product: 'prod_2',
-          unit_amount: 2500,
-          currency: 'usd',
-          recurring: { interval: 'month', interval_count: 1 },
-          active: true,
-          created: 1700000000,
-        },
-        quantity: 2,
+    const secondItem = {
+      id: 'si_2',
+      price: {
+        id: 'price_2',
+        product: 'prod_2',
+        unit_amount: 2500,
+        currency: 'usd',
+        recurring: { interval: 'month', interval_count: 1 },
+        active: true,
+        created: 1700000000,
       },
-    ];
+      quantity: 2,
+    };
 
     const connector = new StripeConnector(
       { resources: ['subscriptions'] },
@@ -522,10 +519,16 @@ describe('StripeConnector.sync', () => {
     );
 
     const fetchSpy = mockFetch({
+      'starting_after=si_1': {
+        object: 'list',
+        data: [secondItem],
+        has_more: false,
+        url: '/v1/subscription_items',
+      },
       '/v1/subscription_items': {
         object: 'list',
-        data: allItems,
-        has_more: false,
+        data: [firstItem],
+        has_more: true,
         url: '/v1/subscription_items',
       },
       '/v1/subscriptions': {
@@ -543,11 +546,13 @@ describe('StripeConnector.sync', () => {
     const calledUrls: string[] = fetchSpy.mock.calls.map(
       (c: unknown[]) => c[0] as string,
     );
-    const subItemsUrl = calledUrls.find((u) =>
+    const subItemsUrls = calledUrls.filter((u) =>
       u.includes('/v1/subscription_items'),
     );
-    expect(subItemsUrl).toBeDefined();
-    expect(subItemsUrl).toContain('subscription=sub_multi');
+    expect(subItemsUrls).toHaveLength(2);
+    expect(subItemsUrls[0]).toContain('subscription=sub_multi');
+    expect(subItemsUrls[0]).not.toContain('starting_after');
+    expect(subItemsUrls[1]).toContain('starting_after=si_1');
 
     const subEntity = storage.entity.mock.calls.find(
       (c) => (c[0] as { id: string }).id === 'sub_multi',

@@ -748,7 +748,13 @@ export class StripeConnector extends BaseConnector<
       if (!has_more || data.length === 0) {
         return items;
       }
-      startingAfter = data.at(-1)!.id;
+      const lastId = data.at(-1)?.id;
+      if (!lastId) {
+        throw new Error(
+          `Stripe subscription_items pagination missing item id for subscription ${subscriptionId}`,
+        );
+      }
+      startingAfter = lastId;
     }
   }
 
