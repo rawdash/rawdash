@@ -376,8 +376,8 @@ const trendsSchema = z.object({
   resolved_compare_date_range: z.unknown().optional(),
   resolved_date_range: z.unknown().optional(),
   timezone: z.string().optional(),
-  timings: z.array(z.unknown()).optional(),
-  warnings: z.array(z.unknown()).optional(),
+  timings: z.array(z.unknown()).nullable().optional(),
+  warnings: z.array(z.unknown()).nullable().optional(),
 });
 
 const funnelSchema = z.object({
