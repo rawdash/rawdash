@@ -88,6 +88,8 @@ interface RouteResponses {
   boards?: unknown;
   sprints?: unknown;
   issues?: unknown;
+  myself?: unknown;
+  changelog?: unknown;
 }
 
 const EMPTY: Required<RouteResponses> = {
@@ -96,6 +98,14 @@ const EMPTY: Required<RouteResponses> = {
   boards: { values: [], isLast: true, startAt: 0, maxResults: 50 },
   sprints: { values: [], isLast: true, startAt: 0, maxResults: 50 },
   issues: { issues: [], isLast: true, nextPageToken: null },
+  myself: {},
+  changelog: {
+    values: [],
+    isLast: true,
+    startAt: 0,
+    maxResults: 100,
+    total: 0,
+  },
 };
 
 function mockFetch(responses: RouteResponses = {}) {
@@ -103,7 +113,11 @@ function mockFetch(responses: RouteResponses = {}) {
   const spy = vi.fn().mockImplementation((url: string | URL) => {
     const u = typeof url === 'string' ? url : url.toString();
     let body: unknown = {};
-    if (u.includes('/sprint')) {
+    if (u.includes('/changelog')) {
+      body = merged.changelog;
+    } else if (u.includes('/myself')) {
+      body = merged.myself;
+    } else if (u.includes('/sprint')) {
       body = merged.sprints;
     } else if (u.includes('/rest/agile/1.0/board')) {
       body = merged.boards;
@@ -384,6 +398,78 @@ describe('JiraConnector.sync', () => {
     expect(jql).toContain('project in ("ENG","OPS")');
     expect(jql).toContain('updated >= "2024-05-01 12:34"');
     expect(jql).toContain('ORDER BY updated ASC');
+  });
+
+  it('renders the incremental updated bound in the account timezone', async () => {
+    const spy = mockFetch({ myself: { timeZone: 'America/Bogota' } });
+    await makeConnector({ resources: ['issues'] }).sync(
+      { mode: 'latest', since: '2024-05-01T12:34:56.000Z' },
+      makeStorage(),
+    );
+
+    expect(urlsFor(spy).some((u) => u.includes('/rest/api/3/myself'))).toBe(
+      true,
+    );
+    const issuesUrl = urlsFor(spy).find((u) => u.includes('/search/jql'));
+    const jql = new URL(issuesUrl!).searchParams.get('jql')!;
+    expect(jql).toContain('updated >= "2024-05-01 07:34"');
+  });
+
+  it('completes a truncated inline changelog from the changelog endpoint', async () => {
+    const inlineHistories = Array.from({ length: 100 }, (_, i) => ({
+      id: `inline-${i}`,
+      created: '2024-05-10T00:00:00.000Z',
+      author: null,
+      items: [{ field: 'summary', fromString: 'a', toString: 'b' }],
+    }));
+    const issue = {
+      id: 'i-1',
+      key: 'ENG-7',
+      fields: {
+        status: { name: 'Done', statusCategory: { key: 'done' } },
+        project: { id: '10000', key: 'ENG' },
+        created: '2024-01-01T00:00:00.000Z',
+        updated: '2024-05-10T00:00:00.000Z',
+        resolutiondate: null,
+      },
+      changelog: { histories: inlineHistories },
+    };
+    const spy = mockFetch({
+      issues: { issues: [issue], isLast: true, nextPageToken: null },
+      changelog: {
+        values: [
+          {
+            id: 'deep-status',
+            created: '2024-01-02T00:00:00.000Z',
+            author: { accountId: 'acc-1' },
+            items: [
+              { field: 'status', fromString: 'Backlog', toString: 'To Do' },
+            ],
+          },
+        ],
+        isLast: true,
+        startAt: 0,
+        maxResults: 100,
+        total: 1,
+      },
+    });
+
+    const storage = makeStorage();
+    await makeConnector({ resources: ['issue_events'] }).sync(
+      { mode: 'full' },
+      storage,
+    );
+
+    expect(
+      urlsFor(spy).some((u) => u.includes('/rest/api/3/issue/i-1/changelog')),
+    ).toBe(true);
+
+    const statusEvents = storage.event.mock.calls
+      .map((c) => c[0] as { name: string; attributes: Record<string, unknown> })
+      .filter((e) => e.name === 'jira_issue_status_change');
+    expect(statusEvents).toHaveLength(1);
+    expect(statusEvents[0]!.attributes.historyId).toBe('deep-status');
+    expect(statusEvents[0]!.attributes.toStatus).toBe('To Do');
   });
 
   it('only fetches phases listed in settings.resources', async () => {
