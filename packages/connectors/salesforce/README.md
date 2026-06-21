@@ -46,7 +46,7 @@ OAuth 2.0 with a refresh token issued by a Salesforce Connected App. Requires th
   - `isActive`: Whether the user is active.
 - **`salesforce_account`** _(entity)_ - Accounts (companies), keyed by account id, with industry, annual revenue, owner, and creation time.
   - Endpoint: `GET /services/data/v{version}/query (SOQL: FROM Account)`
-  - Upserts by id; incremental syncs filter on LastModifiedDate.
+  - Upserts by id; incremental syncs filter on SystemModstamp.
   - `name`: Account name.
   - `industry`: Industry classification.
   - `annualRevenue`: Annual revenue in the org currency.
@@ -54,7 +54,7 @@ OAuth 2.0 with a refresh token issued by a Salesforce Connected App. Requires th
   - `createdAt`: Account creation time (Unix ms).
 - **`salesforce_lead`** _(entity)_ - Leads, keyed by lead id, with email, status, source, and conversion time.
   - Endpoint: `GET /services/data/v{version}/query (SOQL: FROM Lead)`
-  - Upserts by id; incremental syncs filter on LastModifiedDate.
+  - Upserts by id; incremental syncs filter on SystemModstamp.
   - `email`: Lead email address.
   - `status`: Lead status.
   - `source`: Lead source (LeadSource).
@@ -62,7 +62,7 @@ OAuth 2.0 with a refresh token issued by a Salesforce Connected App. Requires th
   - `createdAt`: Lead creation time (Unix ms).
 - **`salesforce_opportunity`** _(entity)_ - Opportunities, keyed by opportunity id, with stage, amount, close date, owner, probability, forecast category, and closed/won flags.
   - Endpoint: `GET /services/data/v{version}/query (SOQL: FROM Opportunity)`
-  - Upserts by id; incremental syncs filter on LastModifiedDate.
+  - Upserts by id; incremental syncs filter on SystemModstamp.
   - `name`: Opportunity name.
   - `stage`: Current StageName.
   - `amount`: Opportunity amount in org currency.
@@ -145,6 +145,7 @@ Salesforce caps total API calls per org per 24 hours. Responses include a Sforce
 
 - Custom objects are out of scope for v1; only the standard objects listed above are synced.
 - Salesforce Marketing Cloud is tracked under a separate connector.
+- Opportunity stage-change events come from OpportunityFieldHistory, which Salesforce retains for roughly 18 months by default (longer only with Field Audit Trail). Stage-change history older than the retention window is not available to backfill.
 
 ## Links
 
