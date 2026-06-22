@@ -2220,16 +2220,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     requestIssue: 'RAW-429',
   },
   {
-    id: 'twilio',
-    name: 'Twilio',
-    category: 'engineering',
-    tagline:
-      'Sync SMS, voice, and verify usage with delivery and error rates from Twilio.',
-    brandColor: '#F22F46',
-    domain: 'twilio.com',
-    requestIssue: 'RAW-428',
-  },
-  {
     id: 'sonarqube',
     name: 'SonarQube',
     category: 'engineering',

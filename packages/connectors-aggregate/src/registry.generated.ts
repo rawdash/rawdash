@@ -82,6 +82,7 @@ export const connectorLoaders: Record<string, () => Promise<ConnectorClass>> = {
   statuspage: () =>
     import('@rawdash/connector-statuspage').then((m) => m.default),
   stripe: () => import('@rawdash/connector-stripe').then((m) => m.default),
+  twilio: () => import('@rawdash/connector-twilio').then((m) => m.default),
   vanta: () => import('@rawdash/connector-vanta').then((m) => m.default),
   vercel: () => import('@rawdash/connector-vercel').then((m) => m.default),
   'vertex-ai': () =>

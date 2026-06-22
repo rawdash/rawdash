@@ -86,6 +86,7 @@
     "@rawdash/connector-shopify": "workspace:*",
     "@rawdash/connector-statuspage": "workspace:*",
     "@rawdash/connector-stripe": "workspace:*",
+    "@rawdash/connector-twilio": "workspace:*",
     "@rawdash/connector-vanta": "workspace:*",
     "@rawdash/connector-vercel": "workspace:*",
     "@rawdash/connector-vertex-ai": "workspace:*",
