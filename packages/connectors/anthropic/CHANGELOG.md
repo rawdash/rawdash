@@ -1,5 +1,14 @@
 # @rawdash/connector-anthropic
 
+## 0.28.0
+
+### Patch Changes
+
+- 0e4102e: Declare the metric `attributes` Anthropic carries beyond its primary value so they conform to the metric-shape contract: `ephemeral_1h_input_tokens` and `ephemeral_5m_input_tokens` on `anthropic_cache_creation_tokens` are now `measures`, and `account_id`/`service_account_id` are now declared `dimensions` on the usage metrics. The canonical numeric remains in `value`; no attribute is dropped.
+- Updated dependencies [0e4102e]
+- Updated dependencies [204204a]
+  - @rawdash/core@0.28.0
+
 ## 0.27.0
 
 ### Patch Changes

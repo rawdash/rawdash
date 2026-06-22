@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-netlify",
-  "version": "0.27.0",
+  "version": "0.28.0",
   "description": "Rawdash connector for Netlify - sites, deploys, deploy events",
   "license": "Apache-2.0",
   "type": "module",

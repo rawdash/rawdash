@@ -1,5 +1,17 @@
 # @rawdash/connector-meta-ads
 
+## 0.28.0
+
+### Minor Changes
+
+- 0e4102e: Standardize the Meta Ads insights metric output to the canonical metric-shape contract. Across `meta_campaign_insights`, `meta_adset_insights`, and `meta_ad_insights`, the canonical `spend` value now lives only in the `MetricSample` `value` field and is no longer mirrored into `attributes`. `impressions`, `clicks`, `reach`, `conversions`, and `conversion_value` are declared as `measures`; `date`, `campaignId`, `campaignName` (plus `adsetId`/`adsetName` and `adId`/`adName` where applicable) remain `dimensions`.
+
+### Patch Changes
+
+- Updated dependencies [0e4102e]
+- Updated dependencies [204204a]
+  - @rawdash/core@0.28.0
+
 ## 0.27.0
 
 ### Patch Changes

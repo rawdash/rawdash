@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-openai",
-  "version": "0.27.0",
+  "version": "0.28.0",
   "description": "Rawdash connector for OpenAI — daily token usage, request counts, and spend from the OpenAI Usage and Costs admin APIs",
   "license": "Apache-2.0",
   "type": "module",

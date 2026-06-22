@@ -1,5 +1,25 @@
 # @rawdash/nextjs
 
+## 0.28.0
+
+### Minor Changes
+
+- 204204a: Widgets can now combine data from multiple connectors. A widget's `metric` accepts either a single `ComputedMetric` (unchanged) or an array of metrics — one per connector — each with its own `name`/`field`/`fn`. Resolved widgets expose a per-connector `series[]` on `CachedWidget`, and `StatusWidget.source` accepts a list of connectors for a combined worst-of health badge.
+
+  An optional `aggregate: { fn }` on a widget merges the per-connector series server-side into the top-level `data`. The same merge is available client-side via the new `mergeSeries` / `mergeSeriesScalar` helpers (exported from `@rawdash/core`, `@rawdash/sdk-client`, and `@rawdash/sdk-nextjs`).
+
+  Single-connector widgets are unchanged on the wire. The `metric` and `source` config types widen to unions, which is a type-level breaking change for code that introspects widget configs.
+
+### Patch Changes
+
+- e88e9b4: Add an `onBootstrapped` callback to `subscribe` and a `loading` flag to `useDashboard`/`useWidget`, fired/cleared once the first bootstrap fetch settles. This lets dashboards show a spinner during the initial load instead of flashing an empty-state placeholder before the first fetch resolves.
+- Updated dependencies [0e4102e]
+- Updated dependencies [e88e9b4]
+- Updated dependencies [204204a]
+  - @rawdash/core@0.28.0
+  - @rawdash/sdk-runtime@0.28.0
+  - @rawdash/sdk-client@0.28.0
+
 ## 0.27.0
 
 ### Patch Changes

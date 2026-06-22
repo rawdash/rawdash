@@ -1,5 +1,15 @@
 # @rawdash/sdk-runtime
 
+## 0.28.0
+
+### Patch Changes
+
+- e88e9b4: Add an `onBootstrapped` callback to `subscribe` and a `loading` flag to `useDashboard`/`useWidget`, fired/cleared once the first bootstrap fetch settles. This lets dashboards show a spinner during the initial load instead of flashing an empty-state placeholder before the first fetch resolves.
+- Updated dependencies [0e4102e]
+- Updated dependencies [204204a]
+  - @rawdash/core@0.28.0
+  - @rawdash/sdk-client@0.28.0
+
 ## 0.27.0
 
 ### Patch Changes

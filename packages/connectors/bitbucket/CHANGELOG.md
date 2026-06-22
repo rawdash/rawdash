@@ -1,5 +1,13 @@
 # @rawdash/connector-bitbucket
 
+## 0.28.0
+
+### Patch Changes
+
+- Updated dependencies [0e4102e]
+- Updated dependencies [204204a]
+  - @rawdash/core@0.28.0
+
 ## 0.27.0
 
 ### Patch Changes
