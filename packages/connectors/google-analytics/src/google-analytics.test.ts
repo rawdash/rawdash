@@ -673,6 +673,99 @@ describe('GA4Connector.sync', () => {
     expect(trafficWrites).toHaveLength(1);
     expect((trafficWrites[0]![0] as Array<unknown>).length).toBe(10001);
   });
+
+  function collectGa4Bodies(fetchSpy: ReturnType<typeof mockFetch>) {
+    return fetchSpy.mock.calls
+      .filter((c: unknown[]) =>
+        String(c[0]).includes('analyticsdata.googleapis.com'),
+      )
+      .map(
+        (c) =>
+          JSON.parse(String((c as [string, { body: string }])[1].body)) as {
+            dimensions: Array<{ name: string }>;
+            metrics: Array<{ name: string }>;
+          },
+      );
+  }
+
+  it('requests keyEvents instead of the deprecated conversions metric', async () => {
+    const connector = new GA4Connector(
+      { propertyId: '123456789' },
+      {
+        serviceAccountJson: undefined,
+        refreshToken: 'rtoken' as unknown as { $secret: string },
+        clientId: 'cid',
+        clientSecret: 'csecret' as unknown as { $secret: string },
+      },
+    );
+
+    const fetchSpy = mockFetch({ access_token: 'tok', expires_in: 3600 }, {});
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const storage = makeStorage();
+    await connector.sync({ mode: 'full' }, storage);
+
+    const metricNames = collectGa4Bodies(fetchSpy).flatMap((b) =>
+      b.metrics.map((m) => m.name),
+    );
+
+    expect(metricNames).toContain('keyEvents');
+    expect(metricNames).not.toContain('conversions');
+  });
+
+  it('honors options.resources by resource name, not phase name', async () => {
+    const connector = new GA4Connector(
+      { propertyId: '123456789' },
+      {
+        serviceAccountJson: undefined,
+        refreshToken: 'rtoken' as unknown as { $secret: string },
+        clientId: 'cid',
+        clientSecret: 'csecret' as unknown as { $secret: string },
+      },
+    );
+
+    const fetchSpy = mockFetch({ access_token: 'tok', expires_in: 3600 }, {});
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const storage = makeStorage();
+    await connector.sync(
+      { mode: 'full', resources: new Set(['ga4_geo']) },
+      storage,
+    );
+
+    const bodies = collectGa4Bodies(fetchSpy);
+    expect(bodies).toHaveLength(1);
+    expect(bodies[0]!.dimensions.map((d) => d.name)).toContain('country');
+
+    const writtenNames = storage.metrics.mock.calls.map(
+      (c) => (c[1] as { names: string[] }).names[0],
+    );
+    expect(writtenNames).toEqual(['ga4_geo']);
+  });
+
+  it('treats a phase name in options.resources as no match', async () => {
+    const connector = new GA4Connector(
+      { propertyId: '123456789' },
+      {
+        serviceAccountJson: undefined,
+        refreshToken: 'rtoken' as unknown as { $secret: string },
+        clientId: 'cid',
+        clientSecret: 'csecret' as unknown as { $secret: string },
+      },
+    );
+
+    const fetchSpy = mockFetch({ access_token: 'tok', expires_in: 3600 }, {});
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const storage = makeStorage();
+    await connector.sync(
+      { mode: 'full', resources: new Set(['geo']) },
+      storage,
+    );
+
+    expect(collectGa4Bodies(fetchSpy)).toHaveLength(0);
+    expect(storage.metrics).not.toHaveBeenCalled();
+  });
 });
 
 describe('GA4Connector.create', () => {
