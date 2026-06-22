@@ -261,6 +261,18 @@ interface JiraAgilePage<T> {
   maxResults: number;
 }
 
+interface JiraChangelogPage {
+  values: JiraChangelogHistory[];
+  isLast?: boolean;
+  startAt: number;
+  maxResults: number;
+  total: number;
+}
+
+interface JiraSelf {
+  timeZone?: string | null;
+}
+
 const idString = z.string().min(1);
 const nonNegInt = z.number().int().nonnegative();
 
@@ -415,6 +427,8 @@ const USERS_PAGE_SIZE = 50;
 const BOARDS_PAGE_SIZE = 50;
 const SPRINTS_PAGE_SIZE = 50;
 const ISSUES_PAGE_SIZE = 100;
+const CHANGELOG_PAGE_SIZE = 100;
+const CHANGELOG_INLINE_CAP = 100;
 const DEFAULT_STORY_POINTS_FIELD = 'customfield_10016';
 const DEFAULT_SPRINT_FIELD = 'customfield_10020';
 
@@ -454,17 +468,42 @@ function extractSprintId(value: unknown): string | null {
   return null;
 }
 
-function formatJqlDate(iso: string): string | null {
-  const ms = parseEpoch(iso, 'iso');
-  if (ms === null) {
-    return null;
-  }
+function formatJqlDateUtc(ms: number): string {
   const d = new Date(ms);
   const pad = (n: number) => String(n).padStart(2, '0');
   return (
     `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ` +
     `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`
   );
+}
+
+function formatJqlDate(iso: string, timeZone: string | null): string | null {
+  const ms = parseEpoch(iso, 'iso');
+  if (ms === null) {
+    return null;
+  }
+  if (timeZone === null) {
+    return formatJqlDateUtc(ms);
+  }
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    }).formatToParts(new Date(ms));
+    const get = (type: string) =>
+      parts.find((p) => p.type === type)?.value ?? '';
+    return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')}`;
+  } catch (err) {
+    console.warn(
+      `[connector-jira] could not format JQL date in time zone "${timeZone}", falling back to UTC: ${String(err)}`,
+    );
+    return formatJqlDateUtc(ms);
+  }
 }
 
 function jqlQuote(value: string): string {
@@ -520,6 +559,8 @@ export class JiraConnector extends BaseConnector<
 
   readonly id = id;
   override readonly credentials = jiraCredentials;
+
+  private accountTimeZone: string | null | undefined;
 
   private get baseUrl(): string {
     const host = this.settings.host
@@ -585,7 +626,31 @@ export class JiraConnector extends BaseConnector<
     return specs && specs.length === 1 ? specs[0] : undefined;
   }
 
-  private buildJql(options: SyncOptions): string {
+  private async resolveAccountTimeZone(
+    signal: AbortSignal | undefined,
+  ): Promise<string | null> {
+    if (this.accountTimeZone !== undefined) {
+      return this.accountTimeZone;
+    }
+    try {
+      const res = await this.fetch<JiraSelf>(
+        `${this.baseUrl}/rest/api/3/myself`,
+        'issues',
+        signal,
+      );
+      const tz = res.body.timeZone;
+      this.accountTimeZone =
+        typeof tz === 'string' && tz.length > 0 ? tz : null;
+    } catch (err) {
+      console.warn(
+        `[connector-jira] could not resolve account time zone, falling back to UTC: ${String(err)}`,
+      );
+      this.accountTimeZone = null;
+    }
+    return this.accountTimeZone;
+  }
+
+  private buildJql(options: SyncOptions, timeZone: string | null): string {
     const clauses: string[] = [];
     const keys = this.settings.projectKeys;
     if (keys && keys.length > 0) {
@@ -593,7 +658,7 @@ export class JiraConnector extends BaseConnector<
       clauses.push(`project in (${quoted.join(',')})`);
     }
     if (options.mode === 'latest' && options.since) {
-      const formatted = formatJqlDate(options.since);
+      const formatted = formatJqlDate(options.since, timeZone);
       if (formatted !== null) {
         clauses.push(`updated >= "${formatted}"`);
       }
@@ -738,8 +803,12 @@ export class JiraConnector extends BaseConnector<
     options: SyncOptions,
     signal: AbortSignal | undefined,
   ): Promise<{ items: JiraIssue[]; next: string | null }> {
+    const timeZone =
+      options.mode === 'latest' && options.since
+        ? await this.resolveAccountTimeZone(signal)
+        : null;
     const u = new URL(`${this.baseUrl}/rest/api/3/search/jql`);
-    u.searchParams.set('jql', this.buildJql(options));
+    u.searchParams.set('jql', this.buildJql(options, timeZone));
     u.searchParams.set('maxResults', String(ISSUES_PAGE_SIZE));
     u.searchParams.set(
       'fields',
@@ -754,9 +823,49 @@ export class JiraConnector extends BaseConnector<
       'issues',
       signal,
     );
+    const issues = res.body.issues;
+    if (this.isResourceEnabled('issue_events')) {
+      for (const issue of issues) {
+        const histories = issue.changelog?.histories ?? [];
+        if (histories.length >= CHANGELOG_INLINE_CAP) {
+          issue.changelog = {
+            histories: await this.fetchFullChangelog(issue.id, signal),
+          };
+        }
+      }
+    }
     const token = res.body.nextPageToken ?? null;
     const next = res.body.isLast === true || token === null ? null : token;
-    return { items: res.body.issues, next };
+    return { items: issues, next };
+  }
+
+  private async fetchFullChangelog(
+    issueId: string,
+    signal: AbortSignal | undefined,
+  ): Promise<JiraChangelogHistory[]> {
+    const out: JiraChangelogHistory[] = [];
+    let startAt = 0;
+    while (true) {
+      signal?.throwIfAborted();
+      const u = new URL(
+        `${this.baseUrl}/rest/api/3/issue/${encodeURIComponent(issueId)}/changelog`,
+      );
+      u.searchParams.set('startAt', String(startAt));
+      u.searchParams.set('maxResults', String(CHANGELOG_PAGE_SIZE));
+      const res = await this.fetch<JiraChangelogPage>(
+        u.toString(),
+        'issues',
+        signal,
+      );
+      const values = res.body.values;
+      out.push(...values);
+      const isLast = res.body.isLast ?? values.length < CHANGELOG_PAGE_SIZE;
+      if (isLast || values.length === 0) {
+        break;
+      }
+      startAt += values.length;
+    }
+    return out;
   }
 
   private async writeProjects(
