@@ -71,6 +71,8 @@ export async function syncDashboard() {
 
 For dashboards that stay open all day, `@rawdash/sdk-nextjs/client` exposes `'use client'` hooks backed by the `@rawdash/sdk-runtime` subscription engine. The engine polls on the cadence the server publishes (`cachedAt + syncIntervalSeconds`), polls fast while a sync is in flight, backs off when syncs fail, pauses when the tab is hidden, and refetches on focus.
 
+`useDashboard` and `useWidget` return a `loading` flag that is `true` until the first fetch settles. Gate your initial render on it so an empty-state placeholder only shows once data has genuinely come back empty, rather than flashing while the first fetch is still in flight.
+
 ```tsx
 'use client';
 
@@ -80,8 +82,9 @@ import { useDashboard, useWidget } from '@rawdash/sdk-nextjs/client';
 const source = http({ baseUrl: '/rawdash' });
 
 export function LiveDashboard() {
-  const { widgets, error } = useDashboard(source, 'engineering');
+  const { widgets, error, loading } = useDashboard(source, 'engineering');
   if (error) return <div>Connection error</div>;
+  if (loading) return <div>Loading…</div>;
   return (
     <div>
       {Object.values(widgets).map((w) => (

@@ -18,6 +18,7 @@ export interface UseDashboardResult {
   widgets: Record<string, CachedWidget>;
   syncState: Record<string, WidgetSyncState | undefined>;
   error: unknown;
+  loading: boolean;
 }
 
 export interface UseDashboardOptions extends SubscribeOptions {
@@ -34,6 +35,9 @@ export function useDashboard(
     indexWidgets(initialWidgets ?? []),
   );
   const [error, setError] = useState<unknown>(null);
+  const [loading, setLoading] = useState(
+    () => (initialWidgets?.length ?? 0) === 0,
+  );
   const optsRef = useRef(subscribeOptions);
   optsRef.current = subscribeOptions;
 
@@ -43,6 +47,7 @@ export function useDashboard(
   useEffect(() => {
     setWidgets(indexWidgets(initialWidgetsRef.current ?? []));
     setError(null);
+    setLoading((initialWidgetsRef.current?.length ?? 0) === 0);
     const unsub = subscribe(
       source,
       dashboardId,
@@ -62,6 +67,7 @@ export function useDashboard(
           setError(null);
         },
         onError: (e) => setError(e),
+        onBootstrapped: () => setLoading(false),
       },
       optsRef.current,
     );
@@ -73,13 +79,14 @@ export function useDashboard(
     syncState[id] = widgets[id]?.syncState;
   }
 
-  return { widgets, syncState, error };
+  return { widgets, syncState, error, loading };
 }
 
 export interface UseWidgetResult<TData = unknown> {
   widget: CachedWidget<TData> | null;
   syncState: WidgetSyncState | undefined;
   error: unknown;
+  loading: boolean;
 }
 
 export function useWidget<TData = unknown>(
@@ -88,9 +95,13 @@ export function useWidget<TData = unknown>(
   widgetId: string,
   options: UseDashboardOptions = {},
 ): UseWidgetResult<TData> {
-  const { widgets, error } = useDashboard(source, dashboardId, options);
+  const { widgets, error, loading } = useDashboard(
+    source,
+    dashboardId,
+    options,
+  );
   const widget = (widgets[widgetId] ?? null) as CachedWidget<TData> | null;
-  return { widget, syncState: widget?.syncState, error };
+  return { widget, syncState: widget?.syncState, error, loading };
 }
 
 function indexWidgets(list: CachedWidget[]): Record<string, CachedWidget> {

@@ -4,9 +4,19 @@ import { LastRefreshed } from '@/components/last-refreshed';
 import { WidgetCard } from '@/components/widgets/widget-card';
 import { rawdashSource } from '@/lib/rawdash';
 import { useDashboard } from '@rawdash/sdk-nextjs/client';
+import { Loader2 } from 'lucide-react';
+
+const POLL_OPTIONS = {
+  unsyncedPollMs: 4_000,
+  syncingPollMaxMs: 180_000,
+};
 
 export default function DashboardPage() {
-  const { widgets, error } = useDashboard(rawdashSource, 'github');
+  const { widgets, error, loading } = useDashboard(
+    rawdashSource,
+    'github',
+    POLL_OPTIONS,
+  );
   const list = Object.values(widgets);
 
   if (error && list.length === 0) {
@@ -15,6 +25,17 @@ export default function DashboardPage() {
         <span className="text-sm text-red-400">
           Couldn’t load dashboard data — check the rawdash API connection.
         </span>
+      </div>
+    );
+  }
+
+  if (loading && list.length === 0) {
+    return (
+      <div className="flex h-[calc(100vh-3rem)] items-center justify-center">
+        <Loader2
+          className="h-6 w-6 animate-spin text-gray-300"
+          aria-label="Loading dashboard"
+        />
       </div>
     );
   }
