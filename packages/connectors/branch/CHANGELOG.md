@@ -1,5 +1,17 @@
 # @rawdash/connector-branch
 
+## 0.28.0
+
+### Minor Changes
+
+- 0e4102e: Standardize the `branch_install_metrics` metric output to the canonical metric-shape contract. The canonical `installs` count now lives only in the `MetricSample` `value` field and is no longer mirrored into `attributes`. `opens` and `conversions` are declared as `measures`; `date`, `channel`, and `campaign` remain `dimensions`.
+
+### Patch Changes
+
+- Updated dependencies [0e4102e]
+- Updated dependencies [204204a]
+  - @rawdash/core@0.28.0
+
 ## 0.27.0
 
 ### Patch Changes

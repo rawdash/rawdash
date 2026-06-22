@@ -1,5 +1,14 @@
 # @rawdash/connector-gitlab
 
+## 0.28.0
+
+### Patch Changes
+
+- 32e45f3: Fix GitLab pipeline `duration_ms` and `finished_at` always being null. The pipelines list endpoint does not return `duration`, `started_at`, or `finished_at`; each pipeline is now enriched via the single-pipeline endpoint so pipeline entities and `pipeline_event` events carry the real duration and finish time.
+- Updated dependencies [0e4102e]
+- Updated dependencies [204204a]
+  - @rawdash/core@0.28.0
+
 ## 0.27.0
 
 ### Patch Changes

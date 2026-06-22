@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-gcp-billing",
-  "version": "0.27.0",
+  "version": "0.28.0",
   "description": "Rawdash connector for Google Cloud Billing — syncs daily spend from a Cloud Billing -> BigQuery export, broken down by service and project",
   "license": "Apache-2.0",
   "type": "module",

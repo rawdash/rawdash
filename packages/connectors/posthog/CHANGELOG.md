@@ -1,5 +1,19 @@
 # @rawdash/connector-posthog
 
+## 0.28.0
+
+### Minor Changes
+
+- 0e4102e: Standardize PostHog metric output to the canonical metric-shape contract. The primary count/users number now lives only in the `MetricSample` `value` field and is no longer mirrored into `attributes` (removed `count` from `posthog_events_per_day`, `callCount` from `posthog_feature_flag_usage`, and `users` from `posthog_funnel`). Secondary numerics (`distinctUsers`, `uniqueUsers`, `conversionRate`) are now declared as `measures`; categorical fields remain `dimensions`. Reference metric widgets with `field: 'value'` (or omit `field`).
+
+### Patch Changes
+
+- 6a1ccc1: Update the `active_users` schema to match observed upstream shape drift (RAW-658).
+- ea5dd52: Update the `events_per_day` schema to match observed upstream shape drift (RAW-641).
+- Updated dependencies [0e4102e]
+- Updated dependencies [204204a]
+  - @rawdash/core@0.28.0
+
 ## 0.27.0
 
 ### Patch Changes

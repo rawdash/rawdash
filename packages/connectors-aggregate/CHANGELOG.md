@@ -1,5 +1,93 @@
 # @rawdash/connectors
 
+## 0.28.0
+
+### Patch Changes
+
+- 663be46: Add `@rawdash/connector-clickup`, a new connector that syncs ClickUp spaces, folders, lists, and tasks (with status, priority, assignees, tags, and lifecycle timestamps) plus derived task lifecycle events (created / closed) from a ClickUp workspace. Authenticated via a ClickUp personal API token. Drives open-work stats, created/closed throughput timeseries, and status / list distributions.
+- 8a27d2f: Add `@rawdash/connector-shopify` — syncs orders, customers, and products as entities plus a derived refund event per order from the Shopify Admin GraphQL API. Authenticates with a Custom App Admin API access token scoped to a `myshopify.com` store domain, supports a `resources` allowlist, and runs backfill plus `updated_at`-based incremental sync.
+- Updated dependencies [663be46]
+- Updated dependencies [0e4102e]
+- Updated dependencies [0e4102e]
+- Updated dependencies [4afcf27]
+- Updated dependencies [0e4102e]
+- Updated dependencies [880a584]
+- Updated dependencies [0e4102e]
+- Updated dependencies [9b7e1ef]
+- Updated dependencies [32e45f3]
+- Updated dependencies [ce259d5]
+- Updated dependencies [3c0f059]
+- Updated dependencies [0e4102e]
+- Updated dependencies [0e4102e]
+- Updated dependencies [0e4102e]
+- Updated dependencies [204204a]
+- Updated dependencies [0e4102e]
+- Updated dependencies [0e4102e]
+- Updated dependencies [6ca0ebf]
+- Updated dependencies [6a1ccc1]
+- Updated dependencies [ea5dd52]
+- Updated dependencies [8a27d2f]
+- Updated dependencies [6131298]
+  - @rawdash/connector-clickup@0.28.0
+  - @rawdash/connector-anthropic@0.28.0
+  - @rawdash/connector-appsflyer@0.28.0
+  - @rawdash/connector-asana@0.28.0
+  - @rawdash/connector-branch@0.28.0
+  - @rawdash/connector-monday@0.28.0
+  - @rawdash/core@0.28.0
+  - @rawdash/connector-github@0.28.0
+  - @rawdash/connector-gitlab@0.28.0
+  - @rawdash/connector-hubspot@0.28.0
+  - @rawdash/connector-jira@0.28.0
+  - @rawdash/connector-langfuse@0.28.0
+  - @rawdash/connector-langsmith@0.28.0
+  - @rawdash/connector-meta-ads@0.28.0
+  - @rawdash/connector-openai@0.28.0
+  - @rawdash/connector-posthog@0.28.0
+  - @rawdash/connector-salesforce@0.28.0
+  - @rawdash/connector-shopify@0.28.0
+  - @rawdash/connector-stripe@0.28.0
+  - @rawdash/connector-app-store-connect@0.28.0
+  - @rawdash/connector-auth0@0.28.0
+  - @rawdash/connector-aws-bedrock@0.28.0
+  - @rawdash/connector-aws-cloudwatch@0.28.0
+  - @rawdash/connector-aws-cost@0.28.0
+  - @rawdash/connector-azure-cost@0.28.0
+  - @rawdash/connector-azure-monitor@0.28.0
+  - @rawdash/connector-bitbucket@0.28.0
+  - @rawdash/connector-circleci@0.28.0
+  - @rawdash/connector-clerk@0.28.0
+  - @rawdash/connector-datadog@0.28.0
+  - @rawdash/connector-drata@0.28.0
+  - @rawdash/connector-entra-id@0.28.0
+  - @rawdash/connector-firebase-analytics@0.28.0
+  - @rawdash/connector-firebase-crashlytics@0.28.0
+  - @rawdash/connector-gcp-billing@0.28.0
+  - @rawdash/connector-gcp-monitoring@0.28.0
+  - @rawdash/connector-google-ads@0.28.0
+  - @rawdash/connector-google-analytics@0.28.0
+  - @rawdash/connector-google-play-console@0.28.0
+  - @rawdash/connector-google-search-console@0.28.0
+  - @rawdash/connector-greenhouse@0.28.0
+  - @rawdash/connector-intercom@0.28.0
+  - @rawdash/connector-klaviyo@0.28.0
+  - @rawdash/connector-launchdarkly@0.28.0
+  - @rawdash/connector-linear@0.28.0
+  - @rawdash/connector-mailchimp@0.28.0
+  - @rawdash/connector-mixpanel@0.28.0
+  - @rawdash/connector-netlify@0.28.0
+  - @rawdash/connector-new-relic@0.28.0
+  - @rawdash/connector-okta@0.28.0
+  - @rawdash/connector-revenuecat@0.28.0
+  - @rawdash/connector-sentry@0.28.0
+  - @rawdash/connector-statuspage@0.28.0
+  - @rawdash/connector-vanta@0.28.0
+  - @rawdash/connector-vercel@0.28.0
+  - @rawdash/connector-vertex-ai@0.28.0
+  - @rawdash/connector-wiz@0.28.0
+  - @rawdash/connector-workos@0.28.0
+  - @rawdash/connector-zendesk@0.28.0
+
 ## 0.27.0
 
 ### Patch Changes

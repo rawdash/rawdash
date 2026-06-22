@@ -1,5 +1,14 @@
 # @rawdash/connector-hubspot
 
+## 0.28.0
+
+### Patch Changes
+
+- ce259d5: Fix HubSpot CRM Search backfills exceeding 10,000 records and broaden email campaign coverage. CRM contact/company/deal syncs now re-anchor the modified-date filter when the Search API's 10,000-result ceiling is reached, instead of failing with an HTTP 400 once pagination crosses that boundary. Email campaigns and stats now enumerate via the all-campaigns endpoint so campaigns without recent activity are no longer silently omitted.
+- Updated dependencies [0e4102e]
+- Updated dependencies [204204a]
+  - @rawdash/core@0.28.0
+
 ## 0.27.0
 
 ### Patch Changes
