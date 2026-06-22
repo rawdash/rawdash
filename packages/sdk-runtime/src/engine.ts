@@ -173,8 +173,8 @@ export function subscribe(
       if (stopped) {
         return;
       }
-      callbacks.onError?.(err);
       settleBootstrap();
+      callbacks.onError?.(err);
       if (bootstrapRetryHandle !== null) {
         clearTimer(bootstrapRetryHandle);
       }
