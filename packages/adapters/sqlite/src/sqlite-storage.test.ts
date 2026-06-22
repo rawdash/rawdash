@@ -38,6 +38,23 @@ describe('SqliteStorage', () => {
     await b.close();
   });
 
+  it('metrics replaceWindow refreshes only the in-window rows', async () => {
+    const s = new SqliteStorage(join(dir, 'storage.sqlite'));
+    const h = s.getStorageHandle('c1');
+    await h.metrics([
+      { name: 'installs', ts: 1000, value: 1, attributes: {} },
+      { name: 'installs', ts: 2000, value: 2, attributes: {} },
+      { name: 'installs', ts: 3000, value: 3, attributes: {} },
+    ]);
+    await h.metrics([], {
+      names: ['installs'],
+      replaceWindow: { start: 2000, end: 3000 },
+    });
+    const rows = await h.queryMetrics({ name: 'installs' });
+    expect(rows.map((r) => r.ts)).toEqual([1000]);
+    await s.close();
+  });
+
   it('exposes sync state advisory locks', async () => {
     const s = new SqliteStorage(join(dir, 'storage.sqlite'));
     expect((await s.getSyncState()).status).toBe('idle');

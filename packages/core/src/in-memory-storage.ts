@@ -149,9 +149,16 @@ export class InMemoryStorage implements ServerStorage {
 
       metrics: async (ms, scope) => {
         const names = new Set(scope?.names ?? ms.map((m) => m.name));
-        const kept = (this.metricStore.get(connectorId) ?? []).filter(
-          (m) => !names.has(m.name),
-        );
+        const window = scope?.replaceWindow;
+        const kept = (this.metricStore.get(connectorId) ?? []).filter((m) => {
+          if (!names.has(m.name)) {
+            return true;
+          }
+          if (window) {
+            return m.ts < window.start || m.ts > window.end;
+          }
+          return false;
+        });
         this.metricStore.set(connectorId, [...kept, ...ms]);
         touch();
       },
@@ -168,8 +175,17 @@ export class InMemoryStorage implements ServerStorage {
 
       distributions: async (ds, scope) => {
         const names = new Set(scope?.names ?? ds.map((d) => d.name));
+        const window = scope?.replaceWindow;
         const kept = (this.distributionStore.get(connectorId) ?? []).filter(
-          (d) => !names.has(d.name),
+          (d) => {
+            if (!names.has(d.name)) {
+              return true;
+            }
+            if (window) {
+              return d.ts < window.start || d.ts > window.end;
+            }
+            return false;
+          },
         );
         this.distributionStore.set(connectorId, [...kept, ...ds]);
         touch();
