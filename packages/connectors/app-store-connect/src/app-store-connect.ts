@@ -629,6 +629,9 @@ export class AppStoreConnectConnector extends BaseConnector<
       return;
     }
     const dates = computeSalesReportDates(options, this.settings);
+    if (dates.length === 0) {
+      return;
+    }
     const samples: MetricSample[] = [];
     for (const reportDate of dates) {
       if (signal?.aborted) {
@@ -652,7 +655,10 @@ export class AppStoreConnectConnector extends BaseConnector<
         samples.push(sample);
       }
     }
-    await storage.metrics(samples, { names: [metricName] });
+    await storage.metrics(samples, {
+      names: [metricName],
+      replaceWindow: salesReportWindow(dates),
+    });
   }
 
   private async syncAppRatings(
@@ -812,6 +818,20 @@ export function computeSalesReportDates(
     dates.push(toIsoDate(d));
   }
   return dates;
+}
+
+export function salesReportWindow(
+  dates: readonly string[],
+): { start: number; end: number } | undefined {
+  if (dates.length === 0) {
+    return undefined;
+  }
+  const startMs = parseSalesDate(dates[0]!);
+  const endMs = parseSalesDate(dates[dates.length - 1]!);
+  if (startMs === null || endMs === null) {
+    return undefined;
+  }
+  return { start: startMs, end: endMs + MS_PER_DAY - 1 };
 }
 
 export function parseSalesReportTsv(
