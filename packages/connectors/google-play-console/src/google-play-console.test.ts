@@ -342,6 +342,22 @@ describe('GooglePlayConsoleConnector.sync', () => {
     expect(result.done).toBe(true);
   });
 
+  it('accepts a serviceAccountJson credential that the resolver pre-parsed into an object', async () => {
+    vi.stubGlobal(
+      'fetch',
+      mockFetch({ access_token: 'tok', expires_in: 3600 }, {}),
+    );
+    const storage = makeStorage();
+    const connector = new GooglePlayConsoleConnector(
+      { packageName: 'com.example.app' },
+      {
+        serviceAccountJson: JSON.parse(TEST_SA_JSON) as Record<string, unknown>,
+      } as unknown as { serviceAccountJson: string },
+    );
+    const result = await connector.sync({ mode: 'full' }, storage);
+    expect(result.done).toBe(true);
+  });
+
   it('writes one storage.metrics call per metric phase plus one entities call for apps', async () => {
     vi.stubGlobal(
       'fetch',

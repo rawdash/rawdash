@@ -14,6 +14,8 @@ const serviceAccountKeySchema = z.object({
   project_id: z.string().optional(),
 });
 
+export type ServiceAccountInput = string | Record<string, unknown>;
+
 export interface TokenResponse {
   access_token: string;
   expires_in?: number;
@@ -68,7 +70,15 @@ async function signRS256JWT(
   return `${signingInput}.${base64urlFromBytes(new Uint8Array(signature))}`;
 }
 
-export function parseServiceAccountJson(value: string): ServiceAccountKey {
+export function parseServiceAccountJson(value: unknown): ServiceAccountKey {
+  if (typeof value === 'object' && value !== null) {
+    return serviceAccountKeySchema.parse(value);
+  }
+  if (typeof value !== 'string') {
+    throw new Error(
+      `serviceAccountJson must be a JSON object, raw JSON string, or base64-encoded JSON, but received ${typeof value}`,
+    );
+  }
   const trimmed = value.trim();
   if (trimmed.startsWith('{')) {
     return serviceAccountKeySchema.parse(JSON.parse(trimmed));
@@ -83,7 +93,7 @@ export function parseServiceAccountJson(value: string): ServiceAccountKey {
 }
 
 export async function buildServiceAccountJwt(
-  serviceAccountJson: string,
+  serviceAccountJson: ServiceAccountInput,
   scope: string,
 ): Promise<{ url: string; body: string }> {
   const sa = parseServiceAccountJson(serviceAccountJson);
