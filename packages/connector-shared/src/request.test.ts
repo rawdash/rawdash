@@ -86,6 +86,26 @@ describe('request — defaults', () => {
     );
     expect(res.body).toEqual({ hello: 'world' });
   });
+
+  it('returns raw bytes when binary is set', async () => {
+    const payload = new Uint8Array([0xff, 0xfe, 0x44, 0x00]);
+    const fetchSpy = vi.fn<FetchLike>().mockResolvedValue(
+      new Response(payload, {
+        status: 200,
+        headers: { 'content-type': 'text/csv' },
+      }),
+    );
+    const res = await request<Uint8Array>(
+      {
+        url: 'https://example.test/report.csv',
+        binary: true,
+        parseJson: false,
+      },
+      { fetch: fetchSpy, resource: 'test' },
+    );
+    expect(res.body).toBeInstanceOf(Uint8Array);
+    expect(Array.from(res.body)).toEqual([0xff, 0xfe, 0x44, 0x00]);
+  });
 });
 
 describe('request — error classification', () => {

@@ -120,9 +120,16 @@ function linkTimeoutSignal(
   };
 }
 
-async function readBody(res: Response, parseJson: boolean): Promise<unknown> {
+async function readBody(
+  res: Response,
+  parseJson: boolean,
+  binary: boolean,
+): Promise<unknown> {
   if (res.status === 204 || res.status === 205) {
     return null;
+  }
+  if (binary) {
+    return new Uint8Array(await res.arrayBuffer());
   }
   const contentType = res.headers.get('content-type') ?? '';
   if (parseJson && contentType.includes('application/json')) {
@@ -147,6 +154,7 @@ export async function request<T = unknown>(
   const retryOn = retry.retryOn ?? defaultRetryOn;
   const timeoutMs = req.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const parseJson = req.parseJson ?? true;
+  const binary = req.binary ?? false;
 
   const headers = mergeHeaders(
     {
@@ -186,7 +194,7 @@ export async function request<T = unknown>(
     }
     cancel();
 
-    const body = await readBody(res, parseJson);
+    const body = await readBody(res, parseJson, binary);
     const httpResponse: HttpResponse<T> = {
       status: res.status,
       headers: res.headers,
