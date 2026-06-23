@@ -147,11 +147,20 @@ export interface StorageHandle {
 
   events(es: Event[], scope?: { names?: string[] }): Promise<void>;
   entities(es: Entity[], scope?: { types?: string[] }): Promise<void>;
-  metrics(ms: MetricSample[], scope?: { names?: string[] }): Promise<void>;
+  metrics(
+    ms: MetricSample[],
+    scope?: {
+      names?: string[];
+      replaceWindow?: { start: number; end: number };
+    },
+  ): Promise<void>;
   edges(es: Edge[], scope?: { kinds?: string[] }): Promise<void>;
   distributions(
     ds: Distribution[],
-    scope?: { names?: string[] },
+    scope?: {
+      names?: string[];
+      replaceWindow?: { start: number; end: number };
+    },
   ): Promise<void>;
 
   queryEvents(q: EventQuery): Promise<Event[]>;

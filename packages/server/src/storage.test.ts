@@ -1,3 +1,4 @@
+import type { Distribution } from '@rawdash/core';
 import { describe, expect, it } from 'vitest';
 
 import { InMemoryStorage } from './storage';
@@ -213,6 +214,52 @@ describe('InMemoryStorage — metrics', () => {
     expect(results).toHaveLength(1);
     expect(results[0]!.value).toBe(50);
   });
+
+  it('replaceWindow only replaces in-window rows and preserves the rest', async () => {
+    const { handle } = makeStorage();
+    await handle.metrics([
+      { name: 'installs', ts: 1000, value: 1, attributes: {} },
+      { name: 'installs', ts: 2000, value: 2, attributes: {} },
+      { name: 'installs', ts: 3000, value: 3, attributes: {} },
+    ]);
+    await handle.metrics(
+      [{ name: 'installs', ts: 2000, value: 20, attributes: {} }],
+      { names: ['installs'], replaceWindow: { start: 2000, end: 3000 } },
+    );
+    const results = await handle.queryMetrics({ name: 'installs' });
+    expect(results.map((r) => [r.ts, r.value]).sort()).toEqual([
+      [1000, 1],
+      [2000, 20],
+    ]);
+  });
+
+  it('replaceWindow with an empty batch deletes only in-window rows', async () => {
+    const { handle } = makeStorage();
+    await handle.metrics([
+      { name: 'installs', ts: 1000, value: 1, attributes: {} },
+      { name: 'installs', ts: 2000, value: 2, attributes: {} },
+      { name: 'installs', ts: 4000, value: 4, attributes: {} },
+    ]);
+    await handle.metrics([], {
+      names: ['installs'],
+      replaceWindow: { start: 2000, end: 3000 },
+    });
+    const results = await handle.queryMetrics({ name: 'installs' });
+    expect(results.map((r) => r.ts).sort()).toEqual([1000, 4000]);
+  });
+
+  it('replaceWindow boundaries are inclusive', async () => {
+    const { handle } = makeStorage();
+    await handle.metrics([
+      { name: 'installs', ts: 2000, value: 2, attributes: {} },
+      { name: 'installs', ts: 3000, value: 3, attributes: {} },
+    ]);
+    await handle.metrics([], {
+      names: ['installs'],
+      replaceWindow: { start: 2000, end: 3000 },
+    });
+    expect(await handle.queryMetrics({ name: 'installs' })).toHaveLength(0);
+  });
 });
 
 describe('InMemoryStorage — edges', () => {
@@ -367,6 +414,49 @@ describe('InMemoryStorage — distributions', () => {
     const results = await handle.queryDistributions({});
     expect(results).toHaveLength(1);
     expect(results[0]!.ts).toBe(2000);
+  });
+
+  it('replaceWindow only replaces in-window rows and preserves the rest', async () => {
+    const { handle } = makeStorage();
+    const histo = (ts: number, count: number): Distribution => ({
+      name: 'latency',
+      ts,
+      kind: 'histogram',
+      data: { buckets: [], count, sum: 0 },
+      attributes: {},
+    });
+    await handle.distributions([
+      histo(1000, 1),
+      histo(2000, 2),
+      histo(3000, 3),
+    ]);
+    await handle.distributions([histo(2000, 20)], {
+      names: ['latency'],
+      replaceWindow: { start: 2000, end: 3000 },
+    });
+    const results = await handle.queryDistributions({ name: 'latency' });
+    expect(results.map((r) => [r.ts, r.data.count]).sort()).toEqual([
+      [1000, 1],
+      [2000, 20],
+    ]);
+  });
+
+  it('replaceWindow with an empty batch deletes only in-window rows', async () => {
+    const { handle } = makeStorage();
+    const histo = (ts: number): Distribution => ({
+      name: 'latency',
+      ts,
+      kind: 'histogram',
+      data: { buckets: [], count: 0, sum: 0 },
+      attributes: {},
+    });
+    await handle.distributions([histo(1000), histo(2000), histo(4000)]);
+    await handle.distributions([], {
+      names: ['latency'],
+      replaceWindow: { start: 2000, end: 3000 },
+    });
+    const results = await handle.queryDistributions({ name: 'latency' });
+    expect(results.map((r) => r.ts).sort()).toEqual([1000, 4000]);
   });
 });
 

@@ -299,17 +299,19 @@ export class LibsqlStorage implements ServerStorage {
         const names = Array.from(
           new Set(scope?.names ?? ms.map((m) => m.name)),
         );
+        const window = scope?.replaceWindow;
         const stmts: { sql: string; args: InValue[] }[] = [];
         if (names.length > 0) {
-          stmts.push(
-            toBatchStmt(
-              db
-                .deleteFrom('metrics')
-                .where('connector_id', '=', connectorId)
-                .where('name', 'in', names)
-                .compile(),
-            ),
-          );
+          let del = db
+            .deleteFrom('metrics')
+            .where('connector_id', '=', connectorId)
+            .where('name', 'in', names);
+          if (window) {
+            del = del
+              .where('ts', '>=', window.start)
+              .where('ts', '<=', window.end);
+          }
+          stmts.push(toBatchStmt(del.compile()));
         }
         if (ms.length > 0) {
           stmts.push(
@@ -375,17 +377,19 @@ export class LibsqlStorage implements ServerStorage {
         const names = Array.from(
           new Set(scope?.names ?? ds.map((d) => d.name)),
         );
+        const window = scope?.replaceWindow;
         const stmts: { sql: string; args: InValue[] }[] = [];
         if (names.length > 0) {
-          stmts.push(
-            toBatchStmt(
-              db
-                .deleteFrom('distributions')
-                .where('connector_id', '=', connectorId)
-                .where('name', 'in', names)
-                .compile(),
-            ),
-          );
+          let del = db
+            .deleteFrom('distributions')
+            .where('connector_id', '=', connectorId)
+            .where('name', 'in', names);
+          if (window) {
+            del = del
+              .where('ts', '>=', window.start)
+              .where('ts', '<=', window.end);
+          }
+          stmts.push(toBatchStmt(del.compile()));
         }
         if (ds.length > 0) {
           stmts.push(
