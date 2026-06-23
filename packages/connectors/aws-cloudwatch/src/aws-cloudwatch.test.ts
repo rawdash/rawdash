@@ -186,6 +186,32 @@ describe('CloudWatchConnector sync (static credentials)', () => {
     expect(String(init.body)).toContain('MetricDataQueries.member.1.Id=cpu');
   });
 
+  it('does not wipe older history when an incremental sync returns no data points', async () => {
+    installFetch(() => ({ body: metricDataXml([]) }));
+
+    const storage = new InMemoryStorage();
+    const handle = storage.getStorageHandle(CONNECTOR_ID);
+    const oldTs = Date.now() - 30 * 86_400_000;
+    await handle.metrics(
+      [
+        {
+          name: 'AWS/EC2/CPUUtilization',
+          ts: oldTs,
+          value: 99,
+          attributes: { queryId: 'cpu' },
+        },
+      ],
+      { names: ['AWS/EC2/CPUUtilization'] },
+    );
+
+    await staticConnector().sync({ mode: 'latest' }, handle);
+
+    const surviving = await handle.queryMetrics({
+      name: 'AWS/EC2/CPUUtilization',
+    });
+    expect(surviving.map((m) => m.ts)).toContain(oldTs);
+  });
+
   it('follows NextToken across pages', async () => {
     let call = 0;
     installFetch(() => {

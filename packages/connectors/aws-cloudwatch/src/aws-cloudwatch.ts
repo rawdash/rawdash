@@ -416,7 +416,12 @@ export class CloudWatchConnector extends BaseAWSConnector<CloudWatchSettings> {
       );
     }
 
-    await storage.metrics(samples, { names: [...names] });
+    const replaceWindow =
+      endMs >= startMs ? { start: startMs, end: endMs } : null;
+    await storage.metrics(samples, {
+      names: [...names],
+      ...(replaceWindow ? { replaceWindow } : {}),
+    });
     this.logger.info('resource done', {
       resource: 'metric_data',
       items: samples.length,

@@ -1,3 +1,4 @@
+import { InMemoryStorage } from '@rawdash/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -582,6 +583,46 @@ describe('GSCConnector.sync', () => {
     expect(dailyWrites).toHaveLength(1);
     expect((dailyWrites[0]![0] as Array<unknown>).length).toBe(25001);
     expect(storage.metric).not.toHaveBeenCalled();
+  });
+
+  it('preserves history outside the incremental window on mode:latest', async () => {
+    const connector = new GSCConnector(
+      { siteUrl: 'https://example.com/' },
+      {
+        serviceAccountJson: undefined,
+        refreshToken: 'rtoken' as unknown as { $secret: string },
+        clientId: 'cid',
+        clientSecret: 'csecret' as unknown as { $secret: string },
+      },
+    );
+
+    vi.stubGlobal(
+      'fetch',
+      mockFetch({ access_token: 'tok', expires_in: 3600 }, {}),
+    );
+
+    const MS_PER_DAY = 24 * 60 * 60 * 1000;
+    const oldTs = Date.now() - 60 * MS_PER_DAY;
+    const storage = new InMemoryStorage();
+    const handle = storage.getStorageHandle('google-search-console');
+
+    await handle.metrics([
+      {
+        name: 'gsc_search_analytics_by_day',
+        ts: oldTs,
+        value: 42,
+        attributes: { clicks: 42 },
+      },
+    ]);
+
+    await connector.sync({ mode: 'latest' }, handle);
+
+    const survivors = await handle.queryMetrics({
+      name: 'gsc_search_analytics_by_day',
+    });
+    expect(survivors).toHaveLength(1);
+    expect(survivors[0]!.ts).toBe(oldTs);
+    expect(survivors[0]!.value).toBe(42);
   });
 
   it('returns a resumable cursor when the abort signal trips mid-drain', async () => {

@@ -1,3 +1,4 @@
+import { InMemoryStorage } from '@rawdash/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -277,6 +278,42 @@ describe('AwsCostConnector.sync', () => {
     vi.stubGlobal('fetch', spy);
     return { spy, calls };
   }
+
+  it('does not wipe older history when an incremental sync returns no daily cost', async () => {
+    const spy = vi
+      .fn()
+      .mockImplementation((_url: string, init: RequestInit) => {
+        const target = targetOf(init);
+        if (target.endsWith('GetCostAndUsage')) {
+          return Promise.resolve(jsonResponse({ ResultsByTime: [] }));
+        }
+        if (target.endsWith('GetCostForecast')) {
+          return Promise.resolve(jsonResponse({ ForecastResultsByTime: [] }));
+        }
+        return Promise.resolve(jsonResponse({}));
+      });
+    vi.stubGlobal('fetch', spy);
+
+    const storage = new InMemoryStorage();
+    const handle = storage.getStorageHandle('aws-cost');
+    const oldTs = Date.UTC(2025, 0, 1);
+    await handle.metrics(
+      [
+        {
+          name: 'aws_cost_daily',
+          ts: oldTs,
+          value: 42,
+          attributes: { granularity: 'DAILY', estimated: false, unit: 'USD' },
+        },
+      ],
+      { names: ['aws_cost_daily'] },
+    );
+
+    await makeConnector().sync({ mode: 'latest' }, handle);
+
+    const surviving = await handle.queryMetrics({ name: 'aws_cost_daily' });
+    expect(surviving.map((m) => m.ts)).toContain(oldTs);
+  });
 
   it('writes daily and forecast metrics and signs with SigV4', async () => {
     const { calls } = installCeMock();

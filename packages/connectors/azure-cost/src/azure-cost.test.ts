@@ -1,3 +1,4 @@
+import { InMemoryStorage } from '@rawdash/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -650,6 +651,33 @@ describe('AzureCostConnector.sync', () => {
       connector().sync({ mode: 'full' }, makeStorage()),
     ).rejects.toThrow(/pagination cycle detected/);
     expect(page).toBe(2);
+  });
+
+  it('does not wipe older history when an incremental sync returns no rows', async () => {
+    const fetchSpy = makeFetch(({ url }) => {
+      if (url.includes(COST_URL_FRAGMENT)) {
+        return { body: EMPTY_COST_BODY };
+      }
+      return undefined;
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const storage = new InMemoryStorage();
+    const handle = storage.getStorageHandle('azure-cost');
+    const oldTs = Date.UTC(2025, 0, 1);
+    await handle.metrics([
+      {
+        name: 'azure_cost_daily',
+        ts: oldTs,
+        value: 99,
+        attributes: { unit: 'USD' },
+      },
+    ]);
+
+    await connector().sync({ mode: 'latest' }, handle);
+
+    const surviving = await handle.queryMetrics({ name: 'azure_cost_daily' });
+    expect(surviving.map((m) => m.ts)).toContain(oldTs);
   });
 
   it('skips the sync when options.resources excludes azure_cost_daily', async () => {

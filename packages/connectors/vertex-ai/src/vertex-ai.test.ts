@@ -307,6 +307,66 @@ describe('VertexAiConnector sync', () => {
     ).toEqual(['metric.labels.model_user_id', 'metric.labels.response_code']);
   });
 
+  it('preserves history outside the incremental window on a latest sync', async () => {
+    installFetch((url) => {
+      if (url.startsWith('https://oauth2.googleapis.com/token')) {
+        return { body: { access_token: 'tok' } };
+      }
+      if (url.includes('monitoring.googleapis.com')) {
+        return { body: { timeSeries: [] } };
+      }
+      if (url.includes('bigquery.googleapis.com')) {
+        return {
+          body: { jobComplete: true, schema: { fields: [] }, rows: [] },
+        };
+      }
+      throw new Error('unexpected URL: ' + url);
+    });
+
+    const storage = new InMemoryStorage();
+    const handle = storage.getStorageHandle(CONNECTOR_ID);
+
+    const oldTs = Date.now() - 60 * 24 * 60 * 60 * 1000;
+    await handle.metrics([
+      {
+        name: INVOCATIONS_METRIC_NAME,
+        ts: oldTs,
+        value: 99,
+        attributes: { modelId: 'gemini-pro', responseCode: '200' },
+      },
+      {
+        name: TOKENS_METRIC_NAME,
+        ts: oldTs,
+        value: 77,
+        attributes: { modelId: 'gemini-pro', tokenType: 'input' },
+      },
+      {
+        name: SPEND_METRIC_NAME,
+        ts: oldTs,
+        value: 5.5,
+        attributes: { sku: 'sku-x', service: 'Vertex AI', currency: 'USD' },
+      },
+    ]);
+
+    const result = await makeConnector().sync({ mode: 'latest' }, handle);
+    expect(result).toEqual({ done: true });
+
+    const survivingInvocations = await handle.queryMetrics({
+      name: INVOCATIONS_METRIC_NAME,
+    });
+    expect(survivingInvocations.map((m) => m.value)).toContain(99);
+
+    const survivingTokens = await handle.queryMetrics({
+      name: TOKENS_METRIC_NAME,
+    });
+    expect(survivingTokens.map((m) => m.value)).toContain(77);
+
+    const survivingSpend = await handle.queryMetrics({
+      name: SPEND_METRIC_NAME,
+    });
+    expect(survivingSpend.map((m) => m.value)).toContain(5.5);
+  });
+
   it('skips the spend phase when bqProject is not configured', async () => {
     const calls: string[] = [];
     installFetch((url) => {
@@ -612,6 +672,8 @@ describe('getSpendWindow', () => {
     expect(getSpendWindow({ mode: 'full' }, 30, now)).toEqual({
       startDate: '2024-01-02',
       endDate: '2024-02-01',
+      startMs: Date.UTC(2024, 0, 2),
+      endMs: Date.UTC(2024, 1, 1),
     });
   });
 
@@ -619,6 +681,8 @@ describe('getSpendWindow', () => {
     expect(getSpendWindow({ mode: 'latest' }, 90, now)).toEqual({
       startDate: '2024-01-27',
       endDate: '2024-02-01',
+      startMs: Date.UTC(2024, 0, 27),
+      endMs: Date.UTC(2024, 1, 1),
     });
   });
 });

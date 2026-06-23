@@ -393,6 +393,8 @@ export const id = 'anthropic';
 interface UsageWindow {
   startingAt: string;
   endingAt: string;
+  startMs: number;
+  endMs: number;
 }
 
 export function getUsageWindow(
@@ -420,6 +422,8 @@ export function getUsageWindow(
   return {
     startingAt: new Date(startMs).toISOString(),
     endingAt: new Date(endMs).toISOString(),
+    startMs,
+    endMs,
   };
 }
 
@@ -739,7 +743,7 @@ export class AnthropicConnector extends BaseConnector<
         pageUrl = nextUrl;
       }
 
-      await this.writePhase(storage, phase, buckets);
+      await this.writePhase(storage, phase, buckets, window);
       this.logger.info('resource done', {
         resource: phase,
         pages: pageCount,
@@ -784,30 +788,40 @@ export class AnthropicConnector extends BaseConnector<
     storage: StorageHandle,
     phase: AnthropicPhase,
     buckets: BucketPage<unknown>[],
+    window: UsageWindow,
   ): Promise<void> {
+    const replaceWindow = { start: window.startMs, end: window.endMs };
     switch (phase) {
       case 'usage_messages': {
         const samples = buildUsageSamples(buckets as BucketPage<UsageResult>[]);
         await storage.metrics(samples.inputTokens, {
           names: ['anthropic_input_tokens'],
+          replaceWindow,
         });
         await storage.metrics(samples.outputTokens, {
           names: ['anthropic_output_tokens'],
+          replaceWindow,
         });
         await storage.metrics(samples.cacheReadTokens, {
           names: ['anthropic_cache_read_tokens'],
+          replaceWindow,
         });
         await storage.metrics(samples.cacheCreationTokens, {
           names: ['anthropic_cache_creation_tokens'],
+          replaceWindow,
         });
         await storage.metrics(samples.webSearchRequests, {
           names: ['anthropic_web_search_requests'],
+          replaceWindow,
         });
         return;
       }
       case 'cost_report': {
         const samples = buildCostSamples(buckets as BucketPage<CostResult>[]);
-        await storage.metrics(samples, { names: ['anthropic_cost_usd'] });
+        await storage.metrics(samples, {
+          names: ['anthropic_cost_usd'],
+          replaceWindow,
+        });
         return;
       }
     }

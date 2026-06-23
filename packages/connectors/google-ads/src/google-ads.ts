@@ -432,6 +432,17 @@ interface DateRange {
   endDate: string;
 }
 
+function dateRangeToReplaceWindow(
+  range: DateRange,
+): { start: number; end: number } | undefined {
+  const start = dateStringToMs(range.startDate);
+  const end = dateStringToMs(range.endDate) + MS_PER_DAY - 1;
+  if (start > end) {
+    return undefined;
+  }
+  return { start, end };
+}
+
 export function getDateRange(
   options: SyncOptions,
   lookbackDays: number,
@@ -795,6 +806,7 @@ export class GoogleAdsConnector extends BaseConnector<
     phase: GoogleAdsPhase,
     items: unknown[],
     storage: StorageHandle,
+    replaceWindow: { start: number; end: number } | undefined,
   ): Promise<void> {
     switch (phase) {
       case 'campaigns': {
@@ -809,6 +821,7 @@ export class GoogleAdsConnector extends BaseConnector<
         );
         await storage.metrics(samples, {
           names: [METRIC_NAME.campaign_metrics],
+          ...(replaceWindow ? { replaceWindow } : {}),
         });
         return;
       }
@@ -818,6 +831,7 @@ export class GoogleAdsConnector extends BaseConnector<
         );
         await storage.metrics(samples, {
           names: [METRIC_NAME.ad_group_metrics],
+          ...(replaceWindow ? { replaceWindow } : {}),
         });
         return;
       }
@@ -827,6 +841,7 @@ export class GoogleAdsConnector extends BaseConnector<
         );
         await storage.metrics(samples, {
           names: [METRIC_NAME.keyword_metrics],
+          ...(replaceWindow ? { replaceWindow } : {}),
         });
         return;
       }
@@ -837,6 +852,7 @@ export class GoogleAdsConnector extends BaseConnector<
     phase: GoogleAdsPhase,
     storage: StorageHandle,
     isFull: boolean,
+    replaceWindow: { start: number; end: number } | undefined,
   ): Promise<void> {
     if (phase === 'campaigns') {
       if (isFull) {
@@ -844,7 +860,10 @@ export class GoogleAdsConnector extends BaseConnector<
       }
       return;
     }
-    await storage.metrics([], { names: [METRIC_NAME[phase]] });
+    await storage.metrics([], {
+      names: [METRIC_NAME[phase]],
+      ...(replaceWindow ? { replaceWindow } : {}),
+    });
   }
 
   async sync(
@@ -854,6 +873,7 @@ export class GoogleAdsConnector extends BaseConnector<
   ): Promise<SyncResult> {
     const lookbackDays = this.settings.lookbackDays ?? DEFAULT_LOOKBACK_DAYS;
     const range = getDateRange(options, lookbackDays);
+    const replaceWindow = dateRangeToReplaceWindow(range);
     const isFull = options.mode === 'full';
 
     const phases = selectActivePhases<GoogleAdsResource, GoogleAdsPhase>(
@@ -877,9 +897,14 @@ export class GoogleAdsConnector extends BaseConnector<
         this.searchPage<unknown>(phase, range, page, campaignSpec, sig),
       writeBatch: async (phase, items, page) => {
         if (page === null) {
-          await this.clearScopeOnFirstPage(phase, storage, isFull);
+          await this.clearScopeOnFirstPage(
+            phase,
+            storage,
+            isFull,
+            replaceWindow,
+          );
         }
-        await this.writePhase(phase, items, storage);
+        await this.writePhase(phase, items, storage, replaceWindow);
       },
     });
   }

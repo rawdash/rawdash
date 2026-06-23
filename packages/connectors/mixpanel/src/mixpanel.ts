@@ -258,6 +258,21 @@ export function getDateRange(
   };
 }
 
+export function replaceWindowFromRange(
+  range: MixpanelDateRange,
+): { start: number; end: number } | undefined {
+  const start = mixpanelDateToMs(range.from);
+  const endDay = mixpanelDateToMs(range.to);
+  if (!Number.isFinite(start) || !Number.isFinite(endDay)) {
+    return undefined;
+  }
+  const end = endDay + MS_PER_DAY - 1;
+  if (start > end) {
+    return undefined;
+  }
+  return { start, end };
+}
+
 export interface SegmentationResponse {
   legend_size?: number;
   data: {
@@ -771,7 +786,8 @@ export class MixpanelConnector extends BaseConnector<
       PHASE_UNIT[phase],
       event,
     );
-    await storage.metrics(samples, { names: [metricName] });
+    const replaceWindow = replaceWindowFromRange(range);
+    await storage.metrics(samples, { names: [metricName], replaceWindow });
   }
 
   private async runEventsPerDayPhase(
@@ -818,7 +834,8 @@ export class MixpanelConnector extends BaseConnector<
         ...buildEventsPerDaySamples(generalResponse, uniqueResponse, event),
       );
     }
-    await storage.metrics(samples, { names: [metricName] });
+    const replaceWindow = replaceWindowFromRange(range);
+    await storage.metrics(samples, { names: [metricName], replaceWindow });
   }
 
   private async runFunnelPhase(
@@ -840,7 +857,8 @@ export class MixpanelConnector extends BaseConnector<
       const response = await this.getFunnel(funnel.id, range, signal);
       samples.push(...buildFunnelSamples(response, funnel));
     }
-    await storage.metrics(samples, { names: [metricName] });
+    const replaceWindow = replaceWindowFromRange(range);
+    await storage.metrics(samples, { names: [metricName], replaceWindow });
   }
 
   private async runRetentionPhase(
@@ -856,7 +874,8 @@ export class MixpanelConnector extends BaseConnector<
     }
     const response = await this.getRetention(event, range, signal);
     const samples = buildRetentionSamples(response, event);
-    await storage.metrics(samples, { names: [metricName] });
+    const replaceWindow = replaceWindowFromRange(range);
+    await storage.metrics(samples, { names: [metricName], replaceWindow });
   }
 
   async sync(

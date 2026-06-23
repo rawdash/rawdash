@@ -304,7 +304,11 @@ export class GcpBillingConnector extends BaseConnector<
     if (aborted) {
       return { done: false };
     }
-    await storage.metrics(samples, { names: [COST_METRIC_NAME] });
+    const replaceWindow = windowToReplaceWindow(window);
+    await storage.metrics(samples, {
+      names: [COST_METRIC_NAME],
+      ...(replaceWindow ? { replaceWindow } : {}),
+    });
     return { done: true };
   }
 }
@@ -312,6 +316,21 @@ export class GcpBillingConnector extends BaseConnector<
 interface CostWindow {
   startDate: string;
   endDate: string;
+}
+
+function dateStrToMs(dateStr: string): number {
+  return Date.parse(`${dateStr}T00:00:00Z`);
+}
+
+export function windowToReplaceWindow(
+  window: CostWindow,
+): { start: number; end: number } | null {
+  const start = dateStrToMs(window.startDate);
+  const end = dateStrToMs(window.endDate) - MS_PER_DAY;
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) {
+    return null;
+  }
+  return { start, end };
 }
 
 const DIM_TO_SELECT: Record<Dimension, { select: string; alias: string }> = {

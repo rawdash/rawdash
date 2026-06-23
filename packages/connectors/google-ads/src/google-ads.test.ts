@@ -1,3 +1,4 @@
+import { InMemoryStorage } from '@rawdash/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -404,6 +405,36 @@ describe('GoogleAdsConnector.sync', () => {
     const storage = makeStorage();
     await makeConnector().sync({ mode: 'latest' }, storage);
     expect(storage.entities).not.toHaveBeenCalled();
+  });
+
+  it('preserves history outside the incremental window on mode:latest', async () => {
+    vi.stubGlobal(
+      'fetch',
+      mockFetch({ access_token: 'tok', expires_in: 3600 }, {}),
+    );
+
+    const MS_PER_DAY = 24 * 60 * 60 * 1000;
+    const oldTs = Date.now() - 60 * MS_PER_DAY;
+    const storage = new InMemoryStorage();
+    const handle = storage.getStorageHandle('google-ads');
+
+    await handle.metrics([
+      {
+        name: 'google_ads_campaign_metrics',
+        ts: oldTs,
+        value: 5,
+        attributes: { campaignId: '1' },
+      },
+    ]);
+
+    await makeConnector().sync({ mode: 'latest' }, handle);
+
+    const survivors = await handle.queryMetrics({
+      name: 'google_ads_campaign_metrics',
+    });
+    expect(survivors).toHaveLength(1);
+    expect(survivors[0]!.ts).toBe(oldTs);
+    expect(survivors[0]!.value).toBe(5);
   });
 
   it('sends Authorization, developer-token, and login-customer-id headers', async () => {

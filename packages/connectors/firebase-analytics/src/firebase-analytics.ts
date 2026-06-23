@@ -269,6 +269,17 @@ function getDateRange(
   return { startDate: toGA4Date(new Date(startMs)), endDate };
 }
 
+export function dateRangeToReplaceWindow(
+  dateRange: FirebaseAnalyticsDateRange,
+): { start: number; end: number } | null {
+  const start = Date.parse(`${dateRange.startDate}T00:00:00Z`);
+  const end = Date.parse(`${dateRange.endDate}T00:00:00Z`);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) {
+    return null;
+  }
+  return { start, end };
+}
+
 export function rowToMetricSample(
   row: FAReportRow,
   dimensionHeaders: string[],
@@ -516,6 +527,7 @@ export class FirebaseAnalyticsConnector extends BaseConnector<
 
     const cursor = isFASyncCursor(options.cursor) ? options.cursor : undefined;
     const dateRange = cursor?.dateRange ?? getDateRange(options, lookbackDays);
+    const replaceWindow = dateRangeToReplaceWindow(dateRange);
 
     let accessToken: string | null = null;
     const getToken = async (sig?: AbortSignal): Promise<string> => {
@@ -607,7 +619,10 @@ export class FirebaseAnalyticsConnector extends BaseConnector<
           this.settings.firebaseAppId,
         ),
       );
-      await storage.metrics(samples, { names: [cfg.metricName] });
+      await storage.metrics(samples, {
+        names: [cfg.metricName],
+        ...(replaceWindow ? { replaceWindow } : {}),
+      });
     }
 
     return { done: true };

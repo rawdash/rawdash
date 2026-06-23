@@ -380,6 +380,44 @@ describe('AnthropicConnector sync', () => {
     );
     expect(seenUrls.some((u) => u.includes('/cost_report'))).toBe(false);
   });
+
+  it('does not wipe older history when an incremental sync returns no rows', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockImplementation(() =>
+          Promise.resolve(
+            mockJsonResponse({ data: [], has_more: false, next_page: null }),
+          ),
+        ),
+    );
+
+    const storage = new InMemoryStorage();
+    const handle = storage.getStorageHandle(CONNECTOR_ID);
+    const oldTs = Date.now() - 60 * 86_400_000;
+    await handle.metrics(
+      [
+        {
+          name: 'anthropic_cost_usd',
+          ts: oldTs,
+          value: 42,
+          attributes: { workspace_id: null },
+        },
+      ],
+      { names: ['anthropic_cost_usd'] },
+    );
+
+    await makeConnector({ resources: ['anthropic_cost_usd'] }).sync(
+      { mode: 'latest' },
+      handle,
+    );
+
+    const survivors = await handle.queryMetrics({ name: 'anthropic_cost_usd' });
+    expect(survivors).toHaveLength(1);
+    expect(survivors[0]!.ts).toBe(oldTs);
+    expect(survivors[0]!.value).toBe(42);
+  });
 });
 
 describe('buildUsageSamples', () => {

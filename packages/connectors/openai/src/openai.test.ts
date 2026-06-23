@@ -397,6 +397,47 @@ describe('OpenAIConnector sync', () => {
     expect(seenUrls[0]).toContain('project_ids=proj_A');
     expect(seenUrls[0]).toContain('project_ids=proj_B');
   });
+
+  it('does not wipe older history when an incremental sync returns no rows', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(() =>
+        Promise.resolve(
+          mockJsonResponse({
+            object: 'page',
+            data: [],
+            has_more: false,
+            next_page: null,
+          }),
+        ),
+      ),
+    );
+
+    const storage = new InMemoryStorage();
+    const handle = storage.getStorageHandle(CONNECTOR_ID);
+    const oldTs = Date.now() - 60 * 86_400_000;
+    await handle.metrics(
+      [
+        {
+          name: 'openai_cost_usd',
+          ts: oldTs,
+          value: 42,
+          attributes: { line_item: null },
+        },
+      ],
+      { names: ['openai_cost_usd'] },
+    );
+
+    await makeConnector({ resources: ['openai_cost_usd'] }).sync(
+      { mode: 'latest' },
+      handle,
+    );
+
+    const survivors = await handle.queryMetrics({ name: 'openai_cost_usd' });
+    expect(survivors).toHaveLength(1);
+    expect(survivors[0]!.ts).toBe(oldTs);
+    expect(survivors[0]!.value).toBe(42);
+  });
 });
 
 describe('buildCompletionsSamples', () => {

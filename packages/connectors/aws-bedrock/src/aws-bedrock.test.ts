@@ -378,6 +378,41 @@ describe('AwsBedrockConnector.sync (static credentials)', () => {
     expect(listCalls.length).toBeGreaterThanOrEqual(1);
   });
 
+  it('does not wipe older history when an incremental sync returns no data', async () => {
+    installFetch((url, init) => {
+      const body = String(init.body ?? '');
+      if (url.startsWith('https://ce.us-east-1')) {
+        return {
+          contentType: 'application/json',
+          body: JSON.stringify({ ResultsByTime: [] }),
+        };
+      }
+      if (body.includes('Action=GetMetricData')) {
+        return { body: metricDataXml([]) };
+      }
+      return { body: '<response/>' };
+    });
+
+    const storage = new InMemoryStorage();
+    const handle = storage.getStorageHandle(CONNECTOR_ID);
+    const oldTs = Date.now() - 60 * 86_400_000;
+    const seeded = [INVOCATIONS_METRIC, ERRORS_METRIC, SPEND_METRIC];
+    for (const name of seeded) {
+      await handle.metrics([{ name, ts: oldTs, value: 7, attributes: {} }], {
+        names: [name],
+      });
+    }
+
+    await staticConnector({
+      modelIds: ['anthropic.claude-3-sonnet-20240229-v1:0'],
+    }).sync({ mode: 'latest' }, handle);
+
+    for (const name of seeded) {
+      const surviving = await handle.queryMetrics({ name });
+      expect(surviving.map((m) => m.ts)).toContain(oldTs);
+    }
+  });
+
   it('skips ListMetrics when modelIds are supplied in config', async () => {
     const spy = installFetch((url, init) => {
       const body = String(init.body ?? '');

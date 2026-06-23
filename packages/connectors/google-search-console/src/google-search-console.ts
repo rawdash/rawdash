@@ -485,6 +485,13 @@ export class GSCConnector extends BaseConnector<GSCSettings, GSCCredentials> {
     const cursor = isGSCSyncCursor(options.cursor) ? options.cursor : undefined;
     const dateRange = cursor?.dateRange ?? getDateRange(options, lookbackDays);
 
+    const windowStart = gscDateToMs(dateRange.startDate);
+    const windowEnd = gscDateToMs(dateRange.endDate) + MS_PER_DAY - 1;
+    const replaceWindow =
+      windowStart <= windowEnd
+        ? { start: windowStart, end: windowEnd }
+        : undefined;
+
     let accessToken: string | null = null;
     const getToken = async (sig?: AbortSignal): Promise<string> => {
       if (!accessToken) {
@@ -549,7 +556,10 @@ export class GSCConnector extends BaseConnector<GSCSettings, GSCCredentials> {
       const samples = rows.map((row) =>
         rowToMetricSample(row, cfg.dimensions, cfg.metricName),
       );
-      await storage.metrics(samples, { names: [cfg.metricName] });
+      await storage.metrics(samples, {
+        names: [cfg.metricName],
+        ...(replaceWindow ? { replaceWindow } : {}),
+      });
     }
 
     return { done: true };
