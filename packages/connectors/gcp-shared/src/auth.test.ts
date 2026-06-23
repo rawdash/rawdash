@@ -59,6 +59,15 @@ describe('parseServiceAccountJson', () => {
       validSa.client_email,
     );
   });
+
+  it('accepts an already-parsed object (secrets resolver auto-parses JSON values)', () => {
+    const parsed = parseServiceAccountJson(validSa);
+    expect(parsed.client_email).toBe(validSa.client_email);
+  });
+
+  it('throws a clear error for a non-string, non-object value', () => {
+    expect(() => parseServiceAccountJson(42)).toThrow(/serviceAccountJson/);
+  });
 });
 
 describe('buildServiceAccountJwt', () => {

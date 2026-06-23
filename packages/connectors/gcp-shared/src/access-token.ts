@@ -2,6 +2,7 @@ import { AuthError } from '@rawdash/connector-shared';
 
 import {
   type RefreshTokenCredentials,
+  type ServiceAccountInput,
   buildRefreshTokenGrant,
   buildServiceAccountJwt,
 } from './auth';
@@ -28,7 +29,7 @@ export class GcpAccessTokenProvider {
     private readonly opts: {
       connectorId: string;
       scope: string;
-      getServiceAccountJson: () => string | undefined;
+      getServiceAccountJson: () => ServiceAccountInput | undefined;
       getRefreshTokenCredentials?: () => RefreshTokenCredentials | undefined;
       post: GcpTokenPoster;
     },
