@@ -73,6 +73,7 @@ export const connectorLoaders: Record<string, () => Promise<ConnectorClass>> = {
   okta: () => import('@rawdash/connector-okta').then((m) => m.default),
   openai: () => import('@rawdash/connector-openai').then((m) => m.default),
   posthog: () => import('@rawdash/connector-posthog').then((m) => m.default),
+  postmark: () => import('@rawdash/connector-postmark').then((m) => m.default),
   revenuecat: () =>
     import('@rawdash/connector-revenuecat').then((m) => m.default),
   salesforce: () =>

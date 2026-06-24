@@ -2190,16 +2190,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     requestIssue: 'RAW-431',
   },
   {
-    id: 'postmark',
-    name: 'Postmark',
-    category: 'engineering',
-    tagline:
-      'Sync transactional email send volume, delivery, bounce, and complaint rates from Postmark.',
-    brandColor: '#FFCC00',
-    domain: 'postmarkapp.com',
-    requestIssue: 'RAW-430',
-  },
-  {
     id: 'resend',
     name: 'Resend',
     category: 'engineering',

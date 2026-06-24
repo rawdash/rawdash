@@ -284,6 +284,12 @@ import {
   resources as posthogResources,
 } from '@rawdash/connector-posthog';
 import {
+  configFields as postmarkConfigFields,
+  doc as postmarkDoc,
+  id as postmarkId,
+  resources as postmarkResources,
+} from '@rawdash/connector-postmark';
+import {
   configFields as revenuecatConfigFields,
   doc as revenuecatDoc,
   id as revenuecatId,
@@ -689,6 +695,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: posthogDoc,
     configFields: posthogConfigFields,
     resources: posthogResources,
+  },
+  {
+    id: postmarkId,
+    packageName: '@rawdash/connector-postmark',
+    doc: postmarkDoc,
+    configFields: postmarkConfigFields,
+    resources: postmarkResources,
   },
   {
     id: revenuecatId,
