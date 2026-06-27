@@ -347,7 +347,7 @@ export function logsItemToEvent(item: MailgunLogsItem, domain: string): Event {
     attributes: {
       eventId: item.id,
       eventType: item.event,
-      recipient: item.recipient ?? item['recipient-domain'] ?? null,
+      recipient: item.recipient ?? null,
       domain,
       severity: item.severity ?? null,
       reason: item.reason ?? null,
