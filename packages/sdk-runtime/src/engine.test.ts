@@ -10,6 +10,9 @@ const DEFAULTS = {
   failingBackoffMs: 60_000,
   lateRetryStartMs: 3_000,
   lateRetryMaxMs: 30_000,
+  bootstrapRetryStartMs: 1_000,
+  bootstrapRetryMaxMs: 30_000,
+  bootstrapErrorAfterAttempts: 3,
   defaultIntervalSeconds: 300,
   jitterMs: 2_000,
 };
@@ -287,7 +290,7 @@ describe('subscribe()', () => {
     unsub();
   });
 
-  it('fires onBootstrapped once when the first getWidgets rejects', async () => {
+  it('absorbs a transient bootstrap failure that recovers before the error threshold', async () => {
     const source = fakeSource([]);
     source.getWidgets.mockRejectedValueOnce(new Error('boom'));
     const cb = makeCallbacks();
@@ -296,11 +299,166 @@ describe('subscribe()', () => {
       source,
       'd',
       { ...cb, onBootstrapped },
-      { jitterMs: 0, visibility: null, random: () => 0 },
+      {
+        jitterMs: 0,
+        visibility: null,
+        random: () => 0,
+        bootstrapRetryStartMs: 1_000,
+        bootstrapErrorAfterAttempts: 3,
+      },
     );
-    await vi.runOnlyPendingTimersAsync();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(cb.errors).toHaveLength(0);
+    expect(onBootstrapped).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(cb.errors).toHaveLength(0);
+    expect(onBootstrapped).toHaveBeenCalledTimes(1);
+    unsub();
+  });
+
+  it('holds bootstrap and suppresses the error until the failure threshold is reached', async () => {
+    const source = fakeSource([]);
+    source.getWidgets.mockRejectedValue(new Error('boom'));
+    const cb = makeCallbacks();
+    const onBootstrapped = vi.fn();
+    const unsub = subscribe(
+      source,
+      'd',
+      { ...cb, onBootstrapped },
+      {
+        jitterMs: 0,
+        visibility: null,
+        random: () => 0,
+        bootstrapRetryStartMs: 1_000,
+        bootstrapRetryMaxMs: 8_000,
+        bootstrapErrorAfterAttempts: 3,
+      },
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    expect(cb.errors).toHaveLength(0);
+    expect(onBootstrapped).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(cb.errors).toHaveLength(0);
+    expect(onBootstrapped).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(2_000);
     expect(cb.errors).toHaveLength(1);
     expect(onBootstrapped).toHaveBeenCalledTimes(1);
+    unsub();
+  });
+
+  it('retries bootstrap on an escalating, capped backoff', async () => {
+    const source = fakeSource([]);
+    source.getWidgets.mockRejectedValue(new Error('boom'));
+    const cb = makeCallbacks();
+    const unsub = subscribe(source, 'd', cb, {
+      jitterMs: 0,
+      visibility: null,
+      random: () => 0,
+      bootstrapRetryStartMs: 1_000,
+      bootstrapRetryMaxMs: 4_000,
+      bootstrapErrorAfterAttempts: 99,
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(source.getWidgets).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(source.getWidgets).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(source.getWidgets).toHaveBeenCalledTimes(3);
+    await vi.advanceTimersByTimeAsync(4_000);
+    expect(source.getWidgets).toHaveBeenCalledTimes(4);
+    await vi.advanceTimersByTimeAsync(4_000);
+    expect(source.getWidgets).toHaveBeenCalledTimes(5);
+    unsub();
+  });
+
+  it('self-heals when a later bootstrap succeeds after surfacing an error', async () => {
+    const source = fakeSource([
+      widget({
+        widgetId: 'a',
+        cachedAt: '2026-05-23T00:00:00.000Z',
+        syncState: 'fresh',
+        syncIntervalSeconds: 60,
+      }),
+    ]);
+    source.getWidgets
+      .mockRejectedValueOnce(new Error('1'))
+      .mockRejectedValueOnce(new Error('2'))
+      .mockRejectedValueOnce(new Error('3'));
+    const cb = makeCallbacks();
+    const unsub = subscribe(source, 'd', cb, {
+      jitterMs: 0,
+      visibility: null,
+      random: () => 0,
+      bootstrapRetryStartMs: 1_000,
+      bootstrapRetryMaxMs: 8_000,
+      bootstrapErrorAfterAttempts: 3,
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(1_000);
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(cb.errors).toHaveLength(1);
+    expect(cb.updated).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(4_000);
+    expect(cb.updated).toHaveLength(1);
+    unsub();
+  });
+
+  it('clamps a zero bootstrapRetryStartMs so retries do not busy-loop', async () => {
+    const source = fakeSource([]);
+    source.getWidgets.mockRejectedValue(new Error('boom'));
+    const cb = makeCallbacks();
+    const unsub = subscribe(source, 'd', cb, {
+      jitterMs: 0,
+      visibility: null,
+      random: () => 0,
+      bootstrapRetryStartMs: 0,
+      bootstrapRetryMaxMs: 8_000,
+      bootstrapErrorAfterAttempts: 99,
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(source.getWidgets).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(source.getWidgets).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(source.getWidgets).toHaveBeenCalledTimes(2);
+    unsub();
+  });
+
+  it('pauses bootstrap retries while hidden and resumes on visibility', async () => {
+    const source = fakeSource([]);
+    source.getWidgets.mockRejectedValue(new Error('boom'));
+    const cb = makeCallbacks();
+    let hidden = false;
+    const listeners: Array<() => void> = [];
+    const unsub = subscribe(source, 'd', cb, {
+      jitterMs: 0,
+      random: () => 0,
+      bootstrapRetryStartMs: 1_000,
+      bootstrapRetryMaxMs: 8_000,
+      bootstrapErrorAfterAttempts: 99,
+      visibility: {
+        isHidden: () => hidden,
+        onChange: (l) => {
+          listeners.push(l);
+          return () => {
+            const i = listeners.indexOf(l);
+            if (i >= 0) {
+              listeners.splice(i, 1);
+            }
+          };
+        },
+      },
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(source.getWidgets).toHaveBeenCalledTimes(1);
+    hidden = true;
+    listeners.forEach((l) => l());
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(source.getWidgets).toHaveBeenCalledTimes(1);
+    hidden = false;
+    listeners.forEach((l) => l());
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(source.getWidgets).toHaveBeenCalledTimes(2);
     unsub();
   });
 
