@@ -30,12 +30,12 @@ const docShapeExtra = (
     connectorId,
   );
 
-function installSegmentationMock(
+function installEventsMock(
   payload: SegmentationSample,
 ): ReturnType<typeof vi.fn> {
   const spy = vi.fn().mockImplementation((url: string | URL) => {
     const u = String(url);
-    if (u.includes('/segmentation')) {
+    if (u.includes('/events')) {
       return Promise.resolve(mockJsonResponse(payload));
     }
     return Promise.resolve(
@@ -108,11 +108,11 @@ describe('MixpanelConnector property tests', () => {
       runs: 50,
       extraInvariants: [extra, docShapeExtra],
       run: async (sample, storage) => {
-        installSegmentationMock(sample);
+        installEventsMock(sample);
         await makeConnector({ event: 'Signed Up' }).sync(
           {
             mode: 'full',
-            resources: new Set(['dau']),
+            resources: new Set(['mixpanel_dau']),
           },
           storage.getStorageHandle(CONNECTOR_ID),
         );
@@ -163,7 +163,7 @@ describe('MixpanelConnector property tests', () => {
         await makeConnector({ funnelId: 42 }).sync(
           {
             mode: 'full',
-            resources: new Set(['funnel_results']),
+            resources: new Set(['mixpanel_funnel_results']),
           },
           storage.getStorageHandle(CONNECTOR_ID),
         );
@@ -214,7 +214,7 @@ describe('MixpanelConnector property tests', () => {
         await makeConnector({ retentionEvent: 'Signed Up' }).sync(
           {
             mode: 'full',
-            resources: new Set(['retention']),
+            resources: new Set(['mixpanel_retention']),
           },
           storage.getStorageHandle(CONNECTOR_ID),
         );
