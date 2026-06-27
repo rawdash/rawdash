@@ -290,6 +290,12 @@ import {
   resources as posthogResources,
 } from '@rawdash/connector-posthog';
 import {
+  configFields as postmarkConfigFields,
+  doc as postmarkDoc,
+  id as postmarkId,
+  resources as postmarkResources,
+} from '@rawdash/connector-postmark';
+import {
   configFields as revenuecatConfigFields,
   doc as revenuecatDoc,
   id as revenuecatId,
@@ -325,6 +331,12 @@ import {
   id as stripeId,
   resources as stripeResources,
 } from '@rawdash/connector-stripe';
+import {
+  configFields as twilioConfigFields,
+  doc as twilioDoc,
+  id as twilioId,
+  resources as twilioResources,
+} from '@rawdash/connector-twilio';
 import {
   configFields as vantaConfigFields,
   doc as vantaDoc,
@@ -704,6 +716,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     resources: posthogResources,
   },
   {
+    id: postmarkId,
+    packageName: '@rawdash/connector-postmark',
+    doc: postmarkDoc,
+    configFields: postmarkConfigFields,
+    resources: postmarkResources,
+  },
+  {
     id: revenuecatId,
     packageName: '@rawdash/connector-revenuecat',
     doc: revenuecatDoc,
@@ -744,6 +763,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: stripeDoc,
     configFields: stripeConfigFields,
     resources: stripeResources,
+  },
+  {
+    id: twilioId,
+    packageName: '@rawdash/connector-twilio',
+    doc: twilioDoc,
+    configFields: twilioConfigFields,
+    resources: twilioResources,
   },
   {
     id: vantaId,

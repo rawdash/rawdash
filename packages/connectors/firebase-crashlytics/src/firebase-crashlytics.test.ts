@@ -479,6 +479,33 @@ describe('FirebaseCrashlyticsConnector sync', () => {
     );
     expect(entitiesFor(storage)).toHaveLength(0);
   });
+
+  it('does not wipe older crash history when an incremental sync returns no rows', async () => {
+    installFetch((url) => {
+      if (url.startsWith('https://oauth2.googleapis.com/token')) {
+        return { body: { access_token: 'tok' } };
+      }
+      return { body: { jobComplete: true, schema: CRASH_SCHEMA, rows: [] } };
+    });
+
+    const storage = new InMemoryStorage();
+    const handle = storage.getStorageHandle(CONNECTOR_ID);
+    const oldTs = Date.now() - 60 * 86_400_000;
+    await handle.metric({
+      name: 'crashes_per_day',
+      ts: oldTs,
+      value: 7,
+      attributes: { app_id: 'com.example.app', platform: 'ios' },
+    });
+
+    await makeConnector().sync(
+      { mode: 'latest', resources: new Set(['crashes_per_day']) },
+      handle,
+    );
+
+    const surviving = await handle.queryMetrics({ name: 'crashes_per_day' });
+    expect(surviving.map((m) => m.ts)).toContain(oldTs);
+  });
 });
 
 describe('buildCrashesPerDaySql', () => {

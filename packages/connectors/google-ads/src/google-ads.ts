@@ -171,7 +171,7 @@ export type GoogleAdsResource = GoogleAdsPhase;
 
 const isGoogleAdsSyncCursor = makeChunkedCursorGuard(PHASE_ORDER);
 
-const API_VERSION = 'v18';
+const API_VERSION = 'v24';
 const PAGE_SIZE = 10_000;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const DEFAULT_LOOKBACK_DAYS = 90;
@@ -276,7 +276,7 @@ export const googleAdsResources = defineResources({
     ],
     description:
       'Google Ads campaigns with id, name, status, bidding strategy type, and start / end dates.',
-    endpoint: 'POST /v18/customers/{customerId}/googleAds:search',
+    endpoint: 'POST /v24/customers/{customerId}/googleAds:search',
     fields: [
       { name: 'id', description: 'Numeric Google Ads campaign id.' },
       { name: 'name', description: 'Campaign display name.' },
@@ -308,7 +308,7 @@ export const googleAdsResources = defineResources({
     shape: 'metric',
     description:
       'Daily campaign performance - impressions, clicks, cost, conversions, and conversion value per (date, campaignId).',
-    endpoint: 'POST /v18/customers/{customerId}/googleAds:search',
+    endpoint: 'POST /v24/customers/{customerId}/googleAds:search',
     unit: 'USD',
     granularity: 'day',
     dimensions: [
@@ -346,7 +346,7 @@ export const googleAdsResources = defineResources({
     shape: 'metric',
     description:
       'Daily ad-group performance - impressions, clicks, cost, and conversions per (date, adGroupId).',
-    endpoint: 'POST /v18/customers/{customerId}/googleAds:search',
+    endpoint: 'POST /v24/customers/{customerId}/googleAds:search',
     unit: 'USD',
     granularity: 'day',
     dimensions: [
@@ -375,7 +375,7 @@ export const googleAdsResources = defineResources({
     shape: 'metric',
     description:
       'Daily keyword performance - impressions, clicks, cost, and historical quality score per (date, criterionId).',
-    endpoint: 'POST /v18/customers/{customerId}/googleAds:search',
+    endpoint: 'POST /v24/customers/{customerId}/googleAds:search',
     unit: 'USD',
     granularity: 'day',
     dimensions: [
@@ -430,6 +430,17 @@ function dateStringToMs(yyyyMmDd: string): number {
 interface DateRange {
   startDate: string;
   endDate: string;
+}
+
+function dateRangeToReplaceWindow(
+  range: DateRange,
+): { start: number; end: number } | undefined {
+  const start = dateStringToMs(range.startDate);
+  const end = dateStringToMs(range.endDate) + MS_PER_DAY - 1;
+  if (start > end) {
+    return undefined;
+  }
+  return { start, end };
 }
 
 export function getDateRange(
@@ -804,30 +815,21 @@ export class GoogleAdsConnector extends BaseConnector<
         return;
       }
       case 'campaign_metrics': {
-        const samples = (items as CampaignMetricRow[]).map(
-          campaignMetricRowToSample,
-        );
-        await storage.metrics(samples, {
-          names: [METRIC_NAME.campaign_metrics],
-        });
+        for (const row of items as CampaignMetricRow[]) {
+          await storage.metric(campaignMetricRowToSample(row));
+        }
         return;
       }
       case 'ad_group_metrics': {
-        const samples = (items as AdGroupMetricRow[]).map(
-          adGroupMetricRowToSample,
-        );
-        await storage.metrics(samples, {
-          names: [METRIC_NAME.ad_group_metrics],
-        });
+        for (const row of items as AdGroupMetricRow[]) {
+          await storage.metric(adGroupMetricRowToSample(row));
+        }
         return;
       }
       case 'keyword_metrics': {
-        const samples = (items as KeywordMetricRow[]).map(
-          keywordMetricRowToSample,
-        );
-        await storage.metrics(samples, {
-          names: [METRIC_NAME.keyword_metrics],
-        });
+        for (const row of items as KeywordMetricRow[]) {
+          await storage.metric(keywordMetricRowToSample(row));
+        }
         return;
       }
     }
@@ -837,6 +839,7 @@ export class GoogleAdsConnector extends BaseConnector<
     phase: GoogleAdsPhase,
     storage: StorageHandle,
     isFull: boolean,
+    replaceWindow: { start: number; end: number } | undefined,
   ): Promise<void> {
     if (phase === 'campaigns') {
       if (isFull) {
@@ -844,7 +847,10 @@ export class GoogleAdsConnector extends BaseConnector<
       }
       return;
     }
-    await storage.metrics([], { names: [METRIC_NAME[phase]] });
+    await storage.metrics([], {
+      names: [METRIC_NAME[phase]],
+      ...(replaceWindow ? { replaceWindow } : {}),
+    });
   }
 
   async sync(
@@ -854,6 +860,7 @@ export class GoogleAdsConnector extends BaseConnector<
   ): Promise<SyncResult> {
     const lookbackDays = this.settings.lookbackDays ?? DEFAULT_LOOKBACK_DAYS;
     const range = getDateRange(options, lookbackDays);
+    const replaceWindow = dateRangeToReplaceWindow(range);
     const isFull = options.mode === 'full';
 
     const phases = selectActivePhases<GoogleAdsResource, GoogleAdsPhase>(
@@ -877,7 +884,12 @@ export class GoogleAdsConnector extends BaseConnector<
         this.searchPage<unknown>(phase, range, page, campaignSpec, sig),
       writeBatch: async (phase, items, page) => {
         if (page === null) {
-          await this.clearScopeOnFirstPage(phase, storage, isFull);
+          await this.clearScopeOnFirstPage(
+            phase,
+            storage,
+            isFull,
+            replaceWindow,
+          );
         }
         await this.writePhase(phase, items, storage);
       },

@@ -1,3 +1,4 @@
+import { InMemoryStorage } from '@rawdash/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -415,6 +416,34 @@ describe('FirebaseAnalyticsConnector.sync', () => {
       ),
     );
     expect(writtenNames).toEqual(new Set(['firebase_dau_wau_mau']));
+  });
+
+  it('does not wipe older history when an incremental sync returns no rows', async () => {
+    const connector = makeConnector();
+    vi.stubGlobal(
+      'fetch',
+      mockFetch({ access_token: 'tok', expires_in: 3600 }, {}),
+    );
+
+    const storage = new InMemoryStorage();
+    const handle = storage.getStorageHandle('firebase-analytics');
+    const oldTs = Date.now() - 60 * 24 * 60 * 60 * 1000;
+    await handle.metric({
+      name: 'firebase_dau_wau_mau',
+      ts: oldTs,
+      value: 123,
+      attributes: { firebaseAppId: '1:1234567890:web:abcdef' },
+    });
+
+    await connector.sync(
+      { mode: 'latest', since: new Date().toISOString() },
+      handle,
+    );
+
+    const surviving = await handle.queryMetrics({
+      name: 'firebase_dau_wau_mau',
+    });
+    expect(surviving.map((m) => m.ts)).toContain(oldTs);
   });
 
   it('returns a resumable cursor when the abort signal trips mid-drain', async () => {

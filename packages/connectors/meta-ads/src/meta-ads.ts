@@ -45,13 +45,13 @@ export const configFields = defineConfigFields(
     }),
     apiVersion: z
       .string()
-      .regex(/^v\d+\.\d+$/, 'API version must look like `v21.0`')
+      .regex(/^v\d+\.\d+$/, 'API version must look like `v25.0`')
       .optional()
       .meta({
         label: 'Graph API version',
         description:
-          'Pin a specific Meta Graph API version (e.g. `v21.0`). Defaults to `v21.0`.',
-        placeholder: 'v21.0',
+          'Pin a specific Meta Graph API version (e.g. `v25.0`). Defaults to `v25.0`. Meta deprecates Marketing API versions on a rolling schedule, so older pins eventually stop working.',
+        placeholder: 'v25.0',
       }),
     lookbackDays: z.number().int().positive().optional().meta({
       label: 'Lookback days (full sync)',
@@ -138,7 +138,7 @@ export type MetaAdsResource = MetaAdsPhase;
 
 const isMetaAdsSyncCursor = makeChunkedCursorGuard(PHASE_ORDER);
 
-const DEFAULT_API_VERSION = 'v21.0';
+const DEFAULT_API_VERSION = 'v25.0';
 const BASE_URL = 'https://graph.facebook.com';
 const PAGE_LIMIT = 100;
 
@@ -282,8 +282,8 @@ const insightsBaseShape = {
   clicks: z.union([z.string(), z.number()]).optional(),
   spend: z.union([z.string(), z.number()]).optional(),
   reach: z.union([z.string(), z.number()]).optional(),
-  actions: z.array(actionEntrySchema).optional(),
-  action_values: z.array(actionEntrySchema).optional(),
+  conversions: z.array(actionEntrySchema).optional(),
+  conversion_values: z.array(actionEntrySchema).optional(),
 };
 
 const campaignInsightSchema = z.object({
@@ -345,7 +345,7 @@ export const metaAdsResources = defineResources({
     unit: 'USD',
     granularity: 'day',
     notes:
-      'Primary value is `spend`. `conversions` is the sum of every entry in the upstream `actions` array; `conversion_value` is the sum of every entry in `action_values`.',
+      'Primary value is `spend`. `conversions` is the sum of the upstream `conversions` field (conversion events only, default attribution window); `conversion_value` is the sum of the upstream `conversion_values` field.',
     dimensions: [
       { name: 'date', description: 'Calendar day of the metric sample (UTC).' },
       { name: 'campaignId', description: 'Meta campaign id.' },
@@ -355,10 +355,13 @@ export const metaAdsResources = defineResources({
       { name: 'impressions', description: 'Total impressions on the day.' },
       { name: 'clicks', description: 'Total clicks on the day.' },
       { name: 'reach', description: 'Unique reach on the day.' },
-      { name: 'conversions', description: 'Total attributed actions.' },
+      {
+        name: 'conversions',
+        description: 'Total attributed conversion events on the day.',
+      },
       {
         name: 'conversion_value',
-        description: 'Total attributed action value (account currency).',
+        description: 'Total attributed conversion value (account currency).',
       },
     ],
     responses: { campaign_insights: campaignInsightsSchema },
@@ -383,10 +386,13 @@ export const metaAdsResources = defineResources({
       { name: 'impressions', description: 'Total impressions on the day.' },
       { name: 'clicks', description: 'Total clicks on the day.' },
       { name: 'reach', description: 'Unique reach on the day.' },
-      { name: 'conversions', description: 'Total attributed actions.' },
+      {
+        name: 'conversions',
+        description: 'Total attributed conversion events on the day.',
+      },
       {
         name: 'conversion_value',
-        description: 'Total attributed action value (account currency).',
+        description: 'Total attributed conversion value (account currency).',
       },
     ],
     responses: { adset_insights: adsetInsightsSchema },
@@ -413,10 +419,13 @@ export const metaAdsResources = defineResources({
       { name: 'impressions', description: 'Total impressions on the day.' },
       { name: 'clicks', description: 'Total clicks on the day.' },
       { name: 'reach', description: 'Unique reach on the day.' },
-      { name: 'conversions', description: 'Total attributed actions.' },
+      {
+        name: 'conversions',
+        description: 'Total attributed conversion events on the day.',
+      },
       {
         name: 'conversion_value',
-        description: 'Total attributed action value (account currency).',
+        description: 'Total attributed conversion value (account currency).',
       },
     ],
     responses: { ad_insights: adInsightsSchema },
@@ -447,8 +456,8 @@ interface MetaInsightsBase {
   clicks?: string | number;
   spend?: string | number;
   reach?: string | number;
-  actions?: MetaActionEntry[];
-  action_values?: MetaActionEntry[];
+  conversions?: MetaActionEntry[];
+  conversion_values?: MetaActionEntry[];
 }
 
 export interface MetaCampaignInsight extends MetaInsightsBase {
@@ -507,10 +516,8 @@ function buildInsightAttributes(
   const impressions = parseNumber(row.impressions);
   const clicks = parseNumber(row.clicks);
   const reach = parseNumber(row.reach);
-  const conversions = (row.actions ?? []).length
-    ? sumActionValues(row.actions)
-    : 0;
-  const conversionValue = sumActionValues(row.action_values);
+  const conversions = sumActionValues(row.conversions);
+  const conversionValue = sumActionValues(row.conversion_values);
   return {
     date: row.date_start,
     impressions,
@@ -586,8 +593,8 @@ const COMMON_INSIGHT_FIELDS = [
   'clicks',
   'spend',
   'reach',
-  'actions',
-  'action_values',
+  'conversions',
+  'conversion_values',
 ];
 
 const INSIGHT_FIELDS: Record<

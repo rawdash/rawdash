@@ -195,8 +195,8 @@ describe('MetaAdsConnector property tests', () => {
               clicks: '50',
               spend: '10.00',
               reach: '900',
-              actions: [{ action_type: 'purchase', value: '3' }],
-              action_values: [{ action_type: 'purchase', value: '90' }],
+              conversions: [{ action_type: 'purchase', value: '3' }],
+              conversion_values: [{ action_type: 'purchase', value: '90' }],
             },
           ],
         };
@@ -214,8 +214,8 @@ describe('MetaAdsConnector property tests', () => {
               clicks: '100',
               spend: '20.00',
               reach: '1800',
-              actions: [],
-              action_values: [],
+              conversions: [],
+              conversion_values: [],
             },
           ],
         };
@@ -231,8 +231,8 @@ describe('MetaAdsConnector property tests', () => {
               clicks: '200',
               spend: '50.00',
               reach: '4500',
-              actions: [{ action_type: 'purchase', value: '10' }],
-              action_values: [{ action_type: 'purchase', value: '300' }],
+              conversions: [{ action_type: 'purchase', value: '10' }],
+              conversion_values: [{ action_type: 'purchase', value: '300' }],
             },
           ],
         };

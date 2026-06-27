@@ -1,3 +1,4 @@
+import { InMemoryStorage } from '@rawdash/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -421,6 +422,34 @@ describe('MixpanelConnector.sync', () => {
     const url = new URL(retentionCalls[0]!);
     expect(url.searchParams.get('from_date')).toBe('2024-12-15');
     expect(url.searchParams.get('to_date')).toBe('2025-01-15');
+  });
+
+  it('preserves history outside the incremental window on a latest sync', async () => {
+    vi.stubGlobal('fetch', mockFetch({ retention: () => ({}) }));
+    const storage = new InMemoryStorage();
+    const handle = storage.getStorageHandle('mixpanel');
+    const oldTs = Date.now() - 60 * 86_400_000;
+    await handle.metrics(
+      [
+        {
+          name: 'mixpanel_retention',
+          ts: oldTs,
+          value: 42,
+          attributes: { event: 'Signed Up', period: 0 },
+        },
+      ],
+      { names: ['mixpanel_retention'] },
+    );
+
+    await makeConnector({ retentionEvent: 'Signed Up' }).sync(
+      { mode: 'latest' },
+      handle,
+    );
+
+    const surviving = await handle.queryMetrics({ name: 'mixpanel_retention' });
+    expect(surviving).toHaveLength(1);
+    expect(surviving[0]!.ts).toBe(oldTs);
+    expect(surviving[0]!.value).toBe(42);
   });
 
   it('honors options.resources allowlist', async () => {

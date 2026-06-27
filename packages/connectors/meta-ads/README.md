@@ -24,13 +24,13 @@ A long-lived System User access token from Meta Business Manager, scoped with `a
 
 ## Configuration
 
-| Field          | Type   | Required | Description                                                                                                                                                |
-| -------------- | ------ | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `adAccountId`  | string | Yes      | Meta Marketing API ad account ID. Find it in Ads Manager → Settings → Account info; it always starts with `act_`.                                          |
-| `accessToken`  | secret | Yes      | Long-lived System User access token from Meta Business Manager with `ads_read` (and, for newer accounts, `read_insights`) scopes on the chosen ad account. |
-| `apiVersion`   | string | No       | Pin a specific Meta Graph API version (e.g. `v21.0`). Defaults to `v21.0`.                                                                                 |
-| `lookbackDays` | number | No       | How many calendar days of insights to fetch on a full sync. Defaults to 90.                                                                                |
-| `resources`    | array  | No       | Which Meta resources to sync. Omit to sync all. Ad-level insights are the most expensive - leave them out if you only need campaign or adset rollups.      |
+| Field          | Type   | Required | Description                                                                                                                                                                     |
+| -------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `adAccountId`  | string | Yes      | Meta Marketing API ad account ID. Find it in Ads Manager → Settings → Account info; it always starts with `act_`.                                                               |
+| `accessToken`  | secret | Yes      | Long-lived System User access token from Meta Business Manager with `ads_read` (and, for newer accounts, `read_insights`) scopes on the chosen ad account.                      |
+| `apiVersion`   | string | No       | Pin a specific Meta Graph API version (e.g. `v25.0`). Defaults to `v25.0`. Meta deprecates Marketing API versions on a rolling schedule, so older pins eventually stop working. |
+| `lookbackDays` | number | No       | How many calendar days of insights to fetch on a full sync. Defaults to 90.                                                                                                     |
+| `resources`    | array  | No       | Which Meta resources to sync. Omit to sync all. Ad-level insights are the most expensive - leave them out if you only need campaign or adset rollups.                           |
 
 ## Resources
 
@@ -42,7 +42,7 @@ A long-lived System User access token from Meta Business Manager, scoped with `a
   - Granularity: day
   - Dimensions: `date`, `campaignId`, `campaignName`
   - Measures: `impressions`, `clicks`, `reach`, `conversions`, `conversion_value`
-  - Primary value is `spend`. `conversions` is the sum of every entry in the upstream `actions` array; `conversion_value` is the sum of every entry in `action_values`.
+  - Primary value is `spend`. `conversions` is the sum of the upstream `conversions` field (conversion events only, default attribution window); `conversion_value` is the sum of the upstream `conversion_values` field.
 - **`meta_adset_insights`** _(metric)_ - Daily adset-level Meta Ads insights - same fields as the campaign roll-up, bucketed by adset.
   - Endpoint: `GET /{ad_account_id}/insights?level=adset&time_increment=1`
   - Unit: USD

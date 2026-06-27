@@ -988,7 +988,7 @@ export class OpenAIConnector extends BaseConnector<
         pageUrl = nextUrl;
       }
 
-      await this.writePhase(storage, phase, buckets);
+      await this.writePhase(storage, phase, buckets, window);
       this.logger.info('resource done', {
         resource: phase,
         pages: pageCount,
@@ -1065,7 +1065,12 @@ export class OpenAIConnector extends BaseConnector<
     storage: StorageHandle,
     phase: OpenAIPhase,
     buckets: BucketPage<unknown>[],
+    window: UsageWindow,
   ): Promise<void> {
+    const replaceWindow = {
+      start: window.startTimeSeconds * 1000,
+      end: window.endTimeSeconds * 1000,
+    };
     switch (phase) {
       case 'usage_completions': {
         const samples = buildCompletionsSamples(
@@ -1073,12 +1078,15 @@ export class OpenAIConnector extends BaseConnector<
         );
         await storage.metrics(samples.inputTokens, {
           names: ['openai_completions_input_tokens'],
+          replaceWindow,
         });
         await storage.metrics(samples.outputTokens, {
           names: ['openai_completions_output_tokens'],
+          replaceWindow,
         });
         await storage.metrics(samples.requests, {
           names: ['openai_completions_requests'],
+          replaceWindow,
         });
         return;
       }
@@ -1088,9 +1096,11 @@ export class OpenAIConnector extends BaseConnector<
         );
         await storage.metrics(samples.inputTokens, {
           names: ['openai_embeddings_input_tokens'],
+          replaceWindow,
         });
         await storage.metrics(samples.requests, {
           names: ['openai_embeddings_requests'],
+          replaceWindow,
         });
         return;
       }
@@ -1100,9 +1110,11 @@ export class OpenAIConnector extends BaseConnector<
         );
         await storage.metrics(samples.count, {
           names: ['openai_images_count'],
+          replaceWindow,
         });
         await storage.metrics(samples.requests, {
           names: ['openai_images_requests'],
+          replaceWindow,
         });
         return;
       }
@@ -1112,9 +1124,11 @@ export class OpenAIConnector extends BaseConnector<
         );
         await storage.metrics(samples.characters, {
           names: ['openai_audio_speeches_characters'],
+          replaceWindow,
         });
         await storage.metrics(samples.requests, {
           names: ['openai_audio_speeches_requests'],
+          replaceWindow,
         });
         return;
       }
@@ -1124,15 +1138,20 @@ export class OpenAIConnector extends BaseConnector<
         );
         await storage.metrics(samples.seconds, {
           names: ['openai_audio_transcriptions_seconds'],
+          replaceWindow,
         });
         await storage.metrics(samples.requests, {
           names: ['openai_audio_transcriptions_requests'],
+          replaceWindow,
         });
         return;
       }
       case 'costs': {
         const samples = buildCostSamples(buckets as BucketPage<CostsResult>[]);
-        await storage.metrics(samples, { names: ['openai_cost_usd'] });
+        await storage.metrics(samples, {
+          names: ['openai_cost_usd'],
+          replaceWindow,
+        });
         return;
       }
     }

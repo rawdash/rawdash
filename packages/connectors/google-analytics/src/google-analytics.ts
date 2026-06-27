@@ -197,7 +197,7 @@ const PHASE_CONFIGS: Record<GA4Phase, PhaseConfig> = {
   },
   traffic_by_source: {
     dimensions: ['date', 'sessionSource', 'sessionMedium'],
-    metrics: ['sessions', 'conversions'],
+    metrics: ['sessions', 'keyEvents'],
     metricName: 'ga4_traffic_by_source',
   },
   top_pages: {
@@ -212,7 +212,7 @@ const PHASE_CONFIGS: Record<GA4Phase, PhaseConfig> = {
   },
   conversions: {
     dimensions: ['date', 'eventName'],
-    metrics: ['conversions', 'totalRevenue'],
+    metrics: ['keyEvents', 'totalRevenue'],
     metricName: 'ga4_conversions',
   },
   geo: {
@@ -258,8 +258,22 @@ function ga4DateToMs(ga4Date: string): number {
   return Date.UTC(Number(y), Number(m) - 1, Number(d));
 }
 
+function ga4RangeDateToMs(rangeDate: string): number {
+  const y = rangeDate.slice(0, 4);
+  const m = rangeDate.slice(5, 7);
+  const d = rangeDate.slice(8, 10);
+  return Date.UTC(Number(y), Number(m) - 1, Number(d));
+}
+
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const INCREMENTAL_LOOKBACK_DAYS = 30;
+
+function isResourceAllowed(options: SyncOptions, resource: string): boolean {
+  if (!options.resources || options.resources.size === 0) {
+    return true;
+  }
+  return options.resources.has(resource);
+}
 
 function getDateRange(
   options: SyncOptions,
@@ -371,7 +385,7 @@ export const googleAnalyticsResources = defineResources({
   ga4_traffic_by_source: {
     shape: 'metric',
     description:
-      'Daily sessions and conversions broken down by acquisition source and medium.',
+      'Daily sessions and key events (conversions) broken down by acquisition source and medium.',
     unit: 'sessions',
     granularity: 'day',
     endpoint: 'POST /v1beta/properties/{propertyId}:runReport',
@@ -424,7 +438,7 @@ export const googleAnalyticsResources = defineResources({
   ga4_conversions: {
     shape: 'metric',
     description:
-      'Daily conversion counts and total revenue bucketed by conversion event name.',
+      'Daily key event (conversion) counts and total revenue bucketed by key event name.',
     unit: 'conversions',
     granularity: 'day',
     endpoint: 'POST /v1beta/properties/{propertyId}:runReport',
@@ -433,7 +447,7 @@ export const googleAnalyticsResources = defineResources({
       {
         name: 'eventName',
         description:
-          'GA4 conversion event name (e.g. purchase, generate_lead).',
+          'GA4 key event (conversion) name (e.g. purchase, generate_lead).',
       },
     ],
     responses: { conversions: reportSchema(2) },
@@ -547,6 +561,13 @@ export class GA4Connector extends BaseConnector<GA4Settings, GA4Credentials> {
     const cursor = isGA4SyncCursor(options.cursor) ? options.cursor : undefined;
     const dateRange = cursor?.dateRange ?? getDateRange(options, lookbackDays);
 
+    const windowStart = ga4RangeDateToMs(dateRange.startDate);
+    const windowEnd = ga4RangeDateToMs(dateRange.endDate) + MS_PER_DAY - 1;
+    const replaceWindow =
+      windowStart <= windowEnd
+        ? { start: windowStart, end: windowEnd }
+        : undefined;
+
     let accessToken: string | null = null;
     const getToken = async (sig?: AbortSignal): Promise<string> => {
       if (!accessToken) {
@@ -605,6 +626,11 @@ export class GA4Connector extends BaseConnector<GA4Settings, GA4Credentials> {
         return { done: false, cursor: { phase, dateRange } };
       }
 
+      const cfg = PHASE_CONFIGS[phase];
+      if (!isResourceAllowed(options, cfg.metricName)) {
+        continue;
+      }
+
       let rows: GA4ReportRow[];
       try {
         rows = await drainPhase(phase);
@@ -614,11 +640,13 @@ export class GA4Connector extends BaseConnector<GA4Settings, GA4Credentials> {
         }
         throw err;
       }
-      const cfg = PHASE_CONFIGS[phase];
       const samples = rows.map((row) =>
         rowToMetricSample(row, cfg.dimensions, cfg.metrics, cfg.metricName),
       );
-      await storage.metrics(samples, { names: [cfg.metricName] });
+      await storage.metrics(samples, {
+        names: [cfg.metricName],
+        ...(replaceWindow ? { replaceWindow } : {}),
+      });
     }
 
     return { done: true };

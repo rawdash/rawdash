@@ -17,6 +17,17 @@ import {
 } from '@rawdash/core';
 import { z } from 'zod';
 
+import {
+  INSTALLS_BREAKDOWNS,
+  type InstallsBreakdown,
+  type InstallsSample,
+  decodeUtf16Csv,
+  installsMonthsForRange,
+  installsObjectPath,
+  normalizeInstallsBucketId,
+  parseInstallsCsv,
+} from './installs';
+
 export const configFields = defineConfigFields(
   z.object({
     packageName: z
@@ -50,6 +61,12 @@ export const configFields = defineConfigFields(
         'How many of the most-recent user reviews to emit as gplay_app_ratings samples. Defaults to 200. Reviews are fetched then ranked newest-first before this cap is applied. The Android Publisher reviews API only surfaces reviews from roughly the past week, so this is a rolling sample, not a full history.',
       placeholder: '200',
     }),
+    installsBucketId: z.string().trim().min(1).optional().meta({
+      label: 'Installs report bucket id',
+      description:
+        'Cloud Storage bucket id that holds your Play Console reports (e.g. `pubsite_prod_rev_01234567890987654321`), shown via "Copy Cloud Storage URI" on the Play Console Download reports page. Required only for the `gplay_installs_*` resources, which read the monthly stats/installs CSV reports. The bucket is Google-managed; the service account is granted access through Play Console (Users & permissions -> "View app information and download bulk reports", set to Global), not Google Cloud IAM.',
+      placeholder: 'pubsite_prod_rev_01234567890987654321',
+    }),
   }),
 );
 
@@ -72,6 +89,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
       'In Google Cloud, create a service account at IAM & Admin -> Service Accounts and download a JSON key.',
       'Enable both the "Google Play Developer Reporting API" and the "Google Play Android Developer API" on the Cloud project.',
       'In Google Play Console open Setup -> API access, link the same Cloud project, then invite the service account email and grant it at least the "View app information and download bulk reports" permission for the app you want to sync.',
+      'For the `gplay_installs_*` resources, grant bucket access inside Play Console, not Google Cloud IAM: the install reports live in a Google-managed Cloud Storage bucket provisioned for your developer account. In Play Console -> Users & permissions, give the service account the account-level "View app information and download bulk reports" permission set to Global (changes can take a few hours to propagate), then copy the bucket id from the Download reports page (the Cloud Storage URI starts with `gs://pubsite_prod_...`) into installsBucketId.',
       'Store the service account JSON as a secret and reference it as serviceAccountJson: secret("GPLAY_SA_JSON").',
       'Set packageName to the reverse-DNS application id of the app (e.g. com.example.app).',
     ],
@@ -82,7 +100,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Daily vitals (crash rate, ANR rate, error counts) have a 2-3 day reporting lag on the Play Developer Reporting API; incremental syncs refetch the trailing 3 days. Metric days are reported on the America/Los_Angeles calendar, the only timezone the API supports for daily aggregation.',
     'gplay_app_ratings is a rolling sample of recent reviews from the Android Publisher reviews API (default 200, configurable via reviewLimit). Each sample carries one review with its star rating (1-5) as the value; this is not the lifetime average shown on the Play Store, and the reviews API only surfaces reviews from roughly the past week.',
     'The apps entity carries only the configured package name; the Play Store listing title is available solely through an Android Publisher edit, which this connector does not create.',
-    'Install counts and earnings are not exposed through the Reporting API - Google delivers them only as monthly CSV reports in a private Cloud Storage bucket. Those metrics are out of scope for this connector and will land in a follow-up.',
+    'The `gplay_installs_*` resources read the monthly stats/installs CSV reports from your Play Console Cloud Storage bucket, not the Reporting API; they require installsBucketId plus the account-level "View app information and download bulk reports" permission granted to the service account in Play Console (the bucket is Google-managed; access is not configured through Google Cloud IAM). Files are published monthly (with daily rows) and a few days in arrears, so the current month fills in over time and the most recent days lag. Earnings/financial reports remain out of scope.',
   ],
 });
 
@@ -90,6 +108,7 @@ export interface GooglePlayConsoleSettings {
   packageName: string;
   lookbackDays?: number;
   reviewLimit?: number;
+  installsBucketId?: string;
 }
 
 const gplayCredentials = {
@@ -106,10 +125,20 @@ const PHASE_ORDER = [
   'crash_rate',
   'anr_rate',
   'errors',
+  'installs_overview',
+  'installs_country',
+  'installs_app_version',
+  'installs_device',
+  'installs_os_version',
+  'installs_language',
+  'installs_carrier',
   'reviews',
 ] as const;
 
 type GplayPhase = (typeof PHASE_ORDER)[number];
+
+const INSTALLS_PHASE_TO_BREAKDOWN: Record<string, InstallsBreakdown> =
+  Object.fromEntries(INSTALLS_BREAKDOWNS.map((b) => [b.phase, b]));
 
 type MetricPhase = 'crash_rate' | 'anr_rate' | 'errors';
 
@@ -191,15 +220,21 @@ const RESOURCE_TO_PHASE: Record<string, GplayPhase> = {
   gplay_anr_rate_by_day: 'anr_rate',
   gplay_error_count_by_day: 'errors',
   [GPLAY_APP_RATINGS_METRIC]: 'reviews',
+  ...Object.fromEntries(
+    INSTALLS_BREAKDOWNS.map((b) => [b.resource, b.phase as GplayPhase]),
+  ),
 };
 
 const SCOPES = [
   'https://www.googleapis.com/auth/playdeveloperreporting',
   'https://www.googleapis.com/auth/androidpublisher',
+  'https://www.googleapis.com/auth/devstorage.read_only',
 ].join(' ');
 
 const REPORTING_BASE = 'https://playdeveloperreporting.googleapis.com';
 const PUBLISHER_BASE = 'https://androidpublisher.googleapis.com';
+const GCS_BASE = 'https://storage.googleapis.com';
+const INSTALLS_DOWNLOAD_TIMEOUT_MS = 30_000;
 
 const DAILY_TIME_ZONE = 'America/Los_Angeles';
 
@@ -308,6 +343,17 @@ function partsToGplayDate(parts: {
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const INCREMENTAL_LOOKBACK_DAYS = 3;
+
+function dateRangeToReplaceWindow(
+  range: GplayDateRange,
+): { start: number; end: number } | undefined {
+  const start = gplayDateToMs(range.startDate);
+  const end = gplayDateToMs(range.endDate) + MS_PER_DAY - 1;
+  if (start > end) {
+    return undefined;
+  }
+  return { start, end };
+}
 
 function getDateRange(
   options: SyncOptions,
@@ -502,6 +548,83 @@ const reviewsResponseSchema = z.object({
     .optional(),
 });
 
+const installsCsvResponse = z.string();
+
+const INSTALLS_DATE_DIMENSION = {
+  name: 'date',
+  description:
+    'Calendar day of the install statistics row, as delivered in the monthly stats/installs CSV.',
+};
+
+const INSTALLS_PACKAGE_DIMENSION = {
+  name: 'package_name',
+  description:
+    'Reverse-DNS application id these install statistics are reported against.',
+};
+
+const INSTALLS_MEASURES = [
+  {
+    name: 'daily_device_installs',
+    description:
+      'Devices that newly installed the app on this day (also the primary metric value).',
+  },
+  {
+    name: 'daily_device_uninstalls',
+    description: 'Devices that uninstalled the app on this day.',
+  },
+  {
+    name: 'daily_device_upgrades',
+    description: 'Devices that upgraded the app on this day.',
+  },
+  {
+    name: 'current_device_installs',
+    description: 'Active devices that have the app installed at end of day.',
+  },
+  {
+    name: 'active_device_installs',
+    description:
+      'Installs on active devices (devices active in the trailing 30 days).',
+  },
+  {
+    name: 'current_user_installs',
+    description: 'Users that have the app installed at end of day.',
+  },
+  {
+    name: 'total_user_installs',
+    description: 'Total users that have ever installed the app.',
+  },
+  {
+    name: 'daily_user_installs',
+    description: 'Users that newly installed the app on this day.',
+  },
+  {
+    name: 'daily_user_uninstalls',
+    description: 'Users that uninstalled the app on this day.',
+  },
+];
+
+function installsResource(breakdown: InstallsBreakdown) {
+  const dimensions = [INSTALLS_DATE_DIMENSION, INSTALLS_PACKAGE_DIMENSION];
+  if (breakdown.dimensionAttr) {
+    dimensions.push({
+      name: breakdown.dimensionAttr,
+      description: breakdown.dimensionDescription,
+    });
+  }
+  return {
+    shape: 'metric' as const,
+    description: breakdown.description,
+    unit: 'installs',
+    granularity: 'day',
+    endpoint: `GET /storage/v1/b/{installsBucketId}/o/stats%2Finstalls%2Finstalls_{packageName}_{YYYYMM}_${breakdown.fileDimension}.csv`,
+    notes:
+      'Sourced from the Play Console monthly stats/installs CSV in Cloud Storage. Files are monthly with daily rows and arrive a few days in arrears; the connector refetches the months overlapping the sync window.',
+    dimensions,
+    measures: INSTALLS_MEASURES,
+    responses: { [breakdown.responseTag]: installsCsvResponse },
+  };
+}
+
 export const googlePlayConsoleResources = defineResources({
   apps: {
     shape: 'entity',
@@ -612,6 +735,13 @@ export const googlePlayConsoleResources = defineResources({
     ],
     responses: { reviews: reviewsResponseSchema },
   },
+  gplay_installs_overview_by_day: installsResource(INSTALLS_BREAKDOWNS[0]!),
+  gplay_installs_by_country: installsResource(INSTALLS_BREAKDOWNS[1]!),
+  gplay_installs_by_app_version: installsResource(INSTALLS_BREAKDOWNS[2]!),
+  gplay_installs_by_device: installsResource(INSTALLS_BREAKDOWNS[3]!),
+  gplay_installs_by_os_version: installsResource(INSTALLS_BREAKDOWNS[4]!),
+  gplay_installs_by_language: installsResource(INSTALLS_BREAKDOWNS[5]!),
+  gplay_installs_by_carrier: installsResource(INSTALLS_BREAKDOWNS[6]!),
 });
 
 export const id = 'google-play-console';
@@ -631,11 +761,21 @@ export class GooglePlayConsoleConnector extends BaseConnector<
     ctx?: ConnectorContext,
   ): GooglePlayConsoleConnector {
     const parsed = configFields.parse(input);
+    let installsBucketId: string | undefined;
+    if (parsed.installsBucketId !== undefined) {
+      installsBucketId = normalizeInstallsBucketId(parsed.installsBucketId);
+      if (installsBucketId.length === 0) {
+        throw new Error(
+          'Google Play Console connector: installsBucketId must include a bucket name (e.g. pubsite_prod_rev_...)',
+        );
+      }
+    }
     return new GooglePlayConsoleConnector(
       {
         packageName: parsed.packageName,
         lookbackDays: parsed.lookbackDays,
         reviewLimit: parsed.reviewLimit,
+        installsBucketId,
       },
       {
         serviceAccountJson: parsed.serviceAccountJson,
@@ -808,6 +948,92 @@ export class GooglePlayConsoleConnector extends BaseConnector<
     return rows;
   }
 
+  private async downloadInstallsCsv(
+    accessToken: string,
+    bucket: string,
+    yyyymm: string,
+    breakdown: InstallsBreakdown,
+    signal?: AbortSignal,
+  ): Promise<string | null> {
+    const objectPath = installsObjectPath(
+      this.settings.packageName,
+      yyyymm,
+      breakdown.fileDimension,
+    );
+    const url = `${GCS_BASE}/storage/v1/b/${encodeURIComponent(bucket)}/o/${encodeURIComponent(objectPath)}?alt=media`;
+    try {
+      const res = await this.request<Uint8Array>(
+        {
+          url,
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'User-Agent': connectorUserAgent('google-play-console'),
+          },
+          parseJson: false,
+          binary: true,
+          timeoutMs: INSTALLS_DOWNLOAD_TIMEOUT_MS,
+          signal,
+        },
+        { resource: breakdown.responseTag },
+      );
+      return decodeUtf16Csv(res.body);
+    } catch (err) {
+      const status = (err as { response?: { status?: number } }).response
+        ?.status;
+      if (status === 404) {
+        return null;
+      }
+      throw err;
+    }
+  }
+
+  private async syncInstallsBreakdown(
+    accessToken: string,
+    breakdown: InstallsBreakdown,
+    dateRange: GplayDateRange,
+    storage: StorageHandle,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    const bucket = this.settings.installsBucketId;
+    if (!bucket) {
+      return;
+    }
+    const months = installsMonthsForRange(
+      dateRange.startDate,
+      dateRange.endDate,
+    );
+    const samples: InstallsSample[] = [];
+    for (const month of months) {
+      signal?.throwIfAborted();
+      const csv = await this.downloadInstallsCsv(
+        accessToken,
+        bucket,
+        month,
+        breakdown,
+        signal,
+      );
+      if (csv === null) {
+        continue;
+      }
+      for (const sample of parseInstallsCsv(
+        csv,
+        breakdown,
+        this.settings.packageName,
+      )) {
+        const date = sample.attributes['date'];
+        if (
+          typeof date === 'string' &&
+          date >= dateRange.startDate &&
+          date <= dateRange.endDate
+        ) {
+          samples.push(sample);
+        }
+      }
+    }
+    await storage.metrics(samples, { names: [breakdown.resource] });
+  }
+
   async sync(
     options: SyncOptions,
     storage: StorageHandle,
@@ -819,6 +1045,7 @@ export class GooglePlayConsoleConnector extends BaseConnector<
       ? options.cursor
       : undefined;
     const dateRange = cursor?.dateRange ?? getDateRange(options, lookbackDays);
+    const replaceWindow = dateRangeToReplaceWindow(dateRange);
 
     let accessToken: string | null = null;
     const getToken = async (sig?: AbortSignal): Promise<string> => {
@@ -855,7 +1082,27 @@ export class GooglePlayConsoleConnector extends BaseConnector<
           continue;
         }
 
-        const cfg = METRIC_PHASE_CONFIGS[phase];
+        const breakdown = INSTALLS_PHASE_TO_BREAKDOWN[phase];
+        if (breakdown) {
+          if (!this.settings.installsBucketId) {
+            this.logger.warn(
+              'Skipping Google Play installs resource because installsBucketId is not configured',
+              { resource: breakdown.resource },
+            );
+            continue;
+          }
+          const token = await getToken(signal);
+          await this.syncInstallsBreakdown(
+            token,
+            breakdown,
+            dateRange,
+            storage,
+            signal,
+          );
+          continue;
+        }
+
+        const cfg = METRIC_PHASE_CONFIGS[phase as MetricPhase];
         const token = await getToken(signal);
         const rows = await this.drainMetricPhase(token, cfg, dateRange, signal);
         const samples = rows
@@ -869,7 +1116,10 @@ export class GooglePlayConsoleConnector extends BaseConnector<
             ),
           )
           .filter((s): s is NonNullable<typeof s> => s !== null);
-        await storage.metrics(samples, { names: [cfg.metricName] });
+        await storage.metrics(samples, {
+          names: [cfg.metricName],
+          ...(replaceWindow ? { replaceWindow } : {}),
+        });
       } catch (err) {
         if (signal?.aborted) {
           return { done: false, cursor: { phase, dateRange } };

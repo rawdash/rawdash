@@ -2180,16 +2180,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
   },
 
   {
-    id: 'postmark',
-    name: 'Postmark',
-    category: 'engineering',
-    tagline:
-      'Sync transactional email send volume, delivery, bounce, and complaint rates from Postmark.',
-    brandColor: '#FFCC00',
-    domain: 'postmarkapp.com',
-    requestIssue: 'RAW-430',
-  },
-  {
     id: 'resend',
     name: 'Resend',
     category: 'engineering',
@@ -2208,16 +2198,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     brandColor: '#1A82E2',
     domain: 'sendgrid.com',
     requestIssue: 'RAW-429',
-  },
-  {
-    id: 'twilio',
-    name: 'Twilio',
-    category: 'engineering',
-    tagline:
-      'Sync SMS, voice, and verify usage with delivery and error rates from Twilio.',
-    brandColor: '#F22F46',
-    domain: 'twilio.com',
-    requestIssue: 'RAW-428',
   },
   {
     id: 'sonarqube',

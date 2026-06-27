@@ -594,6 +594,30 @@ export function getSpendWindow(
   return { start: toDateStr(end - days * MS_PER_DAY), end: toDateStr(end) };
 }
 
+function bedrockReplaceWindow(
+  window: BedrockWindow,
+): { start: number; end: number } | null {
+  if (window.endMs < window.startMs) {
+    return null;
+  }
+  return { start: window.startMs, end: window.endMs };
+}
+
+function spendReplaceWindow(
+  window: SpendWindow,
+): { start: number; end: number } | null {
+  const startMs = ceDateToMs(window.start);
+  const endMs = ceDateToMs(window.end);
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
+    return null;
+  }
+  const inclusiveEndMs = endMs - 1;
+  if (inclusiveEndMs < startMs) {
+    return null;
+  }
+  return { start: startMs, end: inclusiveEndMs };
+}
+
 interface HttpErrorLike {
   message: string;
   response?: HttpResponse;
@@ -887,9 +911,13 @@ export class AwsBedrockConnector extends BaseAWSConnector<AwsBedrockSettings> {
       this.resourceAllowed(options, spec.outputName),
     );
     if (activeSpecs.length === 0 || modelIds.length === 0) {
+      const replaceWindow = bedrockReplaceWindow(window);
       for (const spec of USAGE_METRICS) {
         if (this.resourceAllowed(options, spec.outputName)) {
-          await storage.metrics([], { names: [spec.outputName] });
+          await storage.metrics([], {
+            names: [spec.outputName],
+            ...(replaceWindow ? { replaceWindow } : {}),
+          });
         }
       }
       this.logger.info('resource done', {
@@ -943,9 +971,13 @@ export class AwsBedrockConnector extends BaseAWSConnector<AwsBedrockSettings> {
       );
     }
 
+    const replaceWindow = bedrockReplaceWindow(window);
     let totalItems = 0;
     for (const [metricName, samples] of samplesByMetric.entries()) {
-      await storage.metrics(samples, { names: [metricName] });
+      await storage.metrics(samples, {
+        names: [metricName],
+        ...(replaceWindow ? { replaceWindow } : {}),
+      });
       totalItems += samples.length;
     }
     this.logger.info('resource done', { resource: 'usage', items: totalItems });
@@ -964,7 +996,11 @@ export class AwsBedrockConnector extends BaseAWSConnector<AwsBedrockSettings> {
       modelIds.length === 0
     ) {
       if (this.resourceAllowed(options, ERRORS_METRIC)) {
-        await storage.metrics([], { names: [ERRORS_METRIC] });
+        const replaceWindow = bedrockReplaceWindow(window);
+        await storage.metrics([], {
+          names: [ERRORS_METRIC],
+          ...(replaceWindow ? { replaceWindow } : {}),
+        });
       }
       this.logger.info('resource done', { resource: 'errors', items: 0 });
       return;
@@ -1007,7 +1043,11 @@ export class AwsBedrockConnector extends BaseAWSConnector<AwsBedrockSettings> {
       );
     }
 
-    await storage.metrics(samples, { names: [ERRORS_METRIC] });
+    const replaceWindow = bedrockReplaceWindow(window);
+    await storage.metrics(samples, {
+      names: [ERRORS_METRIC],
+      ...(replaceWindow ? { replaceWindow } : {}),
+    });
     this.logger.info('resource done', {
       resource: 'errors',
       items: samples.length,
@@ -1069,14 +1109,22 @@ export class AwsBedrockConnector extends BaseAWSConnector<AwsBedrockSettings> {
       } while (nextPageToken);
     } catch (err) {
       if (isDataUnavailable(err)) {
-        await storage.metrics([], { names: [SPEND_METRIC] });
+        const replaceWindow = spendReplaceWindow(window);
+        await storage.metrics([], {
+          names: [SPEND_METRIC],
+          ...(replaceWindow ? { replaceWindow } : {}),
+        });
         this.logger.info('resource done', { resource: 'spend', items: 0 });
         return;
       }
       throw err;
     }
 
-    await storage.metrics(samples, { names: [SPEND_METRIC] });
+    const replaceWindow = spendReplaceWindow(window);
+    await storage.metrics(samples, {
+      names: [SPEND_METRIC],
+      ...(replaceWindow ? { replaceWindow } : {}),
+    });
     this.logger.info('resource done', {
       resource: 'spend',
       items: samples.length,

@@ -74,6 +74,7 @@ export const connectorLoaders: Record<string, () => Promise<ConnectorClass>> = {
   okta: () => import('@rawdash/connector-okta').then((m) => m.default),
   openai: () => import('@rawdash/connector-openai').then((m) => m.default),
   posthog: () => import('@rawdash/connector-posthog').then((m) => m.default),
+  postmark: () => import('@rawdash/connector-postmark').then((m) => m.default),
   revenuecat: () =>
     import('@rawdash/connector-revenuecat').then((m) => m.default),
   salesforce: () =>
@@ -83,6 +84,7 @@ export const connectorLoaders: Record<string, () => Promise<ConnectorClass>> = {
   statuspage: () =>
     import('@rawdash/connector-statuspage').then((m) => m.default),
   stripe: () => import('@rawdash/connector-stripe').then((m) => m.default),
+  twilio: () => import('@rawdash/connector-twilio').then((m) => m.default),
   vanta: () => import('@rawdash/connector-vanta').then((m) => m.default),
   vercel: () => import('@rawdash/connector-vercel').then((m) => m.default),
   'vertex-ai': () =>

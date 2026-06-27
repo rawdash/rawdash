@@ -1,4 +1,5 @@
 import type { ConnectorLogger } from '@rawdash/connector-shared';
+import { InMemoryStorage } from '@rawdash/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -566,6 +567,36 @@ describe('AzureMonitorConnector.sync', () => {
     expect(scope.names).toEqual([
       'Microsoft.Compute/virtualMachines/Percentage CPU',
     ]);
+  });
+
+  it('does not wipe older history when an incremental sync returns no datapoints', async () => {
+    const fetchSpy = routeFetch({
+      '/providers/Microsoft.Insights/metrics': () => ({
+        body: { value: [] },
+      }),
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const storage = new InMemoryStorage();
+    const handle = storage.getStorageHandle('azure-monitor');
+    const metricName = 'Microsoft.Compute/virtualMachines/Percentage CPU';
+    const oldTs = Date.UTC(2025, 0, 1);
+    await handle.metrics([
+      {
+        name: metricName,
+        ts: oldTs,
+        value: 42,
+        attributes: { queryId: 'cpu' },
+      },
+    ]);
+
+    await connector({ resources: ['metric_queries'] }).sync(
+      { mode: 'latest' },
+      handle,
+    );
+
+    const surviving = await handle.queryMetrics({ name: metricName });
+    expect(surviving.map((m) => m.ts)).toContain(oldTs);
   });
 
   it('paginates alerts via nextLink and clears stale alerts', async () => {

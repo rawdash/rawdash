@@ -109,11 +109,11 @@ describe('insightRowToMetricSample', () => {
         clicks: '300',
         spend: '42.50',
         reach: '8000',
-        actions: [
-          { action_type: 'link_click', value: '300' },
+        conversions: [
           { action_type: 'purchase', value: '5' },
+          { action_type: 'lead', value: '3' },
         ],
-        action_values: [{ action_type: 'purchase', value: '125' }],
+        conversion_values: [{ action_type: 'purchase', value: '125' }],
       },
       'campaign_insights',
     );
@@ -123,8 +123,27 @@ describe('insightRowToMetricSample', () => {
     expect(sample.attributes['campaignId']).toBe('c1');
     expect(sample.attributes['campaignName']).toBe('My Campaign');
     expect(sample.attributes['impressions']).toBe(12000);
-    expect(sample.attributes['conversions']).toBe(305);
+    expect(sample.attributes['conversions']).toBe(8);
     expect(sample.attributes['conversion_value']).toBe(125);
+  });
+
+  it('counts only the conversions field, not engagement action types', () => {
+    const sample = insightRowToMetricSample(
+      {
+        date_start: '2025-01-15',
+        campaign_id: 'c1',
+        spend: '10',
+        actions: [
+          { action_type: 'link_click', value: '300' },
+          { action_type: 'post_engagement', value: '450' },
+        ],
+        conversions: [{ action_type: 'purchase', value: '4' }],
+        conversion_values: [{ action_type: 'purchase', value: '200' }],
+      } as never,
+      'campaign_insights',
+    );
+    expect(sample.attributes['conversions']).toBe(4);
+    expect(sample.attributes['conversion_value']).toBe(200);
   });
 
   it('includes adset attrs on adset_insights rows', () => {
@@ -346,8 +365,9 @@ describe('MetaAdsConnector.sync', () => {
               clicks: '300',
               spend: '42.50',
               reach: '8000',
-              actions: [{ action_type: 'purchase', value: '5' }],
-              action_values: [{ action_type: 'purchase', value: '125' }],
+              actions: [{ action_type: 'link_click', value: '300' }],
+              conversions: [{ action_type: 'purchase', value: '5' }],
+              conversion_values: [{ action_type: 'purchase', value: '125' }],
             },
           ],
         };
@@ -409,6 +429,41 @@ describe('MetaAdsConnector.sync', () => {
     expect(campaignsCall).toBeDefined();
     expect(campaignsCall!.url).toContain('/v20.0/');
     expect(campaignsCall!.url).toContain('act_1234567890');
+  });
+
+  it('defaults to a currently-supported Graph API version', async () => {
+    const fetchSpy = makeFetch(() => undefined);
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await connector({ resources: ['campaigns'] }).sync(
+      { mode: 'full' },
+      makeStorage(),
+    );
+
+    const calls = recordCalls(fetchSpy);
+    const campaignsCall = calls.find((c) => c.url.includes('/campaigns'));
+    expect(campaignsCall).toBeDefined();
+    expect(campaignsCall!.url).toContain('/v25.0/');
+    expect(campaignsCall!.url).not.toContain('/v21.0/');
+  });
+
+  it('requests the dedicated conversions fields on insights queries', async () => {
+    const fetchSpy = makeFetch(() => undefined);
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await connector({ resources: ['campaign_insights'] }).sync(
+      { mode: 'full' },
+      makeStorage(),
+    );
+
+    const calls = recordCalls(fetchSpy);
+    const insightsCall = calls.find((c) => c.url.includes('/insights'));
+    expect(insightsCall).toBeDefined();
+    const fields = new URL(insightsCall!.url).searchParams.get('fields') ?? '';
+    expect(fields.split(',')).toContain('conversions');
+    expect(fields.split(',')).toContain('conversion_values');
+    expect(fields.split(',')).not.toContain('actions');
+    expect(fields.split(',')).not.toContain('action_values');
   });
 
   it('paginates campaigns through paging.cursors.after', async () => {

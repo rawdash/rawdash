@@ -1,3 +1,4 @@
+import { InMemoryStorage } from '@rawdash/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -334,7 +335,7 @@ describe('GoogleAdsConnector.sync', () => {
     expect(result.done).toBe(true);
   });
 
-  it('writes each metric phase atomically via storage.metrics with a names scope', async () => {
+  it('clears each metric phase by name then appends samples per row', async () => {
     vi.stubGlobal(
       'fetch',
       mockFetch(
@@ -361,18 +362,119 @@ describe('GoogleAdsConnector.sync', () => {
     const storage = makeStorage();
     await makeConnector().sync({ mode: 'full' }, storage);
 
-    const campaignMetricsWrites = storage.metrics.mock.calls.filter(
+    const campaignMetricsClears = storage.metrics.mock.calls.filter(
       (c) =>
         (c[1] as { names: string[] }).names[0] ===
         'google_ads_campaign_metrics',
     );
-    const withSamples = campaignMetricsWrites.filter(
+    expect(campaignMetricsClears).toHaveLength(1);
+    expect(campaignMetricsClears[0]![0] as unknown[]).toEqual([]);
+
+    const appended = storage.metric.mock.calls
+      .map((c) => c[0] as { name: string; value: number })
+      .filter((s) => s.name === 'google_ads_campaign_metrics');
+    expect(appended).toHaveLength(1);
+    expect(appended[0]!.value).toBeCloseTo(5);
+
+    const scopedMetricWrites = storage.metrics.mock.calls.filter(
       (c) => (c[0] as unknown[]).length > 0,
     );
-    expect(withSamples).toHaveLength(1);
-    const samples = withSamples[0]![0] as Array<{ value: number }>;
-    expect(samples).toHaveLength(1);
-    expect(samples[0]!.value).toBeCloseTo(5);
+    expect(scopedMetricWrites).toHaveLength(0);
+  });
+
+  it('targets the v24 Google Ads API endpoint', async () => {
+    const spy = mockFetch({ access_token: 'tok', expires_in: 3600 }, {});
+    vi.stubGlobal('fetch', spy);
+
+    const storage = makeStorage();
+    await makeConnector().sync({ mode: 'full' }, storage);
+
+    const apiCalls = spy.mock.calls.filter((c: unknown[]) =>
+      String(c[0]).includes('googleads.googleapis.com'),
+    );
+    expect(apiCalls.length).toBeGreaterThan(0);
+    for (const call of apiCalls) {
+      expect(String((call as [string])[0])).toContain(
+        'googleads.googleapis.com/v24/customers/',
+      );
+    }
+  });
+
+  it('persists every page of a multi-page metric phase, not just the last', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+        const urlStr = String(url);
+        if (urlStr.includes('oauth2.googleapis.com/token')) {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({ access_token: 'tok', expires_in: 3600 }),
+              { status: 200, headers: { 'content-type': 'application/json' } },
+            ),
+          );
+        }
+        const body = init?.body
+          ? (JSON.parse(String(init.body)) as {
+              query: string;
+              pageToken?: string;
+            })
+          : { query: '' };
+        const isCampaignMetrics =
+          body.query.includes('FROM campaign') &&
+          body.query.includes('segments.date BETWEEN');
+        if (isCampaignMetrics) {
+          const row = (id: string, date: string) => ({
+            segments: { date },
+            campaign: { id, name: `C${id}` },
+            metrics: {
+              impressions: '1',
+              clicks: '1',
+              costMicros: '1000000',
+              conversions: 0,
+              conversionsValue: 0,
+            },
+          });
+          if (!body.pageToken) {
+            return Promise.resolve(
+              new Response(
+                JSON.stringify({
+                  results: [row('1', '2025-01-01')],
+                  nextPageToken: 'page2',
+                }),
+                {
+                  status: 200,
+                  headers: { 'content-type': 'application/json' },
+                },
+              ),
+            );
+          }
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({ results: [row('2', '2025-01-02')] }),
+              { status: 200, headers: { 'content-type': 'application/json' } },
+            ),
+          );
+        }
+        return Promise.resolve(
+          new Response(JSON.stringify({ results: [] }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          }),
+        );
+      }),
+    );
+
+    const storage = makeStorage();
+    await makeConnector({ resources: ['campaign_metrics'] }).sync(
+      { mode: 'full' },
+      storage,
+    );
+
+    const campaignIds = storage.metric.mock.calls
+      .map((c) => c[0] as { name: string; attributes: { campaignId: string } })
+      .filter((s) => s.name === 'google_ads_campaign_metrics')
+      .map((s) => s.attributes.campaignId);
+    expect(campaignIds).toEqual(['1', '2']);
   });
 
   it('clears entity types and metric names on first page', async () => {
@@ -404,6 +506,101 @@ describe('GoogleAdsConnector.sync', () => {
     const storage = makeStorage();
     await makeConnector().sync({ mode: 'latest' }, storage);
     expect(storage.entities).not.toHaveBeenCalled();
+  });
+
+  it('preserves history outside the incremental window on mode:latest', async () => {
+    vi.stubGlobal(
+      'fetch',
+      mockFetch({ access_token: 'tok', expires_in: 3600 }, {}),
+    );
+
+    const MS_PER_DAY = 24 * 60 * 60 * 1000;
+    const oldTs = Date.now() - 60 * MS_PER_DAY;
+    const storage = new InMemoryStorage();
+    const handle = storage.getStorageHandle('google-ads');
+
+    await handle.metrics([
+      {
+        name: 'google_ads_campaign_metrics',
+        ts: oldTs,
+        value: 5,
+        attributes: { campaignId: '1' },
+      },
+    ]);
+
+    await makeConnector().sync({ mode: 'latest' }, handle);
+
+    const survivors = await handle.queryMetrics({
+      name: 'google_ads_campaign_metrics',
+    });
+    expect(survivors).toHaveLength(1);
+    expect(survivors[0]!.ts).toBe(oldTs);
+    expect(survivors[0]!.value).toBe(5);
+  });
+
+  it('keeps samples from every page of a paginated metric phase', async () => {
+    const metricRow = (date: string, costMicros: string) => ({
+      segments: { date },
+      campaign: { id: '1', name: 'A' },
+      metrics: {
+        impressions: '1',
+        clicks: '1',
+        costMicros,
+        conversions: 0,
+        conversionsValue: 0,
+      },
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+        const urlStr = String(url);
+        if (urlStr.includes('oauth2.googleapis.com/token')) {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({ access_token: 'tok', expires_in: 3600 }),
+              { status: 200, headers: { 'content-type': 'application/json' } },
+            ),
+          );
+        }
+        const body = init?.body
+          ? (JSON.parse(String(init.body)) as {
+              query: string;
+              pageToken?: string;
+            })
+          : { query: '' };
+        const isMetrics = body.query.includes('segments.date BETWEEN');
+        const payload =
+          isMetrics && !body.pageToken
+            ? {
+                results: [metricRow('2025-01-10', '1000000')],
+                nextPageToken: 'page2',
+              }
+            : isMetrics
+              ? { results: [metricRow('2025-01-11', '2000000')] }
+              : { results: [] };
+        return Promise.resolve(
+          new Response(JSON.stringify(payload), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          }),
+        );
+      }),
+    );
+
+    const storage = new InMemoryStorage();
+    const handle = storage.getStorageHandle('google-ads');
+    await makeConnector({ resources: ['campaign_metrics'] }).sync(
+      { mode: 'full' },
+      handle,
+    );
+
+    const samples = await handle.queryMetrics({
+      name: 'google_ads_campaign_metrics',
+    });
+    expect(samples.map((s) => s.ts).sort((a, b) => a - b)).toEqual([
+      Date.UTC(2025, 0, 10),
+      Date.UTC(2025, 0, 11),
+    ]);
   });
 
   it('sends Authorization, developer-token, and login-customer-id headers', async () => {
