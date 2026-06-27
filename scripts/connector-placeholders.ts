@@ -2180,16 +2180,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
   },
 
   {
-    id: 'mailgun',
-    name: 'Mailgun',
-    category: 'engineering',
-    tagline:
-      'Sync transactional email send volume, delivery, bounce, and complaint rates from Mailgun.',
-    icon: 'mailgun',
-    domain: 'mailgun.com',
-    requestIssue: 'RAW-431',
-  },
-  {
     id: 'postmark',
     name: 'Postmark',
     category: 'engineering',

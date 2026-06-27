@@ -72,6 +72,7 @@
     "@rawdash/connector-launchdarkly": "workspace:*",
     "@rawdash/connector-linear": "workspace:*",
     "@rawdash/connector-mailchimp": "workspace:*",
+    "@rawdash/connector-mailgun": "workspace:*",
     "@rawdash/connector-meta-ads": "workspace:*",
     "@rawdash/connector-mixpanel": "workspace:*",
     "@rawdash/connector-monday": "workspace:*",

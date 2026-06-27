@@ -66,6 +66,7 @@
       "@rawdash/connector-drata",
       "@rawdash/connector-shopify",
       "@rawdash/connector-monday",
+      "@rawdash/connector-mailgun",
       "@rawdash/connectors",
       "@rawdash/adapter-libsql",
       "@rawdash/adapter-sqlite",
