@@ -1,3 +1,4 @@
+import { InMemoryStorage } from '@rawdash/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -5,8 +6,11 @@ import {
   computeSalesReportDates,
   configFields,
   parseSalesReportTsv,
+  salesReportWindow,
   signES256Jwt,
 } from './app-store-connect';
+
+const INSTALLS_METRIC = 'app_store_connect_app_installs';
 
 async function generateTestP256Pem(): Promise<string> {
   const { privateKey } = await globalThis.crypto.subtle.generateKey(
@@ -361,6 +365,32 @@ describe('computeSalesReportDates', () => {
   });
 });
 
+describe('salesReportWindow', () => {
+  it('spans UTC midnight of the first date to the end of the last date', () => {
+    const window = salesReportWindow([
+      '2025-12-01',
+      '2025-12-02',
+      '2025-12-03',
+    ]);
+    expect(window).toEqual({
+      start: Date.UTC(2025, 11, 1),
+      end: Date.UTC(2025, 11, 3) + 86_400_000 - 1,
+    });
+  });
+
+  it('covers the single day for a one-date window', () => {
+    const window = salesReportWindow(['2025-12-01']);
+    expect(window).toEqual({
+      start: Date.UTC(2025, 11, 1),
+      end: Date.UTC(2025, 11, 1) + 86_400_000 - 1,
+    });
+  });
+
+  it('returns undefined for an empty window', () => {
+    expect(salesReportWindow([])).toBeUndefined();
+  });
+});
+
 interface MockCall {
   url: string;
   method: string;
@@ -522,5 +552,57 @@ describe('AppStoreConnectConnector.sync', () => {
       c.url.includes('/v1/salesReports'),
     );
     expect(salesCalls).toHaveLength(0);
+  });
+
+  it('scopes the sales metric write to the fetched report window', async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockImplementation(() =>
+        Promise.resolve(new Response(null, { status: 404 })),
+      );
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const storage = makeStorage();
+    await connector({
+      resources: ['app_installs'],
+      vendorNumber: '85912345',
+    }).sync({ mode: 'full' }, storage);
+
+    expect(storage.metrics).toHaveBeenCalledTimes(1);
+    const [samples, scope] = storage.metrics.mock.calls[0]!;
+    expect(samples).toEqual([]);
+    expect(scope.names).toEqual(['app_store_connect_app_installs']);
+    expect(scope.replaceWindow.start).toBeLessThan(scope.replaceWindow.end);
+  });
+
+  it('does not wipe older history when an incremental sync returns no reports', async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockImplementation(() =>
+        Promise.resolve(new Response(null, { status: 404 })),
+      );
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const storage = new InMemoryStorage();
+    const handle = storage.getStorageHandle('app-store-connect');
+    const oldTs = Date.now() - 60 * 86_400_000;
+    await handle.metrics([
+      {
+        name: INSTALLS_METRIC,
+        ts: oldTs,
+        value: 106,
+        attributes: { appId: '12345', countryCode: 'US' },
+      },
+    ]);
+
+    await connector({
+      resources: ['app_installs'],
+      vendorNumber: '85912345',
+    }).sync({ mode: 'latest' }, handle);
+
+    const rows = await handle.queryMetrics({ name: INSTALLS_METRIC });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.value).toBe(106);
+    expect(rows[0]!.ts).toBe(oldTs);
   });
 });
