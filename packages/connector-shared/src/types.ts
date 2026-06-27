@@ -13,6 +13,7 @@ export interface HttpRequest {
   retry?: RetryPolicy;
   rateLimit?: RateLimitPolicy;
   parseJson?: boolean;
+  binary?: boolean;
 }
 
 export interface HttpResponse<T = unknown> {

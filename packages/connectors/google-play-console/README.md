@@ -20,17 +20,19 @@ Authenticate against the Play Developer Reporting API and the Android Publisher 
 1. In Google Cloud, create a service account at IAM & Admin -> Service Accounts and download a JSON key.
 2. Enable both the "Google Play Developer Reporting API" and the "Google Play Android Developer API" on the Cloud project.
 3. In Google Play Console open Setup -> API access, link the same Cloud project, then invite the service account email and grant it at least the "View app information and download bulk reports" permission for the app you want to sync.
-4. Store the service account JSON as a secret and reference it as serviceAccountJson: secret("GPLAY_SA_JSON").
-5. Set packageName to the reverse-DNS application id of the app (e.g. com.example.app).
+4. For the `gplay_installs_*` resources, grant bucket access inside Play Console, not Google Cloud IAM: the install reports live in a Google-managed Cloud Storage bucket provisioned for your developer account. In Play Console -> Users & permissions, give the service account the account-level "View app information and download bulk reports" permission set to Global (changes can take a few hours to propagate), then copy the bucket id from the Download reports page (the Cloud Storage URI starts with `gs://pubsite_prod_...`) into installsBucketId.
+5. Store the service account JSON as a secret and reference it as serviceAccountJson: secret("GPLAY_SA_JSON").
+6. Set packageName to the reverse-DNS application id of the app (e.g. com.example.app).
 
 ## Configuration
 
-| Field                | Type   | Required | Description                                                                                                                                                                                                                                                                                                   |
-| -------------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packageName`        | string | Yes      | Reverse-DNS application id of the Android app (e.g. com.example.app). Visible in the Play Console URL and on Google Play under "About".                                                                                                                                                                       |
-| `serviceAccountJson` | secret | Yes      | Contents of the JSON key file for a Google service account that has been granted access to your Play Console developer account with at least the "View app information and download bulk reports" permission. Create one at Google Cloud -> IAM & Admin -> Service Accounts.                                  |
-| `lookbackDays`       | number | No       | How many calendar days to fetch on a full sync. Defaults to 30. The Play Developer Reporting API exposes daily metrics with a typical 2-3 day reporting lag.                                                                                                                                                  |
-| `reviewLimit`        | number | No       | How many of the most-recent user reviews to emit as gplay_app_ratings samples. Defaults to 200. Reviews are fetched then ranked newest-first before this cap is applied. The Android Publisher reviews API only surfaces reviews from roughly the past week, so this is a rolling sample, not a full history. |
+| Field                | Type   | Required | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| -------------------- | ------ | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packageName`        | string | Yes      | Reverse-DNS application id of the Android app (e.g. com.example.app). Visible in the Play Console URL and on Google Play under "About".                                                                                                                                                                                                                                                                                                                                                                    |
+| `serviceAccountJson` | secret | Yes      | Contents of the JSON key file for a Google service account that has been granted access to your Play Console developer account with at least the "View app information and download bulk reports" permission. Create one at Google Cloud -> IAM & Admin -> Service Accounts.                                                                                                                                                                                                                               |
+| `lookbackDays`       | number | No       | How many calendar days to fetch on a full sync. Defaults to 30. The Play Developer Reporting API exposes daily metrics with a typical 2-3 day reporting lag.                                                                                                                                                                                                                                                                                                                                               |
+| `reviewLimit`        | number | No       | How many of the most-recent user reviews to emit as gplay_app_ratings samples. Defaults to 200. Reviews are fetched then ranked newest-first before this cap is applied. The Android Publisher reviews API only surfaces reviews from roughly the past week, so this is a rolling sample, not a full history.                                                                                                                                                                                              |
+| `installsBucketId`   | string | No       | Cloud Storage bucket id that holds your Play Console reports (e.g. `pubsite_prod_rev_01234567890987654321`), shown via "Copy Cloud Storage URI" on the Play Console Download reports page. Required only for the `gplay_installs_*` resources, which read the monthly stats/installs CSV reports. The bucket is Google-managed; the service account is granted access through Play Console (Users & permissions -> "View app information and download bulk reports", set to Global), not Google Cloud IAM. |
 
 ## Resources
 
@@ -56,6 +58,55 @@ Authenticate against the Play Developer Reporting API and the Android Publisher 
   - Unit: stars
   - Dimensions: `package_name`, `review_id`, `reviewer_language`, `device`, `app_version_name`, `android_os_version`
   - Not the lifetime average shown on the Play Store. The reviews API only returns reviews from roughly the past week, so this is a rolling sample; average over a time window downstream for a smoothed rating.
+- **`gplay_installs_overview_by_day`** _(metric)_ - Daily install statistics for the app from the Play Console monthly installs report (stats/installs overview CSV). Primary value is Daily Device Installs; uninstalls, upgrades, active-device installs and user-keyed counts are carried as additional attributes.
+  - Endpoint: `GET /storage/v1/b/{installsBucketId}/o/stats%2Finstalls%2Finstalls_{packageName}_{YYYYMM}_overview.csv`
+  - Unit: installs
+  - Granularity: day
+  - Dimensions: `date`, `package_name`
+  - Measures: `daily_device_installs`, `daily_device_uninstalls`, `daily_device_upgrades`, `current_device_installs`, `active_device_installs`, `current_user_installs`, `total_user_installs`, `daily_user_installs`, `daily_user_uninstalls`
+  - Sourced from the Play Console monthly stats/installs CSV in Cloud Storage. Files are monthly with daily rows and arrive a few days in arrears; the connector refetches the months overlapping the sync window.
+- **`gplay_installs_by_country`** _(metric)_ - Daily install statistics broken down by country/region from the Play Console monthly installs report (stats/installs country CSV).
+  - Endpoint: `GET /storage/v1/b/{installsBucketId}/o/stats%2Finstalls%2Finstalls_{packageName}_{YYYYMM}_country.csv`
+  - Unit: installs
+  - Granularity: day
+  - Dimensions: `date`, `package_name`, `country`
+  - Measures: `daily_device_installs`, `daily_device_uninstalls`, `daily_device_upgrades`, `current_device_installs`, `active_device_installs`, `current_user_installs`, `total_user_installs`, `daily_user_installs`, `daily_user_uninstalls`
+  - Sourced from the Play Console monthly stats/installs CSV in Cloud Storage. Files are monthly with daily rows and arrive a few days in arrears; the connector refetches the months overlapping the sync window.
+- **`gplay_installs_by_app_version`** _(metric)_ - Daily install statistics broken down by app version code from the Play Console monthly installs report (stats/installs app_version CSV).
+  - Endpoint: `GET /storage/v1/b/{installsBucketId}/o/stats%2Finstalls%2Finstalls_{packageName}_{YYYYMM}_app_version.csv`
+  - Unit: installs
+  - Granularity: day
+  - Dimensions: `date`, `package_name`, `app_version_code`
+  - Measures: `daily_device_installs`, `daily_device_uninstalls`, `daily_device_upgrades`, `current_device_installs`, `active_device_installs`, `current_user_installs`, `total_user_installs`, `daily_user_installs`, `daily_user_uninstalls`
+  - Sourced from the Play Console monthly stats/installs CSV in Cloud Storage. Files are monthly with daily rows and arrive a few days in arrears; the connector refetches the months overlapping the sync window.
+- **`gplay_installs_by_device`** _(metric)_ - Daily install statistics broken down by device from the Play Console monthly installs report (stats/installs device CSV).
+  - Endpoint: `GET /storage/v1/b/{installsBucketId}/o/stats%2Finstalls%2Finstalls_{packageName}_{YYYYMM}_device.csv`
+  - Unit: installs
+  - Granularity: day
+  - Dimensions: `date`, `package_name`, `device`
+  - Measures: `daily_device_installs`, `daily_device_uninstalls`, `daily_device_upgrades`, `current_device_installs`, `active_device_installs`, `current_user_installs`, `total_user_installs`, `daily_user_installs`, `daily_user_uninstalls`
+  - Sourced from the Play Console monthly stats/installs CSV in Cloud Storage. Files are monthly with daily rows and arrive a few days in arrears; the connector refetches the months overlapping the sync window.
+- **`gplay_installs_by_os_version`** _(metric)_ - Daily install statistics broken down by Android OS version from the Play Console monthly installs report (stats/installs os_version CSV).
+  - Endpoint: `GET /storage/v1/b/{installsBucketId}/o/stats%2Finstalls%2Finstalls_{packageName}_{YYYYMM}_os_version.csv`
+  - Unit: installs
+  - Granularity: day
+  - Dimensions: `date`, `package_name`, `android_os_version`
+  - Measures: `daily_device_installs`, `daily_device_uninstalls`, `daily_device_upgrades`, `current_device_installs`, `active_device_installs`, `current_user_installs`, `total_user_installs`, `daily_user_installs`, `daily_user_uninstalls`
+  - Sourced from the Play Console monthly stats/installs CSV in Cloud Storage. Files are monthly with daily rows and arrive a few days in arrears; the connector refetches the months overlapping the sync window.
+- **`gplay_installs_by_language`** _(metric)_ - Daily install statistics broken down by language from the Play Console monthly installs report (stats/installs language CSV).
+  - Endpoint: `GET /storage/v1/b/{installsBucketId}/o/stats%2Finstalls%2Finstalls_{packageName}_{YYYYMM}_language.csv`
+  - Unit: installs
+  - Granularity: day
+  - Dimensions: `date`, `package_name`, `language`
+  - Measures: `daily_device_installs`, `daily_device_uninstalls`, `daily_device_upgrades`, `current_device_installs`, `active_device_installs`, `current_user_installs`, `total_user_installs`, `daily_user_installs`, `daily_user_uninstalls`
+  - Sourced from the Play Console monthly stats/installs CSV in Cloud Storage. Files are monthly with daily rows and arrive a few days in arrears; the connector refetches the months overlapping the sync window.
+- **`gplay_installs_by_carrier`** _(metric)_ - Daily install statistics broken down by carrier from the Play Console monthly installs report (stats/installs carrier CSV).
+  - Endpoint: `GET /storage/v1/b/{installsBucketId}/o/stats%2Finstalls%2Finstalls_{packageName}_{YYYYMM}_carrier.csv`
+  - Unit: installs
+  - Granularity: day
+  - Dimensions: `date`, `package_name`, `carrier`
+  - Measures: `daily_device_installs`, `daily_device_uninstalls`, `daily_device_upgrades`, `current_device_installs`, `active_device_installs`, `current_user_installs`, `total_user_installs`, `daily_user_installs`, `daily_user_uninstalls`
+  - Sourced from the Play Console monthly stats/installs CSV in Cloud Storage. Files are monthly with daily rows and arrive a few days in arrears; the connector refetches the months overlapping the sync window.
 
 ## Example
 
@@ -108,7 +159,7 @@ The Play Developer Reporting API enforces a per-project quota (default 60 reques
 - Daily vitals (crash rate, ANR rate, error counts) have a 2-3 day reporting lag on the Play Developer Reporting API; incremental syncs refetch the trailing 3 days. Metric days are reported on the America/Los_Angeles calendar, the only timezone the API supports for daily aggregation.
 - gplay_app_ratings is a rolling sample of recent reviews from the Android Publisher reviews API (default 200, configurable via reviewLimit). Each sample carries one review with its star rating (1-5) as the value; this is not the lifetime average shown on the Play Store, and the reviews API only surfaces reviews from roughly the past week.
 - The apps entity carries only the configured package name; the Play Store listing title is available solely through an Android Publisher edit, which this connector does not create.
-- Install counts and earnings are not exposed through the Reporting API - Google delivers them only as monthly CSV reports in a private Cloud Storage bucket. Those metrics are out of scope for this connector and will land in a follow-up.
+- The `gplay_installs_*` resources read the monthly stats/installs CSV reports from your Play Console Cloud Storage bucket, not the Reporting API; they require installsBucketId plus the account-level "View app information and download bulk reports" permission granted to the service account in Play Console (the bucket is Google-managed; access is not configured through Google Cloud IAM). Files are published monthly (with daily rows) and a few days in arrears, so the current month fills in over time and the most recent days lag. Earnings/financial reports remain out of scope.
 
 ## Links
 

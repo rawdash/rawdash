@@ -899,6 +899,235 @@ describe('GooglePlayConsoleConnector.sync', () => {
   });
 });
 
+function utf16leWithBom(text: string): Uint8Array {
+  const bytes = new Uint8Array(2 + text.length * 2);
+  bytes[0] = 0xff;
+  bytes[1] = 0xfe;
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    bytes[2 + i * 2] = code & 0xff;
+    bytes[2 + i * 2 + 1] = (code >> 8) & 0xff;
+  }
+  return bytes;
+}
+
+function gcsResponse(bytes: Uint8Array): Response {
+  return {
+    ok: true,
+    status: 200,
+    statusText: 'OK',
+    headers: new Headers({ 'content-type': 'text/csv' }),
+    arrayBuffer: () =>
+      Promise.resolve(
+        bytes.buffer.slice(
+          bytes.byteOffset,
+          bytes.byteOffset + bytes.byteLength,
+        ),
+      ),
+    text: () => Promise.resolve(''),
+  } as unknown as Response;
+}
+
+function gcsNotFound(): Response {
+  return {
+    ok: false,
+    status: 404,
+    statusText: 'Not Found',
+    headers: new Headers({ 'content-type': 'application/json' }),
+    arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)),
+    text: () => Promise.resolve('{"error":{"code":404}}'),
+  } as unknown as Response;
+}
+
+describe('GooglePlayConsoleConnector installs', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const OVERVIEW_CSV = [
+    'Date,Package Name,Daily Device Installs,Daily Device Uninstalls,Installs on active devices',
+    '2025-04-01,com.example.app,120,4,5000',
+    '2025-04-02,com.example.app,131,7,5050',
+  ].join('\r\n');
+
+  function makeInstallsConnector() {
+    return new GooglePlayConsoleConnector(
+      {
+        packageName: 'com.example.app',
+        installsBucketId: 'pubsite_prod_rev_1',
+      },
+      { serviceAccountJson: TEST_SA_JSON },
+    );
+  }
+
+  function tokenResponse(): Response {
+    return {
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: new Headers({ 'content-type': 'application/json' }),
+      text: () =>
+        Promise.resolve(
+          JSON.stringify({ access_token: 'tok', expires_in: 3600 }),
+        ),
+    } as Response;
+  }
+
+  it('downloads monthly CSVs across the window and writes install samples', async () => {
+    const requestedUrls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        const urlStr = String(url);
+        if (urlStr.includes('oauth2.googleapis.com/token')) {
+          return Promise.resolve(tokenResponse());
+        }
+        if (urlStr.includes('storage.googleapis.com')) {
+          requestedUrls.push(urlStr);
+          return Promise.resolve(gcsResponse(utf16leWithBom(OVERVIEW_CSV)));
+        }
+        return Promise.resolve(gcsNotFound());
+      }),
+    );
+
+    const storage = makeStorage();
+    await makeInstallsConnector().sync(
+      {
+        mode: 'full',
+        resources: new Set(['gplay_installs_overview_by_day']),
+        cursor: {
+          phase: 'installs_overview',
+          dateRange: { startDate: '2025-03-20', endDate: '2025-04-05' },
+        },
+      },
+      storage,
+    );
+
+    expect(requestedUrls).toHaveLength(2);
+    expect(requestedUrls[0]).toContain(
+      '/b/pubsite_prod_rev_1/o/stats%2Finstalls%2Finstalls_com.example.app_202503_overview.csv',
+    );
+    expect(requestedUrls[0]).toContain('alt=media');
+    expect(requestedUrls[1]).toContain('_202504_overview.csv');
+
+    const call = storage.metrics.mock.calls.find(
+      (c) =>
+        (c[1] as { names: string[] }).names[0] ===
+        'gplay_installs_overview_by_day',
+    );
+    expect(call).toBeDefined();
+    const samples = call![0] as Array<{
+      value: number;
+      attributes: Record<string, string | number>;
+    }>;
+    expect(samples).toHaveLength(4);
+    expect(samples[0]!.value).toBe(120);
+    expect(samples[0]!.attributes['active_device_installs']).toBe(5000);
+  });
+
+  it('tolerates a 404 for a month with no report yet', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        const urlStr = String(url);
+        if (urlStr.includes('oauth2.googleapis.com/token')) {
+          return Promise.resolve(tokenResponse());
+        }
+        if (urlStr.includes('_202503_overview.csv')) {
+          return Promise.resolve(gcsNotFound());
+        }
+        if (urlStr.includes('storage.googleapis.com')) {
+          return Promise.resolve(gcsResponse(utf16leWithBom(OVERVIEW_CSV)));
+        }
+        return Promise.resolve(gcsNotFound());
+      }),
+    );
+
+    const storage = makeStorage();
+    await makeInstallsConnector().sync(
+      {
+        mode: 'full',
+        resources: new Set(['gplay_installs_overview_by_day']),
+        cursor: {
+          phase: 'installs_overview',
+          dateRange: { startDate: '2025-03-20', endDate: '2025-04-05' },
+        },
+      },
+      storage,
+    );
+
+    const call = storage.metrics.mock.calls.find(
+      (c) =>
+        (c[1] as { names: string[] }).names[0] ===
+        'gplay_installs_overview_by_day',
+    );
+    const samples = call![0] as unknown[];
+    expect(samples).toHaveLength(2);
+  });
+
+  it('skips installs phases entirely when no bucket is configured', async () => {
+    const fetchSpy = vi.fn().mockImplementation((url: string) => {
+      const urlStr = String(url);
+      if (urlStr.includes('oauth2.googleapis.com/token')) {
+        return Promise.resolve(tokenResponse());
+      }
+      return Promise.resolve(gcsNotFound());
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const connector = new GooglePlayConsoleConnector(
+      { packageName: 'com.example.app' },
+      { serviceAccountJson: TEST_SA_JSON },
+    );
+    const storage = makeStorage();
+    await connector.sync(
+      { mode: 'full', resources: new Set(['gplay_installs_by_country']) },
+      storage,
+    );
+
+    const storageCalled = fetchSpy.mock.calls.some((c: unknown[]) =>
+      String(c[0]).includes('storage.googleapis.com'),
+    );
+    expect(storageCalled).toBe(false);
+    expect(storage.metrics).not.toHaveBeenCalled();
+  });
+
+  it('sends the bearer token to the Cloud Storage download', async () => {
+    const fetchSpy = vi.fn().mockImplementation((url: string) => {
+      const urlStr = String(url);
+      if (urlStr.includes('oauth2.googleapis.com/token')) {
+        return Promise.resolve(tokenResponse());
+      }
+      return Promise.resolve(gcsResponse(utf16leWithBom(OVERVIEW_CSV)));
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await makeInstallsConnector().sync(
+      {
+        mode: 'full',
+        resources: new Set(['gplay_installs_overview_by_day']),
+        cursor: {
+          phase: 'installs_overview',
+          dateRange: { startDate: '2025-04-01', endDate: '2025-04-05' },
+        },
+      },
+      makeStorage(),
+    );
+
+    const gcsCall = fetchSpy.mock.calls.find((c: unknown[]) =>
+      String(c[0]).includes('storage.googleapis.com'),
+    );
+    expect(gcsCall).toBeDefined();
+    const headers = (
+      gcsCall as [string, { headers: Record<string, string> }]
+    )[1].headers;
+    const authKey = Object.keys(headers).find(
+      (k) => k.toLowerCase() === 'authorization',
+    );
+    expect(headers[authKey!]).toBe('Bearer tok');
+  });
+});
+
 describe('GooglePlayConsoleConnector.create', () => {
   afterEach(() => {
     vi.unstubAllEnvs();
@@ -912,5 +1141,17 @@ describe('GooglePlayConsoleConnector.create', () => {
     });
     expect(connector).toBeInstanceOf(GooglePlayConsoleConnector);
     expect(connector.id).toBe('google-play-console');
+  });
+
+  it('normalizes a gs:// installs bucket id', () => {
+    vi.stubEnv('GPLAY_SA', TEST_SA_JSON);
+    const connector = GooglePlayConsoleConnector.create({
+      packageName: 'com.example.app',
+      serviceAccountJson: { $secret: 'GPLAY_SA' },
+      installsBucketId: 'gs://pubsite_prod_rev_9/stats/',
+    });
+    expect(connector.serializeConfig()['installsBucketId']).toBe(
+      'pubsite_prod_rev_9',
+    );
   });
 });
