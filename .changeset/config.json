@@ -29,6 +29,7 @@
       "@rawdash/connector-google-search-console",
       "@rawdash/connector-greenhouse",
       "@rawdash/connector-stripe",
+      "@rawdash/connector-twilio",
       "@rawdash/connector-linear",
       "@rawdash/connector-sentry",
       "@rawdash/connector-vercel",

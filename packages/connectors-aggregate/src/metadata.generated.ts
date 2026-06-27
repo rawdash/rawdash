@@ -326,6 +326,12 @@ import {
   resources as stripeResources,
 } from '@rawdash/connector-stripe';
 import {
+  configFields as twilioConfigFields,
+  doc as twilioDoc,
+  id as twilioId,
+  resources as twilioResources,
+} from '@rawdash/connector-twilio';
+import {
   configFields as vantaConfigFields,
   doc as vantaDoc,
   id as vantaId,
@@ -744,6 +750,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: stripeDoc,
     configFields: stripeConfigFields,
     resources: stripeResources,
+  },
+  {
+    id: twilioId,
+    packageName: '@rawdash/connector-twilio',
+    doc: twilioDoc,
+    configFields: twilioConfigFields,
+    resources: twilioResources,
   },
   {
     id: vantaId,
