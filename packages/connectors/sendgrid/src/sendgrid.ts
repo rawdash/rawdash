@@ -283,12 +283,26 @@ function toYmd(ms: number): string {
 }
 
 function ymdToMs(value: string): number | null {
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   if (!m) {
     return null;
   }
-  const ms = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-  return Number.isFinite(ms) ? ms : null;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  const ms = Date.UTC(year, month - 1, day);
+  if (!Number.isFinite(ms)) {
+    return null;
+  }
+  const d = new Date(ms);
+  if (
+    d.getUTCFullYear() !== year ||
+    d.getUTCMonth() + 1 !== month ||
+    d.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  return ms;
 }
 
 function counterValue(value: number | null | undefined): number {
