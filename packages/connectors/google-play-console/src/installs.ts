@@ -265,6 +265,9 @@ export function parseInstallsCsv(
       dimIdx = i;
     }
   }
+  if (!metricCols.some((mc) => mc.key === PRIMARY_METRIC_KEY)) {
+    return [];
+  }
 
   const samples: InstallsSample[] = [];
   for (let r = 1; r < rows.length; r++) {

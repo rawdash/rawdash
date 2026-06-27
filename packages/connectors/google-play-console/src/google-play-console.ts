@@ -845,14 +845,21 @@ export class GooglePlayConsoleConnector extends BaseConnector<
     ctx?: ConnectorContext,
   ): GooglePlayConsoleConnector {
     const parsed = configFields.parse(input);
+    let installsBucketId: string | undefined;
+    if (parsed.installsBucketId !== undefined) {
+      installsBucketId = normalizeInstallsBucketId(parsed.installsBucketId);
+      if (installsBucketId.length === 0) {
+        throw new Error(
+          'Google Play Console connector: installsBucketId must include a bucket name (e.g. pubsite_prod_rev_...)',
+        );
+      }
+    }
     return new GooglePlayConsoleConnector(
       {
         packageName: parsed.packageName,
         lookbackDays: parsed.lookbackDays,
         reviewLimit: parsed.reviewLimit,
-        installsBucketId: parsed.installsBucketId
-          ? normalizeInstallsBucketId(parsed.installsBucketId)
-          : undefined,
+        installsBucketId,
       },
       {
         serviceAccountJson: parsed.serviceAccountJson,
@@ -1117,9 +1124,20 @@ export class GooglePlayConsoleConnector extends BaseConnector<
       if (csv === null) {
         continue;
       }
-      samples.push(
-        ...parseInstallsCsv(csv, breakdown, this.settings.packageName),
-      );
+      for (const sample of parseInstallsCsv(
+        csv,
+        breakdown,
+        this.settings.packageName,
+      )) {
+        const date = sample.attributes['date'];
+        if (
+          typeof date === 'string' &&
+          date >= dateRange.startDate &&
+          date <= dateRange.endDate
+        ) {
+          samples.push(sample);
+        }
+      }
     }
     await storage.metrics(samples, { names: [breakdown.resource] });
   }

@@ -166,6 +166,14 @@ describe('parseInstallsCsv', () => {
     expect(samples[0]!.attributes['date']).toBe('2025-04-01');
   });
 
+  it('returns no samples when the primary metric column is absent', () => {
+    const csv = [
+      'Date,Package Name,Daily Device Uninstalls,Daily Device Upgrades',
+      '2025-04-01,com.example.app,4,9',
+    ].join('\n');
+    expect(parseInstallsCsv(csv, overview, 'com.example.app')).toEqual([]);
+  });
+
   it('returns no samples for a header-only file', () => {
     expect(
       parseInstallsCsv(
