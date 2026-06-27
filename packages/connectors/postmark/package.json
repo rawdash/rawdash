@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-postmark",
-  "version": "0.1.0",
+  "version": "0.28.1",
   "description": "Rawdash connector for Postmark — syncs daily outbound email stats (sent, delivered, bounces, spam complaints, opens) as metrics and bounce records as events from the Postmark API into the six-shape storage model",
   "license": "Apache-2.0",
   "type": "module",

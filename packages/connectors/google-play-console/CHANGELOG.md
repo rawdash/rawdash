@@ -1,5 +1,15 @@
 # @rawdash/connector-google-play-console
 
+## 0.28.1
+
+### Patch Changes
+
+- 9ec9550: Fix metric history loss on incremental syncs. These connectors write historical, past-dated metric samples but re-pull only a short trailing window on incremental (`latest`) syncs, then replaced the whole metric by name — so each incremental sync wiped all previously retained history outside that short window, leaving empty time series and unstable aggregates. Each sales/usage/cost metric write is now scoped to the report window the sync actually fetched (`replaceWindow`), refreshing only those days/hours and preserving older retained samples. Same root cause and fix as the App Store Connect change.
+- d7108d7: Add install/uninstall statistics to the Google Play Console connector. New `gplay_installs_*` resources (overview, country, app_version, device, os_version, language, carrier) read the monthly `stats/installs` CSV reports from your Play Console Cloud Storage bucket and emit daily install/uninstall/upgrade metrics. Set the new `installsBucketId` config field and grant the service account the Play Console account-level "View app information and download bulk reports" permission (set to Global) to enable them; the existing vitals and ratings resources are unchanged and work without it.
+- 9cdec6e: Fix every sync failing with `value.trim is not a function` when the service account key is stored as raw JSON. The secrets resolver auto-parses any secret value beginning with `{` into an object, so the connector received the already-parsed service account object rather than a string, and `parseServiceAccountJson` called `.trim()` on it. `parseServiceAccountJson` now accepts an already-parsed object in addition to a raw JSON string or base64-encoded JSON.
+- Updated dependencies [8d02825]
+  - @rawdash/core@0.28.1
+
 ## 0.28.0
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-monday",
-  "version": "0.28.0",
+  "version": "0.28.1",
   "description": "Rawdash connector for monday.com — boards, items, and item activity events",
   "license": "Apache-2.0",
   "type": "module",

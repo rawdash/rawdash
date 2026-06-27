@@ -1,5 +1,92 @@
 # @rawdash/connectors
 
+## 0.28.1
+
+### Patch Changes
+
+- c448ee6: Add `@rawdash/connector-twilio`, a new connector that syncs Twilio SMS/MMS message and voice call events (with status, error code, direction, price, and segment counts) plus daily per-category usage metrics (count and spend) from the Twilio REST API. Authenticated over HTTP Basic auth with an Account SID and Auth token. Drives send-volume and spend stats, daily volume / spend timeseries, and per-category distributions.
+- Updated dependencies [4d0d632]
+- Updated dependencies [c448ee6]
+- Updated dependencies [1d8980b]
+- Updated dependencies [bad157b]
+- Updated dependencies [6eab449]
+- Updated dependencies [9ec9550]
+- Updated dependencies [28c0f3d]
+- Updated dependencies [9cdec6e]
+- Updated dependencies [97b0fd4]
+- Updated dependencies [d7108d7]
+- Updated dependencies [9cdec6e]
+- Updated dependencies [6258ec0]
+- Updated dependencies [8d02825]
+- Updated dependencies [b35c937]
+- Updated dependencies [34a806a]
+- Updated dependencies [26f0e81]
+- Updated dependencies [a6b6310]
+- Updated dependencies [8d06434]
+  - @rawdash/connector-mailgun@0.28.1
+  - @rawdash/connector-twilio@0.28.1
+  - @rawdash/connector-app-store-connect@0.28.1
+  - @rawdash/connector-postmark@0.28.1
+  - @rawdash/connector-sendgrid@0.28.1
+  - @rawdash/connector-anthropic@0.28.1
+  - @rawdash/connector-appsflyer@0.28.1
+  - @rawdash/connector-openai@0.28.1
+  - @rawdash/connector-aws-bedrock@0.28.1
+  - @rawdash/connector-aws-cloudwatch@0.28.1
+  - @rawdash/connector-aws-cost@0.28.1
+  - @rawdash/connector-azure-cost@0.28.1
+  - @rawdash/connector-azure-monitor@0.28.1
+  - @rawdash/connector-firebase-analytics@0.28.1
+  - @rawdash/connector-firebase-crashlytics@0.28.1
+  - @rawdash/connector-gcp-billing@0.28.1
+  - @rawdash/connector-google-ads@0.28.1
+  - @rawdash/connector-google-analytics@0.28.1
+  - @rawdash/connector-google-play-console@0.28.1
+  - @rawdash/connector-google-search-console@0.28.1
+  - @rawdash/connector-mixpanel@0.28.1
+  - @rawdash/connector-vertex-ai@0.28.1
+  - @rawdash/connector-gcp-monitoring@0.28.1
+  - @rawdash/connector-meta-ads@0.28.1
+  - @rawdash/core@0.28.1
+  - @rawdash/connector-github@0.28.1
+  - @rawdash/connector-sentry@0.28.1
+  - @rawdash/connector-asana@0.28.1
+  - @rawdash/connector-auth0@0.28.1
+  - @rawdash/connector-bitbucket@0.28.1
+  - @rawdash/connector-branch@0.28.1
+  - @rawdash/connector-circleci@0.28.1
+  - @rawdash/connector-clerk@0.28.1
+  - @rawdash/connector-clickup@0.28.1
+  - @rawdash/connector-datadog@0.28.1
+  - @rawdash/connector-drata@0.28.1
+  - @rawdash/connector-entra-id@0.28.1
+  - @rawdash/connector-gitlab@0.28.1
+  - @rawdash/connector-greenhouse@0.28.1
+  - @rawdash/connector-hubspot@0.28.1
+  - @rawdash/connector-intercom@0.28.1
+  - @rawdash/connector-jira@0.28.1
+  - @rawdash/connector-klaviyo@0.28.1
+  - @rawdash/connector-langfuse@0.28.1
+  - @rawdash/connector-langsmith@0.28.1
+  - @rawdash/connector-launchdarkly@0.28.1
+  - @rawdash/connector-linear@0.28.1
+  - @rawdash/connector-mailchimp@0.28.1
+  - @rawdash/connector-monday@0.28.1
+  - @rawdash/connector-netlify@0.28.1
+  - @rawdash/connector-new-relic@0.28.1
+  - @rawdash/connector-okta@0.28.1
+  - @rawdash/connector-posthog@0.28.1
+  - @rawdash/connector-revenuecat@0.28.1
+  - @rawdash/connector-salesforce@0.28.1
+  - @rawdash/connector-shopify@0.28.1
+  - @rawdash/connector-statuspage@0.28.1
+  - @rawdash/connector-stripe@0.28.1
+  - @rawdash/connector-vanta@0.28.1
+  - @rawdash/connector-vercel@0.28.1
+  - @rawdash/connector-wiz@0.28.1
+  - @rawdash/connector-workos@0.28.1
+  - @rawdash/connector-zendesk@0.28.1
+
 ## 0.28.0
 
 ### Patch Changes

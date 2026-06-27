@@ -1,5 +1,12 @@
 # @rawdash/connector-monday
 
+## 0.28.1
+
+### Patch Changes
+
+- Updated dependencies [8d02825]
+  - @rawdash/core@0.28.1
+
 ## 0.28.0
 
 ### Patch Changes
