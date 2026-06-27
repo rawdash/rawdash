@@ -498,10 +498,10 @@ describe('MixpanelConnector.sync', () => {
     const fetchSpy = mockFetch({});
     vi.stubGlobal('fetch', fetchSpy);
     const storage = makeStorage();
-    await makeConnector({ activeUserEvent: 'Signed Up' }).sync(
-      { mode: 'full' },
-      storage,
-    );
+    await makeConnector({
+      events: ['Signed Up'],
+      activeUserEvent: 'Signed Up',
+    }).sync({ mode: 'full' }, storage);
     const urls = fetchSpy.mock.calls.map(
       (c: unknown[]) => new URL(String(c[0])),
     );
@@ -527,6 +527,7 @@ describe('MixpanelConnector.sync', () => {
     const segmentationCalls = urls.filter((u) =>
       u.pathname.endsWith('/segmentation'),
     );
+    expect(segmentationCalls.length).toBeGreaterThan(0);
     expect(
       segmentationCalls.every((u) => u.searchParams.get('unit') !== 'week'),
     ).toBe(true);
@@ -543,6 +544,12 @@ describe('MixpanelConnector.sync', () => {
     }).sync({ mode: 'full' }, storage);
     const calls = fetchSpy.mock.calls.map((c: unknown[]) => String(c[0]));
     expect(calls.length).toBeGreaterThan(0);
+    expect(calls.some((u: string) => u.includes('/api/query/events'))).toBe(
+      true,
+    );
+    expect(
+      calls.some((u: string) => u.includes('/api/query/segmentation')),
+    ).toBe(true);
     expect(calls.every((u: string) => u.includes('/api/query/'))).toBe(true);
     expect(calls.every((u: string) => !u.includes('/api/2.0/'))).toBe(true);
   });
