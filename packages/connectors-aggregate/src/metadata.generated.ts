@@ -235,6 +235,12 @@ import {
   resources as mailchimpResources,
 } from '@rawdash/connector-mailchimp';
 import {
+  configFields as mailgunConfigFields,
+  doc as mailgunDoc,
+  id as mailgunId,
+  resources as mailgunResources,
+} from '@rawdash/connector-mailgun';
+import {
   configFields as metaAdsConfigFields,
   doc as metaAdsDoc,
   id as metaAdsId,
@@ -650,6 +656,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: mailchimpDoc,
     configFields: mailchimpConfigFields,
     resources: mailchimpResources,
+  },
+  {
+    id: mailgunId,
+    packageName: '@rawdash/connector-mailgun',
+    doc: mailgunDoc,
+    configFields: mailgunConfigFields,
+    resources: mailgunResources,
   },
   {
     id: metaAdsId,
