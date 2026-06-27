@@ -118,10 +118,11 @@ Postmark does not publish a fixed per-token request rate limit; the connector is
 
 ## Limitations
 
-- Daily granularity only - stats are bucketed per calendar day (UTC).
+- Daily granularity only - stats are bucketed per calendar day in US Eastern Time (EST/EDT), matching Postmark stats API reporting.
 - Delivered is derived as sent minus total bounces (hard, soft, SMTP API errors, and transient) for the day, clamped at zero, because Postmark does not expose a direct delivered counter.
 - A server token is scoped to one Postmark server, so each connector instance covers a single server. Cross-server aggregation via an account token is out of scope.
 - Bounce events are retained as a rolling window (lookbackDays) and rewritten on every sync; bounces older than the window age out. Stats history beyond the window is preserved across incremental syncs.
+- The Postmark bounces API returns at most 10,000 records per query; the connector splits the lookback window into smaller date ranges to fetch them all, but a single day with more than 10,000 bounces cannot be fully retrieved.
 
 ## Links
 

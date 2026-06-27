@@ -140,7 +140,7 @@ describe('configFields', () => {
 });
 
 describe('getStatsWindow', () => {
-  const now = Date.UTC(2025, 2, 10);
+  const now = Date.UTC(2025, 2, 10, 12);
 
   it('uses the full lookback window for a full sync', () => {
     const window = getStatsWindow({ mode: 'full' }, 30, now);
@@ -161,6 +161,13 @@ describe('getStatsWindow', () => {
       now,
     );
     expect(window.from).toBe('2025-02-09');
+  });
+
+  it('anchors the window to Eastern Time, not UTC', () => {
+    const lateNightUtc = Date.UTC(2025, 2, 10, 2);
+    const window = getStatsWindow({ mode: 'full' }, 30, lateNightUtc);
+    expect(window.to).toBe('2025-03-09');
+    expect(window.from).toBe('2025-02-08');
   });
 });
 
@@ -288,6 +295,67 @@ describe('PostmarkConnector sync', () => {
       (m) => m.name === 'postmark_email_stats' && m.ts === oldTs,
     );
     expect(preserved).toHaveLength(1);
+  });
+
+  it('splits the window to fetch all bounces when the 10k API cap is hit', async () => {
+    const calls: MockCall[] = [];
+    const spy = vi
+      .fn()
+      .mockImplementation((url: string | URL, init?: RequestInit) => {
+        const u = typeof url === 'string' ? url : url.toString();
+        const parsed = new URL(u);
+        const headers: Record<string, string> = {};
+        const raw = init?.headers as Record<string, string> | undefined;
+        if (raw) {
+          for (const [k, v] of Object.entries(raw)) {
+            headers[k] = v;
+          }
+        }
+        calls.push({ url: u, headers });
+        if (parsed.pathname !== '/bounces') {
+          return Promise.resolve(jsonResponse({}));
+        }
+        const from = parsed.searchParams.get('fromdate')!;
+        const to = parsed.searchParams.get('todate')!;
+        if (from === to) {
+          const dayId = Number(from.replaceAll('-', ''));
+          return Promise.resolve(
+            jsonResponse({
+              Bounces: [
+                { ID: dayId * 10, BouncedAt: `${from}T01:00:00Z` },
+                { ID: dayId * 10 + 1, BouncedAt: `${from}T02:00:00Z` },
+              ],
+            }),
+          );
+        }
+        const fullPage = Array.from({ length: 500 }, (_, i) => ({
+          ID: i,
+          BouncedAt: `${from}T00:00:00Z`,
+        }));
+        return Promise.resolve(jsonResponse({ Bounces: fullPage }));
+      });
+    vi.stubGlobal('fetch', spy);
+
+    const storage = new InMemoryStorage();
+    const handle = storage.getStorageHandle(CONNECTOR_ID);
+    await new PostmarkConnector(
+      { resources: ['bounces'], lookbackDays: 3 },
+      { serverToken: TOKEN },
+    ).sync({ mode: 'full' }, handle);
+
+    const events = await handle.queryEvents({ name: 'postmark_bounce' });
+    expect(events).toHaveLength(6);
+    const ids = new Set(events.map((e) => e.attributes.bounceId));
+    expect(ids.size).toBe(6);
+
+    const singleDayCall = calls.find((c) => {
+      if (new URL(c.url).pathname !== '/bounces') {
+        return false;
+      }
+      const p = new URL(c.url).searchParams;
+      return p.get('fromdate') === p.get('todate');
+    });
+    expect(singleDayCall).toBeDefined();
   });
 
   it('only syncs the requested resource', async () => {

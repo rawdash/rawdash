@@ -79,10 +79,11 @@ export const doc: ConnectorDoc = defineConnectorDoc({
   rateLimit:
     'Postmark does not publish a fixed per-token request rate limit; the connector issues a small number of sequential requests per sync (four daily-stats endpoints plus paginated bounces) and relies on the shared HTTP client to honor 429 responses with backoff.',
   limitations: [
-    'Daily granularity only - stats are bucketed per calendar day (UTC).',
+    'Daily granularity only - stats are bucketed per calendar day in US Eastern Time (EST/EDT), matching Postmark stats API reporting.',
     'Delivered is derived as sent minus total bounces (hard, soft, SMTP API errors, and transient) for the day, clamped at zero, because Postmark does not expose a direct delivered counter.',
     'A server token is scoped to one Postmark server, so each connector instance covers a single server. Cross-server aggregation via an account token is out of scope.',
     'Bounce events are retained as a rolling window (lookbackDays) and rewritten on every sync; bounces older than the window age out. Stats history beyond the window is preserved across incremental syncs.',
+    'The Postmark bounces API returns at most 10,000 records per query; the connector splits the lookback window into smaller date ranges to fetch them all, but a single day with more than 10,000 bounces cannot be fully retrieved.',
   ],
 });
 
@@ -215,7 +216,11 @@ export const postmarkResources = defineResources({
     notes:
       'Merges four Postmark outbound-stats endpoints (sends, bounces, spam, opens) keyed by date. The metric value is the daily sent count; delivered is sent minus total bounces clamped at zero.',
     dimensions: [
-      { name: 'date', description: 'Calendar day of the stats sample (UTC).' },
+      {
+        name: 'date',
+        description:
+          'Calendar day of the stats sample in US Eastern Time (EST/EDT), as reported by the Postmark stats API.',
+      },
       {
         name: 'stream',
         description:
@@ -320,12 +325,27 @@ function isoDateToMs(date: string): number {
   return Date.UTC(y, m - 1, d);
 }
 
+const POSTMARK_TIMEZONE = 'America/New_York';
+
+const easternDateFormat = new Intl.DateTimeFormat('en-CA', {
+  timeZone: POSTMARK_TIMEZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+function startOfEasternDay(ms: number): number {
+  const localDate = easternDateFormat.format(new Date(ms));
+  const anchored = isoDateToMs(localDate);
+  return Number.isFinite(anchored) ? anchored : startOfUtcDay(ms);
+}
+
 export function getStatsWindow(
   options: SyncOptions,
   lookbackDays: number,
   now: number = Date.now(),
 ): StatsWindow {
-  const today = startOfUtcDay(now);
+  const today = startOfEasternDay(now);
   if (options.mode === 'latest') {
     return {
       from: toIsoDate(today - (INCREMENTAL_LOOKBACK_DAYS - 1) * MS_PER_DAY),
@@ -337,7 +357,7 @@ export function getStatsWindow(
     if (Number.isFinite(sinceMs)) {
       const requested = Math.max(
         1,
-        Math.ceil((today - startOfUtcDay(sinceMs)) / MS_PER_DAY) + 1,
+        Math.ceil((today - startOfEasternDay(sinceMs)) / MS_PER_DAY) + 1,
       );
       const capped = Math.min(requested, lookbackDays);
       return {
@@ -615,16 +635,39 @@ export class PostmarkConnector extends BaseConnector<
       records.push(...page);
       offset += BOUNCE_PAGE_SIZE;
       if (page.length < BOUNCE_PAGE_SIZE) {
-        break;
+        return records;
       }
       if (offset >= BOUNCE_MAX_OFFSET) {
-        this.logger?.warn?.(
-          `[postmark] bounces hit the ${BOUNCE_MAX_OFFSET}-record API window cap; older bounces in this window were not fetched`,
-        );
-        break;
+        return this.fetchBouncesCapped(window, records, signal);
       }
     }
-    return records;
+  }
+
+  private async fetchBouncesCapped(
+    window: StatsWindow,
+    partial: PostmarkBounceRecord[],
+    signal?: AbortSignal,
+  ): Promise<PostmarkBounceRecord[]> {
+    const fromMs = isoDateToMs(window.from);
+    const toMs = isoDateToMs(window.to);
+    if (!Number.isFinite(fromMs) || !Number.isFinite(toMs) || fromMs >= toMs) {
+      this.logger?.warn?.(
+        `[postmark] more than ${BOUNCE_MAX_OFFSET} bounces on ${window.from}; older bounces for this day were not fetched`,
+      );
+      return partial;
+    }
+    const spanDays = Math.round((toMs - fromMs) / MS_PER_DAY);
+    const midMs = fromMs + Math.floor(spanDays / 2) * MS_PER_DAY;
+    const left: StatsWindow = { from: window.from, to: toIsoDate(midMs) };
+    const right: StatsWindow = {
+      from: toIsoDate(midMs + MS_PER_DAY),
+      to: window.to,
+    };
+    const [leftRecords, rightRecords] = await Promise.all([
+      this.fetchBounces(left, signal),
+      this.fetchBounces(right, signal),
+    ]);
+    return [...leftRecords, ...rightRecords];
   }
 
   private async writeBounces(
@@ -649,11 +692,10 @@ export class PostmarkConnector extends BaseConnector<
       : undefined;
     const lookbackDays = this.settings.lookbackDays ?? DEFAULT_LOOKBACK_DAYS;
     const statsWindow = getStatsWindow(options, lookbackDays);
+    const easternToday = startOfEasternDay(Date.now());
     const bounceWindow: StatsWindow = {
-      from: toIsoDate(
-        startOfUtcDay(Date.now()) - (lookbackDays - 1) * MS_PER_DAY,
-      ),
-      to: toIsoDate(startOfUtcDay(Date.now())),
+      from: toIsoDate(easternToday - (lookbackDays - 1) * MS_PER_DAY),
+      to: toIsoDate(easternToday),
     };
 
     const phases = selectActivePhases<PostmarkResource, PostmarkPhase>(
