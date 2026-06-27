@@ -806,7 +806,6 @@ export class GoogleAdsConnector extends BaseConnector<
     phase: GoogleAdsPhase,
     items: unknown[],
     storage: StorageHandle,
-    replaceWindow: { start: number; end: number } | undefined,
   ): Promise<void> {
     switch (phase) {
       case 'campaigns': {
@@ -816,33 +815,21 @@ export class GoogleAdsConnector extends BaseConnector<
         return;
       }
       case 'campaign_metrics': {
-        const samples = (items as CampaignMetricRow[]).map(
-          campaignMetricRowToSample,
-        );
-        await storage.metrics(samples, {
-          names: [METRIC_NAME.campaign_metrics],
-          ...(replaceWindow ? { replaceWindow } : {}),
-        });
+        for (const row of items as CampaignMetricRow[]) {
+          await storage.metric(campaignMetricRowToSample(row));
+        }
         return;
       }
       case 'ad_group_metrics': {
-        const samples = (items as AdGroupMetricRow[]).map(
-          adGroupMetricRowToSample,
-        );
-        await storage.metrics(samples, {
-          names: [METRIC_NAME.ad_group_metrics],
-          ...(replaceWindow ? { replaceWindow } : {}),
-        });
+        for (const row of items as AdGroupMetricRow[]) {
+          await storage.metric(adGroupMetricRowToSample(row));
+        }
         return;
       }
       case 'keyword_metrics': {
-        const samples = (items as KeywordMetricRow[]).map(
-          keywordMetricRowToSample,
-        );
-        await storage.metrics(samples, {
-          names: [METRIC_NAME.keyword_metrics],
-          ...(replaceWindow ? { replaceWindow } : {}),
-        });
+        for (const row of items as KeywordMetricRow[]) {
+          await storage.metric(keywordMetricRowToSample(row));
+        }
         return;
       }
     }
@@ -904,7 +891,7 @@ export class GoogleAdsConnector extends BaseConnector<
             replaceWindow,
           );
         }
-        await this.writePhase(phase, items, storage, replaceWindow);
+        await this.writePhase(phase, items, storage);
       },
     });
   }

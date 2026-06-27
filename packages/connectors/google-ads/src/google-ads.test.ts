@@ -335,7 +335,7 @@ describe('GoogleAdsConnector.sync', () => {
     expect(result.done).toBe(true);
   });
 
-  it('writes each metric phase atomically via storage.metrics with a names scope', async () => {
+  it('clears each metric phase by name then appends samples per row', async () => {
     vi.stubGlobal(
       'fetch',
       mockFetch(
@@ -362,18 +362,19 @@ describe('GoogleAdsConnector.sync', () => {
     const storage = makeStorage();
     await makeConnector().sync({ mode: 'full' }, storage);
 
-    const campaignMetricsWrites = storage.metrics.mock.calls.filter(
+    const campaignMetricsClears = storage.metrics.mock.calls.filter(
       (c) =>
         (c[1] as { names: string[] }).names[0] ===
         'google_ads_campaign_metrics',
     );
-    const withSamples = campaignMetricsWrites.filter(
-      (c) => (c[0] as unknown[]).length > 0,
-    );
-    expect(withSamples).toHaveLength(1);
-    const samples = withSamples[0]![0] as Array<{ value: number }>;
-    expect(samples).toHaveLength(1);
-    expect(samples[0]!.value).toBeCloseTo(5);
+    expect(campaignMetricsClears).toHaveLength(1);
+    expect(campaignMetricsClears[0]![0] as unknown[]).toEqual([]);
+
+    const appended = storage.metric.mock.calls
+      .map((c) => c[0] as { name: string; value: number })
+      .filter((s) => s.name === 'google_ads_campaign_metrics');
+    expect(appended).toHaveLength(1);
+    expect(appended[0]!.value).toBeCloseTo(5);
   });
 
   it('clears entity types and metric names on first page', async () => {
@@ -435,6 +436,71 @@ describe('GoogleAdsConnector.sync', () => {
     expect(survivors).toHaveLength(1);
     expect(survivors[0]!.ts).toBe(oldTs);
     expect(survivors[0]!.value).toBe(5);
+  });
+
+  it('keeps samples from every page of a paginated metric phase', async () => {
+    const metricRow = (date: string, costMicros: string) => ({
+      segments: { date },
+      campaign: { id: '1', name: 'A' },
+      metrics: {
+        impressions: '1',
+        clicks: '1',
+        costMicros,
+        conversions: 0,
+        conversionsValue: 0,
+      },
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+        const urlStr = String(url);
+        if (urlStr.includes('oauth2.googleapis.com/token')) {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({ access_token: 'tok', expires_in: 3600 }),
+              { status: 200, headers: { 'content-type': 'application/json' } },
+            ),
+          );
+        }
+        const body = init?.body
+          ? (JSON.parse(String(init.body)) as {
+              query: string;
+              pageToken?: string;
+            })
+          : { query: '' };
+        const isMetrics = body.query.includes('segments.date BETWEEN');
+        const payload =
+          isMetrics && !body.pageToken
+            ? {
+                results: [metricRow('2025-01-10', '1000000')],
+                nextPageToken: 'page2',
+              }
+            : isMetrics
+              ? { results: [metricRow('2025-01-11', '2000000')] }
+              : { results: [] };
+        return Promise.resolve(
+          new Response(JSON.stringify(payload), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          }),
+        );
+      }),
+    );
+
+    const storage = new InMemoryStorage();
+    const handle = storage.getStorageHandle('google-ads');
+    await makeConnector({ resources: ['campaign_metrics'] }).sync(
+      { mode: 'full' },
+      handle,
+    );
+
+    const samples = await handle.queryMetrics({
+      name: 'google_ads_campaign_metrics',
+    });
+    expect(samples.map((s) => s.ts).sort((a, b) => a - b)).toEqual([
+      Date.UTC(2025, 0, 10),
+      Date.UTC(2025, 0, 11),
+    ]);
   });
 
   it('sends Authorization, developer-token, and login-customer-id headers', async () => {
