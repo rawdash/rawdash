@@ -39,7 +39,7 @@ Authenticate against the GA4 Data API with either a Google service account JSON 
   - Unit: sessions
   - Granularity: day
   - Dimensions: `date`
-- **`ga4_traffic_by_source`** _(metric)_ - Daily sessions and conversions broken down by acquisition source and medium.
+- **`ga4_traffic_by_source`** _(metric)_ - Daily sessions and key events (conversions) broken down by acquisition source and medium.
   - Endpoint: `POST /v1beta/properties/{propertyId}:runReport`
   - Unit: sessions
   - Granularity: day
@@ -54,7 +54,7 @@ Authenticate against the GA4 Data API with either a Google service account JSON 
   - Unit: events
   - Granularity: day
   - Dimensions: `date`, `eventName`
-- **`ga4_conversions`** _(metric)_ - Daily conversion counts and total revenue bucketed by conversion event name.
+- **`ga4_conversions`** _(metric)_ - Daily key event (conversion) counts and total revenue bucketed by key event name.
   - Endpoint: `POST /v1beta/properties/{propertyId}:runReport`
   - Unit: conversions
   - Granularity: day
