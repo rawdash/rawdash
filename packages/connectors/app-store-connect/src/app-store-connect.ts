@@ -655,9 +655,19 @@ export class AppStoreConnectConnector extends BaseConnector<
         samples.push(sample);
       }
     }
+    const replaceWindow = salesReportWindow(dates);
+    if (!replaceWindow) {
+      this.logger.warn(
+        'skipping sales metric write (unresolvable report window)',
+        {
+          resource: metricName,
+        },
+      );
+      return;
+    }
     await storage.metrics(samples, {
       names: [metricName],
-      replaceWindow: salesReportWindow(dates),
+      replaceWindow,
     });
   }
 
