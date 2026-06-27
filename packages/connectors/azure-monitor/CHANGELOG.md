@@ -1,5 +1,13 @@
 # @rawdash/connector-azure-monitor
 
+## 0.28.1
+
+### Patch Changes
+
+- 9ec9550: Fix metric history loss on incremental syncs. These connectors write historical, past-dated metric samples but re-pull only a short trailing window on incremental (`latest`) syncs, then replaced the whole metric by name — so each incremental sync wiped all previously retained history outside that short window, leaving empty time series and unstable aggregates. Each sales/usage/cost metric write is now scoped to the report window the sync actually fetched (`replaceWindow`), refreshing only those days/hours and preserving older retained samples. Same root cause and fix as the App Store Connect change.
+- Updated dependencies [8d02825]
+  - @rawdash/core@0.28.1
+
 ## 0.28.0
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-vanta",
-  "version": "0.28.0",
+  "version": "0.28.1",
   "description": "Rawdash connector for Vanta — syncs controls, tests, and test findings from the Vanta Public API into the six-shape storage model for compliance dashboards",
   "license": "Apache-2.0",
   "type": "module",

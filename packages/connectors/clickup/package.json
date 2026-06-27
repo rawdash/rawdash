@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-clickup",
-  "version": "0.28.0",
+  "version": "0.28.1",
   "description": "Rawdash connector for ClickUp — spaces, folders, lists, tasks, and task lifecycle events",
   "license": "Apache-2.0",
   "type": "module",

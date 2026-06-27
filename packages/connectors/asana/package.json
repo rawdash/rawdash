@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-asana",
-  "version": "0.28.0",
+  "version": "0.28.1",
   "description": "Rawdash connector for Asana — syncs projects, users, tasks, and task state-change events from a workspace into the six-shape storage model",
   "license": "Apache-2.0",
   "type": "module",

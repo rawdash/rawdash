@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-zendesk",
-  "version": "0.28.0",
+  "version": "0.28.1",
   "description": "Rawdash connector for Zendesk — syncs tickets, ticket state-change events, satisfaction ratings, users, and groups from the Zendesk Support REST API",
   "license": "Apache-2.0",
   "type": "module",

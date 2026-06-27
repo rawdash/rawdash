@@ -1,5 +1,14 @@
 # @rawdash/connector-github
 
+## 0.28.1
+
+### Patch Changes
+
+- b35c937: Widen the `pull_requests` schema (\_links, assignees, auto_merge, base, head, labels, requested_reviewers, requested_teams) to accept observed upstream shapes (RAW-727).
+- 34a806a: Widen the `workflow_runs` schema (head_commit, head_repository, repository, pull_requests, referenced_workflows) to accept observed upstream shapes (RAW-732).
+- Updated dependencies [8d02825]
+  - @rawdash/core@0.28.1
+
 ## 0.28.0
 
 ### Minor Changes

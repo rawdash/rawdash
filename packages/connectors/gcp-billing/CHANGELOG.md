@@ -1,5 +1,14 @@
 # @rawdash/connector-gcp-billing
 
+## 0.28.1
+
+### Patch Changes
+
+- 9ec9550: Fix metric history loss on incremental syncs. These connectors write historical, past-dated metric samples but re-pull only a short trailing window on incremental (`latest`) syncs, then replaced the whole metric by name — so each incremental sync wiped all previously retained history outside that short window, leaving empty time series and unstable aggregates. Each sales/usage/cost metric write is now scoped to the report window the sync actually fetched (`replaceWindow`), refreshing only those days/hours and preserving older retained samples. Same root cause and fix as the App Store Connect change.
+- 9cdec6e: Fix every sync failing with `value.trim is not a function` when the service account key is stored as raw JSON. The secrets resolver auto-parses any secret value beginning with `{` into an object, so the shared `parseServiceAccountJson` helper (bundled into each GCP connector) received the already-parsed service account object rather than a string and crashed on `.trim()`. The shared helper now accepts an already-parsed object — validated with the same schema — in addition to a raw JSON string or base64-encoded JSON, and the `GcpAccessTokenProvider` credential contract is typed accordingly.
+- Updated dependencies [8d02825]
+  - @rawdash/core@0.28.1
+
 ## 0.28.0
 
 ### Patch Changes

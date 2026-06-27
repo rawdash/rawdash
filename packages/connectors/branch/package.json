@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-branch",
-  "version": "0.28.0",
+  "version": "0.28.1",
   "description": "Rawdash connector for Branch — syncs daily install/open/conversion attribution metrics and deep-link click events via the Branch Cross-Platform Analytics API",
   "license": "Apache-2.0",
   "type": "module",

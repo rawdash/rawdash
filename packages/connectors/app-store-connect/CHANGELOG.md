@@ -1,5 +1,13 @@
 # @rawdash/connector-app-store-connect
 
+## 0.28.1
+
+### Patch Changes
+
+- 1d8980b: Fix `app_installs` / `app_revenue` losing history on incremental syncs. The sales-report sync replaced the entire metric on every run, so a `latest` sync — which only re-pulls the last few days, and which Apple returns 404 (zero sales) for on quiet days — wiped all previously synced installs/revenue history, leaving an empty time series and an unstable aggregate. The sync now scopes its write to the fetched report-date window (`replaceWindow`), refreshing only those days and preserving older retained samples.
+- Updated dependencies [8d02825]
+  - @rawdash/core@0.28.1
+
 ## 0.28.0
 
 ### Patch Changes

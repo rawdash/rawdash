@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-intercom",
-  "version": "0.28.0",
+  "version": "0.28.1",
   "description": "Rawdash connector for Intercom — syncs conversations, contacts, teams, and admins from the Intercom REST API into the six-shape storage model",
   "license": "Apache-2.0",
   "type": "module",

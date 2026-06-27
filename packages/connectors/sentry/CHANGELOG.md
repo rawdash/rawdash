@@ -1,5 +1,15 @@
 # @rawdash/connector-sentry
 
+## 0.28.1
+
+### Patch Changes
+
+- 26f0e81: Widen the `issue_events` schema (metadata, tags, user) to accept observed upstream shapes (RAW-726).
+- a6b6310: Widen the `issues` schema (annotations, lifetime, metadata, stats, statusDetails) to accept observed upstream shapes (RAW-724).
+- 8d06434: Widen the `releases` schema (release + nested projects fields) to accept observed upstream shapes (RAW-731).
+- Updated dependencies [8d02825]
+  - @rawdash/core@0.28.1
+
 ## 0.28.0
 
 ### Patch Changes

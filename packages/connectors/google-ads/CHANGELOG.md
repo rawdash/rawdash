@@ -1,5 +1,14 @@
 # @rawdash/connector-google-ads
 
+## 0.28.1
+
+### Patch Changes
+
+- 9ec9550: Fix metric history loss on incremental syncs. These connectors write historical, past-dated metric samples but re-pull only a short trailing window on incremental (`latest`) syncs, then replaced the whole metric by name — so each incremental sync wiped all previously retained history outside that short window, leaving empty time series and unstable aggregates. Each sales/usage/cost metric write is now scoped to the report window the sync actually fetched (`replaceWindow`), refreshing only those days/hours and preserving older retained samples. Same root cause and fix as the App Store Connect change.
+- 97b0fd4: Fix two Google Ads connector defects. The connector targeted the sunset `v18` API endpoint (retired 2025-08-20), so every request failed; it now targets `v24`. Metric phases also wrote each page with a replace-by-name batch, so any metric exceeding one 10,000-row page persisted only its final page — metric pages now append, preserving every page.
+- Updated dependencies [8d02825]
+  - @rawdash/core@0.28.1
+
 ## 0.28.0
 
 ### Patch Changes
