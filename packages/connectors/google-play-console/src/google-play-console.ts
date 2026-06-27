@@ -63,7 +63,7 @@ export const configFields = defineConfigFields(
     installsBucketId: z.string().trim().min(1).optional().meta({
       label: 'Installs report bucket id',
       description:
-        'Cloud Storage bucket id that holds your Play Console reports (e.g. pubsite_prod_rev_01234567890987654321), shown via "Copy Cloud Storage URI" on the Play Console Download reports page. Required only for the gplay_installs_* resources, which read the monthly stats/installs CSV reports. The bucket is Google-managed; the service account is granted access through Play Console (Users & permissions -> "View app information and download bulk reports", set to Global), not Google Cloud IAM.',
+        'Cloud Storage bucket id that holds your Play Console reports (e.g. `pubsite_prod_rev_01234567890987654321`), shown via "Copy Cloud Storage URI" on the Play Console Download reports page. Required only for the `gplay_installs_*` resources, which read the monthly stats/installs CSV reports. The bucket is Google-managed; the service account is granted access through Play Console (Users & permissions -> "View app information and download bulk reports", set to Global), not Google Cloud IAM.',
       placeholder: 'pubsite_prod_rev_01234567890987654321',
     }),
   }),
@@ -88,7 +88,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
       'In Google Cloud, create a service account at IAM & Admin -> Service Accounts and download a JSON key.',
       'Enable both the "Google Play Developer Reporting API" and the "Google Play Android Developer API" on the Cloud project.',
       'In Google Play Console open Setup -> API access, link the same Cloud project, then invite the service account email and grant it at least the "View app information and download bulk reports" permission for the app you want to sync.',
-      'For the gplay_installs_* resources, grant bucket access inside Play Console, not Google Cloud IAM: the install reports live in a Google-managed Cloud Storage bucket provisioned for your developer account. In Play Console -> Users & permissions, give the service account the account-level "View app information and download bulk reports" permission set to Global (changes can take a few hours to propagate), then copy the bucket id from the Download reports page (the Cloud Storage URI starts with gs://pubsite_prod_...) into installsBucketId.',
+      'For the `gplay_installs_*` resources, grant bucket access inside Play Console, not Google Cloud IAM: the install reports live in a Google-managed Cloud Storage bucket provisioned for your developer account. In Play Console -> Users & permissions, give the service account the account-level "View app information and download bulk reports" permission set to Global (changes can take a few hours to propagate), then copy the bucket id from the Download reports page (the Cloud Storage URI starts with `gs://pubsite_prod_...`) into installsBucketId.',
       'Store the service account JSON as a secret and reference it as serviceAccountJson: secret("GPLAY_SA_JSON").',
       'Set packageName to the reverse-DNS application id of the app (e.g. com.example.app).',
     ],
@@ -99,7 +99,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Daily vitals (crash rate, ANR rate, error counts) have a 2-3 day reporting lag on the Play Developer Reporting API; incremental syncs refetch the trailing 3 days. Metric days are reported on the America/Los_Angeles calendar, the only timezone the API supports for daily aggregation.',
     'gplay_app_ratings is a rolling sample of recent reviews from the Android Publisher reviews API (default 200, configurable via reviewLimit). Each sample carries one review with its star rating (1-5) as the value; this is not the lifetime average shown on the Play Store, and the reviews API only surfaces reviews from roughly the past week.',
     'The apps entity carries only the configured package name; the Play Store listing title is available solely through an Android Publisher edit, which this connector does not create.',
-    'The gplay_installs_* resources read the monthly stats/installs CSV reports from your Play Console Cloud Storage bucket, not the Reporting API; they require installsBucketId plus the account-level "View app information and download bulk reports" permission granted to the service account in Play Console (the bucket is Google-managed; access is not configured through Google Cloud IAM). Files are published monthly (with daily rows) and a few days in arrears, so the current month fills in over time and the most recent days lag. Earnings/financial reports remain out of scope.',
+    'The `gplay_installs_*` resources read the monthly stats/installs CSV reports from your Play Console Cloud Storage bucket, not the Reporting API; they require installsBucketId plus the account-level "View app information and download bulk reports" permission granted to the service account in Play Console (the bucket is Google-managed; access is not configured through Google Cloud IAM). Files are published monthly (with daily rows) and a few days in arrears, so the current month fills in over time and the most recent days lag. Earnings/financial reports remain out of scope.',
   ],
 });
 
