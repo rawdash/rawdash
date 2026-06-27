@@ -97,6 +97,7 @@ export function subscribe(
   let bootstrapSettled = false;
   let bootstrapAttempts = 0;
   let bootstrapRetryDelayMs = 0;
+  let bootstrapRetryPending = false;
 
   function settleBootstrap(): void {
     if (bootstrapSettled) {
@@ -192,19 +193,32 @@ export function subscribe(
         callbacks.onError?.(err);
       }
       bootstrapRetryDelayMs =
-        bootstrapRetryDelayMs === 0
-          ? opts.bootstrapRetryStartMs
+        bootstrapRetryDelayMs <= 0
+          ? Math.max(1, opts.bootstrapRetryStartMs)
           : Math.min(bootstrapRetryDelayMs * 2, opts.bootstrapRetryMaxMs);
-      if (bootstrapRetryHandle !== null) {
-        clearTimer(bootstrapRetryHandle);
-      }
-      bootstrapRetryHandle = setTimer(() => {
-        bootstrapRetryHandle = null;
-        if (!stopped) {
-          void bootstrap();
-        }
-      }, bootstrapRetryDelayMs);
+      scheduleBootstrapRetry();
     }
+  }
+
+  function scheduleBootstrapRetry(): void {
+    if (stopped) {
+      return;
+    }
+    if (bootstrapRetryHandle !== null) {
+      clearTimer(bootstrapRetryHandle);
+      bootstrapRetryHandle = null;
+    }
+    if (visibility && visibility.isHidden()) {
+      bootstrapRetryPending = true;
+      return;
+    }
+    bootstrapRetryPending = false;
+    bootstrapRetryHandle = setTimer(() => {
+      bootstrapRetryHandle = null;
+      if (!stopped) {
+        void bootstrap();
+      }
+    }, bootstrapRetryDelayMs);
   }
 
   if (visibility) {
@@ -219,9 +233,17 @@ export function subscribe(
             t.timer = null;
           }
         }
+        if (bootstrapRetryHandle !== null) {
+          clearTimer(bootstrapRetryHandle);
+          bootstrapRetryHandle = null;
+          bootstrapRetryPending = true;
+        }
       } else {
         for (const t of trackers.values()) {
           schedule(t, 0);
+        }
+        if (bootstrapRetryPending) {
+          scheduleBootstrapRetry();
         }
       }
     });

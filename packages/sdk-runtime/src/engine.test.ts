@@ -403,6 +403,65 @@ describe('subscribe()', () => {
     unsub();
   });
 
+  it('clamps a zero bootstrapRetryStartMs so retries do not busy-loop', async () => {
+    const source = fakeSource([]);
+    source.getWidgets.mockRejectedValue(new Error('boom'));
+    const cb = makeCallbacks();
+    const unsub = subscribe(source, 'd', cb, {
+      jitterMs: 0,
+      visibility: null,
+      random: () => 0,
+      bootstrapRetryStartMs: 0,
+      bootstrapRetryMaxMs: 8_000,
+      bootstrapErrorAfterAttempts: 99,
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(source.getWidgets).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(source.getWidgets).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(source.getWidgets).toHaveBeenCalledTimes(2);
+    unsub();
+  });
+
+  it('pauses bootstrap retries while hidden and resumes on visibility', async () => {
+    const source = fakeSource([]);
+    source.getWidgets.mockRejectedValue(new Error('boom'));
+    const cb = makeCallbacks();
+    let hidden = false;
+    const listeners: Array<() => void> = [];
+    const unsub = subscribe(source, 'd', cb, {
+      jitterMs: 0,
+      random: () => 0,
+      bootstrapRetryStartMs: 1_000,
+      bootstrapRetryMaxMs: 8_000,
+      bootstrapErrorAfterAttempts: 99,
+      visibility: {
+        isHidden: () => hidden,
+        onChange: (l) => {
+          listeners.push(l);
+          return () => {
+            const i = listeners.indexOf(l);
+            if (i >= 0) {
+              listeners.splice(i, 1);
+            }
+          };
+        },
+      },
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(source.getWidgets).toHaveBeenCalledTimes(1);
+    hidden = true;
+    listeners.forEach((l) => l());
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(source.getWidgets).toHaveBeenCalledTimes(1);
+    hidden = false;
+    listeners.forEach((l) => l());
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(source.getWidgets).toHaveBeenCalledTimes(2);
+    unsub();
+  });
+
   it('does not poll while document is hidden, resumes on visibility', async () => {
     const widgets: CachedWidget[] = [
       widget({
