@@ -409,6 +409,33 @@ describe('CloudWatchConnector retention clamp', () => {
       warnings.find((w) => w.event === 'window truncated to retention floor'),
     ).toBeUndefined();
   });
+
+  it('does not delete history below the retention floor when the window is truncated', async () => {
+    installFetch(() => ({ body: metricDataXml([]) }));
+
+    const storage = new InMemoryStorage();
+    const handle = storage.getStorageHandle(CONNECTOR_ID);
+    const belowFloorTs = Date.now() - 20 * DAY_MS;
+    await handle.metrics(
+      [
+        {
+          name: 'AWS/EC2/CPUUtilization',
+          ts: belowFloorTs,
+          value: 7,
+          attributes: { queryId: 'cpu' },
+        },
+      ],
+      { names: ['AWS/EC2/CPUUtilization'] },
+    );
+
+    const since = new Date(Date.now() - 30 * DAY_MS).toISOString();
+    await connectorWithPeriod(60).sync({ mode: 'full', since }, handle);
+
+    const surviving = await handle.queryMetrics({
+      name: 'AWS/EC2/CPUUtilization',
+    });
+    expect(surviving.map((m) => m.ts)).toContain(belowFloorTs);
+  });
 });
 
 describe('CloudWatchConnector result status codes', () => {

@@ -323,7 +323,6 @@ export class CloudWatchConnector extends BaseAWSConnector<CloudWatchSettings> {
     const queriesById = new Map(queries.map((q) => [q.id, q]));
     const { startMs, endMs } = this.computeWindow(options);
 
-    const samples: MetricSample[] = [];
     const host = `${CLOUDWATCH_SERVICE}.${this.settings.region}.amazonaws.com`;
 
     const groupsByFloor = new Map<number, CloudWatchMetricQuery[]>();
@@ -338,6 +337,11 @@ export class CloudWatchConnector extends BaseAWSConnector<CloudWatchSettings> {
     }
 
     let internalErrorSeen = false;
+    const pendingWrites: Array<{
+      names: string[];
+      samples: MetricSample[];
+      replaceWindow: { start: number; end: number } | null;
+    }> = [];
 
     for (const [floorMs, group] of groupsByFloor) {
       const earliestRetainedMs = endMs - floorMs;
@@ -352,6 +356,7 @@ export class CloudWatchConnector extends BaseAWSConnector<CloudWatchSettings> {
         });
       }
 
+      const groupSamples: MetricSample[] = [];
       for (let i = 0; i < group.length; i += MAX_QUERIES_PER_CALL) {
         const chunk = group.slice(i, i + MAX_QUERIES_PER_CALL);
         let nextToken: string | undefined;
@@ -396,7 +401,7 @@ export class CloudWatchConnector extends BaseAWSConnector<CloudWatchSettings> {
                 metric: `${query.namespace}/${query.metric}`,
               });
             }
-            this.collectSamples(samples, query, result);
+            this.collectSamples(groupSamples, query, result);
           }
           nextToken = parsed.nextToken ?? undefined;
           page += 1;
@@ -408,6 +413,15 @@ export class CloudWatchConnector extends BaseAWSConnector<CloudWatchSettings> {
           });
         } while (nextToken !== undefined);
       }
+
+      pendingWrites.push({
+        names: [...new Set(group.map((q) => `${q.namespace}/${q.metric}`))],
+        samples: groupSamples,
+        replaceWindow:
+          endMs >= effectiveStartMs
+            ? { start: effectiveStartMs, end: endMs }
+            : null,
+      });
     }
 
     if (internalErrorSeen) {
@@ -416,15 +430,17 @@ export class CloudWatchConnector extends BaseAWSConnector<CloudWatchSettings> {
       );
     }
 
-    const replaceWindow =
-      endMs >= startMs ? { start: startMs, end: endMs } : null;
-    await storage.metrics(samples, {
-      names: [...names],
-      ...(replaceWindow ? { replaceWindow } : {}),
-    });
+    let written = 0;
+    for (const write of pendingWrites) {
+      await storage.metrics(write.samples, {
+        names: write.names,
+        ...(write.replaceWindow ? { replaceWindow: write.replaceWindow } : {}),
+      });
+      written += write.samples.length;
+    }
     this.logger.info('resource done', {
       resource: 'metric_data',
-      items: samples.length,
+      items: written,
     });
     return { done: true };
   }
