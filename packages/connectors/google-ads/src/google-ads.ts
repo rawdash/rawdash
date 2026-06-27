@@ -171,7 +171,7 @@ export type GoogleAdsResource = GoogleAdsPhase;
 
 const isGoogleAdsSyncCursor = makeChunkedCursorGuard(PHASE_ORDER);
 
-const API_VERSION = 'v18';
+const API_VERSION = 'v24';
 const PAGE_SIZE = 10_000;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const DEFAULT_LOOKBACK_DAYS = 90;
@@ -276,7 +276,7 @@ export const googleAdsResources = defineResources({
     ],
     description:
       'Google Ads campaigns with id, name, status, bidding strategy type, and start / end dates.',
-    endpoint: 'POST /v18/customers/{customerId}/googleAds:search',
+    endpoint: 'POST /v24/customers/{customerId}/googleAds:search',
     fields: [
       { name: 'id', description: 'Numeric Google Ads campaign id.' },
       { name: 'name', description: 'Campaign display name.' },
@@ -308,7 +308,7 @@ export const googleAdsResources = defineResources({
     shape: 'metric',
     description:
       'Daily campaign performance - impressions, clicks, cost, conversions, and conversion value per (date, campaignId).',
-    endpoint: 'POST /v18/customers/{customerId}/googleAds:search',
+    endpoint: 'POST /v24/customers/{customerId}/googleAds:search',
     unit: 'USD',
     granularity: 'day',
     dimensions: [
@@ -346,7 +346,7 @@ export const googleAdsResources = defineResources({
     shape: 'metric',
     description:
       'Daily ad-group performance - impressions, clicks, cost, and conversions per (date, adGroupId).',
-    endpoint: 'POST /v18/customers/{customerId}/googleAds:search',
+    endpoint: 'POST /v24/customers/{customerId}/googleAds:search',
     unit: 'USD',
     granularity: 'day',
     dimensions: [
@@ -375,7 +375,7 @@ export const googleAdsResources = defineResources({
     shape: 'metric',
     description:
       'Daily keyword performance - impressions, clicks, cost, and historical quality score per (date, criterionId).',
-    endpoint: 'POST /v18/customers/{customerId}/googleAds:search',
+    endpoint: 'POST /v24/customers/{customerId}/googleAds:search',
     unit: 'USD',
     granularity: 'day',
     dimensions: [

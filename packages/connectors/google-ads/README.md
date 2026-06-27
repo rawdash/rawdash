@@ -39,7 +39,7 @@ OAuth 2.0 refresh token against an account with read access to the Google Ads cu
 ## Resources
 
 - **`google_ads_campaign`** _(entity)_ - Google Ads campaigns with id, name, status, bidding strategy type, and start / end dates.
-  - Endpoint: `POST /v18/customers/{customerId}/googleAds:search`
+  - Endpoint: `POST /v24/customers/{customerId}/googleAds:search`
   - `id`: Numeric Google Ads campaign id.
   - `name`: Campaign display name.
   - `status`: Campaign status (ENABLED, PAUSED, REMOVED, UNKNOWN, UNSPECIFIED).
@@ -47,18 +47,18 @@ OAuth 2.0 refresh token against an account with read access to the Google Ads cu
   - `startDate`: Campaign start date (YYYY-MM-DD).
   - `endDate`: Campaign end date (YYYY-MM-DD), if set.
 - **`google_ads_campaign_metrics`** _(metric)_ - Daily campaign performance - impressions, clicks, cost, conversions, and conversion value per (date, campaignId).
-  - Endpoint: `POST /v18/customers/{customerId}/googleAds:search`
+  - Endpoint: `POST /v24/customers/{customerId}/googleAds:search`
   - Unit: USD
   - Granularity: day
   - Dimensions: `date`, `campaignId`, `campaignName`, `impressions`, `clicks`, `cost`, `costMicros`, `conversions`, `conversionsValue`
   - Sample value is `cost` (account currency units). All other fields are mirrored in attributes for filtering and ratio metrics (CPA = cost / conversions, ROAS = conversionsValue / cost).
 - **`google_ads_ad_group_metrics`** _(metric)_ - Daily ad-group performance - impressions, clicks, cost, and conversions per (date, adGroupId).
-  - Endpoint: `POST /v18/customers/{customerId}/googleAds:search`
+  - Endpoint: `POST /v24/customers/{customerId}/googleAds:search`
   - Unit: USD
   - Granularity: day
   - Dimensions: `date`, `adGroupId`, `adGroupName`, `campaignId`, `impressions`, `clicks`, `cost`, `costMicros`, `conversions`
 - **`google_ads_keyword_metrics`** _(metric)_ - Daily keyword performance - impressions, clicks, cost, and historical quality score per (date, criterionId).
-  - Endpoint: `POST /v18/customers/{customerId}/googleAds:search`
+  - Endpoint: `POST /v24/customers/{customerId}/googleAds:search`
   - Unit: USD
   - Granularity: day
   - Dimensions: `date`, `criterionId`, `keywordText`, `matchType`, `adGroupId`, `impressions`, `clicks`, `cost`, `costMicros`, `qualityScore`
