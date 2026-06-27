@@ -305,11 +305,11 @@ const issueEventResponseSchema = z.array(
     culprit: z.string().optional(),
     'event.type': z.string().optional(),
     location: z.string().nullable().optional(),
-    metadata: z.unknown().optional(),
+    metadata: z.record(z.string(), z.unknown()).nullable().optional(),
     projectID: z.string().optional(),
-    tags: z.unknown().optional(),
+    tags: z.array(z.unknown()).nullable().optional(),
     title: z.string().optional(),
-    user: z.unknown().optional(),
+    user: z.record(z.string(), z.unknown()).nullable().optional(),
   }),
 );
 
