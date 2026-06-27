@@ -18,18 +18,18 @@ npm install @rawdash/connector-twilio
 Authenticates over HTTP Basic auth using the Twilio Account SID as the username and the Auth token as the password. Read access to messages, calls, and usage records is sufficient.
 
 1. Open the Twilio Console dashboard and copy your Account SID (starts with AC).
-2. Copy the Auth token shown next to it, or create a standard API key (Console -> Account -> API keys & tokens) and use its SID and secret.
+2. Copy the Auth token shown next to it.
 3. Store the token as a secret (e.g. TWILIO_AUTH_TOKEN).
 4. Reference it from config as `authToken: secret("TWILIO_AUTH_TOKEN")` alongside `accountSid: "AC..."`.
 
 ## Configuration
 
-| Field          | Type   | Required | Description                                                                                                                                                                 |
-| -------------- | ------ | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `accountSid`   | string | Yes      | Twilio Account SID (starts with AC). Found on the Twilio Console dashboard. Used as the Basic auth username and in every request path.                                      |
-| `authToken`    | secret | Yes      | Twilio Auth token for the account, used as the Basic auth password. Prefer a standard Auth token; an API key secret also works when paired with its SID as the Account SID. |
-| `resources`    | array  | No       | Which Twilio resources to sync. Omit to sync all of them. The two usage metrics share one upstream call to the daily Usage Records report.                                  |
-| `lookbackDays` | number | No       | How many days of usage history to fetch on a full sync. Defaults to 30. Message and call backfill is bounded by the same window.                                            |
+| Field          | Type   | Required | Description                                                                                                                                |
+| -------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `accountSid`   | string | Yes      | Twilio Account SID (starts with AC). Found on the Twilio Console dashboard. Used as the Basic auth username and in every request path.     |
+| `authToken`    | secret | Yes      | Twilio Auth token for the account, used as the Basic auth password.                                                                        |
+| `resources`    | array  | No       | Which Twilio resources to sync. Omit to sync all of them. The two usage metrics share one upstream call to the daily Usage Records report. |
+| `lookbackDays` | number | No       | How many days of usage history to fetch on a full sync. Defaults to 30. Message and call backfill is bounded by the same window.           |
 
 ## Resources
 

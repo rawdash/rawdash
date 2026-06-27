@@ -1,5 +1,5 @@
 ---
-'@rawdash/connector-twilio': minor
+'@rawdash/connector-twilio': patch
 '@rawdash/connectors': patch
 ---
 

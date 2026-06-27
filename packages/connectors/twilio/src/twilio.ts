@@ -44,7 +44,7 @@ export const configFields = defineConfigFields(
     authToken: z.object({ $secret: z.string().min(1) }).meta({
       label: 'Auth token',
       description:
-        'Twilio Auth token for the account, used as the Basic auth password. Prefer a standard Auth token; an API key secret also works when paired with its SID as the Account SID.',
+        'Twilio Auth token for the account, used as the Basic auth password.',
       placeholder: 'TWILIO_AUTH_TOKEN',
       secret: true,
     }),
@@ -90,7 +90,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
       'Authenticates over HTTP Basic auth using the Twilio Account SID as the username and the Auth token as the password. Read access to messages, calls, and usage records is sufficient.',
     setup: [
       'Open the Twilio Console dashboard and copy your Account SID (starts with AC).',
-      'Copy the Auth token shown next to it, or create a standard API key (Console -> Account -> API keys & tokens) and use its SID and secret.',
+      'Copy the Auth token shown next to it.',
       'Store the token as a secret (e.g. TWILIO_AUTH_TOKEN).',
       'Reference it from config as `authToken: secret("TWILIO_AUTH_TOKEN")` alongside `accountSid: "AC..."`.',
     ],
