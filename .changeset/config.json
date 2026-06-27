@@ -69,6 +69,7 @@
       "@rawdash/connector-monday",
       "@rawdash/connector-postmark",
       "@rawdash/connector-mailgun",
+      "@rawdash/connector-sendgrid",
       "@rawdash/connectors",
       "@rawdash/adapter-libsql",
       "@rawdash/adapter-sqlite",

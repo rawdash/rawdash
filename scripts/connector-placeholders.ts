@@ -2190,16 +2190,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     requestIssue: 'RAW-433',
   },
   {
-    id: 'sendgrid',
-    name: 'SendGrid',
-    category: 'engineering',
-    tagline:
-      'Sync transactional email send volume, delivery, bounce, and complaint rates from SendGrid.',
-    brandColor: '#1A82E2',
-    domain: 'sendgrid.com',
-    requestIssue: 'RAW-429',
-  },
-  {
     id: 'sonarqube',
     name: 'SonarQube',
     category: 'engineering',

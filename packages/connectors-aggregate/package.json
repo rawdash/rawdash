@@ -84,6 +84,7 @@
     "@rawdash/connector-postmark": "workspace:*",
     "@rawdash/connector-revenuecat": "workspace:*",
     "@rawdash/connector-salesforce": "workspace:*",
+    "@rawdash/connector-sendgrid": "workspace:*",
     "@rawdash/connector-sentry": "workspace:*",
     "@rawdash/connector-shopify": "workspace:*",
     "@rawdash/connector-statuspage": "workspace:*",

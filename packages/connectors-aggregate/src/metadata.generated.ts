@@ -308,6 +308,12 @@ import {
   resources as salesforceResources,
 } from '@rawdash/connector-salesforce';
 import {
+  configFields as sendgridConfigFields,
+  doc as sendgridDoc,
+  id as sendgridId,
+  resources as sendgridResources,
+} from '@rawdash/connector-sendgrid';
+import {
   configFields as sentryConfigFields,
   doc as sentryDoc,
   id as sentryId,
@@ -735,6 +741,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: salesforceDoc,
     configFields: salesforceConfigFields,
     resources: salesforceResources,
+  },
+  {
+    id: sendgridId,
+    packageName: '@rawdash/connector-sendgrid',
+    doc: sendgridDoc,
+    configFields: sendgridConfigFields,
+    resources: sendgridResources,
   },
   {
     id: sentryId,
