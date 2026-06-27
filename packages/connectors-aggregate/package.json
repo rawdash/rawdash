@@ -80,6 +80,7 @@
     "@rawdash/connector-okta": "workspace:*",
     "@rawdash/connector-openai": "workspace:*",
     "@rawdash/connector-posthog": "workspace:*",
+    "@rawdash/connector-postmark": "workspace:*",
     "@rawdash/connector-revenuecat": "workspace:*",
     "@rawdash/connector-salesforce": "workspace:*",
     "@rawdash/connector-sentry": "workspace:*",
