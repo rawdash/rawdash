@@ -258,6 +258,13 @@ function ga4DateToMs(ga4Date: string): number {
   return Date.UTC(Number(y), Number(m) - 1, Number(d));
 }
 
+function ga4RangeDateToMs(rangeDate: string): number {
+  const y = rangeDate.slice(0, 4);
+  const m = rangeDate.slice(5, 7);
+  const d = rangeDate.slice(8, 10);
+  return Date.UTC(Number(y), Number(m) - 1, Number(d));
+}
+
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const INCREMENTAL_LOOKBACK_DAYS = 30;
 
@@ -547,6 +554,13 @@ export class GA4Connector extends BaseConnector<GA4Settings, GA4Credentials> {
     const cursor = isGA4SyncCursor(options.cursor) ? options.cursor : undefined;
     const dateRange = cursor?.dateRange ?? getDateRange(options, lookbackDays);
 
+    const windowStart = ga4RangeDateToMs(dateRange.startDate);
+    const windowEnd = ga4RangeDateToMs(dateRange.endDate) + MS_PER_DAY - 1;
+    const replaceWindow =
+      windowStart <= windowEnd
+        ? { start: windowStart, end: windowEnd }
+        : undefined;
+
     let accessToken: string | null = null;
     const getToken = async (sig?: AbortSignal): Promise<string> => {
       if (!accessToken) {
@@ -618,7 +632,10 @@ export class GA4Connector extends BaseConnector<GA4Settings, GA4Credentials> {
       const samples = rows.map((row) =>
         rowToMetricSample(row, cfg.dimensions, cfg.metrics, cfg.metricName),
       );
-      await storage.metrics(samples, { names: [cfg.metricName] });
+      await storage.metrics(samples, {
+        names: [cfg.metricName],
+        ...(replaceWindow ? { replaceWindow } : {}),
+      });
     }
 
     return { done: true };

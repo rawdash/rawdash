@@ -281,6 +281,30 @@ describe('GcpBillingConnector sync', () => {
     expect(metricsFor(storage).map((m) => m.value)).toEqual([3.14]);
   });
 
+  it('does not wipe older history when an incremental sync returns no rows', async () => {
+    installFetch((url) => {
+      if (url.startsWith('https://oauth2.googleapis.com/token')) {
+        return { body: { access_token: 'tok' } };
+      }
+      return { body: { jobComplete: true, schema: { fields: [] }, rows: [] } };
+    });
+
+    const storage = new InMemoryStorage();
+    const handle = storage.getStorageHandle(CONNECTOR_ID);
+    const oldTs = Date.now() - 60 * 86_400_000;
+    await handle.metric({
+      name: 'gcp_cost_daily',
+      ts: oldTs,
+      value: 42,
+      attributes: { service: 'Compute Engine' },
+    });
+
+    await makeConnector().sync({ mode: 'latest' }, handle);
+
+    const surviving = await handle.queryMetrics({ name: 'gcp_cost_daily' });
+    expect(surviving.map((m) => m.ts)).toContain(oldTs);
+  });
+
   it('throws instead of persisting when the query does not complete', async () => {
     installFetch((url) => {
       if (url.startsWith('https://oauth2.googleapis.com/token')) {

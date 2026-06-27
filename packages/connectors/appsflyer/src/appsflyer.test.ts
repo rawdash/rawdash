@@ -1,3 +1,4 @@
+import { InMemoryStorage } from '@rawdash/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -517,6 +518,40 @@ describe('AppsflyerConnector.sync', () => {
     expect(
       calls.find((c) => c.url.includes('kpis=retention_day_1')),
     ).toBeDefined();
+  });
+
+  it('does not wipe older history when an incremental sync returns no rows', async () => {
+    vi.stubGlobal(
+      'fetch',
+      makeFetch(() => undefined),
+    );
+
+    const storage = new InMemoryStorage();
+    const handle = storage.getStorageHandle('appsflyer');
+    const oldTs = Date.now() - 60 * 24 * 60 * 60 * 1000;
+    await handle.metrics(
+      [
+        {
+          name: 'appsflyer_install_metrics',
+          ts: oldTs,
+          value: 7,
+          attributes: { date: '2026-04-01', mediaSource: null, campaign: null },
+        },
+      ],
+      { names: ['appsflyer_install_metrics'] },
+    );
+
+    await connector({ resources: ['install_metrics'] }).sync(
+      { mode: 'latest' },
+      handle,
+    );
+
+    const survivors = await handle.queryMetrics({
+      name: 'appsflyer_install_metrics',
+    });
+    expect(survivors).toHaveLength(1);
+    expect(survivors[0]!.ts).toBe(oldTs);
+    expect(survivors[0]!.value).toBe(7);
   });
 });
 

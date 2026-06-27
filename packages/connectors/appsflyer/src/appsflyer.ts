@@ -324,6 +324,17 @@ export function getWindow(
   };
 }
 
+function windowReplaceBounds(
+  window: AppsflyerWindow,
+): { start: number; end: number } | null {
+  const start = isoDateToMs(window.from);
+  const end = isoDateToMs(window.to);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || start > end) {
+    return null;
+  }
+  return { start, end };
+}
+
 function isoDateToMs(date: string): number {
   const [y, m, d] = date.split('-').map((part) => Number(part));
   if (
@@ -513,6 +524,8 @@ export class AppsflyerConnector extends BaseConnector<
       this.settings.resources,
     );
 
+    const replaceWindow = windowReplaceBounds(window);
+
     return paginateChunked<AppsflyerPhase, string>({
       phases,
       cursor,
@@ -524,7 +537,10 @@ export class AppsflyerConnector extends BaseConnector<
       },
       writeBatch: async (phase, items, page) => {
         if (page === null) {
-          await storage.metrics([], { names: [METRIC_NAME_BY_PHASE[phase]] });
+          await storage.metrics([], {
+            names: [METRIC_NAME_BY_PHASE[phase]],
+            ...(replaceWindow ? { replaceWindow } : {}),
+          });
         }
         await this.writePhase(storage, phase, items);
       },

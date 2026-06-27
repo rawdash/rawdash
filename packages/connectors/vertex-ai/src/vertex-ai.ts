@@ -565,11 +565,18 @@ export class VertexAiConnector extends BaseConnector<
       });
     } while (pageToken !== undefined);
 
+    const replaceWindow = toReplaceWindow(window.startMs, window.endMs);
     if (wantInvocations) {
-      await storage.metrics(invocations, { names: [INVOCATIONS_METRIC_NAME] });
+      await storage.metrics(invocations, {
+        names: [INVOCATIONS_METRIC_NAME],
+        ...(replaceWindow ? { replaceWindow } : {}),
+      });
     }
     if (wantErrors) {
-      await storage.metrics(errors, { names: [ERRORS_METRIC_NAME] });
+      await storage.metrics(errors, {
+        names: [ERRORS_METRIC_NAME],
+        ...(replaceWindow ? { replaceWindow } : {}),
+      });
     }
     this.logger.info('resource done', {
       resource: 'invocations',
@@ -636,7 +643,11 @@ export class VertexAiConnector extends BaseConnector<
       });
     } while (pageToken !== undefined);
 
-    await storage.metrics(samples, { names: [TOKENS_METRIC_NAME] });
+    const replaceWindow = toReplaceWindow(window.startMs, window.endMs);
+    await storage.metrics(samples, {
+      names: [TOKENS_METRIC_NAME],
+      ...(replaceWindow ? { replaceWindow } : {}),
+    });
     this.logger.info('resource done', {
       resource: 'tokens',
       pages: page,
@@ -647,7 +658,12 @@ export class VertexAiConnector extends BaseConnector<
 
   private async syncSpend(
     storage: StorageHandle,
-    window: { startDate: string; endDate: string },
+    window: {
+      startDate: string;
+      endDate: string;
+      startMs: number;
+      endMs: number;
+    },
     signal?: AbortSignal,
   ): Promise<void> {
     if (
@@ -689,7 +705,11 @@ export class VertexAiConnector extends BaseConnector<
     if (aborted) {
       return;
     }
-    await storage.metrics(samples, { names: [SPEND_METRIC_NAME] });
+    const replaceWindow = toReplaceWindow(window.startMs, window.endMs);
+    await storage.metrics(samples, {
+      names: [SPEND_METRIC_NAME],
+      ...(replaceWindow ? { replaceWindow } : {}),
+    });
   }
 
   async sync(
@@ -855,7 +875,7 @@ export function getSpendWindow(
   options: SyncOptions,
   lookbackDays: number,
   now: number = Date.now(),
-): { startDate: string; endDate: string } {
+): { startDate: string; endDate: string; startMs: number; endMs: number } {
   const endMs = startOfUtcDay(now) + MS_PER_DAY;
   let days = lookbackDays;
   if (options.mode === 'latest') {
@@ -870,10 +890,23 @@ export function getSpendWindow(
       );
     }
   }
+  const startMs = endMs - days * MS_PER_DAY;
   return {
-    startDate: toDateStr(endMs - days * MS_PER_DAY),
+    startDate: toDateStr(startMs),
     endDate: toDateStr(endMs),
+    startMs,
+    endMs,
   };
+}
+
+function toReplaceWindow(
+  startMs: number,
+  endMs: number,
+): { start: number; end: number } | undefined {
+  if (startMs > endMs) {
+    return undefined;
+  }
+  return { start: startMs, end: endMs };
 }
 
 export function buildVertexSpendSql(args: {

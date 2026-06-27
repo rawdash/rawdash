@@ -491,12 +491,18 @@ const RESOURCE_ORDER: readonly AzureMonitorResource[] = [
 // Pure helpers — exported for unit testing
 // ---------------------------------------------------------------------------
 
-export function computeMetricsTimespan(
+export interface MetricsTimespan {
+  timespan: string;
+  startMs: number;
+  endMs: number;
+}
+
+export function computeMetricsWindow(
   options: SyncOptions,
   lookbackMinutes: number,
   now: number = Date.now(),
   logger?: ConnectorLogger,
-): string {
+): MetricsTimespan {
   const endMs = now;
   let startMs: number;
   if (options.since) {
@@ -523,7 +529,20 @@ export function computeMetricsTimespan(
     });
     startMs = earliestRetainedMs;
   }
-  return `${new Date(startMs).toISOString()}/${new Date(endMs).toISOString()}`;
+  return {
+    timespan: `${new Date(startMs).toISOString()}/${new Date(endMs).toISOString()}`,
+    startMs,
+    endMs,
+  };
+}
+
+export function computeMetricsTimespan(
+  options: SyncOptions,
+  lookbackMinutes: number,
+  now: number = Date.now(),
+  logger?: ConnectorLogger,
+): string {
+  return computeMetricsWindow(options, lookbackMinutes, now, logger).timespan;
 }
 
 function metadataAttrs(
@@ -746,12 +765,13 @@ export class AzureMonitorConnector extends BaseAzureConnector<AzureMonitorSettin
       return true;
     }
     const lookback = this.settings.lookbackMinutes ?? DEFAULT_LOOKBACK_MINUTES;
-    const timespan = computeMetricsTimespan(
+    const window = computeMetricsWindow(
       options,
       lookback,
       Date.now(),
       this.logger,
     );
+    const timespan = window.timespan;
     const names = new Set<string>(
       queries.map((q) => `${q.metricNamespace}/${q.metric}`),
     );
@@ -780,7 +800,12 @@ export class AzureMonitorConnector extends BaseAzureConnector<AzureMonitorSettin
       });
     }
 
-    await storage.metrics(samples, { names: [...names] });
+    await storage.metrics(samples, {
+      names: [...names],
+      ...(window.endMs >= window.startMs
+        ? { replaceWindow: { start: window.startMs, end: window.endMs } }
+        : {}),
+    });
     this.logger.info('resource done', {
       resource: 'metrics',
       pages,

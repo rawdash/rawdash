@@ -1,3 +1,4 @@
+import { InMemoryStorage } from '@rawdash/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -340,6 +341,36 @@ describe('GooglePlayConsoleConnector.sync', () => {
     const storage = makeStorage();
     const result = await makeConnector().sync({ mode: 'full' }, storage);
     expect(result.done).toBe(true);
+  });
+
+  it('preserves vitals history outside the incremental window on mode:latest', async () => {
+    vi.stubGlobal(
+      'fetch',
+      mockFetch({ access_token: 'tok', expires_in: 3600 }, {}),
+    );
+
+    const MS_PER_DAY = 24 * 60 * 60 * 1000;
+    const oldTs = Date.now() - 60 * MS_PER_DAY;
+    const storage = new InMemoryStorage();
+    const handle = storage.getStorageHandle('google-play-console');
+
+    await handle.metrics([
+      {
+        name: 'gplay_crash_rate_by_day',
+        ts: oldTs,
+        value: 0.01,
+        attributes: { package_name: 'com.example.app' },
+      },
+    ]);
+
+    await makeConnector().sync({ mode: 'latest' }, handle);
+
+    const survivors = await handle.queryMetrics({
+      name: 'gplay_crash_rate_by_day',
+    });
+    expect(survivors).toHaveLength(1);
+    expect(survivors[0]!.ts).toBe(oldTs);
+    expect(survivors[0]!.value).toBe(0.01);
   });
 
   it('accepts a serviceAccountJson credential that the resolver pre-parsed into an object', async () => {

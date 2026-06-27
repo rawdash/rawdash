@@ -239,6 +239,8 @@ function startOfUtcDay(ms: number): number {
 export interface CostWindow {
   from: string;
   to: string;
+  fromMs: number;
+  toMs: number;
 }
 
 export function getCostWindow(
@@ -264,6 +266,8 @@ export function getCostWindow(
   return {
     from: new Date(fromMs).toISOString(),
     to: new Date(toMs).toISOString(),
+    fromMs,
+    toMs,
   };
 }
 
@@ -563,7 +567,12 @@ export class AzureCostConnector extends BaseAzureConnector<AzureCostSettings> {
       }
     }
 
-    await storage.metrics(samples, { names: [DAILY_METRIC_NAME] });
+    await storage.metrics(samples, {
+      names: [DAILY_METRIC_NAME],
+      ...(window.toMs >= window.fromMs
+        ? { replaceWindow: { start: window.fromMs, end: window.toMs } }
+        : {}),
+    });
     this.logger.info('resource done', {
       resource: 'cost_query',
       pages,

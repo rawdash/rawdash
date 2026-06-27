@@ -345,7 +345,11 @@ export class FirebaseCrashlyticsConnector extends BaseConnector<
       if (signal?.aborted) {
         return { done: false };
       }
-      await storage.metrics(samples, { names: [CRASHES_METRIC_NAME] });
+      const replaceWindow = windowToReplaceWindow(window);
+      await storage.metrics(samples, {
+        names: [CRASHES_METRIC_NAME],
+        ...(replaceWindow ? { replaceWindow } : {}),
+      });
     }
 
     if (this.isResourceActive('top_issues', options)) {
@@ -415,6 +419,21 @@ export class FirebaseCrashlyticsConnector extends BaseConnector<
 interface CrashlyticsWindow {
   startDate: string;
   endDate: string;
+}
+
+function dateStrToMs(dateStr: string): number {
+  return Date.parse(`${dateStr}T00:00:00Z`);
+}
+
+export function windowToReplaceWindow(
+  window: CrashlyticsWindow,
+): { start: number; end: number } | null {
+  const start = dateStrToMs(window.startDate);
+  const end = dateStrToMs(window.endDate) - MS_PER_DAY;
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) {
+    return null;
+  }
+  return { start, end };
 }
 
 export function buildCrashesPerDaySql(args: {

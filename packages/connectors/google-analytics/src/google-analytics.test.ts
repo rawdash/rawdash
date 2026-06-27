@@ -1,3 +1,4 @@
+import { InMemoryStorage } from '@rawdash/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -536,6 +537,52 @@ describe('GA4Connector.sync', () => {
     expect(samples).toHaveLength(3);
     expect(samples.map((s) => s.value)).toEqual([100, 200, 300]);
     expect(storage.metric).not.toHaveBeenCalled();
+  });
+
+  it('preserves history outside the incremental window on mode:latest', async () => {
+    const connector = new GA4Connector(
+      { propertyId: '123456789' },
+      {
+        serviceAccountJson: undefined,
+        refreshToken: 'rtoken' as unknown as { $secret: string },
+        clientId: 'cid',
+        clientSecret: 'csecret' as unknown as { $secret: string },
+      },
+    );
+
+    vi.stubGlobal(
+      'fetch',
+      mockFetch({ access_token: 'tok', expires_in: 3600 }, {}),
+    );
+
+    const MS_PER_DAY = 24 * 60 * 60 * 1000;
+    const oldTs = Date.now() - 60 * MS_PER_DAY;
+    const storage = new InMemoryStorage();
+    const handle = storage.getStorageHandle('google-analytics');
+
+    await handle.metrics([
+      {
+        name: 'ga4_traffic_by_day',
+        ts: oldTs,
+        value: 42,
+        attributes: { sessions: 42 },
+      },
+    ]);
+
+    await connector.sync(
+      {
+        mode: 'latest',
+        since: new Date(Date.now() - MS_PER_DAY).toISOString(),
+      },
+      handle,
+    );
+
+    const survivors = await handle.queryMetrics({
+      name: 'ga4_traffic_by_day',
+    });
+    expect(survivors).toHaveLength(1);
+    expect(survivors[0]!.ts).toBe(oldTs);
+    expect(survivors[0]!.value).toBe(42);
   });
 
   it('returns a resumable cursor when the abort signal trips mid-drain', async () => {

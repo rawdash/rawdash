@@ -473,6 +473,21 @@ function getForecastWindow(
   return { start: toDateStr(start), end: toDateStr(start + 31 * MS_PER_DAY) };
 }
 
+function costWindowToReplaceWindow(
+  window: CostWindow,
+): { start: number; end: number } | null {
+  const startMs = ceDateToMs(window.start);
+  const endMs = ceDateToMs(window.end);
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
+    return null;
+  }
+  const inclusiveEndMs = endMs - 1;
+  if (inclusiveEndMs < startMs) {
+    return null;
+  }
+  return { start: startMs, end: inclusiveEndMs };
+}
+
 type AwsCostCursor = ChunkedSyncCursor<AwsCostPhase, CostWindow>;
 
 function isAwsCostCursor(value: unknown): value is AwsCostCursor {
@@ -707,7 +722,11 @@ export class AwsCostConnector extends BaseAWSConnector<AwsCostSettings> {
           : undefined;
     } while (nextPageToken);
 
-    await storage.metrics(samples, { names: [DAILY_METRIC_NAME] });
+    const replaceWindow = costWindowToReplaceWindow(window);
+    await storage.metrics(samples, {
+      names: [DAILY_METRIC_NAME],
+      ...(replaceWindow ? { replaceWindow } : {}),
+    });
   }
 
   private async syncForecast(

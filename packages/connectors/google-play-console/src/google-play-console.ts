@@ -344,6 +344,17 @@ function partsToGplayDate(parts: {
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const INCREMENTAL_LOOKBACK_DAYS = 3;
 
+function dateRangeToReplaceWindow(
+  range: GplayDateRange,
+): { start: number; end: number } | undefined {
+  const start = gplayDateToMs(range.startDate);
+  const end = gplayDateToMs(range.endDate) + MS_PER_DAY - 1;
+  if (start > end) {
+    return undefined;
+  }
+  return { start, end };
+}
+
 function getDateRange(
   options: SyncOptions,
   lookbackDays: number,
@@ -1034,6 +1045,7 @@ export class GooglePlayConsoleConnector extends BaseConnector<
       ? options.cursor
       : undefined;
     const dateRange = cursor?.dateRange ?? getDateRange(options, lookbackDays);
+    const replaceWindow = dateRangeToReplaceWindow(dateRange);
 
     let accessToken: string | null = null;
     const getToken = async (sig?: AbortSignal): Promise<string> => {
@@ -1104,7 +1116,10 @@ export class GooglePlayConsoleConnector extends BaseConnector<
             ),
           )
           .filter((s): s is NonNullable<typeof s> => s !== null);
-        await storage.metrics(samples, { names: [cfg.metricName] });
+        await storage.metrics(samples, {
+          names: [cfg.metricName],
+          ...(replaceWindow ? { replaceWindow } : {}),
+        });
       } catch (err) {
         if (signal?.aborted) {
           return { done: false, cursor: { phase, dateRange } };
