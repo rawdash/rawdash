@@ -1,9 +1,11 @@
 'use client';
 
+import { Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 interface LastRefreshedProps {
   timestamp: string;
+  syncing?: boolean;
 }
 
 function formatRelative(ms: number): string {
@@ -16,7 +18,7 @@ function formatRelative(ms: number): string {
   return `${hr}h ago`;
 }
 
-export function LastRefreshed({ timestamp }: LastRefreshedProps) {
+export function LastRefreshed({ timestamp, syncing }: LastRefreshedProps) {
   const target = new Date(timestamp).getTime();
   const [now, setNow] = useState(() => Date.now());
 
@@ -30,7 +32,13 @@ export function LastRefreshed({ timestamp }: LastRefreshedProps) {
   }
 
   return (
-    <span className="text-[11px] text-gray-400">
+    <span className="inline-flex items-center gap-1.5 text-[11px] text-gray-400">
+      {syncing && (
+        <Loader2
+          className="h-3 w-3 animate-spin text-gray-400"
+          aria-label="Syncing"
+        />
+      )}
       Last refreshed {formatRelative(now - target)}
     </span>
   );

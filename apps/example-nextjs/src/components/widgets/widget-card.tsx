@@ -7,6 +7,7 @@ import { StatWidget } from './stat-widget';
 import { StatusWidget } from './status-widget';
 import { TimeseriesWidget } from './timeseries-widget';
 import { WaitingForFirstSync } from './waiting-for-first-sync';
+import { WidgetFreshness } from './widget-freshness';
 
 function widgetLabel(widgetId: string): string {
   return widgetId.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -54,6 +55,21 @@ interface WidgetCardProps {
 }
 
 export function WidgetCard({ widget }: WidgetCardProps) {
+  const content = renderWidget(widget);
+  if (content === null) {
+    return null;
+  }
+  return (
+    <div className="relative">
+      <div className="absolute right-2.5 top-2.5 z-10">
+        <WidgetFreshness cachedAt={widget.cachedAt} />
+      </div>
+      {content}
+    </div>
+  );
+}
+
+function renderWidget(widget: CachedWidget) {
   const {
     widgetId,
     data,
