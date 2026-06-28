@@ -123,6 +123,9 @@ jobs:
       - name: Verify connectors aggregate package is up-to-date
         run: pnpm gen:connectors-package:check
 
+      - name: Verify changesets don't target private packages
+        run: npx tsx scripts/check-changeset-private-packages.ts
+
       - name: Lint
         run: pnpm turbo run lint --filter="${{ steps.affected.outputs.filter }}"
 
