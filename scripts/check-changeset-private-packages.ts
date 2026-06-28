@@ -1,4 +1,5 @@
 #!/usr/bin/env -S npx tsx
+import matter from 'gray-matter';
 import { execSync } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -25,19 +26,9 @@ function listWorkspacePackages(): WorkspacePackage[] {
   return JSON.parse(raw) as WorkspacePackage[];
 }
 
-function parseFrontmatterPackages(file: string, contents: string): string[] {
-  const match = contents.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-  if (!match) {
-    return [];
-  }
-  const packages: string[] = [];
-  for (const line of match[1]!.split(/\r?\n/)) {
-    const entry = line.match(/^\s*(['"]?)(.+?)\1\s*:\s*\S+\s*$/);
-    if (entry) {
-      packages.push(entry[2]!);
-    }
-  }
-  return packages;
+function parseFrontmatterPackages(contents: string): string[] {
+  const { data } = matter(contents);
+  return Object.keys(data);
 }
 
 function collectChangesetReferences(): ChangesetReference[] {
@@ -47,7 +38,7 @@ function collectChangesetReferences(): ChangesetReference[] {
       continue;
     }
     const contents = readFileSync(join(CHANGESET_DIR, file), 'utf8');
-    for (const packageName of parseFrontmatterPackages(file, contents)) {
+    for (const packageName of parseFrontmatterPackages(contents)) {
       references.push({ file, packageName });
     }
   }
