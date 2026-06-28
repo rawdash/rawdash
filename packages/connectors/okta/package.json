@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-okta",
-  "version": "0.28.1",
+  "version": "0.28.2",
   "description": "Rawdash connector for Okta - syncs users, groups, and authentication events from the Okta Management API and System Log",
   "license": "Apache-2.0",
   "type": "module",

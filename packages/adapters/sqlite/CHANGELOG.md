@@ -1,5 +1,12 @@
 # @rawdash/adapter-sqlite
 
+## 0.28.2
+
+### Patch Changes
+
+- @rawdash/core@0.28.2
+- @rawdash/adapter-libsql@0.28.2
+
 ## 0.28.1
 
 ### Patch Changes

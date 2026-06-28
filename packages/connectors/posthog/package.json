@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-posthog",
-  "version": "0.28.1",
+  "version": "0.28.2",
   "description": "Rawdash connector for PostHog — event volume, active users, feature flags, flag usage, and funnels",
   "license": "Apache-2.0",
   "type": "module",

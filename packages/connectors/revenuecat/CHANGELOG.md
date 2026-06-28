@@ -1,5 +1,11 @@
 # @rawdash/connector-revenuecat
 
+## 0.28.2
+
+### Patch Changes
+
+- @rawdash/core@0.28.2
+
 ## 0.28.1
 
 ### Patch Changes

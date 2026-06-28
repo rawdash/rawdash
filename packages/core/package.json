@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/core",
-  "version": "0.28.1",
+  "version": "0.28.2",
   "description": "Rawdash core — headless dashboard backend primitives",
   "license": "Apache-2.0",
   "type": "module",

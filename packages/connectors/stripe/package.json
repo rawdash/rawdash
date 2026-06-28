@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-stripe",
-  "version": "0.28.1",
+  "version": "0.28.2",
   "description": "Rawdash connector for Stripe — billing, subscriptions, and payments",
   "license": "Apache-2.0",
   "type": "module",

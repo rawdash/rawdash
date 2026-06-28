@@ -1,5 +1,73 @@
 # @rawdash/connectors
 
+## 0.28.2
+
+### Patch Changes
+
+- @rawdash/core@0.28.2
+- @rawdash/connector-anthropic@0.28.2
+- @rawdash/connector-asana@0.28.2
+- @rawdash/connector-auth0@0.28.2
+- @rawdash/connector-app-store-connect@0.28.2
+- @rawdash/connector-appsflyer@0.28.2
+- @rawdash/connector-aws-bedrock@0.28.2
+- @rawdash/connector-aws-cloudwatch@0.28.2
+- @rawdash/connector-azure-cost@0.28.2
+- @rawdash/connector-azure-monitor@0.28.2
+- @rawdash/connector-datadog@0.28.2
+- @rawdash/connector-entra-id@0.28.2
+- @rawdash/connector-firebase-crashlytics@0.28.2
+- @rawdash/connector-github@0.28.2
+- @rawdash/connector-bitbucket@0.28.2
+- @rawdash/connector-gitlab@0.28.2
+- @rawdash/connector-google-ads@0.28.2
+- @rawdash/connector-google-analytics@0.28.2
+- @rawdash/connector-google-play-console@0.28.2
+- @rawdash/connector-google-search-console@0.28.2
+- @rawdash/connector-greenhouse@0.28.2
+- @rawdash/connector-stripe@0.28.2
+- @rawdash/connector-twilio@0.28.2
+- @rawdash/connector-linear@0.28.2
+- @rawdash/connector-sentry@0.28.2
+- @rawdash/connector-vercel@0.28.2
+- @rawdash/connector-aws-cost@0.28.2
+- @rawdash/connector-circleci@0.28.2
+- @rawdash/connector-gcp-billing@0.28.2
+- @rawdash/connector-gcp-monitoring@0.28.2
+- @rawdash/connector-hubspot@0.28.2
+- @rawdash/connector-intercom@0.28.2
+- @rawdash/connector-jira@0.28.2
+- @rawdash/connector-launchdarkly@0.28.2
+- @rawdash/connector-klaviyo@0.28.2
+- @rawdash/connector-mailchimp@0.28.2
+- @rawdash/connector-meta-ads@0.28.2
+- @rawdash/connector-mixpanel@0.28.2
+- @rawdash/connector-netlify@0.28.2
+- @rawdash/connector-posthog@0.28.2
+- @rawdash/connector-salesforce@0.28.2
+- @rawdash/connector-new-relic@0.28.2
+- @rawdash/connector-zendesk@0.28.2
+- @rawdash/connector-statuspage@0.28.2
+- @rawdash/connector-revenuecat@0.28.2
+- @rawdash/connector-firebase-analytics@0.28.2
+- @rawdash/connector-openai@0.28.2
+- @rawdash/connector-langfuse@0.28.2
+- @rawdash/connector-branch@0.28.2
+- @rawdash/connector-vertex-ai@0.28.2
+- @rawdash/connector-okta@0.28.2
+- @rawdash/connector-langsmith@0.28.2
+- @rawdash/connector-clerk@0.28.2
+- @rawdash/connector-clickup@0.28.2
+- @rawdash/connector-wiz@0.28.2
+- @rawdash/connector-workos@0.28.2
+- @rawdash/connector-vanta@0.28.2
+- @rawdash/connector-drata@0.28.2
+- @rawdash/connector-shopify@0.28.2
+- @rawdash/connector-monday@0.28.2
+- @rawdash/connector-postmark@0.28.2
+- @rawdash/connector-mailgun@0.28.2
+- @rawdash/connector-sendgrid@0.28.2
+
 ## 0.28.1
 
 ### Patch Changes

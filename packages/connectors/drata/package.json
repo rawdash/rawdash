@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-drata",
-  "version": "0.28.1",
+  "version": "0.28.2",
   "description": "Rawdash connector for Drata — syncs controls, tests, personnel, and test findings from the Drata Public API into the six-shape storage model for compliance dashboards",
   "license": "Apache-2.0",
   "type": "module",
