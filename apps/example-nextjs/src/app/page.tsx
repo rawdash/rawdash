@@ -57,11 +57,15 @@ export default function DashboardPage() {
     .filter((ms) => Number.isFinite(ms));
   const lastRefresh =
     cachedAtMs.length > 0 ? new Date(Math.max(...cachedAtMs)) : new Date();
+  const syncing = list.some((w) => w.syncState === 'syncing');
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
       <div className="mb-3 flex justify-end">
-        <LastRefreshed timestamp={lastRefresh.toISOString()} />
+        <LastRefreshed
+          timestamp={lastRefresh.toISOString()}
+          syncing={syncing}
+        />
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {list.map((w) => (
