@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-mailgun",
-  "version": "0.28.1",
+  "version": "0.28.2",
   "description": "Rawdash connector for Mailgun — syncs daily transactional email metrics (accepted, delivered, failed, opens, clicks, unsubscribes, complaints) and recent delivery events via the Mailgun Analytics API",
   "license": "Apache-2.0",
   "type": "module",

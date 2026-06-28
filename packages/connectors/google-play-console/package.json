@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-google-play-console",
-  "version": "0.28.1",
+  "version": "0.28.2",
   "description": "Rawdash connector for Google Play Console - syncs Play Developer Reporting API daily app vitals (crash rate, ANR rate, ratings, error counts) into the six-shape storage model",
   "license": "Apache-2.0",
   "type": "module",

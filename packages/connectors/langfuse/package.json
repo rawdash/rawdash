@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-langfuse",
-  "version": "0.28.1",
+  "version": "0.28.2",
   "description": "Rawdash connector for Langfuse — LLM traces, daily observation volume and cost, and feedback scores",
   "license": "Apache-2.0",
   "type": "module",
