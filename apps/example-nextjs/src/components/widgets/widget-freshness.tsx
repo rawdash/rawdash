@@ -14,11 +14,11 @@ function describe(ageMs: number): { color: string; label: string } {
 }
 
 function formatAge(ms: number): string {
-  const sec = Math.max(0, Math.round(ms / 1000));
+  const sec = Math.max(0, Math.floor(ms / 1000));
   if (sec < 60) return `${sec}s ago`;
-  const minutes = Math.round(sec / 60);
+  const minutes = Math.floor(sec / 60);
   if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.round(minutes / 60);
+  const hours = Math.floor(minutes / 60);
   return `${hours}h ago`;
 }
 
