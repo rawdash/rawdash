@@ -87,6 +87,7 @@ interface SyncState {
   queuedAt: string | null;
   startedAt: string | null;
   lastSyncAt: string | null;
+  lastBackfillAt: string | null;
   lastError: string | null;
 }
 ```
@@ -97,7 +98,18 @@ Transitions:
 - `running → failed` (sets `lastError`)
 - Any terminal state can transition back to `queued` / `running` on the next trigger.
 
+`lastSyncAt` advances on every successful sync; `lastBackfillAt` advances only when that sync actually re-fetched windowed history (see [Windowed-backfill scheduling](#windowed-backfill-scheduling)). Together they're the opaque blob the engine needs persisted to schedule syncs — storage adapters that implement `ServerStorage` own both columns.
+
 Clients (`@rawdash/sdk-client`) poll `/sync/state` and wait for `!isSyncActive(status)` to settle.
+
+### Windowed-backfill scheduling
+
+Widgets declare fetch windows (a 90d timeseries needs 90 days of history), but most syncs shouldn't re-fetch the whole window every tick — that's permanently heavy. `runSync` asks `@rawdash/core`'s pure [`planSync`](../core/README.md#plansyncinput) helper which mode each sync should run:
+
+- **`full`** — re-fetch windowed history. Chosen on the first sync, or when a widget declares a `requiredWindowMs` and the last windowed backfill is older than the cadence (default 1h, well under any sane window). `planSync` reports `backfillDue: true`, and `runSync` stamps `lastBackfillAt` on success.
+- **`latest`** — cheap incremental sync from `lastSyncAt`. Chosen otherwise. `lastBackfillAt` is left untouched.
+
+This keeps windowed widgets fresh without paying the full backfill on every tick, and it's the same decision the hosted product makes — the policy lives in the engine so no integrator has to reinvent it. Connectors don't implement any of this; they just honor the `mode` handed to them (see [Authoring a connector → Modes](../../docs/authoring-a-connector.md#modes)).
 
 ### `CachedWidget.syncState`
 

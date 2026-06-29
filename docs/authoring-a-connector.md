@@ -341,6 +341,8 @@ async sync(options, storage, signal) {
 - `latest` — cheap "give me the most recent value" sync. Fetch one row, write one row. Used for snapshot widgets that don't need history.
 - `full` — sync the full window. Honor `options.since` if your API supports `?since=` or equivalent; otherwise fall back to fetching everything and filtering.
 
+**You don't decide the mode — the engine does.** The runner picks `full` vs `latest` per tick via `planSync` in `@rawdash/core`: `full` on the first sync and on a cadence (default 1h) for connectors whose widgets declare a window, `latest` the rest of the time. Your job is only to honor whichever mode you're handed — don't implement your own backfill cadence, and don't widen `latest` into a windowed fetch (that throws away the cost control that makes incremental syncs worthwhile). See [`@rawdash/server` → Windowed-backfill scheduling](../packages/server/README.md#windowed-backfill-scheduling).
+
 ### `options.since`
 
 The runner sets `since` from the widest backfill window any widget on this connector actually needs (plus a small buffer). It is the lower bound on `updated_at` / `created_at` / whatever timestamp your source exposes. Two requirements:

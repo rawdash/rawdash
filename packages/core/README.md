@@ -85,6 +85,25 @@ Returns a `Secret` that resolves the named environment variable at runtime. Conn
 
 Low-level factory for authoring new connectors. Used by packages like `@rawdash/connector-github`.
 
+### `planSync(input)`
+
+Pure scheduling helper that decides whether a sync should re-fetch windowed history or run a cheap incremental pass. The engine owns this policy so every integrator (self-hosted `runSync`, the hosted product, your own runner) makes the same cost-aware decision instead of reinventing it.
+
+```ts
+planSync({
+  lastSyncAt, // Date | null — when this connector last synced
+  lastBackfillAt, // Date | null — when it last re-fetched windowed history
+  fetchSpecs, // the connector's fetch specs (carry requiredWindowMs)
+  now, // Date
+  cadenceMs, // optional; defaults to BACKFILL_CADENCE_MS (1h)
+}); // → { mode: 'full' | 'latest', options: SyncOptions, backfillDue: boolean }
+```
+
+- `mode` is `'full'` on the first sync, or when a spec declares `requiredWindowMs` and the last windowed backfill is older than `cadenceMs`; otherwise `'latest'` (with `options.since` set to `lastSyncAt` for an incremental pass).
+- `backfillDue` is `true` exactly when the run fetches windowed history — persist your `lastBackfillAt` only then.
+
+Use `fetchSpecsForConnector(config, connectorName)` to build `fetchSpecs`, and persist `lastSyncAt` + `lastBackfillAt` as the opaque `SyncState` blob your storage adapter already owns. See [`@rawdash/server` → Windowed-backfill scheduling](../server/README.md#windowed-backfill-scheduling) for how the self-hosted runner wires this in.
+
 For an end-to-end guide on building a new connector (shapes, settings, chunked syncs, rate limits, testing, publishing), see [docs/authoring-a-connector.md](../../docs/authoring-a-connector.md).
 
 ## Links
