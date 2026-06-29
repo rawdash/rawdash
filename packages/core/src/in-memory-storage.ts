@@ -17,7 +17,11 @@ import type {
 import type { SyncState } from './engine';
 import { healthStatusFromSyncStatus } from './engine';
 import { dimsKey } from './rollup';
-import type { GetStorageHandleOptions, ServerStorage } from './server-storage';
+import type {
+  GetStorageHandleOptions,
+  MarkSyncSucceededOptions,
+  ServerStorage,
+} from './server-storage';
 import { withAbortSignal } from './storage-handle-guard';
 
 function rollupBucketKey(b: RollupBucket): string {
@@ -38,6 +42,7 @@ export class InMemoryStorage implements ServerStorage {
     queuedAt: null,
     startedAt: null,
     lastSyncAt: null,
+    lastBackfillAt: null,
     lastError: null,
   };
 
@@ -389,13 +394,16 @@ export class InMemoryStorage implements ServerStorage {
     return true;
   }
 
-  async markSyncSucceeded(): Promise<void> {
+  async markSyncSucceeded(options?: MarkSyncSucceededOptions): Promise<void> {
     const now = new Date().toISOString();
     this.syncState = {
       status: 'succeeded',
       queuedAt: null,
       startedAt: null,
       lastSyncAt: now,
+      lastBackfillAt: options?.backfillDue
+        ? now
+        : this.syncState.lastBackfillAt,
       lastError: null,
     };
   }

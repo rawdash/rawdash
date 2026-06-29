@@ -239,6 +239,18 @@ export {
   fetchSpecsForConnector,
 } from './backfill-window';
 
+export type {
+  PlanSyncInput,
+  PlanSyncResult,
+  SyncSchedulingState,
+} from './plan-sync';
+
+export {
+  BACKFILL_CADENCE_MS,
+  fetchSpecsHaveRequiredWindow,
+  planSync,
+} from './plan-sync';
+
 export { resolveWidget } from './resolve-widget';
 
 export { computeWidgetEtag, hashWidgetConfig } from './widget-etag';
@@ -252,7 +264,11 @@ export type {
 
 export { instantiateConnector } from './registry';
 
-export type { GetStorageHandleOptions, ServerStorage } from './server-storage';
+export type {
+  GetStorageHandleOptions,
+  MarkSyncSucceededOptions,
+  ServerStorage,
+} from './server-storage';
 
 export { withAbortSignal } from './storage-handle-guard';
 

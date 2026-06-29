@@ -257,6 +257,84 @@ describe('runSync — widget-driven backfill scoping', () => {
     expect(sinceMs).toBeLessThanOrEqual(expectedMax + 5);
   });
 
+  function windowedConfig(entry: ConfiguredConnector): DashboardConfig {
+    return {
+      connectors: [entry],
+      dashboards: {
+        main: {
+          widgets: {
+            long: {
+              kind: 'timeseries',
+              title: 'long',
+              window: '90d',
+              metric: {
+                connectorId: entry.name,
+                shape: 'event',
+                name: 'e',
+                fn: 'count',
+                window: '90d',
+              },
+            },
+          },
+        },
+      },
+    } as unknown as DashboardConfig;
+  }
+
+  it('stamps lastBackfillAt on the first windowed sync and switches later syncs to latest', async () => {
+    const connector = new ChunkedConnector([{ done: true }, { done: true }]);
+    const { registry, entry } = makeRegistry(connector);
+    const storage = new InMemoryStorage();
+    const config = windowedConfig(entry);
+
+    await runSync(config, storage, { connectorRegistry: registry });
+    const afterFirst = await storage.getSyncState();
+    expect(connector.observed[0]!.mode).toBe('full');
+    expect(afterFirst.lastBackfillAt).not.toBeNull();
+
+    await runSync(config, storage, { connectorRegistry: registry });
+    expect(connector.observed[1]!.mode).toBe('latest');
+    expect(typeof connector.observed[1]!.since).toBe('string');
+  });
+
+  it('re-issues a full windowed backfill once the cadence has elapsed', async () => {
+    const connector = new ChunkedConnector([{ done: true }]);
+    const { registry, entry } = makeRegistry(connector);
+    const inner = new InMemoryStorage();
+    const stale = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+    const storage: ServerStorage = {
+      getStorageHandle: (id, opts): StorageHandle =>
+        inner.getStorageHandle(id, opts),
+      getHealth: (id) => inner.getHealth(id),
+      getSyncState: async (): Promise<SyncState> => ({
+        ...(await inner.getSyncState()),
+        lastSyncAt: stale,
+        lastBackfillAt: stale,
+      }),
+      markSyncQueued: () => inner.markSyncQueued(),
+      markSyncRunning: () => inner.markSyncRunning(),
+      markSyncSucceeded: (opts) => inner.markSyncSucceeded(opts),
+      markSyncFailed: (e) => inner.markSyncFailed(e),
+    };
+
+    await runSync(windowedConfig(entry), storage, {
+      connectorRegistry: registry,
+    });
+
+    expect(connector.observed[0]!.mode).toBe('full');
+  });
+
+  it('never stamps lastBackfillAt for a windowless connector', async () => {
+    const connector = new ChunkedConnector([{ done: true }]);
+    const { registry, entry } = makeRegistry(connector);
+    const storage = new InMemoryStorage();
+
+    await runSync(makeConfig(entry), storage, { connectorRegistry: registry });
+
+    const state = await storage.getSyncState();
+    expect(state.lastBackfillAt).toBeNull();
+  });
+
   it('omits since when all referencing widgets are current-state (no window)', async () => {
     const connector = new ChunkedConnector([{ done: true }]);
     const { registry, entry } = makeRegistry(connector);

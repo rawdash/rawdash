@@ -93,6 +93,7 @@ export const syncState = sqliteTable('sync_state', {
   queued_at: text('queued_at'),
   started_at: text('started_at'),
   last_sync_at: text('last_sync_at'),
+  last_backfill_at: text('last_backfill_at'),
   last_error: text('last_error'),
 });
 

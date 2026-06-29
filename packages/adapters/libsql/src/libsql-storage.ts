@@ -12,6 +12,7 @@ import type {
   GetStorageHandleOptions,
   Granularity,
   JSONValue,
+  MarkSyncSucceededOptions,
   MetricQuery,
   MetricSample,
   RollupBucket,
@@ -736,6 +737,7 @@ export class LibsqlStorage implements ServerStorage {
         queuedAt: null,
         startedAt: null,
         lastSyncAt: null,
+        lastBackfillAt: null,
         lastError: this.initError,
       };
     }
@@ -747,6 +749,7 @@ export class LibsqlStorage implements ServerStorage {
         'queued_at',
         'started_at',
         'last_sync_at',
+        'last_backfill_at',
         'last_error',
       ])
       .where('id', '=', SYNC_STATE_ID)
@@ -758,6 +761,7 @@ export class LibsqlStorage implements ServerStorage {
         queuedAt: null,
         startedAt: null,
         lastSyncAt: null,
+        lastBackfillAt: null,
         lastError: null,
       };
     }
@@ -766,6 +770,7 @@ export class LibsqlStorage implements ServerStorage {
       queuedAt: r.queued_at,
       startedAt: r.started_at,
       lastSyncAt: r.last_sync_at,
+      lastBackfillAt: r.last_backfill_at,
       lastError: r.last_error,
     };
   }
@@ -796,15 +801,17 @@ export class LibsqlStorage implements ServerStorage {
     return Number(r.numUpdatedRows) > 0;
   }
 
-  async markSyncSucceeded(): Promise<void> {
+  async markSyncSucceeded(options?: MarkSyncSucceededOptions): Promise<void> {
     await this.ready;
+    const now = new Date().toISOString();
     await this.db
       .updateTable('sync_state')
       .set({
         status: 'succeeded',
         queued_at: null,
         started_at: null,
-        last_sync_at: new Date().toISOString(),
+        last_sync_at: now,
+        ...(options?.backfillDue ? { last_backfill_at: now } : {}),
         last_error: null,
       })
       .where('id', '=', SYNC_STATE_ID)

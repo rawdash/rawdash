@@ -10,6 +10,7 @@ import {
   createDefaultConnectorLogger,
   fetchSpecsForConnector,
   instantiateConnector,
+  planSync,
 } from '@rawdash/core';
 
 export const FULL_SYNC_TIMEOUT_MS = 300_000;
@@ -39,6 +40,15 @@ export async function runSync(
   const errors: string[] = [];
   const backfill = computeConnectorBackfill(config);
   const now = Date.now();
+  const nowDate = new Date(now);
+  const syncState = await storage.getSyncState();
+  const lastSyncAt = syncState.lastSyncAt
+    ? new Date(syncState.lastSyncAt)
+    : null;
+  const lastBackfillAt = syncState.lastBackfillAt
+    ? new Date(syncState.lastBackfillAt)
+    : null;
+  let backfillDue = false;
   const rawLoggerFactory: ConnectorLoggerFactory =
     options.loggerFactory ??
     ((scope) => createDefaultConnectorLogger({ scope }));
@@ -127,15 +137,26 @@ export async function runSync(
             }
           }
         }
-        const since =
+        const plan = planSync({
+          lastSyncAt,
+          lastBackfillAt,
+          fetchSpecs,
+          now: nowDate,
+        });
+        if (plan.backfillDue) {
+          backfillDue = true;
+        }
+        const windowedSince =
           maxWindowMs !== undefined
             ? new Date(now - maxWindowMs - BACKFILL_BUFFER_MS).toISOString()
             : undefined;
+        const mode = plan.mode;
+        const since = mode === 'full' ? windowedSince : plan.options.since;
 
         runnerLogger.info('sync started', {
           connector: entry.name,
           resources: Array.from(resources),
-          mode: 'full',
+          mode,
           since,
         });
 
@@ -150,7 +171,7 @@ export async function runSync(
             );
           }
           const syncPromise = connector.sync(
-            { mode: 'full', since, cursor, resources, fetchSpecs },
+            { mode, since, cursor, resources, fetchSpecs },
             handle,
             controller.signal,
           );
@@ -184,6 +205,6 @@ export async function runSync(
   if (errors.length > 0) {
     await storage.markSyncFailed(errors.join('; '));
   } else {
-    await storage.markSyncSucceeded();
+    await storage.markSyncSucceeded({ backfillDue });
   }
 }

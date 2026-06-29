@@ -5,6 +5,10 @@ export interface GetStorageHandleOptions {
   signal?: AbortSignal;
 }
 
+export interface MarkSyncSucceededOptions {
+  backfillDue?: boolean;
+}
+
 export interface ServerStorage {
   getStorageHandle(
     connectorId: string,
@@ -14,6 +18,6 @@ export interface ServerStorage {
   getSyncState(): Promise<SyncState>;
   markSyncQueued(): Promise<boolean>;
   markSyncRunning?(): Promise<boolean>;
-  markSyncSucceeded(): Promise<void>;
+  markSyncSucceeded(options?: MarkSyncSucceededOptions): Promise<void>;
   markSyncFailed(error: string): Promise<void>;
 }

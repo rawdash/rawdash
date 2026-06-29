@@ -44,4 +44,8 @@ export const MIGRATIONS: readonly BundledMigration[] = [
       'CREATE INDEX `rollups_conn_resource_field` ON `rollups` (`connector_id`,`resource`,`field`);',
     ],
   },
+  {
+    tag: '0004_pretty_vanisher',
+    statements: ['ALTER TABLE `sync_state` ADD `last_backfill_at` text;'],
+  },
 ] as const;

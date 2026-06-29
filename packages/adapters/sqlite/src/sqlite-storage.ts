@@ -3,6 +3,7 @@ import { LibsqlStorage } from '@rawdash/adapter-libsql';
 import type {
   ConnectorHealth,
   GetStorageHandleOptions,
+  MarkSyncSucceededOptions,
   ServerStorage,
   StorageHandle,
   SyncState,
@@ -67,8 +68,8 @@ export class SqliteStorage implements ServerStorage {
     return this.inner.markSyncRunning();
   }
 
-  markSyncSucceeded(): Promise<void> {
-    return this.inner.markSyncSucceeded();
+  markSyncSucceeded(options?: MarkSyncSucceededOptions): Promise<void> {
+    return this.inner.markSyncSucceeded(options);
   }
 
   markSyncFailed(error: string): Promise<void> {

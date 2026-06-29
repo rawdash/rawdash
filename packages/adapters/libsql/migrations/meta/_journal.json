@@ -29,6 +29,13 @@
       "when": 1781148513026,
       "tag": "0003_milky_morbius",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1782703225396,
+      "tag": "0004_pretty_vanisher",
+      "breakpoints": true
     }
   ]
 }
