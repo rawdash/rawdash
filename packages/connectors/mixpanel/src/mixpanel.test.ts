@@ -45,6 +45,7 @@ function jsonResponse(body: unknown) {
 
 interface Handlers {
   segmentation?: (params: URLSearchParams) => unknown;
+  events?: (params: URLSearchParams) => unknown;
   funnels?: (params: URLSearchParams) => unknown;
   retention?: (params: URLSearchParams) => unknown;
 }
@@ -53,6 +54,15 @@ function mockFetch(handlers: Handlers): ReturnType<typeof vi.fn> {
   return vi.fn().mockImplementation((input: string | URL) => {
     const url = new URL(String(input));
     const params = url.searchParams;
+    if (url.pathname.endsWith('/events')) {
+      return Promise.resolve(
+        jsonResponse(
+          handlers.events?.(params) ?? {
+            data: { series: [], values: {} },
+          },
+        ),
+      );
+    }
     if (url.pathname.endsWith('/segmentation')) {
       return Promise.resolve(
         jsonResponse(
@@ -279,13 +289,13 @@ describe('MixpanelConnector.sync', () => {
   });
 
   it('skips active-user phases when no event is configured', async () => {
-    const segSpy = vi
+    const eventsSpy = vi
       .fn()
       .mockReturnValue({ data: { series: [], values: {} } });
-    vi.stubGlobal('fetch', mockFetch({ segmentation: segSpy }));
+    vi.stubGlobal('fetch', mockFetch({ events: eventsSpy }));
     const storage = makeStorage();
     await makeConnector({}).sync({ mode: 'full' }, storage);
-    expect(segSpy).not.toHaveBeenCalled();
+    expect(eventsSpy).not.toHaveBeenCalled();
   });
 
   it('sends Authorization Basic header on every request', async () => {
@@ -297,7 +307,7 @@ describe('MixpanelConnector.sync', () => {
       storage,
     );
     const calls = fetchSpy.mock.calls.filter((c: unknown[]) =>
-      String(c[0]).includes('mixpanel.com/api/2.0/segmentation'),
+      String(c[0]).includes('mixpanel.com/api/query/segmentation'),
     );
     expect(calls.length).toBeGreaterThan(0);
     const headers = (calls[0] as [string, RequestInit])[1].headers as Record<
@@ -342,6 +352,16 @@ describe('MixpanelConnector.sync', () => {
     vi.stubGlobal(
       'fetch',
       mockFetch({
+        events: (params) => ({
+          data: {
+            series: ['2025-01-01'],
+            values: {
+              [(JSON.parse(params.get('event')!) as string[])[0]!]: {
+                '2025-01-01': 5,
+              },
+            },
+          },
+        }),
         segmentation: (params) => ({
           data: {
             series: ['2025-01-01'],
@@ -452,7 +472,7 @@ describe('MixpanelConnector.sync', () => {
     expect(surviving[0]!.value).toBe(42);
   });
 
-  it('honors options.resources allowlist', async () => {
+  it('honors options.resources allowlist by resource name', async () => {
     const fetchSpy = mockFetch({});
     vi.stubGlobal('fetch', fetchSpy);
     const storage = makeStorage();
@@ -463,14 +483,75 @@ describe('MixpanelConnector.sync', () => {
     }).sync(
       {
         mode: 'full',
-        resources: new Set(['funnel_results']),
+        resources: new Set(['mixpanel_funnel_results']),
       },
       storage,
     );
     const calls = fetchSpy.mock.calls.map((c: unknown[]) => String(c[0]));
     expect(calls.some((u: string) => u.includes('/funnels'))).toBe(true);
+    expect(calls.every((u: string) => !u.includes('/events'))).toBe(true);
     expect(calls.every((u: string) => !u.includes('/segmentation'))).toBe(true);
     expect(calls.every((u: string) => !u.includes('/retention'))).toBe(true);
+  });
+
+  it('fetches active users from the events report with the right unit, never week on segmentation', async () => {
+    const fetchSpy = mockFetch({});
+    vi.stubGlobal('fetch', fetchSpy);
+    const storage = makeStorage();
+    await makeConnector({
+      events: ['Signed Up'],
+      activeUserEvent: 'Signed Up',
+    }).sync({ mode: 'full' }, storage);
+    const urls = fetchSpy.mock.calls.map(
+      (c: unknown[]) => new URL(String(c[0])),
+    );
+    const unitsByPath = new Map<string, string[]>();
+    for (const url of urls) {
+      const key = url.pathname.replace(/^.*\/api\/query\//, '');
+      const units = unitsByPath.get(key) ?? [];
+      units.push(url.searchParams.get('unit') ?? '');
+      unitsByPath.set(key, units);
+    }
+    const eventsUnits = unitsByPath.get('events') ?? [];
+    expect(eventsUnits).toEqual(
+      expect.arrayContaining(['day', 'week', 'month']),
+    );
+
+    const eventsCalls = urls.filter((u) => u.pathname.endsWith('/events'));
+    expect(eventsCalls.length).toBe(3);
+    for (const url of eventsCalls) {
+      expect(url.searchParams.get('type')).toBe('unique');
+      expect(JSON.parse(url.searchParams.get('event')!)).toEqual(['Signed Up']);
+    }
+
+    const segmentationCalls = urls.filter((u) =>
+      u.pathname.endsWith('/segmentation'),
+    );
+    expect(segmentationCalls.length).toBeGreaterThan(0);
+    expect(
+      segmentationCalls.every((u) => u.searchParams.get('unit') !== 'week'),
+    ).toBe(true);
+  });
+
+  it('targets the /api/query base path, never the legacy /api/2.0', async () => {
+    const fetchSpy = mockFetch({});
+    vi.stubGlobal('fetch', fetchSpy);
+    const storage = makeStorage();
+    await makeConnector({
+      events: ['Signed Up'],
+      funnels: [{ id: 42 }],
+      retentionEvent: 'Signed Up',
+    }).sync({ mode: 'full' }, storage);
+    const calls = fetchSpy.mock.calls.map((c: unknown[]) => String(c[0]));
+    expect(calls.length).toBeGreaterThan(0);
+    expect(calls.some((u: string) => u.includes('/api/query/events'))).toBe(
+      true,
+    );
+    expect(
+      calls.some((u: string) => u.includes('/api/query/segmentation')),
+    ).toBe(true);
+    expect(calls.every((u: string) => u.includes('/api/query/'))).toBe(true);
+    expect(calls.every((u: string) => !u.includes('/api/2.0/'))).toBe(true);
   });
 });
 

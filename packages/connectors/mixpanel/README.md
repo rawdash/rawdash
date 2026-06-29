@@ -42,37 +42,37 @@ Authenticate with a Mixpanel service account (username + secret) over HTTP Basic
 ## Resources
 
 - **`mixpanel_dau`** _(metric)_ - Daily active users - unique-user counts for the active-user event, one sample per day.
-  - Endpoint: `GET /api/2.0/segmentation (type=unique, unit=day)`
+  - Endpoint: `GET /api/query/events (type=unique, unit=day)`
   - Unit: users
   - Granularity: day
   - Dimensions: `unit`, `event`
   - Each metric is rewritten in full per sync (idempotent replace).
 - **`mixpanel_wau`** _(metric)_ - Weekly active users - unique-user counts for the active-user event, one sample per week.
-  - Endpoint: `GET /api/2.0/segmentation (type=unique, unit=week)`
+  - Endpoint: `GET /api/query/events (type=unique, unit=week)`
   - Unit: users
   - Granularity: week
   - Dimensions: `unit`, `event`
   - Each metric is rewritten in full per sync (idempotent replace).
 - **`mixpanel_mau`** _(metric)_ - Monthly active users - unique-user counts for the active-user event, one sample per month.
-  - Endpoint: `GET /api/2.0/segmentation (type=unique, unit=month)`
+  - Endpoint: `GET /api/query/events (type=unique, unit=month)`
   - Unit: users
   - Granularity: month
   - Dimensions: `unit`, `event`
   - Each metric is rewritten in full per sync (idempotent replace).
 - **`mixpanel_events_per_day`** _(metric)_ - Per-day volume for each configured event. The sample value is the total event count; unique-user count is carried as an attribute.
-  - Endpoint: `GET /api/2.0/segmentation (type=general and type=unique)`
+  - Endpoint: `GET /api/query/segmentation (type=general and type=unique)`
   - Unit: events
   - Granularity: day
   - Dimensions: `event`, `count`, `uniqueUsers`
   - Each metric is rewritten in full per sync (idempotent replace).
 - **`mixpanel_funnel_results`** _(metric)_ - Per-day funnel conversion. One sample per (date, step); the value is the user count reaching that step.
-  - Endpoint: `GET /api/2.0/funnels (unit=day)`
+  - Endpoint: `GET /api/query/funnels (unit=day)`
   - Unit: users
   - Granularity: day
   - Dimensions: `funnelId`, `funnelName`, `step`, `stepLabel`, `users`, `conversionRate`, `stepConversionRate`
   - Each metric is rewritten in full per sync (idempotent replace).
 - **`mixpanel_retention`** _(metric)_ - Cohort retention for the retention event. One sample per (cohort date, period); the value is the retained user count.
-  - Endpoint: `GET /api/2.0/retention (retention_type=birth, unit=day)`
+  - Endpoint: `GET /api/query/retention (retention_type=birth, unit=day)`
   - Unit: users
   - Granularity: day
   - Dimensions: `event`, `period`, `cohortSize`, `retentionRate`
