@@ -5,7 +5,6 @@ export interface SyncState {
   queuedAt: string | null;
   startedAt: string | null;
   lastSyncAt: string | null;
-  lastBackfillAt: string | null;
   lastError: string | null;
 }
 

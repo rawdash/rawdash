@@ -1,9 +1,40 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "56e7ff3a-c832-4a9d-af5b-26be681d17ce",
+  "id": "3b316d13-aecc-4474-a718-69a5a9676f9a",
   "prevId": "edb3272f-ace9-4f1d-8314-b68c06354d00",
   "tables": {
+    "connector_sync_state": {
+      "name": "connector_sync_state",
+      "columns": {
+        "connector_id": {
+          "name": "connector_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "last_sync_at": {
+          "name": "last_sync_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_backfill_at": {
+          "name": "last_backfill_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "distributions": {
       "name": "distributions",
       "columns": {
@@ -491,13 +522,6 @@
         },
         "last_sync_at": {
           "name": "last_sync_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "last_backfill_at": {
-          "name": "last_backfill_at",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

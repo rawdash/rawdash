@@ -72,8 +72,13 @@ export interface SyncStateTable {
   queued_at: string | null;
   started_at: string | null;
   last_sync_at: string | null;
-  last_backfill_at: string | null;
   last_error: string | null;
+}
+
+export interface ConnectorSyncStateTable {
+  connector_id: string;
+  last_sync_at: string | null;
+  last_backfill_at: string | null;
 }
 
 export interface SchemaMigrationsTable {
@@ -91,5 +96,6 @@ export interface Database {
   rollups: RollupsTable;
   rollup_watermarks: RollupWatermarksTable;
   sync_state: SyncStateTable;
+  connector_sync_state: ConnectorSyncStateTable;
   schema_migrations: SchemaMigrationsTable;
 }

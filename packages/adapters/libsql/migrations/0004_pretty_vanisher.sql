@@ -1,1 +1,0 @@
-ALTER TABLE `sync_state` ADD `last_backfill_at` text;

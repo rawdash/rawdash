@@ -41,14 +41,9 @@ export async function runSync(
   const backfill = computeConnectorBackfill(config);
   const now = Date.now();
   const nowDate = new Date(now);
-  const syncState = await storage.getSyncState();
-  const lastSyncAt = syncState.lastSyncAt
-    ? new Date(syncState.lastSyncAt)
-    : null;
-  const lastBackfillAt = syncState.lastBackfillAt
-    ? new Date(syncState.lastBackfillAt)
-    : null;
-  let backfillDue = false;
+  const connectorStateSupported =
+    typeof storage.getConnectorSyncState === 'function' &&
+    typeof storage.markConnectorSyncSucceeded === 'function';
   const rawLoggerFactory: ConnectorLoggerFactory =
     options.loggerFactory ??
     ((scope) => createDefaultConnectorLogger({ scope }));
@@ -137,15 +132,19 @@ export async function runSync(
             }
           }
         }
+        const connectorState = connectorStateSupported
+          ? await storage.getConnectorSyncState!(entry.name)
+          : null;
         const plan = planSync({
-          lastSyncAt,
-          lastBackfillAt,
+          lastSyncAt: connectorState?.lastSyncAt
+            ? new Date(connectorState.lastSyncAt)
+            : null,
+          lastBackfillAt: connectorState?.lastBackfillAt
+            ? new Date(connectorState.lastBackfillAt)
+            : null,
           fetchSpecs,
           now: nowDate,
         });
-        if (plan.backfillDue) {
-          backfillDue = true;
-        }
         const windowedSince =
           maxWindowMs !== undefined
             ? new Date(now - maxWindowMs - BACKFILL_BUFFER_MS).toISOString()
@@ -181,6 +180,12 @@ export async function runSync(
           }
           cursor = result.cursor;
         }
+
+        if (connectorStateSupported) {
+          await storage.markConnectorSyncSucceeded!(entry.name, {
+            backfillDue: plan.backfillDue,
+          });
+        }
       } catch (err) {
         status = 'failed';
         if (err instanceof Error && err.name === 'AbortError') {
@@ -205,6 +210,6 @@ export async function runSync(
   if (errors.length > 0) {
     await storage.markSyncFailed(errors.join('; '));
   } else {
-    await storage.markSyncSucceeded({ backfillDue });
+    await storage.markSyncSucceeded();
   }
 }

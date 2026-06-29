@@ -3,9 +3,10 @@ import { LibsqlStorage } from '@rawdash/adapter-libsql';
 import type {
   ConnectorHealth,
   GetStorageHandleOptions,
-  MarkSyncSucceededOptions,
+  MarkConnectorSyncSucceededOptions,
   ServerStorage,
   StorageHandle,
+  SyncSchedulingState,
   SyncState,
 } from '@rawdash/core';
 import { mkdirSync } from 'node:fs';
@@ -68,12 +69,23 @@ export class SqliteStorage implements ServerStorage {
     return this.inner.markSyncRunning();
   }
 
-  markSyncSucceeded(options?: MarkSyncSucceededOptions): Promise<void> {
-    return this.inner.markSyncSucceeded(options);
+  markSyncSucceeded(): Promise<void> {
+    return this.inner.markSyncSucceeded();
   }
 
   markSyncFailed(error: string): Promise<void> {
     return this.inner.markSyncFailed(error);
+  }
+
+  getConnectorSyncState(connectorId: string): Promise<SyncSchedulingState> {
+    return this.inner.getConnectorSyncState(connectorId);
+  }
+
+  markConnectorSyncSucceeded(
+    connectorId: string,
+    options?: MarkConnectorSyncSucceededOptions,
+  ): Promise<void> {
+    return this.inner.markConnectorSyncSucceeded(connectorId, options);
   }
 
   close(): Promise<void> {

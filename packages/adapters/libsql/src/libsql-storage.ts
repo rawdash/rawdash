@@ -12,7 +12,7 @@ import type {
   GetStorageHandleOptions,
   Granularity,
   JSONValue,
-  MarkSyncSucceededOptions,
+  MarkConnectorSyncSucceededOptions,
   MetricQuery,
   MetricSample,
   RollupBucket,
@@ -20,6 +20,7 @@ import type {
   RollupQuery,
   ServerStorage,
   StorageHandle,
+  SyncSchedulingState,
   SyncState,
 } from '@rawdash/core';
 import {
@@ -737,7 +738,6 @@ export class LibsqlStorage implements ServerStorage {
         queuedAt: null,
         startedAt: null,
         lastSyncAt: null,
-        lastBackfillAt: null,
         lastError: this.initError,
       };
     }
@@ -749,7 +749,6 @@ export class LibsqlStorage implements ServerStorage {
         'queued_at',
         'started_at',
         'last_sync_at',
-        'last_backfill_at',
         'last_error',
       ])
       .where('id', '=', SYNC_STATE_ID)
@@ -761,7 +760,6 @@ export class LibsqlStorage implements ServerStorage {
         queuedAt: null,
         startedAt: null,
         lastSyncAt: null,
-        lastBackfillAt: null,
         lastError: null,
       };
     }
@@ -770,8 +768,26 @@ export class LibsqlStorage implements ServerStorage {
       queuedAt: r.queued_at,
       startedAt: r.started_at,
       lastSyncAt: r.last_sync_at,
-      lastBackfillAt: r.last_backfill_at,
       lastError: r.last_error,
+    };
+  }
+
+  async getConnectorSyncState(
+    connectorId: string,
+  ): Promise<SyncSchedulingState> {
+    if (this.initError !== null) {
+      return { lastSyncAt: null, lastBackfillAt: null };
+    }
+    await this.ready;
+    const r = await this.db
+      .selectFrom('connector_sync_state')
+      .select(['last_sync_at', 'last_backfill_at'])
+      .where('connector_id', '=', connectorId)
+      .limit(1)
+      .executeTakeFirst();
+    return {
+      lastSyncAt: r?.last_sync_at ?? null,
+      lastBackfillAt: r?.last_backfill_at ?? null,
     };
   }
 
@@ -801,20 +817,40 @@ export class LibsqlStorage implements ServerStorage {
     return Number(r.numUpdatedRows) > 0;
   }
 
-  async markSyncSucceeded(options?: MarkSyncSucceededOptions): Promise<void> {
+  async markSyncSucceeded(): Promise<void> {
     await this.ready;
-    const now = new Date().toISOString();
     await this.db
       .updateTable('sync_state')
       .set({
         status: 'succeeded',
         queued_at: null,
         started_at: null,
-        last_sync_at: now,
-        ...(options?.backfillDue ? { last_backfill_at: now } : {}),
+        last_sync_at: new Date().toISOString(),
         last_error: null,
       })
       .where('id', '=', SYNC_STATE_ID)
+      .execute();
+  }
+
+  async markConnectorSyncSucceeded(
+    connectorId: string,
+    options?: MarkConnectorSyncSucceededOptions,
+  ): Promise<void> {
+    await this.ready;
+    const now = new Date().toISOString();
+    await this.db
+      .insertInto('connector_sync_state')
+      .values({
+        connector_id: connectorId,
+        last_sync_at: now,
+        last_backfill_at: options?.backfillDue ? now : null,
+      })
+      .onConflict((oc) =>
+        oc.column('connector_id').doUpdateSet({
+          last_sync_at: now,
+          ...(options?.backfillDue ? { last_backfill_at: now } : {}),
+        }),
+      )
       .execute();
   }
 

@@ -86,7 +86,6 @@ describe('resolveWidget', () => {
         queuedAt: null,
         startedAt: null,
         lastSyncAt: null,
-        lastBackfillAt: null,
         lastError: null,
       }),
       markSyncQueued: async () => true,

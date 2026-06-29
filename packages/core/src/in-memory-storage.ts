@@ -16,10 +16,11 @@ import type {
 } from './connector';
 import type { SyncState } from './engine';
 import { healthStatusFromSyncStatus } from './engine';
+import type { SyncSchedulingState } from './plan-sync';
 import { dimsKey } from './rollup';
 import type {
   GetStorageHandleOptions,
-  MarkSyncSucceededOptions,
+  MarkConnectorSyncSucceededOptions,
   ServerStorage,
 } from './server-storage';
 import { withAbortSignal } from './storage-handle-guard';
@@ -37,12 +38,12 @@ export class InMemoryStorage implements ServerStorage {
   private rollupStore = new Map<string, Map<string, RollupBucket>>();
   private rollupWatermark = new Map<string, number>();
   private lastWriteAt = new Map<string, string>();
+  private connectorSyncState = new Map<string, SyncSchedulingState>();
   private syncState: SyncState = {
     status: 'idle',
     queuedAt: null,
     startedAt: null,
     lastSyncAt: null,
-    lastBackfillAt: null,
     lastError: null,
   };
 
@@ -354,12 +355,43 @@ export class InMemoryStorage implements ServerStorage {
 
   async getHealth(connectorId: string): Promise<ConnectorHealth> {
     const failed = this.syncState.status === 'failed';
+    const lastWrite = this.lastWriteAt.get(connectorId) ?? null;
+    const lastSynced =
+      this.connectorSyncState.get(connectorId)?.lastSyncAt ?? null;
+    const lastSyncAt =
+      lastWrite !== null && (lastSynced === null || lastWrite > lastSynced)
+        ? lastWrite
+        : lastSynced;
     return {
       status: healthStatusFromSyncStatus(this.syncState.status),
-      lastSyncAt: this.lastWriteAt.get(connectorId) ?? null,
+      lastSyncAt,
       lastError: failed ? this.syncState.lastError : null,
       syncIntervalSeconds: 0,
     };
+  }
+
+  async getConnectorSyncState(
+    connectorId: string,
+  ): Promise<SyncSchedulingState> {
+    const state = this.connectorSyncState.get(connectorId);
+    return {
+      lastSyncAt: state?.lastSyncAt ?? null,
+      lastBackfillAt: state?.lastBackfillAt ?? null,
+    };
+  }
+
+  async markConnectorSyncSucceeded(
+    connectorId: string,
+    options?: MarkConnectorSyncSucceededOptions,
+  ): Promise<void> {
+    const now = new Date().toISOString();
+    const prev = this.connectorSyncState.get(connectorId);
+    this.connectorSyncState.set(connectorId, {
+      lastSyncAt: now,
+      lastBackfillAt: options?.backfillDue
+        ? now
+        : (prev?.lastBackfillAt ?? null),
+    });
   }
 
   async getSyncState(): Promise<SyncState> {
@@ -394,16 +426,13 @@ export class InMemoryStorage implements ServerStorage {
     return true;
   }
 
-  async markSyncSucceeded(options?: MarkSyncSucceededOptions): Promise<void> {
+  async markSyncSucceeded(): Promise<void> {
     const now = new Date().toISOString();
     this.syncState = {
       status: 'succeeded',
       queuedAt: null,
       startedAt: null,
       lastSyncAt: now,
-      lastBackfillAt: options?.backfillDue
-        ? now
-        : this.syncState.lastBackfillAt,
       lastError: null,
     };
   }

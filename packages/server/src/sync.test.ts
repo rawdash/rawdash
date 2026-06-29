@@ -281,14 +281,14 @@ describe('runSync — widget-driven backfill scoping', () => {
     } as unknown as DashboardConfig;
   }
 
-  it('stamps lastBackfillAt on the first windowed sync and switches later syncs to latest', async () => {
+  it('stamps the connector backfill on the first windowed sync and switches later syncs to latest', async () => {
     const connector = new ChunkedConnector([{ done: true }, { done: true }]);
     const { registry, entry } = makeRegistry(connector);
     const storage = new InMemoryStorage();
     const config = windowedConfig(entry);
 
     await runSync(config, storage, { connectorRegistry: registry });
-    const afterFirst = await storage.getSyncState();
+    const afterFirst = await storage.getConnectorSyncState(entry.name);
     expect(connector.observed[0]!.mode).toBe('full');
     expect(afterFirst.lastBackfillAt).not.toBeNull();
 
@@ -306,15 +306,17 @@ describe('runSync — widget-driven backfill scoping', () => {
       getStorageHandle: (id, opts): StorageHandle =>
         inner.getStorageHandle(id, opts),
       getHealth: (id) => inner.getHealth(id),
-      getSyncState: async (): Promise<SyncState> => ({
-        ...(await inner.getSyncState()),
+      getSyncState: () => inner.getSyncState(),
+      markSyncQueued: () => inner.markSyncQueued(),
+      markSyncRunning: () => inner.markSyncRunning(),
+      markSyncSucceeded: () => inner.markSyncSucceeded(),
+      markSyncFailed: (e) => inner.markSyncFailed(e),
+      getConnectorSyncState: async () => ({
         lastSyncAt: stale,
         lastBackfillAt: stale,
       }),
-      markSyncQueued: () => inner.markSyncQueued(),
-      markSyncRunning: () => inner.markSyncRunning(),
-      markSyncSucceeded: (opts) => inner.markSyncSucceeded(opts),
-      markSyncFailed: (e) => inner.markSyncFailed(e),
+      markConnectorSyncSucceeded: (id, opts) =>
+        inner.markConnectorSyncSucceeded(id, opts),
     };
 
     await runSync(windowedConfig(entry), storage, {
@@ -324,14 +326,72 @@ describe('runSync — widget-driven backfill scoping', () => {
     expect(connector.observed[0]!.mode).toBe('full');
   });
 
-  it('never stamps lastBackfillAt for a windowless connector', async () => {
+  it('does not run an initial windowed backfill for a connector that has synced inside the cadence', async () => {
+    const connector = new ChunkedConnector([{ done: true }]);
+    const { registry, entry } = makeRegistry(connector);
+    const inner = new InMemoryStorage();
+    const recent = new Date(Date.now() - 60_000).toISOString();
+    const storage: ServerStorage = {
+      getStorageHandle: (id, opts): StorageHandle =>
+        inner.getStorageHandle(id, opts),
+      getHealth: (id) => inner.getHealth(id),
+      getSyncState: () => inner.getSyncState(),
+      markSyncQueued: () => inner.markSyncQueued(),
+      markSyncRunning: () => inner.markSyncRunning(),
+      markSyncSucceeded: () => inner.markSyncSucceeded(),
+      markSyncFailed: (e) => inner.markSyncFailed(e),
+      getConnectorSyncState: async () => ({
+        lastSyncAt: recent,
+        lastBackfillAt: recent,
+      }),
+      markConnectorSyncSucceeded: (id, opts) =>
+        inner.markConnectorSyncSucceeded(id, opts),
+    };
+
+    await runSync(windowedConfig(entry), storage, {
+      connectorRegistry: registry,
+    });
+
+    expect(connector.observed[0]!.mode).toBe('latest');
+  });
+
+  it('plans per connector so a freshly added connector still backfills its window', async () => {
+    const fresh = new ChunkedConnector([{ done: true }]);
+    const { registry, entry } = makeRegistry(fresh);
+    const inner = new InMemoryStorage();
+    await inner.markConnectorSyncSucceeded('other', { backfillDue: true });
+    const storage: ServerStorage = {
+      getStorageHandle: (id, opts): StorageHandle =>
+        inner.getStorageHandle(id, opts),
+      getHealth: (id) => inner.getHealth(id),
+      getSyncState: () => inner.getSyncState(),
+      markSyncQueued: () => inner.markSyncQueued(),
+      markSyncRunning: () => inner.markSyncRunning(),
+      markSyncSucceeded: () => inner.markSyncSucceeded(),
+      markSyncFailed: (e) => inner.markSyncFailed(e),
+      getConnectorSyncState: (id) => inner.getConnectorSyncState(id),
+      markConnectorSyncSucceeded: (id, opts) =>
+        inner.markConnectorSyncSucceeded(id, opts),
+    };
+
+    await runSync(windowedConfig(entry), storage, {
+      connectorRegistry: registry,
+    });
+
+    expect(fresh.observed[0]!.mode).toBe('full');
+    const state = await inner.getConnectorSyncState(entry.name);
+    expect(state.lastBackfillAt).not.toBeNull();
+  });
+
+  it('never stamps a connector backfill for a windowless connector', async () => {
     const connector = new ChunkedConnector([{ done: true }]);
     const { registry, entry } = makeRegistry(connector);
     const storage = new InMemoryStorage();
 
     await runSync(makeConfig(entry), storage, { connectorRegistry: registry });
 
-    const state = await storage.getSyncState();
+    const state = await storage.getConnectorSyncState(entry.name);
+    expect(state.lastSyncAt).not.toBeNull();
     expect(state.lastBackfillAt).toBeNull();
   });
 

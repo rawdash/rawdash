@@ -99,10 +99,10 @@ planSync({
 }); // → { mode: 'full' | 'latest', options: SyncOptions, backfillDue: boolean }
 ```
 
-- `mode` is `'full'` on the first sync, or when a spec declares `requiredWindowMs` and the last windowed backfill is older than `cadenceMs`; otherwise `'latest'` (with `options.since` set to `lastSyncAt` for an incremental pass).
+- `mode` is `'full'` on the connector's first sync, or when a spec declares `requiredWindowMs` and the last windowed backfill is older than `cadenceMs`; otherwise `'latest'` (with `options.since` set to `lastSyncAt` for an incremental pass).
 - `backfillDue` is `true` exactly when the run fetches windowed history — persist your `lastBackfillAt` only then.
 
-Use `fetchSpecsForConnector(config, connectorName)` to build `fetchSpecs`, and persist `lastSyncAt` + `lastBackfillAt` as the opaque `SyncState` blob your storage adapter already owns. See [`@rawdash/server` → Windowed-backfill scheduling](../server/README.md#windowed-backfill-scheduling) for how the self-hosted runner wires this in.
+Feed it **per-connector** history: build `fetchSpecs` with `fetchSpecsForConnector(config, connectorName)` and pass that connector's own `lastSyncAt` / `lastBackfillAt` (the `SyncSchedulingState` shape) so a newly added connector still backfills its window instead of inheriting another's timestamps. See [`@rawdash/server` → Windowed-backfill scheduling](../server/README.md#windowed-backfill-scheduling) for how the self-hosted runner persists this via `getConnectorSyncState` / `markConnectorSyncSucceeded`.
 
 For an end-to-end guide on building a new connector (shapes, settings, chunked syncs, rate limits, testing, publishing), see [docs/authoring-a-connector.md](../../docs/authoring-a-connector.md).
 

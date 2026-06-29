@@ -266,7 +266,7 @@ export { instantiateConnector } from './registry';
 
 export type {
   GetStorageHandleOptions,
-  MarkSyncSucceededOptions,
+  MarkConnectorSyncSucceededOptions,
   ServerStorage,
 } from './server-storage';
 

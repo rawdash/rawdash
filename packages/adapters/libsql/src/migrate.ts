@@ -6,6 +6,13 @@ const SCHEMA_MIGRATIONS_TABLE = 'schema_migrations';
 
 const LEGACY_BASELINE_TABLE = 'events';
 
+const LEGACY_BASELINE_TAGS: ReadonlySet<string> = new Set([
+  '0000_nosy_wendell_vaughn',
+  '0001_clumsy_siren',
+  '0002_milky_echo',
+  '0003_milky_morbius',
+]);
+
 async function tableExists(client: Client, name: string): Promise<boolean> {
   const result = await client.execute({
     sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1",
@@ -65,12 +72,14 @@ export async function applyMigrations(
     if (hasLegacySchema) {
       const now = Date.now();
       for (const migration of MIGRATIONS) {
+        if (!LEGACY_BASELINE_TAGS.has(migration.tag)) {
+          continue;
+        }
         await client.execute({
           sql: `INSERT OR IGNORE INTO ${SCHEMA_MIGRATIONS_TABLE} (tag, applied_at) VALUES (?, ?)`,
           args: [migration.tag, now],
         });
       }
-      return;
     }
   }
 
