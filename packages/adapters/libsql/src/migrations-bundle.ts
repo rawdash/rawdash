@@ -44,4 +44,10 @@ export const MIGRATIONS: readonly BundledMigration[] = [
       'CREATE INDEX `rollups_conn_resource_field` ON `rollups` (`connector_id`,`resource`,`field`);',
     ],
   },
+  {
+    tag: '0004_neat_swarm',
+    statements: [
+      'CREATE TABLE `connector_sync_state` (\n\t`connector_id` text PRIMARY KEY NOT NULL,\n\t`last_sync_at` text,\n\t`last_backfill_at` text\n);',
+    ],
+  },
 ] as const;

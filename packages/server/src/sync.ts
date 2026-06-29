@@ -10,6 +10,7 @@ import {
   createDefaultConnectorLogger,
   fetchSpecsForConnector,
   instantiateConnector,
+  planSync,
 } from '@rawdash/core';
 
 export const FULL_SYNC_TIMEOUT_MS = 300_000;
@@ -39,6 +40,10 @@ export async function runSync(
   const errors: string[] = [];
   const backfill = computeConnectorBackfill(config);
   const now = Date.now();
+  const nowDate = new Date(now);
+  const connectorStateSupported =
+    typeof storage.getConnectorSyncState === 'function' &&
+    typeof storage.markConnectorSyncSucceeded === 'function';
   const rawLoggerFactory: ConnectorLoggerFactory =
     options.loggerFactory ??
     ((scope) => createDefaultConnectorLogger({ scope }));
@@ -127,15 +132,30 @@ export async function runSync(
             }
           }
         }
-        const since =
+        const connectorState = connectorStateSupported
+          ? await storage.getConnectorSyncState!(entry.name)
+          : null;
+        const plan = planSync({
+          lastSyncAt: connectorState?.lastSyncAt
+            ? new Date(connectorState.lastSyncAt)
+            : null,
+          lastBackfillAt: connectorState?.lastBackfillAt
+            ? new Date(connectorState.lastBackfillAt)
+            : null,
+          fetchSpecs,
+          now: nowDate,
+        });
+        const windowedSince =
           maxWindowMs !== undefined
             ? new Date(now - maxWindowMs - BACKFILL_BUFFER_MS).toISOString()
             : undefined;
+        const mode = plan.mode;
+        const since = mode === 'full' ? windowedSince : plan.options.since;
 
         runnerLogger.info('sync started', {
           connector: entry.name,
           resources: Array.from(resources),
-          mode: 'full',
+          mode,
           since,
         });
 
@@ -150,7 +170,7 @@ export async function runSync(
             );
           }
           const syncPromise = connector.sync(
-            { mode: 'full', since, cursor, resources, fetchSpecs },
+            { mode, since, cursor, resources, fetchSpecs },
             handle,
             controller.signal,
           );
@@ -159,6 +179,12 @@ export async function runSync(
             break;
           }
           cursor = result.cursor;
+        }
+
+        if (connectorStateSupported) {
+          await storage.markConnectorSyncSucceeded!(entry.name, {
+            backfillDue: plan.backfillDue,
+          });
         }
       } catch (err) {
         status = 'failed';

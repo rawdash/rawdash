@@ -91,6 +91,8 @@ interface SyncState {
 }
 ```
 
+`SyncState` is the **whole-run** status surfaced at `/sync/state`. Per-connector scheduling state (`lastSyncAt` + `lastBackfillAt` for one connector) is tracked separately — see [Windowed-backfill scheduling](#windowed-backfill-scheduling).
+
 Transitions:
 
 - `idle → queued → running → succeeded` (happy path; cloud may use `queued`, OSS skips it)
@@ -98,6 +100,27 @@ Transitions:
 - Any terminal state can transition back to `queued` / `running` on the next trigger.
 
 Clients (`@rawdash/sdk-client`) poll `/sync/state` and wait for `!isSyncActive(status)` to settle.
+
+### Windowed-backfill scheduling
+
+Widgets declare fetch windows (a 90d timeseries needs 90 days of history), but most syncs shouldn't re-fetch the whole window every tick — that's permanently heavy. For **each connector**, `runSync` asks `@rawdash/core`'s pure [`planSync`](../core/README.md#plansyncinput) helper which mode that connector's sync should run:
+
+- **`full`** — re-fetch windowed history. Chosen on the connector's first sync, or when one of its widgets declares a `requiredWindowMs` and its last windowed backfill is older than the cadence (default 1h, well under any sane window). `planSync` reports `backfillDue: true`.
+- **`latest`** — cheap incremental sync from the connector's `lastSyncAt`. Chosen otherwise.
+
+The decision is **per connector**, driven by that connector's own history — so a connector added long after the first sync still backfills its window instead of inheriting another connector's "already caught up" state. Storage adapters persist this through two optional `ServerStorage` methods:
+
+```ts
+getConnectorSyncState(connectorId): Promise<{
+  lastSyncAt: string | null;
+  lastBackfillAt: string | null;
+}>;
+markConnectorSyncSucceeded(connectorId, { backfillDue }): Promise<void>;
+```
+
+`runSync` reads the connector's state before planning and, on that connector's success, calls `markConnectorSyncSucceeded` — stamping `lastBackfillAt` only when `backfillDue` was true. Adapters that don't implement these (a minimal custom store) degrade safely to an always-`full` sync. `InMemoryStorage` and the libSQL/SQLite adapters implement them (the latter via a `connector_sync_state` table).
+
+This keeps windowed widgets fresh without paying the full backfill on every tick, and it's the same per-connector decision the hosted product makes — the policy lives in the engine so no integrator has to reinvent it. Connectors don't implement any of this; they just honor the `mode` handed to them (see [Authoring a connector → Modes](../../docs/authoring-a-connector.md#modes)).
 
 ### `CachedWidget.syncState`
 

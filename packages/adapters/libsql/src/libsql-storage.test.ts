@@ -543,6 +543,33 @@ describe('LibsqlStorage — isolation + sync state', () => {
     await s.close();
   });
 
+  it('persists per-connector sync state and stamps backfill only when due', async () => {
+    const { storage: s } = makeStorage();
+    expect(await s.getConnectorSyncState('gh')).toEqual({
+      lastSyncAt: null,
+      lastBackfillAt: null,
+    });
+
+    await s.markConnectorSyncSucceeded('gh');
+    const afterLatest = await s.getConnectorSyncState('gh');
+    expect(afterLatest.lastSyncAt).not.toBeNull();
+    expect(afterLatest.lastBackfillAt).toBeNull();
+
+    await s.markConnectorSyncSucceeded('gh', { backfillDue: true });
+    const afterBackfill = await s.getConnectorSyncState('gh');
+    expect(afterBackfill.lastBackfillAt).not.toBeNull();
+
+    await s.markConnectorSyncSucceeded('gh');
+    const afterLatestAgain = await s.getConnectorSyncState('gh');
+    expect(afterLatestAgain.lastBackfillAt).toBe(afterBackfill.lastBackfillAt);
+
+    expect(await s.getConnectorSyncState('other')).toEqual({
+      lastSyncAt: null,
+      lastBackfillAt: null,
+    });
+    await s.close();
+  });
+
   it('failed transition records lastError', async () => {
     const { storage: s } = makeStorage();
     await s.markSyncQueued();

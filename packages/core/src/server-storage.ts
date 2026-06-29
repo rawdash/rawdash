@@ -1,8 +1,13 @@
 import type { ConnectorHealth, StorageHandle } from './connector';
 import type { SyncState } from './engine';
+import type { SyncSchedulingState } from './plan-sync';
 
 export interface GetStorageHandleOptions {
   signal?: AbortSignal;
+}
+
+export interface MarkConnectorSyncSucceededOptions {
+  backfillDue?: boolean;
 }
 
 export interface ServerStorage {
@@ -16,4 +21,9 @@ export interface ServerStorage {
   markSyncRunning?(): Promise<boolean>;
   markSyncSucceeded(): Promise<void>;
   markSyncFailed(error: string): Promise<void>;
+  getConnectorSyncState?(connectorId: string): Promise<SyncSchedulingState>;
+  markConnectorSyncSucceeded?(
+    connectorId: string,
+    options?: MarkConnectorSyncSucceededOptions,
+  ): Promise<void>;
 }

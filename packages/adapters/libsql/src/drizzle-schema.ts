@@ -96,6 +96,12 @@ export const syncState = sqliteTable('sync_state', {
   last_error: text('last_error'),
 });
 
+export const connectorSyncState = sqliteTable('connector_sync_state', {
+  connector_id: text('connector_id').primaryKey(),
+  last_sync_at: text('last_sync_at'),
+  last_backfill_at: text('last_backfill_at'),
+});
+
 export const distributions = sqliteTable(
   'distributions',
   {

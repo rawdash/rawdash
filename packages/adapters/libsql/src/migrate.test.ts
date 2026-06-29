@@ -152,4 +152,18 @@ describe('applyMigrations', () => {
     const cols = await client.execute('PRAGMA table_info(events)');
     expect(cols.rows.map((r) => String(r['name']))).toEqual(['id', 'name']);
   });
+
+  it('runs post-baseline migrations against a baselined legacy schema', async () => {
+    await client.execute(
+      'CREATE TABLE events (id INTEGER PRIMARY KEY, name TEXT NOT NULL)',
+    );
+
+    await applyMigrations(client, { assumeLegacyBaselineIfEventsExists: true });
+
+    const tables = await client.execute(
+      "SELECT name FROM sqlite_master WHERE type='table'",
+    );
+    const tableNames = tables.rows.map((r) => String(r['name']));
+    expect(tableNames).toContain('connector_sync_state');
+  });
 });
