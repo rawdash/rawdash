@@ -1,5 +1,12 @@
 # @rawdash/connector-azure-monitor
 
+## 0.29.0
+
+### Patch Changes
+
+- Updated dependencies [48283df]
+  - @rawdash/core@0.29.0
+
 ## 0.28.2
 
 ### Patch Changes

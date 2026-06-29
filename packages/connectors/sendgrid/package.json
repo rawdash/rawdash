@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-sendgrid",
-  "version": "0.28.2",
+  "version": "0.29.0",
   "description": "Rawdash connector for SendGrid — daily email stats (sends, delivered, bounces, spam reports, opens, clicks) plus bounce and spam-report events from the SendGrid Web API v3",
   "license": "Apache-2.0",
   "type": "module",
