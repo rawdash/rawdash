@@ -1,5 +1,75 @@
 # @rawdash/connectors
 
+## 0.29.0
+
+### Patch Changes
+
+- Updated dependencies [48283df]
+- Updated dependencies [75d2d83]
+  - @rawdash/core@0.29.0
+  - @rawdash/connector-mixpanel@0.29.0
+  - @rawdash/connector-anthropic@0.29.0
+  - @rawdash/connector-app-store-connect@0.29.0
+  - @rawdash/connector-appsflyer@0.29.0
+  - @rawdash/connector-asana@0.29.0
+  - @rawdash/connector-auth0@0.29.0
+  - @rawdash/connector-aws-bedrock@0.29.0
+  - @rawdash/connector-aws-cloudwatch@0.29.0
+  - @rawdash/connector-aws-cost@0.29.0
+  - @rawdash/connector-azure-cost@0.29.0
+  - @rawdash/connector-azure-monitor@0.29.0
+  - @rawdash/connector-bitbucket@0.29.0
+  - @rawdash/connector-branch@0.29.0
+  - @rawdash/connector-circleci@0.29.0
+  - @rawdash/connector-clerk@0.29.0
+  - @rawdash/connector-clickup@0.29.0
+  - @rawdash/connector-datadog@0.29.0
+  - @rawdash/connector-drata@0.29.0
+  - @rawdash/connector-entra-id@0.29.0
+  - @rawdash/connector-firebase-analytics@0.29.0
+  - @rawdash/connector-firebase-crashlytics@0.29.0
+  - @rawdash/connector-gcp-billing@0.29.0
+  - @rawdash/connector-gcp-monitoring@0.29.0
+  - @rawdash/connector-github@0.29.0
+  - @rawdash/connector-gitlab@0.29.0
+  - @rawdash/connector-google-ads@0.29.0
+  - @rawdash/connector-google-analytics@0.29.0
+  - @rawdash/connector-google-play-console@0.29.0
+  - @rawdash/connector-google-search-console@0.29.0
+  - @rawdash/connector-greenhouse@0.29.0
+  - @rawdash/connector-hubspot@0.29.0
+  - @rawdash/connector-intercom@0.29.0
+  - @rawdash/connector-jira@0.29.0
+  - @rawdash/connector-klaviyo@0.29.0
+  - @rawdash/connector-langfuse@0.29.0
+  - @rawdash/connector-langsmith@0.29.0
+  - @rawdash/connector-launchdarkly@0.29.0
+  - @rawdash/connector-linear@0.29.0
+  - @rawdash/connector-mailchimp@0.29.0
+  - @rawdash/connector-mailgun@0.29.0
+  - @rawdash/connector-meta-ads@0.29.0
+  - @rawdash/connector-monday@0.29.0
+  - @rawdash/connector-netlify@0.29.0
+  - @rawdash/connector-new-relic@0.29.0
+  - @rawdash/connector-okta@0.29.0
+  - @rawdash/connector-openai@0.29.0
+  - @rawdash/connector-posthog@0.29.0
+  - @rawdash/connector-postmark@0.29.0
+  - @rawdash/connector-revenuecat@0.29.0
+  - @rawdash/connector-salesforce@0.29.0
+  - @rawdash/connector-sendgrid@0.29.0
+  - @rawdash/connector-sentry@0.29.0
+  - @rawdash/connector-shopify@0.29.0
+  - @rawdash/connector-statuspage@0.29.0
+  - @rawdash/connector-stripe@0.29.0
+  - @rawdash/connector-twilio@0.29.0
+  - @rawdash/connector-vanta@0.29.0
+  - @rawdash/connector-vercel@0.29.0
+  - @rawdash/connector-vertex-ai@0.29.0
+  - @rawdash/connector-wiz@0.29.0
+  - @rawdash/connector-workos@0.29.0
+  - @rawdash/connector-zendesk@0.29.0
+
 ## 0.28.2
 
 ### Patch Changes
