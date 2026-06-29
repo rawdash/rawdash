@@ -174,6 +174,35 @@ export type {
 } from './resource';
 
 export { defineResources, schemasFromResources } from './resource';
+
+export {
+  ENUM_CANDIDATE_CAP,
+  canonicalize,
+  diff,
+  fingerprint,
+  infer,
+  merge,
+  stableStringify,
+  validateObserved,
+} from './schema-inference';
+export type {
+  ArraySchema,
+  BooleanSchema,
+  DiffEntry,
+  DiffKind,
+  DriftSeverity,
+  JsonValue,
+  NullSchema,
+  NumberSchema,
+  ObjectSchema,
+  PrimitiveType,
+  Schema,
+  StringSchema,
+  UnionSchema,
+  ValidationError,
+  ValidationErrorKind,
+  ValidationResult,
+} from './schema-inference';
 export { metricSample } from './metric-emit';
 export type {
   MetricAttributeKeys,
