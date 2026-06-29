@@ -52,6 +52,12 @@ import {
   resources as awsCostResources,
 } from '@rawdash/connector-aws-cost';
 import {
+  configFields as awsSesConfigFields,
+  doc as awsSesDoc,
+  id as awsSesId,
+  resources as awsSesResources,
+} from '@rawdash/connector-aws-ses';
+import {
   configFields as azureCostConfigFields,
   cost as azureCostCost,
   doc as azureCostDoc,
@@ -443,6 +449,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     configFields: awsCostConfigFields,
     resources: awsCostResources,
     cost: awsCostCost,
+  },
+  {
+    id: awsSesId,
+    packageName: '@rawdash/connector-aws-ses',
+    doc: awsSesDoc,
+    configFields: awsSesConfigFields,
+    resources: awsSesResources,
   },
   {
     id: azureCostId,

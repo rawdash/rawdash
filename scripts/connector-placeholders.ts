@@ -1671,16 +1671,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     domain: 'airbase.com',
   },
   {
-    id: 'aws-ses',
-    name: 'Amazon SES',
-    category: 'engineering',
-    tagline:
-      'Sync send volume, delivery, bounce, and complaint rates from Amazon SES.',
-    brandColor: '#FF9900',
-    domain: 'aws.amazon.com',
-    requestIssue: 'RAW-432',
-  },
-  {
     id: 'bamboohr',
     name: 'BambooHR',
     category: 'hr',
