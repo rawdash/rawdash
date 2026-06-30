@@ -82,6 +82,7 @@
     "@rawdash/connector-openai": "workspace:*",
     "@rawdash/connector-posthog": "workspace:*",
     "@rawdash/connector-postmark": "workspace:*",
+    "@rawdash/connector-resend": "workspace:*",
     "@rawdash/connector-revenuecat": "workspace:*",
     "@rawdash/connector-salesforce": "workspace:*",
     "@rawdash/connector-sendgrid": "workspace:*",

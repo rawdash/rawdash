@@ -296,6 +296,12 @@ import {
   resources as postmarkResources,
 } from '@rawdash/connector-postmark';
 import {
+  configFields as resendConfigFields,
+  doc as resendDoc,
+  id as resendId,
+  resources as resendResources,
+} from '@rawdash/connector-resend';
+import {
   configFields as revenuecatConfigFields,
   doc as revenuecatDoc,
   id as revenuecatId,
@@ -727,6 +733,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: postmarkDoc,
     configFields: postmarkConfigFields,
     resources: postmarkResources,
+  },
+  {
+    id: resendId,
+    packageName: '@rawdash/connector-resend',
+    doc: resendDoc,
+    configFields: resendConfigFields,
+    resources: resendResources,
   },
   {
     id: revenuecatId,
