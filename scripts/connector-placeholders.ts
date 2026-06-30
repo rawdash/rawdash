@@ -2180,16 +2180,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
   },
 
   {
-    id: 'resend',
-    name: 'Resend',
-    category: 'engineering',
-    tagline:
-      'Sync transactional email send volume, delivery, bounce, and complaint rates from Resend.',
-    icon: 'resend',
-    domain: 'resend.com',
-    requestIssue: 'RAW-433',
-  },
-  {
     id: 'sonarqube',
     name: 'SonarQube',
     category: 'engineering',
