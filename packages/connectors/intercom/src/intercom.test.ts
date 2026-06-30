@@ -498,6 +498,66 @@ describe('IntercomConnector.sync', () => {
     });
   });
 
+  it('floors the contacts updated_at lower bound to the start of the watermark UTC day', async () => {
+    const fetchSpy = makeFetch(() => undefined);
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const since = '2024-03-15T14:30:00.000Z';
+    await connector({ resources: ['contacts'] }).sync(
+      { mode: 'latest', since },
+      makeStorage(),
+    );
+
+    const call = recordCalls(fetchSpy).find((c) =>
+      c.url.endsWith('/contacts/search'),
+    );
+    expect(call).toBeDefined();
+    const body = call!.body as {
+      query?: { field: string; operator: string; value: number };
+    };
+    const sinceSec = Math.floor(Date.parse(since) / 1000);
+    const dayStartSec = Math.floor(sinceSec / 86_400) * 86_400;
+    expect(body.query).toEqual({
+      field: 'updated_at',
+      operator: '>',
+      value: dayStartSec - 1,
+    });
+    expect(body.query!.value).toBeLessThan(sinceSec);
+  });
+
+  it('keeps the contacts day-floored bound when a role filter is also pushed', async () => {
+    const fetchSpy = makeFetch(() => undefined);
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const since = '2024-03-15T14:30:00.000Z';
+    await connector({ resources: ['contacts'] }).sync(
+      {
+        mode: 'latest',
+        since,
+        fetchSpecs: {
+          intercom_contact: [
+            { filter: [{ field: 'role', op: 'eq', value: 'user' }] },
+          ],
+        } as never,
+      },
+      makeStorage(),
+    );
+
+    const call = recordCalls(fetchSpy).find((c) =>
+      c.url.endsWith('/contacts/search'),
+    );
+    expect(call).toBeDefined();
+    const body = call!.body as {
+      query?: { operator: string; value: { field: string; value: number }[] };
+    };
+    const sinceSec = Math.floor(Date.parse(since) / 1000);
+    const dayStartSec = Math.floor(sinceSec / 86_400) * 86_400;
+    const updatedClause = body.query!.value.find(
+      (c) => c.field === 'updated_at',
+    );
+    expect(updatedClause!.value).toBe(dayStartSec - 1);
+  });
+
   it('omits the query filter when there is no since (full backfill)', async () => {
     const fetchSpy = makeFetch(() => undefined);
     vi.stubGlobal('fetch', fetchSpy);
