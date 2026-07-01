@@ -68,6 +68,7 @@
       "@rawdash/connector-shopify",
       "@rawdash/connector-monday",
       "@rawdash/connector-postmark",
+      "@rawdash/connector-bill",
       "@rawdash/connector-mailgun",
       "@rawdash/connector-sendgrid",
       "@rawdash/connectors",
