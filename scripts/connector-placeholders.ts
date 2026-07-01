@@ -1882,15 +1882,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     requestIssue: 'RAW-220',
   },
   {
-    id: 'bill',
-    name: 'Bill.com',
-    category: 'finance',
-    tagline: 'Sync bills pending, AP aging, and vendor spend from Bill.com.',
-    brandColor: '#005DAA',
-    domain: 'bill.com',
-    requestIssue: 'RAW-434',
-  },
-  {
     id: 'baremetrics',
     name: 'Baremetrics',
     category: 'finance',

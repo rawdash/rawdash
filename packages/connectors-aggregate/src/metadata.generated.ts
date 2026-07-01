@@ -65,6 +65,12 @@ import {
   resources as azureMonitorResources,
 } from '@rawdash/connector-azure-monitor';
 import {
+  configFields as billConfigFields,
+  doc as billDoc,
+  id as billId,
+  resources as billResources,
+} from '@rawdash/connector-bill';
+import {
   configFields as bitbucketConfigFields,
   doc as bitbucketDoc,
   id as bitbucketId,
@@ -458,6 +464,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: azureMonitorDoc,
     configFields: azureMonitorConfigFields,
     resources: azureMonitorResources,
+  },
+  {
+    id: billId,
+    packageName: '@rawdash/connector-bill',
+    doc: billDoc,
+    configFields: billConfigFields,
+    resources: billResources,
   },
   {
     id: bitbucketId,

@@ -20,6 +20,7 @@ export const connectorLoaders: Record<string, () => Promise<ConnectorClass>> = {
     import('@rawdash/connector-azure-cost').then((m) => m.default),
   'azure-monitor': () =>
     import('@rawdash/connector-azure-monitor').then((m) => m.default),
+  bill: () => import('@rawdash/connector-bill').then((m) => m.default),
   bitbucket: () =>
     import('@rawdash/connector-bitbucket').then((m) => m.default),
   branch: () => import('@rawdash/connector-branch').then((m) => m.default),
