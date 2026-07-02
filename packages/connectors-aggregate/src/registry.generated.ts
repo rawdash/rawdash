@@ -30,6 +30,8 @@ export const connectorLoaders: Record<string, () => Promise<ConnectorClass>> = {
   drata: () => import('@rawdash/connector-drata').then((m) => m.default),
   'entra-id': () =>
     import('@rawdash/connector-entra-id').then((m) => m.default),
+  expensify: () =>
+    import('@rawdash/connector-expensify').then((m) => m.default),
   'firebase-analytics': () =>
     import('@rawdash/connector-firebase-analytics').then((m) => m.default),
   'firebase-crashlytics': () =>

@@ -1947,16 +1947,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     domain: 'coingecko.com',
   },
   {
-    id: 'expensify',
-    name: 'Expensify',
-    category: 'finance',
-    tagline:
-      'Sync reports, expense submissions, and policy violations from Expensify.',
-    icon: 'expensify',
-    domain: 'expensify.com',
-    requestIssue: 'RAW-435',
-  },
-  {
     id: 'fixer',
     name: 'Fixer (FX rates)',
     category: 'finance',
