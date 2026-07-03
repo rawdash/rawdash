@@ -2019,16 +2019,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     domain: 'paypal.com',
   },
   {
-    id: 'plaid',
-    name: 'Plaid',
-    category: 'finance',
-    tagline:
-      'Sync linked accounts, balances, and categorized transactions across banks via Plaid.',
-    brandColor: '#111111',
-    domain: 'plaid.com',
-    requestIssue: 'RAW-436',
-  },
-  {
     id: 'pleo',
     name: 'Pleo',
     category: 'finance',

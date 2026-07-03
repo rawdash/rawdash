@@ -284,6 +284,12 @@ import {
   resources as openaiResources,
 } from '@rawdash/connector-openai';
 import {
+  configFields as plaidConfigFields,
+  doc as plaidDoc,
+  id as plaidId,
+  resources as plaidResources,
+} from '@rawdash/connector-plaid';
+import {
   configFields as posthogConfigFields,
   doc as posthogDoc,
   id as posthogId,
@@ -713,6 +719,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: openaiDoc,
     configFields: openaiConfigFields,
     resources: openaiResources,
+  },
+  {
+    id: plaidId,
+    packageName: '@rawdash/connector-plaid',
+    doc: plaidDoc,
+    configFields: plaidConfigFields,
+    resources: plaidResources,
   },
   {
     id: posthogId,
