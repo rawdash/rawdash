@@ -77,6 +77,12 @@ import {
   resources as branchResources,
 } from '@rawdash/connector-branch';
 import {
+  configFields as calendlyConfigFields,
+  doc as calendlyDoc,
+  id as calendlyId,
+  resources as calendlyResources,
+} from '@rawdash/connector-calendly';
+import {
   configFields as circleciConfigFields,
   doc as circleciDoc,
   id as circleciId,
@@ -472,6 +478,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: branchDoc,
     configFields: branchConfigFields,
     resources: branchResources,
+  },
+  {
+    id: calendlyId,
+    packageName: '@rawdash/connector-calendly',
+    doc: calendlyDoc,
+    configFields: calendlyConfigFields,
+    resources: calendlyResources,
   },
   {
     id: circleciId,
