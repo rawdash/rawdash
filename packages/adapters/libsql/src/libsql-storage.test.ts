@@ -954,7 +954,8 @@ describe('LibsqlStorage — rekeyConnectorId', () => {
       updated_at: 2000,
     });
 
-    await s.rekeyConnectorId('old', 'new');
+    const result = await s.rekeyConnectorId('old', 'new');
+    expect(result.rowsAffected).toBe(0);
 
     const oldRows = await s
       .getStorageHandle('old')
