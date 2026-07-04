@@ -25,11 +25,17 @@ export const configFields = defineConfigFields(
   z
     .object({
       ...awsAuthConfigShape,
-      configurationSets: z.array(z.string().min(1)).optional().meta({
-        label: 'Configuration sets (optional)',
-        description:
-          'SES configuration set names to break email stats down by, in addition to the account-wide totals. Each set must publish its events to CloudWatch (via an event destination). Omit to track account-wide totals only.',
-      }),
+      configurationSets: z
+        .array(z.string().min(1))
+        .refine((sets) => new Set(sets).size === sets.length, {
+          message: 'Configuration set names must be unique',
+        })
+        .optional()
+        .meta({
+          label: 'Configuration sets (optional)',
+          description:
+            'SES configuration set names to break email stats down by, in addition to the account-wide totals. Each set must publish its events to CloudWatch (via an event destination). Omit to track account-wide totals only.',
+        }),
       lookbackDays: z.number().int().positive().max(455).optional().meta({
         label: 'Backfill window (days)',
         description:
@@ -280,7 +286,11 @@ export class AwsSesConnector extends BaseAWSConnector<AwsSesSettings> {
     if (options.since) {
       const sinceMs = parseEpoch(options.since, 'iso');
       if (sinceMs !== null) {
-        return { startMs: Math.min(sinceMs, endMs), endMs };
+        const overlapStartMs =
+          options.mode === 'latest'
+            ? endMs - INCREMENTAL_LOOKBACK_DAYS * MS_PER_DAY
+            : endMs;
+        return { startMs: Math.min(sinceMs, overlapStartMs), endMs };
       }
     }
     const days =

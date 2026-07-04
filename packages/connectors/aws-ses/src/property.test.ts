@@ -30,6 +30,15 @@ function makeConnector(): AwsSesConnector {
   );
 }
 
+function escapeXml(value: unknown): string {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&apos;');
+}
+
 function metricDataXml(sample: unknown): string {
   const body = sample as {
     MetricDataResults?: Array<{
@@ -46,9 +55,9 @@ function metricDataXml(sample: unknown): string {
       const values = Array.isArray(r.Values) ? r.Values : [];
       return `<member>
         <Id>m${index}</Id>
-        <Label>${String(r.Label ?? '')}</Label>
-        <Timestamps>${timestamps.map((t) => `<member>${String(t)}</member>`).join('')}</Timestamps>
-        <Values>${values.map((v) => `<member>${String(v)}</member>`).join('')}</Values>
+        <Label>${escapeXml(r.Label ?? '')}</Label>
+        <Timestamps>${timestamps.map((t) => `<member>${escapeXml(t)}</member>`).join('')}</Timestamps>
+        <Values>${values.map((v) => `<member>${escapeXml(v)}</member>`).join('')}</Values>
         <StatusCode>Complete</StatusCode>
       </member>`;
     })
@@ -102,7 +111,11 @@ describe('AwsSesConnector property tests', () => {
       run: async (sample, storage) => {
         installMock(sample);
         await makeConnector().sync(
-          { mode: 'full', since: '2024-01-01T00:00:00Z' },
+          {
+            mode: 'full',
+            since: '2024-01-01T00:00:00Z',
+            resources: new Set(['ses_reputation']),
+          },
           storage.getStorageHandle(CONNECTOR_ID),
         );
       },

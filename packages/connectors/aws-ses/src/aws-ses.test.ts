@@ -413,6 +413,19 @@ describe('AwsSesConnector error mapping', () => {
     vi.unstubAllGlobals();
   });
 
+  it('maps a 503 response to TransientError', async () => {
+    installFetch(() => ({
+      status: 503,
+      body: '<ErrorResponse><Error><Code>ServiceUnavailable</Code><Message>retry later</Message></Error></ErrorResponse>',
+    }));
+    await expect(
+      staticConnector().sync(
+        { mode: 'full', since: '2024-01-01T00:00:00Z' },
+        new InMemoryStorage().getStorageHandle(CONNECTOR_ID),
+      ),
+    ).rejects.toMatchObject({ name: TransientError.name });
+  });
+
   it('maps a Throttling error to RateLimitError', async () => {
     installFetch(() => ({
       status: 400,
