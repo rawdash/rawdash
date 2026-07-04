@@ -5,7 +5,7 @@
 [![npm version](https://img.shields.io/npm/v/@rawdash/connector-expensify)](https://www.npmjs.com/package/@rawdash/connector-expensify)
 [![license](https://img.shields.io/npm/l/@rawdash/connector-expensify)](https://github.com/rawdash/rawdash/blob/main/LICENSE)
 
-Sync Expensify expense reports, individual expenses, and daily category spend for finance-ops dashboards: reports pending, month-to-date spend, and spend by category.
+Sync Expensify expense reports, individual expenses, and daily category spend for finance-ops dashboards: reports pending, recent spend, and spend by category.
 
 ## Install
 
@@ -88,7 +88,7 @@ export default defineConfig({
   dashboards: {
     finance: defineDashboard({
       widgets: {
-        spend_mtd: {
+        spend_30d: {
           kind: 'stat',
           title: 'Spend (30d)',
           window: '30d',

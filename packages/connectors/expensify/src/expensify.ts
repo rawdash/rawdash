@@ -57,7 +57,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
   category: 'finance',
   brandColor: '#03D47C',
   tagline:
-    'Sync Expensify expense reports, individual expenses, and daily category spend for finance-ops dashboards: reports pending, month-to-date spend, and spend by category.',
+    'Sync Expensify expense reports, individual expenses, and daily category spend for finance-ops dashboards: reports pending, recent spend, and spend by category.',
   vendor: {
     name: 'Expensify',
     domain: 'expensify.com',

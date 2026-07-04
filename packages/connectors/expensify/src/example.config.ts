@@ -20,7 +20,7 @@ export default defineConfig({
   dashboards: {
     finance: defineDashboard({
       widgets: {
-        spend_mtd: {
+        spend_30d: {
           kind: 'stat',
           title: 'Spend (30d)',
           window: '30d',
