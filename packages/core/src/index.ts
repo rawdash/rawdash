@@ -91,6 +91,8 @@ export {
   widgetMetrics,
 } from './config';
 
+export { renderConfigSource } from './render-config';
+
 export {
   aggFnSchema,
   distributionWidgetSchema,
