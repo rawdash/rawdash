@@ -70,6 +70,7 @@ export type {
   Metric,
   MetricAggregate,
   ComputedMetric,
+  NormalizedConfiguredConnector,
   Shape,
   StatWidget,
   StatusWidget,
@@ -80,9 +81,11 @@ export type {
 } from './config';
 
 export {
+  DEFAULT_SYNC_INTERVAL_SECONDS,
   defineConfig,
   defineDashboard,
   defineMetric,
+  normalizeConfiguredConnector,
   statusSources,
   widgetConnectorIds,
   widgetMetrics,
