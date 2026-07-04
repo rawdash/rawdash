@@ -7,7 +7,9 @@ export function compareConnectorVersions(a: string, b: string): number {
     const numB = Number.parseInt(partsB[i] ?? '0', 10);
     const safeA = Number.isNaN(numA) ? 0 : numA;
     const safeB = Number.isNaN(numB) ? 0 : numB;
-    if (safeA !== safeB) {return safeA < safeB ? -1 : 1;}
+    if (safeA !== safeB) {
+      return safeA < safeB ? -1 : 1;
+    }
   }
   return 0;
 }
@@ -15,8 +17,9 @@ export function compareConnectorVersions(a: string, b: string): number {
 export function latestVersion(versions: ReadonlyArray<string>): string | null {
   let max: string | null = null;
   for (const version of versions) {
-    if (max === null || compareConnectorVersions(version, max) > 0)
-      {max = version;}
+    if (max === null || compareConnectorVersions(version, max) > 0) {
+      max = version;
+    }
   }
   return max;
 }
