@@ -118,6 +118,26 @@ describe('applyRetention', () => {
     expect(survivors[0]!.attributes['env']).toBe('dev');
   });
 
+  it('throws when the resolved handle cannot do targeted deletes', async () => {
+    const storage = new InMemoryStorage();
+    const handle = storage.getStorageHandle('c');
+    const { deleteByIdentity: _omit, ...withoutDelete } = handle;
+    const stub = {
+      getStorageHandle: () => withoutDelete,
+    } as unknown as InMemoryStorage;
+
+    const plan: RetentionDeletionPlan = {
+      events: [{ name: 'run', start_ts: 1, end_ts: null, attributes: {} }],
+      metrics: [],
+      distributions: [],
+      entities: [],
+    };
+
+    await expect(applyRetention(stub, 'c', plan)).rejects.toThrow(
+      /deleteByIdentity/,
+    );
+  });
+
   it('is a no-op for an empty plan', async () => {
     const storage = new InMemoryStorage();
     await seed(storage, 'c');

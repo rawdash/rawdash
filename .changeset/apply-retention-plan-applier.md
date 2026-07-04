@@ -1,5 +1,5 @@
 ---
-'@rawdash/server': minor
+'@rawdash/server': patch
 '@rawdash/core': patch
 '@rawdash/adapter-libsql': patch
 '@rawdash/adapter-sqlite': patch
