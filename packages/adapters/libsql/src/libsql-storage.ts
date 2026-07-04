@@ -478,12 +478,14 @@ export class LibsqlStorage implements ServerStorage {
 
       queryEntities: async (q: EntityQuery) => {
         await ready;
-        const rows = await db
+        let qb = db
           .selectFrom('entities')
           .select(['type', 'id', 'attributes', 'updated_at'])
-          .where('connector_id', '=', connectorId)
-          .where('type', '=', q.type)
-          .execute();
+          .where('connector_id', '=', connectorId);
+        if (q.type !== undefined) {
+          qb = qb.where('type', '=', q.type);
+        }
+        const rows = await qb.execute();
         return rows.map(
           (r): Entity => ({
             type: r.type,
