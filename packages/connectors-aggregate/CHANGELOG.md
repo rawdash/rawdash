@@ -1,5 +1,89 @@
 # @rawdash/connectors
 
+## 0.29.2
+
+### Patch Changes
+
+- Updated dependencies [9786fbf]
+- Updated dependencies [379c427]
+- Updated dependencies [5761126]
+- Updated dependencies [88c2d08]
+- Updated dependencies [58a1086]
+- Updated dependencies [c5bfcc7]
+- Updated dependencies [322664c]
+- Updated dependencies [f0a1c55]
+- Updated dependencies [8106c27]
+- Updated dependencies [1aba313]
+- Updated dependencies [8d0065d]
+  - @rawdash/connector-bill@0.29.2
+  - @rawdash/connector-aws-ses@0.29.2
+  - @rawdash/core@0.29.2
+  - @rawdash/connector-expensify@0.29.2
+  - @rawdash/connector-resend@0.29.2
+  - @rawdash/connector-anthropic@0.29.2
+  - @rawdash/connector-app-store-connect@0.29.2
+  - @rawdash/connector-appsflyer@0.29.2
+  - @rawdash/connector-asana@0.29.2
+  - @rawdash/connector-auth0@0.29.2
+  - @rawdash/connector-aws-bedrock@0.29.2
+  - @rawdash/connector-aws-cloudwatch@0.29.2
+  - @rawdash/connector-aws-cost@0.29.2
+  - @rawdash/connector-azure-cost@0.29.2
+  - @rawdash/connector-azure-monitor@0.29.2
+  - @rawdash/connector-bitbucket@0.29.2
+  - @rawdash/connector-branch@0.29.2
+  - @rawdash/connector-calendly@0.29.2
+  - @rawdash/connector-circleci@0.29.2
+  - @rawdash/connector-clerk@0.29.2
+  - @rawdash/connector-clickup@0.29.2
+  - @rawdash/connector-datadog@0.29.2
+  - @rawdash/connector-drata@0.29.2
+  - @rawdash/connector-entra-id@0.29.2
+  - @rawdash/connector-firebase-analytics@0.29.2
+  - @rawdash/connector-firebase-crashlytics@0.29.2
+  - @rawdash/connector-gcp-billing@0.29.2
+  - @rawdash/connector-gcp-monitoring@0.29.2
+  - @rawdash/connector-github@0.29.2
+  - @rawdash/connector-gitlab@0.29.2
+  - @rawdash/connector-google-ads@0.29.2
+  - @rawdash/connector-google-analytics@0.29.2
+  - @rawdash/connector-google-play-console@0.29.2
+  - @rawdash/connector-google-search-console@0.29.2
+  - @rawdash/connector-greenhouse@0.29.2
+  - @rawdash/connector-hubspot@0.29.2
+  - @rawdash/connector-intercom@0.29.2
+  - @rawdash/connector-jira@0.29.2
+  - @rawdash/connector-klaviyo@0.29.2
+  - @rawdash/connector-langfuse@0.29.2
+  - @rawdash/connector-langsmith@0.29.2
+  - @rawdash/connector-launchdarkly@0.29.2
+  - @rawdash/connector-linear@0.29.2
+  - @rawdash/connector-mailchimp@0.29.2
+  - @rawdash/connector-mailgun@0.29.2
+  - @rawdash/connector-meta-ads@0.29.2
+  - @rawdash/connector-mixpanel@0.29.2
+  - @rawdash/connector-monday@0.29.2
+  - @rawdash/connector-netlify@0.29.2
+  - @rawdash/connector-new-relic@0.29.2
+  - @rawdash/connector-okta@0.29.2
+  - @rawdash/connector-openai@0.29.2
+  - @rawdash/connector-posthog@0.29.2
+  - @rawdash/connector-postmark@0.29.2
+  - @rawdash/connector-revenuecat@0.29.2
+  - @rawdash/connector-salesforce@0.29.2
+  - @rawdash/connector-sendgrid@0.29.2
+  - @rawdash/connector-sentry@0.29.2
+  - @rawdash/connector-shopify@0.29.2
+  - @rawdash/connector-statuspage@0.29.2
+  - @rawdash/connector-stripe@0.29.2
+  - @rawdash/connector-twilio@0.29.2
+  - @rawdash/connector-vanta@0.29.2
+  - @rawdash/connector-vercel@0.29.2
+  - @rawdash/connector-vertex-ai@0.29.2
+  - @rawdash/connector-wiz@0.29.2
+  - @rawdash/connector-workos@0.29.2
+  - @rawdash/connector-zendesk@0.29.2
+
 ## 0.29.1
 
 ### Patch Changes

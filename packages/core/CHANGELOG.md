@@ -1,5 +1,17 @@
 # @rawdash/core
 
+## 0.29.2
+
+### Patch Changes
+
+- 5761126: Export `compareConnectorVersions(a, b)` and `latestVersion(versions)`, small utilities for dotted-numeric ordering and max-version selection over connector version strings.
+- 88c2d08: Add `computeRetryBackoffMs(consecutiveErrors, opts)` and `normalizeRetryAfter(retryAfter, now, maxSeconds)` retry-policy helpers. `computeRetryBackoffMs` derives an exponential-with-ceiling backoff from a consecutive-error count, with the base and ceiling supplied by the caller. `normalizeRetryAfter` clamps a connector's `RateLimitError.retryAfter` hint into a bounded, whole-second delay. Both are pure functions for integrators driving OSS connectors.
+- 58a1086: Export `DEFAULT_SYNC_STATE`, the canonical "no runs yet" `SyncState` (`status: 'idle'`, all timestamps null), alongside `ACTIVE_SYNC_STATUSES`. `ServerStorage` implementers can return it when no sync run has been recorded instead of re-encoding the shape.
+- 322664c: Add `normalizeConfiguredConnector(entry)` and the `DEFAULT_SYNC_INTERVAL_SECONDS` constant (300s) to fill `ConfiguredConnector` defaults — `syncIntervalSeconds ?? 300`, `enabled ?? true`, `displayName ?? name` — in one shared place so hosts and integrators agree on engine policy instead of hand-rolling it. Also exports the `NormalizedConfiguredConnector` type (the same shape with those three fields required). `toWireConfig` now uses this helper.
+- f0a1c55: Make `EntityQuery.type` optional and let `queryEntities` tolerate a type-less query. Previously `StorageHandle.queryEntities` applied `.where('type', '=', q.type)` unconditionally, so omitting `type` (e.g. `queryEntities({})`) passed `undefined` to the libsql driver and crashed with `TypeError: undefined cannot be passed as argument to the database`. This was inconsistent with `queryEvents`/`queryMetrics`, which guard their optional filter and return all rows when it is omitted. `queryEntities` now applies the `type` filter only when provided, returning all entities for the connector otherwise, across the libsql adapter and `InMemoryStorage`.
+- 8106c27: Add `storage.rekeyConnectorId(from, to)` to the libSQL adapter so the engine owns the canonical set of connector-keyed tables. Renaming/rekeying a connector while preserving its data is a generic storage operation: it rewrites `connector_id` across every connector-keyed table in a single batched `UPDATE OR IGNORE`, returning `{ rowsAffected }`. The table set is derived from and compile-time-checked against the adapter's schema (exported as `CONNECTOR_KEYED_TABLES`), so it can no longer drift as new connector-keyed tables are added. `ServerStorage` gains an optional `rekeyConnectorId` method and a `RekeyConnectorResult` type in `@rawdash/core`.
+- 1aba313: Add `renderConfigSource(config)`, a serializer that renders a `DashboardConfig` back to `rawdash.config.ts` source — the inverse of `defineConfig`/`defineMetric`/`secret`. It owns the authoring-shape round-trip (`metric.connectorId` → `defineMetric({ connector: { name } })`, `{ $secret }` markers → `secret("…")`), so downstream consumers no longer need to re-encode that mapping themselves.
+
 ## 0.29.1
 
 ### Patch Changes

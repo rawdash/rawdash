@@ -1,5 +1,18 @@
 # @rawdash/connector-shopify
 
+## 0.29.2
+
+### Patch Changes
+
+- Updated dependencies [5761126]
+- Updated dependencies [88c2d08]
+- Updated dependencies [58a1086]
+- Updated dependencies [322664c]
+- Updated dependencies [f0a1c55]
+- Updated dependencies [8106c27]
+- Updated dependencies [1aba313]
+  - @rawdash/core@0.29.2
+
 ## 0.29.1
 
 ### Patch Changes

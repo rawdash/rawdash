@@ -1,5 +1,21 @@
 # @rawdash/adapter-libsql
 
+## 0.29.2
+
+### Patch Changes
+
+- 708f22d: Throw a typed `SchemaNotInitializedError` (newly exported) when a read hits a missing engine table or column on an unmigrated database, instead of surfacing the raw libSQL driver error. Integrators can now branch on `err instanceof SchemaNotInitializedError` rather than string-matching driver error text.
+- f0a1c55: Make `EntityQuery.type` optional and let `queryEntities` tolerate a type-less query. Previously `StorageHandle.queryEntities` applied `.where('type', '=', q.type)` unconditionally, so omitting `type` (e.g. `queryEntities({})`) passed `undefined` to the libsql driver and crashed with `TypeError: undefined cannot be passed as argument to the database`. This was inconsistent with `queryEvents`/`queryMetrics`, which guard their optional filter and return all rows when it is omitted. `queryEntities` now applies the `type` filter only when provided, returning all entities for the connector otherwise, across the libsql adapter and `InMemoryStorage`.
+- 8106c27: Add `storage.rekeyConnectorId(from, to)` to the libSQL adapter so the engine owns the canonical set of connector-keyed tables. Renaming/rekeying a connector while preserving its data is a generic storage operation: it rewrites `connector_id` across every connector-keyed table in a single batched `UPDATE OR IGNORE`, returning `{ rowsAffected }`. The table set is derived from and compile-time-checked against the adapter's schema (exported as `CONNECTOR_KEYED_TABLES`), so it can no longer drift as new connector-keyed tables are added. `ServerStorage` gains an optional `rekeyConnectorId` method and a `RekeyConnectorResult` type in `@rawdash/core`.
+- Updated dependencies [5761126]
+- Updated dependencies [88c2d08]
+- Updated dependencies [58a1086]
+- Updated dependencies [322664c]
+- Updated dependencies [f0a1c55]
+- Updated dependencies [8106c27]
+- Updated dependencies [1aba313]
+  - @rawdash/core@0.29.2
+
 ## 0.29.1
 
 ### Patch Changes
