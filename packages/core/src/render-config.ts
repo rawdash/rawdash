@@ -5,6 +5,7 @@ import type {
   DashboardConfig,
   Widget,
 } from './config';
+import { widgetMetrics } from './config';
 import type { RetentionConfig } from './retention';
 import { isSecret } from './secrets';
 
@@ -204,13 +205,9 @@ function hasSecretRef(value: unknown): boolean {
 
 function dashboardsUseMetric(dashboards: Record<string, Dashboard>): boolean {
   return Object.values(dashboards).some((dashboard) =>
-    Object.values(dashboard.widgets ?? {}).some((widget) => {
-      const metric = (widget as unknown as Record<string, unknown>).metric;
-      if (Array.isArray(metric)) {
-        return metric.some(isComputedMetric);
-      }
-      return isComputedMetric(metric);
-    }),
+    Object.values(dashboard.widgets ?? {}).some(
+      (widget) => widgetMetrics(widget).length > 0,
+    ),
   );
 }
 
