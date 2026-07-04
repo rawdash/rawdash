@@ -31,7 +31,7 @@ export const configFields = defineConfigFields(
       placeholder: 'BILL_DEV_KEY',
       secret: true,
     }),
-    username: z.string().min(1).meta({
+    username: z.email().meta({
       label: 'Username',
       description:
         'Email address of the BILL user the API signs in as. This user must have access to the organization you are syncing.',
@@ -139,7 +139,11 @@ const ENDPOINT_BY_PHASE: Record<BillPhase, string> = {
 };
 
 function isAuthError(err: unknown): boolean {
-  return err instanceof Error && (err as { kind?: unknown }).kind === 'auth';
+  if (typeof err !== 'object' || err === null) {
+    return false;
+  }
+  const candidate = err as { kind?: unknown; response?: { status?: unknown } };
+  return candidate.kind === 'auth' || candidate.response?.status === 401;
 }
 
 const idString = z.string().min(1);
@@ -408,8 +412,8 @@ export class BillConnector extends BaseConnector<
         resource,
         headers: {
           ...this.baseHeaders(),
-          sessionId,
-          devKey: this.creds.devKey,
+          sessionid: sessionId,
+          devkey: this.creds.devKey,
         },
         signal,
       });
@@ -441,6 +445,20 @@ export class BillConnector extends BaseConnector<
     return url.toString();
   }
 
+  private parseListResponse(
+    phase: BillPhase,
+    body: unknown,
+  ): BillListResponse<BillVendor | BillBill | BillPayment> {
+    switch (phase) {
+      case 'vendors':
+        return vendorsListSchema.parse(body);
+      case 'bills':
+        return billsListSchema.parse(body);
+      case 'payments':
+        return paymentsListSchema.parse(body);
+    }
+  }
+
   private async fetchPage(
     phase: BillPhase,
     page: string | null,
@@ -448,13 +466,10 @@ export class BillConnector extends BaseConnector<
     signal: AbortSignal | undefined,
   ): Promise<{ items: unknown[]; next: string | null }> {
     const url = this.buildListUrl(phase, page, options);
-    const res = await this.apiGet<BillListResponse<{ id: string }>>(
-      url,
-      phase,
-      signal,
-    );
-    const results = res.body.results ?? [];
-    const nextPage = res.body.nextPage ?? null;
+    const res = await this.apiGet<unknown>(url, phase, signal);
+    const body = this.parseListResponse(phase, res.body);
+    const results = body.results;
+    const nextPage = body.nextPage ?? null;
     const next = nextPage && results.length > 0 ? nextPage : null;
     return { items: results, next };
   }
