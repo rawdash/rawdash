@@ -281,6 +281,8 @@ export {
   planSync,
 } from './plan-sync';
 
+export { compareConnectorVersions, latestVersion } from './connector-version';
+
 export { resolveWidget } from './resolve-widget';
 
 export { computeWidgetEtag, hashWidgetConfig } from './widget-etag';
