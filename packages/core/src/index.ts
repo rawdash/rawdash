@@ -70,6 +70,7 @@ export type {
   Metric,
   MetricAggregate,
   ComputedMetric,
+  NormalizedConfiguredConnector,
   Shape,
   StatWidget,
   StatusWidget,
@@ -80,9 +81,11 @@ export type {
 } from './config';
 
 export {
+  DEFAULT_SYNC_INTERVAL_SECONDS,
   defineConfig,
   defineDashboard,
   defineMetric,
+  normalizeConfiguredConnector,
   statusSources,
   widgetConnectorIds,
   widgetMetrics,
@@ -280,6 +283,10 @@ export {
   fetchSpecsHaveRequiredWindow,
   planSync,
 } from './plan-sync';
+
+export type { RetryBackoffOptions } from './retry-backoff';
+
+export { computeRetryBackoffMs, normalizeRetryAfter } from './retry-backoff';
 
 export { resolveWidget } from './resolve-widget';
 

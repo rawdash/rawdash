@@ -3,7 +3,7 @@ import type { Distribution } from '@rawdash/core';
 import { describe, expect, it, vi } from 'vitest';
 
 import { CONNECTOR_KEYED_TABLES, type ConnectorKeyedTable } from './db-schema';
-import { LibsqlStorage } from './libsql-storage';
+import { LibsqlStorage, SchemaNotInitializedError } from './libsql-storage';
 
 type AssertEqual<A, B> = [A] extends [B]
   ? [B] extends [A]
@@ -976,5 +976,74 @@ describe('LibsqlStorage — rekeyConnectorId', () => {
       ConnectorKeyedTable
     > = true;
     expect(complete).toBe(true);
+  });
+});
+
+describe('LibsqlStorage — SchemaNotInitializedError', () => {
+  function makeUninitialized(): {
+    storage: LibsqlStorage;
+    client: Client;
+  } {
+    const client = createClient({ url: ':memory:' });
+    const storage = new LibsqlStorage({ client, initSchema: false });
+    return { storage, client };
+  }
+
+  it('throws SchemaNotInitializedError when reading before migration', async () => {
+    const { storage: s } = makeUninitialized();
+    const h = s.getStorageHandle('c');
+    await expect(h.queryEvents({})).rejects.toBeInstanceOf(
+      SchemaNotInitializedError,
+    );
+    await s.close();
+  });
+
+  it('preserves the driver message and cause', async () => {
+    const { storage: s } = makeUninitialized();
+    const h = s.getStorageHandle('c');
+    const err = await h.queryEntities({ type: 'pr' }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(SchemaNotInitializedError);
+    expect(err).toBeInstanceOf(Error);
+    expect((err as SchemaNotInitializedError).name).toBe(
+      'SchemaNotInitializedError',
+    );
+    expect((err as SchemaNotInitializedError).message).toMatch(
+      /no such table/i,
+    );
+    expect((err as SchemaNotInitializedError).cause).toBeInstanceOf(Error);
+    await s.close();
+  });
+
+  it('throws from every read path on an unmigrated database', async () => {
+    const { storage: s } = makeUninitialized();
+    const h = s.getStorageHandle('c');
+    const reads: Array<() => Promise<unknown>> = [
+      () => h.queryEvents({}),
+      () => h.getEntity('pr', '1'),
+      () => h.queryEntities({ type: 'pr' }),
+      () => h.queryMetrics({}),
+      () => h.traverse({}),
+      () => h.queryDistributions({}),
+      () => h.queryRollups!({ resource: 'pr' }),
+      () => h.getRollupWatermark!('pr'),
+    ];
+    for (const read of reads) {
+      await expect(read()).rejects.toBeInstanceOf(SchemaNotInitializedError);
+    }
+    await s.close();
+  });
+
+  it('does not throw once the schema is initialized', async () => {
+    const { storage: s } = makeStorage();
+    const h = s.getStorageHandle('c');
+    await expect(h.queryEvents({})).resolves.toEqual([]);
+    await expect(h.getEntity('pr', '1')).resolves.toBeNull();
+    await expect(h.queryEntities({ type: 'pr' })).resolves.toEqual([]);
+    await expect(h.queryMetrics({})).resolves.toEqual([]);
+    await expect(h.traverse({})).resolves.toEqual([]);
+    await expect(h.queryDistributions({})).resolves.toEqual([]);
+    await expect(h.queryRollups!({ resource: 'pr' })).resolves.toEqual([]);
+    await expect(h.getRollupWatermark!('pr')).resolves.toBeNull();
+    await s.close();
   });
 });

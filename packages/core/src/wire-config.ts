@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import type { DashboardConfig } from './config';
+import { normalizeConfiguredConnector } from './config';
 
 export const wireConnectorSchema = z.object({
   name: z.string(),
@@ -29,14 +30,17 @@ export type WireConfig = z.infer<typeof wireConfigSchema>;
 
 export function toWireConfig(config: DashboardConfig): WireConfig {
   return {
-    connectors: config.connectors.map((entry) => ({
-      name: entry.name,
-      connectorId: entry.connectorId,
-      displayName: entry.displayName ?? entry.name,
-      config: entry.config,
-      syncIntervalSeconds: entry.syncIntervalSeconds ?? 300,
-      enabled: entry.enabled ?? true,
-    })),
+    connectors: config.connectors.map((entry) => {
+      const normalized = normalizeConfiguredConnector(entry);
+      return {
+        name: normalized.name,
+        connectorId: normalized.connectorId,
+        displayName: normalized.displayName,
+        config: normalized.config,
+        syncIntervalSeconds: normalized.syncIntervalSeconds,
+        enabled: normalized.enabled,
+      };
+    }),
     dashboards: Object.entries(config.dashboards).map(([id, dash]) => ({
       id,
       name: id,
