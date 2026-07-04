@@ -1,0 +1,5 @@
+---
+'@rawdash/connector-okta': patch
+---
+
+Fix two Okta data-correctness bugs. The System Log (`GET /api/v1/logs`) full/initial sync omitted the `since` parameter, so Okta applied its default window of the last 7 days; because a full sync clears the `okta_auth_event` scope before repopulating it, every full sync truncated sign-in history to 7 days even though Okta retains 90 days. Full/initial syncs now default `since` to the start of the 90-day retention window, so they backfill the full available history; incremental syncs continue to use their own `since`. Separately, the users listing (`GET /api/v1/users`) used the `filter` query parameter, which never returns `DEPROVISIONED` users — deactivated/offboarded accounts were silently dropped from the `okta_user` resource. The listing now uses the `search` parameter (for both the `lastUpdated` incremental cursor and the pushed-down `status` predicate), which returns every lifecycle status including `DEPROVISIONED`; group syncs are unaffected and keep using `filter`.

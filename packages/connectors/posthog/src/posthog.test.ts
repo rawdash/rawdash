@@ -163,6 +163,18 @@ describe('PostHogConnector', () => {
     });
   });
 
+  it('posts analytical queries to the trailing-slash query endpoint', async () => {
+    const spy = installFetchMock(() => ({ results: [] }));
+    const storage = new InMemoryStorage();
+    await connector({ resources: ['events_per_day'] }).sync(
+      { mode: 'full' },
+      storage.getStorageHandle(CONNECTOR_ID),
+    );
+
+    const url = String(spy.mock.calls[0]?.[0] ?? '');
+    expect(url).toBe('https://us.posthog.com/api/projects/42/query/');
+  });
+
   it('scopes events_per_day to the configured events in the query', async () => {
     const spy = installFetchMock(() => ({ results: [] }));
     const storage = new InMemoryStorage();

@@ -1535,16 +1535,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     requestIssue: 'RAW-438',
   },
   {
-    id: 'calendly',
-    name: 'Calendly',
-    category: 'sales',
-    tagline:
-      'Sync bookings, no-shows, and per-event-type performance from Calendly.',
-    icon: 'calendly',
-    domain: 'calendly.com',
-    requestIssue: 'RAW-437',
-  },
-  {
     id: 'chorus',
     name: 'Chorus',
     category: 'sales',

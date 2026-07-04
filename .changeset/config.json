@@ -71,6 +71,7 @@
       "@rawdash/connector-mailgun",
       "@rawdash/connector-sendgrid",
       "@rawdash/connector-expensify",
+      "@rawdash/connector-calendly",
       "@rawdash/connectors",
       "@rawdash/adapter-libsql",
       "@rawdash/adapter-sqlite",

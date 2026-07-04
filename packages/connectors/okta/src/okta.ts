@@ -126,6 +126,8 @@ type OktaSyncCursor = ChunkedSyncCursor<OktaPhase, string>;
 const USERS_PAGE_SIZE = 200;
 const GROUPS_PAGE_SIZE = 200;
 const LOGS_PAGE_SIZE = 1000;
+const LOGS_RETENTION_DAYS = 90;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 const USER_ENTITY = 'okta_user';
 const GROUP_ENTITY = 'okta_group';
@@ -539,10 +541,14 @@ export class OktaConnector extends BaseConnector<
     return specs && specs.length === 1 ? specs[0] : undefined;
   }
 
-  private setScimFilter(url: URL, clause: string): void {
-    const existing = url.searchParams.get('filter');
+  private setScimExpr(
+    url: URL,
+    param: 'filter' | 'search',
+    clause: string,
+  ): void {
+    const existing = url.searchParams.get(param);
     url.searchParams.set(
-      'filter',
+      param,
       existing ? `(${existing}) and (${clause})` : clause,
     );
   }
@@ -559,7 +565,7 @@ export class OktaConnector extends BaseConnector<
           'status',
         );
         if (status !== null) {
-          this.setScimFilter(url, `status eq "${status}"`);
+          this.setScimExpr(url, 'search', `status eq "${status}"`);
         }
         return;
       }
@@ -569,7 +575,7 @@ export class OktaConnector extends BaseConnector<
           'type',
         );
         if (groupType !== null) {
-          this.setScimFilter(url, `type eq "${groupType}"`);
+          this.setScimExpr(url, 'filter', `type eq "${groupType}"`);
         }
         return;
       }
@@ -584,8 +590,7 @@ export class OktaConnector extends BaseConnector<
       case 'users':
         url.searchParams.set('limit', String(USERS_PAGE_SIZE));
         if (options.since) {
-          // Okta supports SCIM-style lastUpdated filters on /users.
-          url.searchParams.set('filter', `lastUpdated gt "${options.since}"`);
+          url.searchParams.set('search', `lastUpdated gt "${options.since}"`);
         }
         break;
       case 'groups':
@@ -598,9 +603,7 @@ export class OktaConnector extends BaseConnector<
         url.searchParams.set('limit', String(LOGS_PAGE_SIZE));
         url.searchParams.set('filter', AUTH_EVENT_FILTER);
         url.searchParams.set('sortOrder', 'ASCENDING');
-        if (options.since) {
-          url.searchParams.set('since', options.since);
-        }
+        url.searchParams.set('since', options.since ?? logsRetentionFloor());
         break;
     }
     this.applyPushdown(url, phase, options);
@@ -786,6 +789,10 @@ export class OktaConnector extends BaseConnector<
       },
     });
   }
+}
+
+function logsRetentionFloor(): string {
+  return new Date(Date.now() - LOGS_RETENTION_DAYS * MS_PER_DAY).toISOString();
 }
 
 function isoToMs(value: string | null | undefined): number | null {

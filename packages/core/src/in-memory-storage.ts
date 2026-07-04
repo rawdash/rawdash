@@ -29,6 +29,10 @@ function rollupBucketKey(b: RollupBucket): string {
   return `${b.resource}|${b.field}|${b.granularity}|${dimsKey(b.dims)}|${b.bucketStart}`;
 }
 
+function identityKey(parts: (string | number)[]): string {
+  return JSON.stringify(parts);
+}
+
 export class InMemoryStorage implements ServerStorage {
   private eventStore = new Map<string, Event[]>();
   private entityStore = new Map<string, Map<string, Map<string, Entity>>>();
@@ -292,6 +296,81 @@ export class InMemoryStorage implements ServerStorage {
             `Unsupported shape for deleteOlderThan: ${String(shape)}`,
           );
         }
+      },
+
+      deleteByIdentity: async (targets) => {
+        let rowsDeleted = 0;
+
+        const eventKeys = new Set(
+          (targets.events ?? []).map((e) =>
+            identityKey([e.name, e.start_ts, JSON.stringify(e.attributes)]),
+          ),
+        );
+        if (eventKeys.size > 0) {
+          const before = this.eventStore.get(connectorId) ?? [];
+          const after = before.filter(
+            (e) =>
+              !eventKeys.has(
+                identityKey([e.name, e.start_ts, JSON.stringify(e.attributes)]),
+              ),
+          );
+          rowsDeleted += before.length - after.length;
+          this.eventStore.set(connectorId, after);
+        }
+
+        const metricKeys = new Set(
+          (targets.metrics ?? []).map((m) =>
+            identityKey([m.name, m.ts, JSON.stringify(m.attributes)]),
+          ),
+        );
+        if (metricKeys.size > 0) {
+          const before = this.metricStore.get(connectorId) ?? [];
+          const after = before.filter(
+            (m) =>
+              !metricKeys.has(
+                identityKey([m.name, m.ts, JSON.stringify(m.attributes)]),
+              ),
+          );
+          rowsDeleted += before.length - after.length;
+          this.metricStore.set(connectorId, after);
+        }
+
+        const distributionKeys = new Set(
+          (targets.distributions ?? []).map((d) =>
+            identityKey([d.name, d.ts, JSON.stringify(d.attributes)]),
+          ),
+        );
+        if (distributionKeys.size > 0) {
+          const before = this.distributionStore.get(connectorId) ?? [];
+          const after = before.filter(
+            (d) =>
+              !distributionKeys.has(
+                identityKey([d.name, d.ts, JSON.stringify(d.attributes)]),
+              ),
+          );
+          rowsDeleted += before.length - after.length;
+          this.distributionStore.set(connectorId, after);
+        }
+
+        const entityKeys = new Set(
+          (targets.entities ?? []).map((e) => identityKey([e.type, e.id])),
+        );
+        if (entityKeys.size > 0) {
+          const byType = getEntityMap();
+          for (const [type, byId] of byType) {
+            for (const id of [...byId.keys()]) {
+              if (entityKeys.has(identityKey([type, id]))) {
+                byId.delete(id);
+                rowsDeleted++;
+              }
+            }
+          }
+        }
+
+        if (rowsDeleted > 0) {
+          touch();
+        }
+        return { rowsDeleted };
       },
 
       writeRollups: async (buckets) => {

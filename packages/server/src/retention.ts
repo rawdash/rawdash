@@ -1,6 +1,7 @@
 import type {
   DashboardConfig,
   RetentionConfig,
+  RetentionDeletionPlan,
   ServerStorage,
 } from '@rawdash/core';
 import { selectForDeletion } from '@rawdash/core';
@@ -9,6 +10,41 @@ export const DEFAULT_RETENTION_INTERVAL_MS = 60 * 60 * 1000;
 
 export function hasPruningPolicy(config: RetentionConfig): boolean {
   return config.maxAge !== undefined || config.maxSize !== undefined;
+}
+
+/**
+ * Applies a `RetentionDeletionPlan` via targeted, identity-keyed deletes and
+ * returns the number of rows actually deleted.
+ *
+ * Rows are matched by identity tuple, and `attributes` is compared by its exact
+ * serialization (`JSON.stringify`) as written by the storage adapter — not by
+ * deep equality. Pass the plan produced by `computeRetention` (whose rows are
+ * read straight from storage) so the serialization byte-matches; a hand-built
+ * plan whose `attributes` keys are in a different order will not match and those
+ * rows will survive.
+ */
+export async function applyRetention(
+  storage: ServerStorage,
+  connectorId: string,
+  plan: RetentionDeletionPlan,
+): Promise<{ rowsDeleted: number }> {
+  const total =
+    plan.events.length +
+    plan.metrics.length +
+    plan.distributions.length +
+    plan.entities.length;
+  if (total === 0) {
+    return { rowsDeleted: 0 };
+  }
+
+  const handle = storage.getStorageHandle(connectorId);
+  if (!handle.deleteByIdentity) {
+    throw new Error(
+      'applyRetention requires a storage adapter that implements deleteByIdentity',
+    );
+  }
+
+  return handle.deleteByIdentity(plan);
 }
 
 export async function runRetention(

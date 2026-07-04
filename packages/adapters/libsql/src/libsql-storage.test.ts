@@ -717,3 +717,99 @@ describe('LibsqlStorage — abort isolation', () => {
     }
   });
 });
+
+describe('LibsqlStorage — deleteByIdentity', () => {
+  it('deletes only the events named in the plan, matching by identity tuple', async () => {
+    const { storage: s } = makeStorage();
+    const h = s.getStorageHandle('c');
+    await h.events([
+      { name: 'run', start_ts: 1000, end_ts: null, attributes: { a: 1 } },
+      { name: 'run', start_ts: 1000, end_ts: null, attributes: { a: 2 } },
+      { name: 'run', start_ts: 2000, end_ts: null, attributes: { a: 1 } },
+    ]);
+
+    const result = await h.deleteByIdentity!({
+      events: [
+        { name: 'run', start_ts: 1000, end_ts: null, attributes: { a: 1 } },
+      ],
+    });
+
+    expect(result.rowsDeleted).toBe(1);
+    const survivors = await h.queryEvents({});
+    expect(survivors).toHaveLength(2);
+    expect(
+      survivors.some((e) => e.start_ts === 1000 && e.attributes['a'] === 2),
+    ).toBe(true);
+    expect(
+      survivors.some((e) => e.start_ts === 2000 && e.attributes['a'] === 1),
+    ).toBe(true);
+    await s.close();
+  });
+
+  it('round-trips attributes serialization: a row is deleted iff its attributes byte-match', async () => {
+    const { storage: s } = makeStorage();
+    const h = s.getStorageHandle('c');
+    const attributes = { region: 'us-east', tier: 3, nested: { ok: true } };
+    await h.metrics([
+      { name: 'cpu', ts: 500, value: 1, attributes },
+      { name: 'cpu', ts: 500, value: 2, attributes: { region: 'eu-west' } },
+    ]);
+
+    const stored = await h.queryMetrics({});
+    const target = stored.find((m) => m.attributes['region'] === 'us-east')!;
+
+    const result = await h.deleteByIdentity!({ metrics: [target] });
+
+    expect(result.rowsDeleted).toBe(1);
+    const survivors = await h.queryMetrics({});
+    expect(survivors).toHaveLength(1);
+    expect(survivors[0]!.attributes['region']).toBe('eu-west');
+    await s.close();
+  });
+
+  it('deletes across all four shapes including entities and dedups the plan', async () => {
+    const { storage: s } = makeStorage();
+    const h = s.getStorageHandle('c');
+    await h.events([{ name: 'e', start_ts: 1, end_ts: null, attributes: {} }]);
+    await h.metrics([{ name: 'm', ts: 1, value: 1, attributes: {} }]);
+    const dist: Distribution = {
+      name: 'd',
+      ts: 1,
+      kind: 'histogram',
+      data: { buckets: [{ le: 1, count: 1 }], count: 1, sum: 1 },
+      attributes: {},
+    };
+    await h.distributions([dist]);
+    await h.entities([
+      { type: 'pr', id: '1', attributes: { s: 'open' }, updated_at: 1 },
+      { type: 'pr', id: '2', attributes: { s: 'open' }, updated_at: 1 },
+    ]);
+
+    const result = await h.deleteByIdentity!({
+      events: [{ name: 'e', start_ts: 1, end_ts: null, attributes: {} }],
+      metrics: [{ name: 'm', ts: 1, value: 1, attributes: {} }],
+      distributions: [dist],
+      entities: [
+        { type: 'pr', id: '1', attributes: { s: 'open' }, updated_at: 1 },
+        { type: 'pr', id: '1', attributes: { s: 'open' }, updated_at: 1 },
+      ],
+    });
+
+    expect(result.rowsDeleted).toBe(4);
+    expect(await h.queryEvents({})).toHaveLength(0);
+    expect(await h.queryMetrics({})).toHaveLength(0);
+    expect(await h.queryDistributions({})).toHaveLength(0);
+    const remainingEntities = await h.queryEntities({ type: 'pr' });
+    expect(remainingEntities).toHaveLength(1);
+    expect(remainingEntities[0]!.id).toBe('2');
+    await s.close();
+  });
+
+  it('returns zero for an empty plan', async () => {
+    const { storage: s } = makeStorage();
+    const h = s.getStorageHandle('c');
+    const result = await h.deleteByIdentity!({});
+    expect(result.rowsDeleted).toBe(0);
+    await s.close();
+  });
+});

@@ -23,6 +23,7 @@ export { runSync, FULL_SYNC_TIMEOUT_MS, FULL_SYNC_MAX_CHUNKS } from './sync';
 export type { ConnectorLoggerFactory, RunSyncOptions } from './sync';
 export {
   runRetention,
+  applyRetention,
   hasPruningPolicy,
   DEFAULT_RETENTION_INTERVAL_MS,
 } from './retention';
