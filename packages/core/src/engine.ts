@@ -13,6 +13,14 @@ export const ACTIVE_SYNC_STATUSES: ReadonlySet<SyncStatus> = new Set([
   'running',
 ]);
 
+export const DEFAULT_SYNC_STATE: SyncState = {
+  status: 'idle',
+  queuedAt: null,
+  startedAt: null,
+  lastSyncAt: null,
+  lastError: null,
+};
+
 export function isSyncActive(status: SyncStatus): boolean {
   return ACTIVE_SYNC_STATUSES.has(status);
 }
