@@ -284,6 +284,10 @@ export {
   planSync,
 } from './plan-sync';
 
+export type { RetryBackoffOptions } from './retry-backoff';
+
+export { computeRetryBackoffMs, normalizeRetryAfter } from './retry-backoff';
+
 export { resolveWidget } from './resolve-widget';
 
 export { computeWidgetEtag, hashWidgetConfig } from './widget-etag';
