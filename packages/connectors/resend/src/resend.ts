@@ -354,16 +354,12 @@ export class ResendConnector extends BaseConnector<
   }
 
   private emailCutoffMs(options: SyncOptions, now: number): number | null {
-    const sinceMs = options.since ? new Date(options.since).getTime() : null;
     if (options.mode === 'latest') {
+      const sinceMs = options.since ? new Date(options.since).getTime() : null;
       return Number.isFinite(sinceMs) ? sinceMs : null;
     }
     const lookbackDays = this.settings.lookbackDays ?? DEFAULT_LOOKBACK_DAYS;
-    const windowCutoff = now - lookbackDays * MS_PER_DAY;
-    if (sinceMs !== null && Number.isFinite(sinceMs)) {
-      return Math.max(sinceMs, windowCutoff);
-    }
-    return windowCutoff;
+    return now - lookbackDays * MS_PER_DAY;
   }
 
   private async fetchEmailsPage(
@@ -465,6 +461,9 @@ export class ResendConnector extends BaseConnector<
       (r) => r,
       PHASE_ORDER,
       this.settings.resources,
+    ).filter(
+      (phase) =>
+        options.resources === undefined || options.resources.has(phase),
     );
 
     return paginateChunked<ResendPhase, string>({

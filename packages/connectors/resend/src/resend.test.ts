@@ -140,6 +140,31 @@ describe('ResendConnector emails', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 
+  it('resumes from a stored { phase, page } cursor via the after parameter', async () => {
+    const fetchSpy = installFetchMock((url: string) => {
+      const after = new URL(url).searchParams.get('after');
+      expect(after).toBe('p1b');
+      return {
+        object: 'list',
+        has_more: false,
+        data: [
+          { id: 'p2a', from: 'x@acme.com', to: [], created_at: recentIso(3) },
+        ],
+      };
+    });
+
+    const storage = new InMemoryStorage();
+    await makeConnector(['emails']).sync(
+      { mode: 'full', cursor: { phase: 'emails', page: 'p1b' } },
+      storage.getStorageHandle(CONNECTOR_ID),
+    );
+
+    const events = emailEvents(storage);
+    expect(events).toHaveLength(1);
+    expect(events[0]!.attributes.emailId).toBe('p2a');
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
   it('stops incremental paging once a page predates the since watermark', async () => {
     const fetchSpy = installFetchMock(() => ({
       object: 'list',
@@ -169,20 +194,25 @@ describe('ResendConnector domains', () => {
   });
 
   it('maps each domain to an entity carrying status and capabilities', async () => {
-    installFetchMock(() => ({
-      object: 'list',
-      has_more: false,
-      data: [
-        {
-          id: 'd_1',
-          name: 'acme.com',
-          status: 'verified',
-          region: 'us-east-1',
-          created_at: '2026-01-01T00:00:00.000Z',
-          capabilities: { sending: 'enabled', receiving: 'disabled' },
-        },
-      ],
-    }));
+    const fetchSpy = installFetchMock((url: string) => {
+      if (!url.includes('/domains')) {
+        throw new Error(`unexpected request: ${url}`);
+      }
+      return {
+        object: 'list',
+        has_more: false,
+        data: [
+          {
+            id: 'd_1',
+            name: 'acme.com',
+            status: 'verified',
+            region: 'us-east-1',
+            created_at: '2026-01-01T00:00:00.000Z',
+            capabilities: { sending: 'enabled', receiving: 'disabled' },
+          },
+        ],
+      };
+    });
 
     const storage = new InMemoryStorage();
     await makeConnector(['domains']).sync(
@@ -190,6 +220,7 @@ describe('ResendConnector domains', () => {
       storage.getStorageHandle(CONNECTOR_ID),
     );
 
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
     const domains = domainEntities(storage);
     expect(domains).toHaveLength(1);
     expect(domains[0]!.id).toBe('d_1');
@@ -200,8 +231,8 @@ describe('ResendConnector domains', () => {
 
   it('skips the emails phase when resources excludes it', async () => {
     const fetchSpy = installFetchMock((url: string) => {
-      if (url.includes('/emails')) {
-        throw new Error('emails endpoint should not be called');
+      if (!url.includes('/domains')) {
+        throw new Error(`unexpected request: ${url}`);
       }
       return { object: 'list', has_more: false, data: [] };
     });
@@ -212,8 +243,7 @@ describe('ResendConnector domains', () => {
       storage.getStorageHandle(CONNECTOR_ID),
     );
 
-    for (const call of fetchSpy.mock.calls) {
-      expect(String(call[0])).not.toContain('/emails');
-    }
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(String(fetchSpy.mock.calls[0]![0])).toContain('/domains');
   });
 });
