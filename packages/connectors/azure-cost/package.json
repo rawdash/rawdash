@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-azure-cost",
-  "version": "0.28.2",
+  "version": "0.29.0",
   "description": "Rawdash connector for Azure Cost Management — pulls daily Azure spend (optionally grouped by resource group, service, or tag) into the six-shape storage model via the Cost Management query API",
   "license": "Apache-2.0",
   "type": "module",
