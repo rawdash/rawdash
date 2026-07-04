@@ -15,6 +15,7 @@
       "@rawdash/connector-appsflyer",
       "@rawdash/connector-aws-bedrock",
       "@rawdash/connector-aws-cloudwatch",
+      "@rawdash/connector-aws-ses",
       "@rawdash/connector-azure-cost",
       "@rawdash/connector-azure-monitor",
       "@rawdash/connector-datadog",

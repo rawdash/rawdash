@@ -42,6 +42,7 @@
     "@rawdash/connector-aws-bedrock": "workspace:*",
     "@rawdash/connector-aws-cloudwatch": "workspace:*",
     "@rawdash/connector-aws-cost": "workspace:*",
+    "@rawdash/connector-aws-ses": "workspace:*",
     "@rawdash/connector-azure-cost": "workspace:*",
     "@rawdash/connector-azure-monitor": "workspace:*",
     "@rawdash/connector-bitbucket": "workspace:*",

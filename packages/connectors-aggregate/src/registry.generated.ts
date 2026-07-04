@@ -16,6 +16,7 @@ export const connectorLoaders: Record<string, () => Promise<ConnectorClass>> = {
     import('@rawdash/connector-aws-cloudwatch').then((m) => m.default),
   'aws-cost': () =>
     import('@rawdash/connector-aws-cost').then((m) => m.default),
+  'aws-ses': () => import('@rawdash/connector-aws-ses').then((m) => m.default),
   'azure-cost': () =>
     import('@rawdash/connector-azure-cost').then((m) => m.default),
   'azure-monitor': () =>
