@@ -125,6 +125,12 @@ import {
   resources as entraIdResources,
 } from '@rawdash/connector-entra-id';
 import {
+  configFields as expensifyConfigFields,
+  doc as expensifyDoc,
+  id as expensifyId,
+  resources as expensifyResources,
+} from '@rawdash/connector-expensify';
+import {
   configFields as firebaseAnalyticsConfigFields,
   doc as firebaseAnalyticsDoc,
   id as firebaseAnalyticsId,
@@ -540,6 +546,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: entraIdDoc,
     configFields: entraIdConfigFields,
     resources: entraIdResources,
+  },
+  {
+    id: expensifyId,
+    packageName: '@rawdash/connector-expensify',
+    doc: expensifyDoc,
+    configFields: expensifyConfigFields,
+    resources: expensifyResources,
   },
   {
     id: firebaseAnalyticsId,
