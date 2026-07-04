@@ -5,6 +5,7 @@ export type {
   ConnectorRequestOptions,
   CredentialField,
   CredentialsSchema,
+  DeleteByIdentityTargets,
   InferCredentialInput,
   Distribution,
   DistributionQuery,
