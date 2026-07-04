@@ -1,5 +1,21 @@
 # @rawdash/connector-posthog
 
+## 0.29.1
+
+### Patch Changes
+
+- Updated dependencies [d83f3eb]
+  - @rawdash/core@0.29.1
+
+## 0.29.0
+
+### Patch Changes
+
+- 7c23c01: Fix the PostHog connector posting analytical queries (events per day, feature flag usage, active users, funnels) to `/api/projects/{projectId}/query` without a trailing slash. PostHog's query endpoint is `/api/projects/{projectId}/query/`; the non-slash path triggers a redirect that drops the POST body, leaving those four resources without data. Queries now target the trailing-slash endpoint.
+- Updated dependencies [48283df]
+- Updated dependencies [8eb995a]
+  - @rawdash/core@0.29.0
+
 ## 0.28.2
 
 ### Patch Changes

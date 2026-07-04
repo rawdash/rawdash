@@ -1,5 +1,21 @@
 # @rawdash/connector-sentry
 
+## 0.29.1
+
+### Patch Changes
+
+- Updated dependencies [d83f3eb]
+  - @rawdash/core@0.29.1
+
+## 0.29.0
+
+### Patch Changes
+
+- 3e1a71c: Update the `releases` schema to match observed upstream shape drift (RAW-774).
+- Updated dependencies [48283df]
+- Updated dependencies [8eb995a]
+  - @rawdash/core@0.29.0
+
 ## 0.28.2
 
 ### Patch Changes

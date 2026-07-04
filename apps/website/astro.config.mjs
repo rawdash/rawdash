@@ -55,7 +55,7 @@ const ga4Head = ga4Id
 export default defineConfig({
   site: 'https://rawdash.dev',
   trailingSlash: 'never',
-  build: { format: 'directory' },
+  build: { format: 'file' },
   redirects: {
     '/docs': '/docs/getting-started',
   },

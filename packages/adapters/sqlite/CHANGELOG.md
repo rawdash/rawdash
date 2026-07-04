@@ -1,5 +1,24 @@
 # @rawdash/adapter-sqlite
 
+## 0.29.1
+
+### Patch Changes
+
+- d83f3eb: Add an engine-owned applier for `RetentionDeletionPlan`. `@rawdash/server` now exports `applyRetention(storage, connectorId, plan)`, the missing "apply" half of `@rawdash/core`'s `computeRetention`: it deletes exactly the rows the plan names across all four shapes — events (`name`+`start_ts`+`attributes`), metrics and distributions (`name`+`ts`+`attributes`), and **entities** (`type`+`id`) — via targeted, deduped, batched deletes and returns the actual `{ rowsDeleted }`. It owns the table/column/`attributes`-serialization details internally, so consumers no longer hand-roll the plan → DELETE translation (or silently delete nothing when a key column or the attribute encoding changes). Backed by a new optional `deleteByIdentity` primitive on `StorageHandle`, implemented in the in-memory and libSQL/SQLite adapters and byte-matching how each adapter serializes `attributes`. Existing `runRetention` / `runRetentionOnce` semantics are unchanged.
+- Updated dependencies [d83f3eb]
+  - @rawdash/core@0.29.1
+  - @rawdash/adapter-libsql@0.29.1
+
+## 0.29.0
+
+### Patch Changes
+
+- 48283df: Move windowed-backfill scheduling into the engine. `@rawdash/core` now exports a pure `planSync` helper that decides, from a connector's declared fetch windows and when its history was last refreshed, whether a sync should run `full` (re-fetching windowed history) or `latest` (cheap incremental), and flags `backfillDue` so callers know when to stamp the connector's persisted `lastBackfillAt`. The decision is per-connector: `ServerStorage` gains optional `getConnectorSyncState` / `markConnectorSyncSucceeded` methods (backed by a new `connector_sync_state` table in the libSQL/SQLite adapters), so a connector added long after the first sync still backfills its window instead of inheriting another connector's "already caught up" state. The self-hosted `runSync` now plans each connector with `planSync` instead of always syncing `full`, so it stops being permanently heavy while keeping windowed widgets fresh on a default 1h cadence.
+- Updated dependencies [48283df]
+- Updated dependencies [8eb995a]
+  - @rawdash/core@0.29.0
+  - @rawdash/adapter-libsql@0.29.0
+
 ## 0.28.2
 
 ### Patch Changes

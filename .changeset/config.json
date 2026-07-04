@@ -70,6 +70,7 @@
       "@rawdash/connector-postmark",
       "@rawdash/connector-mailgun",
       "@rawdash/connector-sendgrid",
+      "@rawdash/connector-calendly",
       "@rawdash/connector-resend",
       "@rawdash/connectors",
       "@rawdash/adapter-libsql",

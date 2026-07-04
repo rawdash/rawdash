@@ -138,6 +138,13 @@ export interface RollupQuery {
   end?: number;
 }
 
+export interface DeleteByIdentityTargets {
+  events?: readonly Event[];
+  metrics?: readonly MetricSample[];
+  distributions?: readonly Distribution[];
+  entities?: readonly Entity[];
+}
+
 export interface StorageHandle {
   event(e: Event): Promise<void>;
   entity(e: Entity): Promise<void>;
@@ -173,6 +180,10 @@ export interface StorageHandle {
   deleteOlderThan(
     shape: 'events' | 'metrics' | 'distributions',
     tsUnixMs: number,
+  ): Promise<{ rowsDeleted: number }>;
+
+  deleteByIdentity?(
+    targets: DeleteByIdentityTargets,
   ): Promise<{ rowsDeleted: number }>;
 
   writeRollups?(buckets: RollupBucket[]): Promise<void>;

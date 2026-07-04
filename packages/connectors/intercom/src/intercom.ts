@@ -627,7 +627,11 @@ export class IntercomConnector extends BaseConnector<
     };
     const conditions: Record<string, unknown>[] = [];
     if (sinceSec !== null) {
-      conditions.push({ field: 'updated_at', operator: '>', value: sinceSec });
+      conditions.push({
+        field: 'updated_at',
+        operator: '>',
+        value: contactDateLowerBound(sinceSec),
+      });
     }
     const role = pushableEq(
       this.singleSpec(options, CONTACT_ENTITY)?.filter,
@@ -927,6 +931,13 @@ const ENTITY_TYPE_BY_PHASE: Partial<Record<IntercomPhase, string>> = {
   contacts: CONTACT_ENTITY,
   conversations: CONVERSATION_ENTITY,
 };
+
+const DAY_SECONDS = 86_400;
+
+function contactDateLowerBound(sinceSec: number): number {
+  const dayStartSec = Math.floor(sinceSec / DAY_SECONDS) * DAY_SECONDS;
+  return dayStartSec - 1;
+}
 
 function sinceUnixSec(options: SyncOptions): number | null {
   if (!options.since) {
