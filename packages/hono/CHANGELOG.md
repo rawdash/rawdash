@@ -1,5 +1,14 @@
 # @rawdash/hono
 
+## 0.29.0
+
+### Patch Changes
+
+- Updated dependencies [48283df]
+- Updated dependencies [8eb995a]
+  - @rawdash/core@0.29.0
+  - @rawdash/server@0.29.0
+
 ## 0.28.2
 
 ### Patch Changes

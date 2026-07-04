@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-meta-ads",
-  "version": "0.28.2",
+  "version": "0.29.0",
   "description": "Rawdash connector for Meta (Facebook + Instagram) Ads — campaigns and daily campaign/adset/ad insights",
   "license": "Apache-2.0",
   "type": "module",

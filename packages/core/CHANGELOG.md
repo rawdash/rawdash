@@ -1,5 +1,15 @@
 # @rawdash/core
 
+## 0.29.0
+
+### Minor Changes
+
+- 48283df: Move windowed-backfill scheduling into the engine. `@rawdash/core` now exports a pure `planSync` helper that decides, from a connector's declared fetch windows and when its history was last refreshed, whether a sync should run `full` (re-fetching windowed history) or `latest` (cheap incremental), and flags `backfillDue` so callers know when to stamp the connector's persisted `lastBackfillAt`. The decision is per-connector: `ServerStorage` gains optional `getConnectorSyncState` / `markConnectorSyncSucceeded` methods (backed by a new `connector_sync_state` table in the libSQL/SQLite adapters), so a connector added long after the first sync still backfills its window instead of inheriting another connector's "already caught up" state. The self-hosted `runSync` now plans each connector with `planSync` instead of always syncing `full`, so it stops being permanently heavy while keeping windowed widgets fresh on a default 1h cadence.
+
+### Patch Changes
+
+- 8eb995a: Add a `schema-inference` module to `@rawdash/core` with pure, data-agnostic schema primitives so any integrator gets schema-drift detection out of the box. Exports `infer` (derive a structural schema from a JSON value), `merge` (combine samples into one schema, with the `ENUM_CANDIDATE_CAP` enum-vs-freeform heuristic), `canonicalize` / `fingerprint` / `stableStringify` (a stable identity for a shape), `diff` (typed structural delta between a baseline and observed schema), and `validateObserved` (breaking-vs-noise classification over two schemas), along with the `Schema`, `DiffEntry` (a `kind`-discriminated union), `DiffKind`, and validation result types. These complement the existing declared-shape types (`Shape`, `shapeSchema`, `ResourceDefinition`, `schemasFromResources`) with an observed-shape capability. No new runtime dependencies.
+
 ## 0.28.2
 
 ## 0.28.1
