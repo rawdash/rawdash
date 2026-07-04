@@ -124,6 +124,7 @@ export { currencyScaleFromUnit } from './format';
 export type { SyncState, SyncStatus } from './engine';
 export {
   ACTIVE_SYNC_STATUSES,
+  DEFAULT_SYNC_STATE,
   healthStatusFromSyncStatus,
   isSyncActive,
 } from './engine';
