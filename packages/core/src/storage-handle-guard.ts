@@ -99,6 +99,17 @@ export function withAbortSignal(
     queryMetrics: (q) => handle.queryMetrics(q),
     traverse: (q) => handle.traverse(q),
     queryDistributions: (q) => handle.queryDistributions(q),
+    ...(handle.deleteByIdentity
+      ? {
+          deleteByIdentity: async (targets) => {
+            if (signal.aborted) {
+              warnOnce('deleteByIdentity');
+              return { rowsDeleted: 0 };
+            }
+            return handle.deleteByIdentity!(targets);
+          },
+        }
+      : {}),
     ...(handle.writeRollups
       ? {
           writeRollups: async (buckets) => {

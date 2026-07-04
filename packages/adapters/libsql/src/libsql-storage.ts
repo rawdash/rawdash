@@ -74,6 +74,27 @@ function toBatchStmt(q: CompiledQuery): { sql: string; args: InValue[] } {
   return { sql: q.sql, args: q.parameters as InValue[] };
 }
 
+const DELETE_IDENTITY_CHUNK_SIZE = 200;
+
+function chunk<T>(items: readonly T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
+}
+
+function dedupeBy<T>(items: readonly T[], keyOf: (item: T) => string): T[] {
+  const byKey = new Map<string, T>();
+  for (const item of items) {
+    const key = keyOf(item);
+    if (!byKey.has(key)) {
+      byKey.set(key, item);
+    }
+  }
+  return [...byKey.values()];
+}
+
 export interface LibsqlStorageOptions {
   client: Client;
   initSchema?: boolean;
@@ -609,6 +630,121 @@ export class LibsqlStorage implements ServerStorage {
         throw new Error(
           `Unsupported shape for deleteOlderThan: ${String(shape)}`,
         );
+      },
+
+      deleteByIdentity: async (targets) => {
+        await ready;
+        const stmts: { sql: string; args: InValue[] }[] = [];
+
+        const events = dedupeBy(
+          targets.events ?? [],
+          (e) => `${e.name} ${e.start_ts} ${JSON.stringify(e.attributes)}`,
+        );
+        for (const group of chunk(events, DELETE_IDENTITY_CHUNK_SIZE)) {
+          stmts.push(
+            toBatchStmt(
+              db
+                .deleteFrom('events')
+                .where('connector_id', '=', connectorId)
+                .where((eb) =>
+                  eb.or(
+                    group.map((e) =>
+                      eb.and([
+                        eb('name', '=', e.name),
+                        eb('start_ts', '=', e.start_ts),
+                        eb('attributes', '=', JSON.stringify(e.attributes)),
+                      ]),
+                    ),
+                  ),
+                )
+                .compile(),
+            ),
+          );
+        }
+
+        const metrics = dedupeBy(
+          targets.metrics ?? [],
+          (m) => `${m.name} ${m.ts} ${JSON.stringify(m.attributes)}`,
+        );
+        for (const group of chunk(metrics, DELETE_IDENTITY_CHUNK_SIZE)) {
+          stmts.push(
+            toBatchStmt(
+              db
+                .deleteFrom('metrics')
+                .where('connector_id', '=', connectorId)
+                .where((eb) =>
+                  eb.or(
+                    group.map((m) =>
+                      eb.and([
+                        eb('name', '=', m.name),
+                        eb('ts', '=', m.ts),
+                        eb('attributes', '=', JSON.stringify(m.attributes)),
+                      ]),
+                    ),
+                  ),
+                )
+                .compile(),
+            ),
+          );
+        }
+
+        const distributions = dedupeBy(
+          targets.distributions ?? [],
+          (d) => `${d.name} ${d.ts} ${JSON.stringify(d.attributes)}`,
+        );
+        for (const group of chunk(distributions, DELETE_IDENTITY_CHUNK_SIZE)) {
+          stmts.push(
+            toBatchStmt(
+              db
+                .deleteFrom('distributions')
+                .where('connector_id', '=', connectorId)
+                .where((eb) =>
+                  eb.or(
+                    group.map((d) =>
+                      eb.and([
+                        eb('name', '=', d.name),
+                        eb('ts', '=', d.ts),
+                        eb('attributes', '=', JSON.stringify(d.attributes)),
+                      ]),
+                    ),
+                  ),
+                )
+                .compile(),
+            ),
+          );
+        }
+
+        const entities = dedupeBy(
+          targets.entities ?? [],
+          (e) => `${e.type} ${e.id}`,
+        );
+        for (const group of chunk(entities, DELETE_IDENTITY_CHUNK_SIZE)) {
+          stmts.push(
+            toBatchStmt(
+              db
+                .deleteFrom('entities')
+                .where('connector_id', '=', connectorId)
+                .where((eb) =>
+                  eb.or(
+                    group.map((e) =>
+                      eb.and([eb('type', '=', e.type), eb('id', '=', e.id)]),
+                    ),
+                  ),
+                )
+                .compile(),
+            ),
+          );
+        }
+
+        if (stmts.length === 0) {
+          return { rowsDeleted: 0 };
+        }
+        const results = await client.batch(stmts, 'write');
+        const rowsDeleted = results.reduce(
+          (sum, r) => sum + Number(r.rowsAffected),
+          0,
+        );
+        return { rowsDeleted };
       },
 
       writeRollups: async (buckets) => {

@@ -1,6 +1,7 @@
 import type {
   DashboardConfig,
   RetentionConfig,
+  RetentionDeletionPlan,
   ServerStorage,
 } from '@rawdash/core';
 import { selectForDeletion } from '@rawdash/core';
@@ -9,6 +10,30 @@ export const DEFAULT_RETENTION_INTERVAL_MS = 60 * 60 * 1000;
 
 export function hasPruningPolicy(config: RetentionConfig): boolean {
   return config.maxAge !== undefined || config.maxSize !== undefined;
+}
+
+export async function applyRetention(
+  storage: ServerStorage,
+  connectorId: string,
+  plan: RetentionDeletionPlan,
+): Promise<{ rowsDeleted: number }> {
+  const total =
+    plan.events.length +
+    plan.metrics.length +
+    plan.distributions.length +
+    plan.entities.length;
+  if (total === 0) {
+    return { rowsDeleted: 0 };
+  }
+
+  const handle = storage.getStorageHandle(connectorId);
+  if (!handle.deleteByIdentity) {
+    throw new Error(
+      'applyRetention requires a storage adapter that implements deleteByIdentity',
+    );
+  }
+
+  return handle.deleteByIdentity(plan);
 }
 
 export async function runRetention(
