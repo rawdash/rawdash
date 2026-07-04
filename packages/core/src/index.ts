@@ -287,6 +287,8 @@ export {
   planSync,
 } from './plan-sync';
 
+export { compareConnectorVersions, latestVersion } from './connector-version';
+
 export type { RetryBackoffOptions } from './retry-backoff';
 
 export { computeRetryBackoffMs, normalizeRetryAfter } from './retry-backoff';
