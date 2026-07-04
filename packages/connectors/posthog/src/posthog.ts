@@ -548,7 +548,7 @@ export class PostHogConnector extends BaseConnector<
     signal?: AbortSignal,
   ): Promise<T> {
     return this.post<T>(
-      `${this.baseUrl}/api/projects/${this.settings.projectId}/query`,
+      `${this.baseUrl}/api/projects/${this.settings.projectId}/query/`,
       {
         resource,
         headers: this.buildHeaders(),
