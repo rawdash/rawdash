@@ -36,6 +36,20 @@ describe('validateObserved', () => {
     ]);
   });
 
+  it('unconstrained observed string against a bounded baseline is breaking', () => {
+    const baseline: Schema = { type: 'string', enum: ['open', 'closed'] };
+    const observed: Schema = { type: 'string', freeform: true };
+    const result = validateObserved(baseline, observed);
+    expect(result.severity).toBe('breaking');
+    expect(result.errors).toEqual([
+      {
+        path: '$',
+        kind: 'value-not-in-enum',
+        detail: { allowed: ['open', 'closed'], observed: 'freeform' },
+      },
+    ]);
+  });
+
   it('identical schema validates → noise, no errors', () => {
     const baseline = obj({ id: num, name: str }, ['id', 'name']);
     const result = validateObserved(baseline, baseline);

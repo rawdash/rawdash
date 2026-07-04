@@ -51,10 +51,26 @@ export type DiffKind =
   | 'removed-field'
   | 'required-became-optional'
   | 'optional-became-required'
-  | 'new-enum-value';
+  | 'new-enum-value'
+  | 'enum-widened';
 
-export type DiffEntry = {
-  path: string;
-  kind: DiffKind;
-  detail: Record<string, unknown>;
-};
+export type DiffEntry =
+  | { path: string; kind: 'type-change'; detail: { from: string; to: string } }
+  | { path: string; kind: 'new-field'; detail: { required: boolean } }
+  | { path: string; kind: 'removed-field'; detail: Record<string, never> }
+  | {
+      path: string;
+      kind: 'required-became-optional';
+      detail: Record<string, never>;
+    }
+  | {
+      path: string;
+      kind: 'optional-became-required';
+      detail: Record<string, never>;
+    }
+  | { path: string; kind: 'new-enum-value'; detail: { values: string[] } }
+  | {
+      path: string;
+      kind: 'enum-widened';
+      detail: { from: 'enum'; to: 'freeform' };
+    };

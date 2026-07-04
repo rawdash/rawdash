@@ -117,6 +117,11 @@ function walkEnums(
     return;
   }
   if (obsFreeform || !obsEnum) {
+    entries.push({
+      path,
+      kind: 'enum-widened',
+      detail: { from: 'enum', to: 'freeform' },
+    });
     return;
   }
   const baseSet = new Set(baseEnum);

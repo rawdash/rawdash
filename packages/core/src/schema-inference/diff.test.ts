@@ -91,7 +91,7 @@ describe('diff', () => {
     ]);
   });
 
-  it('does not report new-enum-value when either side is freeform', () => {
+  it('does not report new-enum-value when the baseline is freeform', () => {
     const baselineFreeform = {
       type: 'object' as const,
       properties: { s: { type: 'string' as const, freeform: true } },
@@ -99,6 +99,23 @@ describe('diff', () => {
     };
     const observed = infer({ s: 'x' });
     expect(diff(baselineFreeform, observed)).toEqual([]);
+  });
+
+  it('reports enum-widened when a bounded field becomes freeform', () => {
+    const baseline = merge(infer({ s: 'a' }), infer({ s: 'b' }));
+    const observed = {
+      type: 'object' as const,
+      properties: { s: { type: 'string' as const, freeform: true } },
+      required: ['s'],
+    };
+    const d = diff(baseline, observed);
+    expect(d).toEqual([
+      {
+        path: '$.s',
+        kind: 'enum-widened',
+        detail: { from: 'enum', to: 'freeform' },
+      },
+    ]);
   });
 
   it('walks into nested objects and arrays', () => {

@@ -128,6 +128,11 @@ function checkEnum(
     return;
   }
   if (observed.freeform || observed.enum === undefined) {
+    errors.push({
+      path,
+      kind: 'value-not-in-enum',
+      detail: { allowed: [...baseline.enum], observed: 'freeform' },
+    });
     return;
   }
   const allowed = new Set(baseline.enum);
