@@ -411,7 +411,7 @@ describe('OktaConnector.sync', () => {
     expect(written).toEqual(['evt-new']);
   });
 
-  it('passes `since` as a SCIM lastUpdated filter to /api/v1/users', async () => {
+  it('lists users via the `search` parameter so deprovisioned users are included', async () => {
     const fetchSpy = makeFetch(() => undefined);
     vi.stubGlobal('fetch', fetchSpy);
 
@@ -426,7 +426,8 @@ describe('OktaConnector.sync', () => {
     );
     expect(req).toBeDefined();
     const decoded = decodeURIComponent(req!.url.replace(/\+/g, ' '));
-    expect(decoded).toContain(`filter=lastUpdated gt "${since}"`);
+    expect(decoded).toContain(`search=lastUpdated gt "${since}"`);
+    expect(decoded).not.toContain('filter=');
   });
 
   it('passes `since` as the logs `since` query param', async () => {
@@ -444,6 +445,29 @@ describe('OktaConnector.sync', () => {
     );
     expect(req).toBeDefined();
     expect(req!.url).toContain(`since=${encodeURIComponent(since)}`);
+  });
+
+  it('defaults the logs `since` to the 90-day retention window on a full sync', async () => {
+    const fetchSpy = makeFetch(() => undefined);
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const before = Date.now();
+    await connector({ resources: ['auth_events'] }).sync(
+      { mode: 'full' },
+      makeStorage(),
+    );
+    const after = Date.now();
+
+    const req = recordCalls(fetchSpy).find((c) =>
+      c.url.includes('/api/v1/logs'),
+    );
+    expect(req).toBeDefined();
+    const since = new URL(req!.url).searchParams.get('since');
+    expect(since).not.toBeNull();
+    const sinceMs = Date.parse(since!);
+    const ninetyDaysMs = 90 * 24 * 60 * 60 * 1000;
+    expect(sinceMs).toBeGreaterThanOrEqual(before - ninetyDaysMs - 1000);
+    expect(sinceMs).toBeLessThanOrEqual(after - ninetyDaysMs + 1000);
   });
 
   it('follows the Link rel="next" cursor for /api/v1/users', async () => {
@@ -585,7 +609,7 @@ describe('OktaConnector.sync', () => {
     expect(groupsCall!).toContain('after=OLD');
   });
 
-  it('pushes a single status filter onto the users request', async () => {
+  it('pushes a single status filter onto the users request as a search expression', async () => {
     const fetchSpy = makeFetch(() => undefined);
     vi.stubGlobal('fetch', fetchSpy);
 
@@ -606,7 +630,8 @@ describe('OktaConnector.sync', () => {
     );
     expect(req).toBeDefined();
     const decoded = decodeURIComponent(req!.url.replace(/\+/g, ' '));
-    expect(decoded).toContain('filter=status eq "ACTIVE"');
+    expect(decoded).toContain('search=status eq "ACTIVE"');
+    expect(decoded).not.toContain('filter=');
   });
 
   it('does not push a status filter when two specs are provided', async () => {
@@ -631,10 +656,10 @@ describe('OktaConnector.sync', () => {
     );
     expect(req).toBeDefined();
     const decoded = decodeURIComponent(req!.url.replace(/\+/g, ' '));
-    expect(decoded).not.toContain('filter=status eq');
+    expect(decoded).not.toContain('status eq');
   });
 
-  it('combines `since` and status pushdown in a single SCIM filter', async () => {
+  it('combines `since` and status pushdown in a single SCIM search expression', async () => {
     const fetchSpy = makeFetch(() => undefined);
     vi.stubGlobal('fetch', fetchSpy);
 
@@ -657,8 +682,10 @@ describe('OktaConnector.sync', () => {
     );
     expect(req).toBeDefined();
     const decoded = decodeURIComponent(req!.url.replace(/\+/g, ' '));
+    expect(decoded).toContain('search=');
     expect(decoded).toContain(`lastUpdated gt "${since}"`);
     expect(decoded).toContain('status eq "ACTIVE"');
+    expect(decoded).not.toContain('filter=');
   });
 
   it('sends the SSWS auth header and routes to the configured host', async () => {
