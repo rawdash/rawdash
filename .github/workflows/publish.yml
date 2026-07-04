@@ -63,6 +63,7 @@ jobs:
         run: npx tsx scripts/check-connector-publishing-prereqs.ts
 
       - name: Create release PR or publish
+        id: changesets
         uses: changesets/action@63a615b9cd06ba9a3e6d13796c7fbcb080a60a0b # v1.8.0
         with:
           publish: npx tsx scripts/npm-oidc-publish.ts
@@ -72,3 +73,10 @@ jobs:
           createGithubReleases: true
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+
+      - name: Reconcile release tags and GitHub releases
+        if: always() && steps.changesets.outcome != 'skipped'
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: npx tsx scripts/reconcile-release-artifacts.ts
