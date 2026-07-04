@@ -38,7 +38,7 @@ Authenticate against the BigQuery API with a Google service account JSON key. Th
 
 ## Resources
 
-- **`gcp_cost_daily`** _(metric)_ - Historical GCP cost per day, summed over the dimensions in `groupBy`. One sample per (date, dimension tuple). Pulls from the gcp*billing_export_v1*\* tables in BigQuery.
+- **`gcp_cost_daily`** _(metric)_ - Historical net GCP cost per day: consumption cost with the credits array (sustained-use, committed-use, free-tier, and promotional credits) netted out, summed over the dimensions in `groupBy`. One sample per (date, dimension tuple). Pulls from the gcp*billing_export_v1*\* tables in BigQuery.
   - Endpoint: `POST /bigquery/v2/projects/{bqProject}/queries`
   - Unit: USD
   - Granularity: daily
