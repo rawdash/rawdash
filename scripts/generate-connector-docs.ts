@@ -368,7 +368,7 @@ function describeConfigFields(
       type = 'secret';
     } else if (inner instanceof z.ZodEnum) {
       type = inner.options.map((v) => `\`${v}\``).join(' \\| ');
-    } else if (inner instanceof z.ZodString) {
+    } else if (inner instanceof z.ZodString || inner.def.type === 'string') {
       type = 'string';
     } else if (inner instanceof z.ZodNumber) {
       type = 'number';
