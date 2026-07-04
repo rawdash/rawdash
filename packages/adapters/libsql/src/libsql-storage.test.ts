@@ -112,6 +112,20 @@ describe('LibsqlStorage — entities', () => {
     await s.close();
   });
 
+  it('returns all entities across types when type is omitted', async () => {
+    const { storage: s } = makeStorage();
+    const h = s.getStorageHandle('c');
+    await h.entities([
+      { type: 'pr', id: '1', attributes: {}, updated_at: 1000 },
+      { type: 'user', id: 'alice', attributes: {}, updated_at: 2000 },
+      { type: 'user', id: 'bob', attributes: {}, updated_at: 3000 },
+    ]);
+    const all = await h.queryEntities({});
+    expect(all).toHaveLength(3);
+    expect(new Set(all.map((e) => e.type))).toEqual(new Set(['pr', 'user']));
+    await s.close();
+  });
+
   it('getEntity returns null for missing', async () => {
     const { storage: s } = makeStorage();
     const h = s.getStorageHandle('c');

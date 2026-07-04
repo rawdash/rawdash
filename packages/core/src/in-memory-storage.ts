@@ -220,11 +220,13 @@ export class InMemoryStorage implements ServerStorage {
       },
 
       queryEntities: async (q: EntityQuery) => {
-        const byType = getEntityMap().get(q.type);
-        if (!byType) {
-          return [];
+        const entityMap = getEntityMap();
+        if (q.type !== undefined) {
+          return Array.from(entityMap.get(q.type)?.values() ?? []);
         }
-        return Array.from(byType.values());
+        return Array.from(entityMap.values()).flatMap((byId) =>
+          Array.from(byId.values()),
+        );
       },
 
       queryMetrics: async (q: MetricQuery) => {

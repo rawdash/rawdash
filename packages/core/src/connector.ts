@@ -86,7 +86,7 @@ export interface EventQuery {
 }
 
 export interface EntityQuery {
-  type: string;
+  type?: string;
 }
 
 export interface MetricQuery {
