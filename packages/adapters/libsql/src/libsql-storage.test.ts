@@ -886,6 +886,13 @@ describe('LibsqlStorage — SchemaNotInitializedError', () => {
     const { storage: s } = makeStorage();
     const h = s.getStorageHandle('c');
     await expect(h.queryEvents({})).resolves.toEqual([]);
+    await expect(h.getEntity('pr', '1')).resolves.toBeNull();
+    await expect(h.queryEntities({ type: 'pr' })).resolves.toEqual([]);
+    await expect(h.queryMetrics({})).resolves.toEqual([]);
+    await expect(h.traverse({})).resolves.toEqual([]);
+    await expect(h.queryDistributions({})).resolves.toEqual([]);
+    await expect(h.queryRollups!({ resource: 'pr' })).resolves.toEqual([]);
+    await expect(h.getRollupWatermark!('pr')).resolves.toBeNull();
     await s.close();
   });
 });

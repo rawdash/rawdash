@@ -54,9 +54,12 @@ export class SchemaNotInitializedError extends Error {
   }
 }
 
+function getErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 function isMissingSchemaError(err: unknown): boolean {
-  const message = err instanceof Error ? err.message : String(err);
-  return MISSING_SCHEMA_PATTERN.test(message);
+  return MISSING_SCHEMA_PATTERN.test(getErrorMessage(err));
 }
 
 async function runRead<T>(fn: () => Promise<T>): Promise<T> {
@@ -64,8 +67,7 @@ async function runRead<T>(fn: () => Promise<T>): Promise<T> {
     return await fn();
   } catch (err) {
     if (isMissingSchemaError(err)) {
-      const message = err instanceof Error ? err.message : String(err);
-      throw new SchemaNotInitializedError(message, { cause: err });
+      throw new SchemaNotInitializedError(getErrorMessage(err), { cause: err });
     }
     throw err;
   }
