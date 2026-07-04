@@ -45,6 +45,7 @@
     "@rawdash/connector-aws-ses": "workspace:*",
     "@rawdash/connector-azure-cost": "workspace:*",
     "@rawdash/connector-azure-monitor": "workspace:*",
+    "@rawdash/connector-bill": "workspace:*",
     "@rawdash/connector-bitbucket": "workspace:*",
     "@rawdash/connector-branch": "workspace:*",
     "@rawdash/connector-calendly": "workspace:*",
