@@ -309,6 +309,7 @@ export { instantiateConnector } from './registry';
 export type {
   GetStorageHandleOptions,
   MarkConnectorSyncSucceededOptions,
+  RekeyConnectorResult,
   ServerStorage,
 } from './server-storage';
 
