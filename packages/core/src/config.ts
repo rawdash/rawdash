@@ -131,6 +131,26 @@ export interface ConfiguredConnector {
   displayName?: string;
 }
 
+export const DEFAULT_SYNC_INTERVAL_SECONDS = 300;
+
+export interface NormalizedConfiguredConnector extends ConfiguredConnector {
+  syncIntervalSeconds: number;
+  enabled: boolean;
+  displayName: string;
+}
+
+export function normalizeConfiguredConnector(
+  entry: ConfiguredConnector,
+): NormalizedConfiguredConnector {
+  return {
+    ...entry,
+    displayName: entry.displayName ?? entry.name,
+    syncIntervalSeconds:
+      entry.syncIntervalSeconds ?? DEFAULT_SYNC_INTERVAL_SECONDS,
+    enabled: entry.enabled ?? true,
+  };
+}
+
 export interface Dashboard {
   widgets: Record<string, Widget>;
 }

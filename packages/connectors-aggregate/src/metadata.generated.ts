@@ -71,6 +71,12 @@ import {
   resources as azureMonitorResources,
 } from '@rawdash/connector-azure-monitor';
 import {
+  configFields as billConfigFields,
+  doc as billDoc,
+  id as billId,
+  resources as billResources,
+} from '@rawdash/connector-bill';
+import {
   configFields as bitbucketConfigFields,
   doc as bitbucketDoc,
   id as bitbucketId,
@@ -124,6 +130,12 @@ import {
   id as entraIdId,
   resources as entraIdResources,
 } from '@rawdash/connector-entra-id';
+import {
+  configFields as expensifyConfigFields,
+  doc as expensifyDoc,
+  id as expensifyId,
+  resources as expensifyResources,
+} from '@rawdash/connector-expensify';
 import {
   configFields as firebaseAnalyticsConfigFields,
   doc as firebaseAnalyticsDoc,
@@ -479,6 +491,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     resources: azureMonitorResources,
   },
   {
+    id: billId,
+    packageName: '@rawdash/connector-bill',
+    doc: billDoc,
+    configFields: billConfigFields,
+    resources: billResources,
+  },
+  {
     id: bitbucketId,
     packageName: '@rawdash/connector-bitbucket',
     doc: bitbucketDoc,
@@ -540,6 +559,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: entraIdDoc,
     configFields: entraIdConfigFields,
     resources: entraIdResources,
+  },
+  {
+    id: expensifyId,
+    packageName: '@rawdash/connector-expensify',
+    doc: expensifyDoc,
+    configFields: expensifyConfigFields,
+    resources: expensifyResources,
   },
   {
     id: firebaseAnalyticsId,

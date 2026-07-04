@@ -21,6 +21,7 @@ export const connectorLoaders: Record<string, () => Promise<ConnectorClass>> = {
     import('@rawdash/connector-azure-cost').then((m) => m.default),
   'azure-monitor': () =>
     import('@rawdash/connector-azure-monitor').then((m) => m.default),
+  bill: () => import('@rawdash/connector-bill').then((m) => m.default),
   bitbucket: () =>
     import('@rawdash/connector-bitbucket').then((m) => m.default),
   branch: () => import('@rawdash/connector-branch').then((m) => m.default),
@@ -32,6 +33,8 @@ export const connectorLoaders: Record<string, () => Promise<ConnectorClass>> = {
   drata: () => import('@rawdash/connector-drata').then((m) => m.default),
   'entra-id': () =>
     import('@rawdash/connector-entra-id').then((m) => m.default),
+  expensify: () =>
+    import('@rawdash/connector-expensify').then((m) => m.default),
   'firebase-analytics': () =>
     import('@rawdash/connector-firebase-analytics').then((m) => m.default),
   'firebase-crashlytics': () =>

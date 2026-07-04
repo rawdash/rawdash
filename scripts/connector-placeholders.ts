@@ -1862,15 +1862,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     requestIssue: 'RAW-220',
   },
   {
-    id: 'bill',
-    name: 'Bill.com',
-    category: 'finance',
-    tagline: 'Sync bills pending, AP aging, and vendor spend from Bill.com.',
-    brandColor: '#005DAA',
-    domain: 'bill.com',
-    requestIssue: 'RAW-434',
-  },
-  {
     id: 'baremetrics',
     name: 'Baremetrics',
     category: 'finance',
@@ -1925,16 +1916,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
       'Sync prices and market caps for a watched set of cryptocurrencies from CoinGecko.',
     brandColor: '#8DC647',
     domain: 'coingecko.com',
-  },
-  {
-    id: 'expensify',
-    name: 'Expensify',
-    category: 'finance',
-    tagline:
-      'Sync reports, expense submissions, and policy violations from Expensify.',
-    icon: 'expensify',
-    domain: 'expensify.com',
-    requestIssue: 'RAW-435',
   },
   {
     id: 'fixer',

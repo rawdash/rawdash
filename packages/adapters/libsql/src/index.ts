@@ -1,4 +1,8 @@
-export { LibsqlStorage, initLibsqlSchema } from './libsql-storage';
+export {
+  LibsqlStorage,
+  SchemaNotInitializedError,
+  initLibsqlSchema,
+} from './libsql-storage';
 export type { LibsqlStorageOptions } from './libsql-storage';
 export { applyMigrations, migrateIfNeeded } from './migrate';
 export type { ApplyMigrationsOptions } from './migrate';
