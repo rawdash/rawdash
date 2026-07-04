@@ -99,3 +99,20 @@ export interface Database {
   connector_sync_state: ConnectorSyncStateTable;
   schema_migrations: SchemaMigrationsTable;
 }
+
+export type ConnectorKeyedTable = {
+  [K in keyof Database]: Database[K] extends { connector_id: string }
+    ? K
+    : never;
+}[keyof Database];
+
+export const CONNECTOR_KEYED_TABLES = [
+  'entities',
+  'events',
+  'metrics',
+  'edges',
+  'distributions',
+  'rollups',
+  'rollup_watermarks',
+  'connector_sync_state',
+] as const satisfies readonly ConnectorKeyedTable[];

@@ -15,6 +15,7 @@ import type {
   MarkConnectorSyncSucceededOptions,
   MetricQuery,
   MetricSample,
+  RekeyConnectorResult,
   RollupBucket,
   RollupPartials,
   RollupQuery,
@@ -39,6 +40,7 @@ import type {
   MetricsTable,
   RollupsTable,
 } from './db-schema';
+import { CONNECTOR_KEYED_TABLES } from './db-schema';
 import { applyMigrations } from './migrate';
 
 type Attrs = Record<string, JSONValue>;
@@ -1004,6 +1006,28 @@ export class LibsqlStorage implements ServerStorage {
       })
       .where('id', '=', SYNC_STATE_ID)
       .execute();
+  }
+
+  async rekeyConnectorId(
+    fromConnectorId: string,
+    toConnectorId: string,
+  ): Promise<RekeyConnectorResult> {
+    if (fromConnectorId === toConnectorId) {
+      return { rowsAffected: 0 };
+    }
+    await this.ready;
+    const results = await this.client.batch(
+      CONNECTOR_KEYED_TABLES.map((table) => ({
+        sql: `UPDATE OR IGNORE ${table} SET connector_id = ? WHERE connector_id = ?`,
+        args: [toConnectorId, fromConnectorId],
+      })),
+      'write',
+    );
+    const rowsAffected = results.reduce(
+      (sum, r) => sum + Number(r.rowsAffected ?? 0),
+      0,
+    );
+    return { rowsAffected };
   }
 
   async close(): Promise<void> {

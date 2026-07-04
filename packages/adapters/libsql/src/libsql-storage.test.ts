@@ -2,7 +2,14 @@ import { type Client, createClient } from '@libsql/client';
 import type { Distribution } from '@rawdash/core';
 import { describe, expect, it, vi } from 'vitest';
 
+import { CONNECTOR_KEYED_TABLES, type ConnectorKeyedTable } from './db-schema';
 import { LibsqlStorage } from './libsql-storage';
+
+type AssertEqual<A, B> = [A] extends [B]
+  ? [B] extends [A]
+    ? true
+    : false
+  : false;
 
 function makeStorage(url = ':memory:'): {
   storage: LibsqlStorage;
@@ -825,5 +832,148 @@ describe('LibsqlStorage — deleteByIdentity', () => {
     const result = await h.deleteByIdentity!({});
     expect(result.rowsDeleted).toBe(0);
     await s.close();
+  });
+});
+
+describe('LibsqlStorage — rekeyConnectorId', () => {
+  async function seedConnector(s: LibsqlStorage, connectorId: string) {
+    const h = s.getStorageHandle(connectorId);
+    await h.event({
+      name: 'run',
+      start_ts: 1000,
+      end_ts: null,
+      attributes: {},
+    });
+    await h.entity({ type: 'pr', id: '1', attributes: {}, updated_at: 1000 });
+    await h.metric({ name: 'latency', ts: 1000, value: 1, attributes: {} });
+    await h.edge({
+      from_type: 'pr',
+      from_id: '1',
+      kind: 'authored',
+      to_type: 'user',
+      to_id: 'alice',
+      attributes: {},
+      updated_at: 1000,
+    });
+    await h.distribution({
+      name: 'sizes',
+      ts: 1000,
+      kind: 'histogram',
+      data: { buckets: [], count: 0, sum: 0 },
+      attributes: {},
+    });
+    await h.writeRollups!([
+      {
+        resource: 'pr',
+        field: '',
+        granularity: 'day',
+        dims: {},
+        bucketStart: 1000,
+        partials: {
+          count: 1,
+          numericCount: 1,
+          sum: 1,
+          min: 1,
+          max: 1,
+          firstTs: 1000,
+          firstValue: 1,
+          latestTs: 1000,
+          latestValue: 1,
+        },
+      },
+    ]);
+    await h.setRollupWatermark!('pr', 5000);
+    await s.markConnectorSyncSucceeded!(connectorId);
+  }
+
+  it('rewrites connector_id across every connector-keyed table', async () => {
+    const { storage: s } = makeStorage();
+    await seedConnector(s, 'old');
+
+    const result = await s.rekeyConnectorId('old', 'new');
+    expect(result.rowsAffected).toBe(CONNECTOR_KEYED_TABLES.length);
+
+    const oldHandle = s.getStorageHandle('old');
+    expect(await oldHandle.queryEvents({})).toHaveLength(0);
+    expect(await oldHandle.queryEntities({})).toHaveLength(0);
+    expect(await oldHandle.queryMetrics({})).toHaveLength(0);
+    expect(await oldHandle.traverse({})).toHaveLength(0);
+    expect(await oldHandle.queryDistributions({})).toHaveLength(0);
+    expect(await oldHandle.queryRollups!({ resource: 'pr' })).toHaveLength(0);
+    expect(await oldHandle.getRollupWatermark!('pr')).toBeNull();
+
+    const newHandle = s.getStorageHandle('new');
+    expect(await newHandle.queryEvents({})).toHaveLength(1);
+    expect(await newHandle.queryEntities({})).toHaveLength(1);
+    expect(await newHandle.queryMetrics({})).toHaveLength(1);
+    expect(await newHandle.traverse({})).toHaveLength(1);
+    expect(await newHandle.queryDistributions({})).toHaveLength(1);
+    expect(await newHandle.queryRollups!({ resource: 'pr' })).toHaveLength(1);
+    expect(await newHandle.getRollupWatermark!('pr')).toBe(5000);
+    expect((await s.getConnectorSyncState!('new')).lastSyncAt).not.toBeNull();
+    expect((await s.getConnectorSyncState!('old')).lastSyncAt).toBeNull();
+
+    await s.close();
+  });
+
+  it('leaves other connectors untouched', async () => {
+    const { storage: s } = makeStorage();
+    await seedConnector(s, 'old');
+    await seedConnector(s, 'other');
+
+    await s.rekeyConnectorId('old', 'new');
+
+    expect(await s.getStorageHandle('other').queryEvents({})).toHaveLength(1);
+    await s.close();
+  });
+
+  it('is a no-op when from and to are equal', async () => {
+    const { storage: s } = makeStorage();
+    await seedConnector(s, 'old');
+
+    const result = await s.rekeyConnectorId('old', 'old');
+    expect(result.rowsAffected).toBe(0);
+    expect(await s.getStorageHandle('old').queryEvents({})).toHaveLength(1);
+    await s.close();
+  });
+
+  it('skips rows that would collide with the target via OR IGNORE', async () => {
+    const { storage: s } = makeStorage();
+    const oldHandle = s.getStorageHandle('old');
+    await oldHandle.entity({
+      type: 'pr',
+      id: '1',
+      attributes: { owner: 'old' },
+      updated_at: 1000,
+    });
+    const newHandle = s.getStorageHandle('new');
+    await newHandle.entity({
+      type: 'pr',
+      id: '1',
+      attributes: { owner: 'new' },
+      updated_at: 2000,
+    });
+
+    await s.rekeyConnectorId('old', 'new');
+
+    const oldRows = await s
+      .getStorageHandle('old')
+      .queryEntities({ type: 'pr' });
+    expect(oldRows).toHaveLength(1);
+    expect(oldRows[0]!.attributes['owner']).toBe('old');
+    const newRows = await s
+      .getStorageHandle('new')
+      .queryEntities({ type: 'pr' });
+    expect(newRows).toHaveLength(1);
+    expect(newRows[0]!.attributes['owner']).toBe('new');
+    await s.close();
+  });
+
+  it('exhaustively covers the connector-keyed tables in the schema', () => {
+    const complete: AssertEqual<
+      (typeof CONNECTOR_KEYED_TABLES)[number],
+      ConnectorKeyedTable
+    > = true;
+    expect(complete).toBe(true);
   });
 });

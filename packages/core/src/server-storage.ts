@@ -10,6 +10,10 @@ export interface MarkConnectorSyncSucceededOptions {
   backfillDue?: boolean;
 }
 
+export interface RekeyConnectorResult {
+  rowsAffected: number;
+}
+
 export interface ServerStorage {
   getStorageHandle(
     connectorId: string,
@@ -26,4 +30,8 @@ export interface ServerStorage {
     connectorId: string,
     options?: MarkConnectorSyncSucceededOptions,
   ): Promise<void>;
+  rekeyConnectorId?(
+    fromConnectorId: string,
+    toConnectorId: string,
+  ): Promise<RekeyConnectorResult>;
 }
