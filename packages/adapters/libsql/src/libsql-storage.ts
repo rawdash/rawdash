@@ -45,6 +45,32 @@ type Attrs = Record<string, JSONValue>;
 
 const SYNC_STATE_ID = 1;
 
+const MISSING_SCHEMA_PATTERN = /no such (table|column)/i;
+
+export class SchemaNotInitializedError extends Error {
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = 'SchemaNotInitializedError';
+  }
+}
+
+function isMissingSchemaError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return MISSING_SCHEMA_PATTERN.test(message);
+}
+
+async function runRead<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (err) {
+    if (isMissingSchemaError(err)) {
+      const message = err instanceof Error ? err.message : String(err);
+      throw new SchemaNotInitializedError(message, { cause: err });
+    }
+    throw err;
+  }
+}
+
 export async function initLibsqlSchema(client: Client): Promise<void> {
   await applyMigrations(client, { assumeLegacyBaselineIfEventsExists: true });
   await client.execute({
@@ -444,7 +470,7 @@ export class LibsqlStorage implements ServerStorage {
         if (q.end !== undefined) {
           qb = qb.where('start_ts', '<=', q.end);
         }
-        const rows = await qb.execute();
+        const rows = await runRead(() => qb.execute());
         return rows.map(
           (r): Event => ({
             name: r.name,
@@ -457,14 +483,16 @@ export class LibsqlStorage implements ServerStorage {
 
       getEntity: async (type, id) => {
         await ready;
-        const r = await db
-          .selectFrom('entities')
-          .select(['type', 'id', 'attributes', 'updated_at'])
-          .where('connector_id', '=', connectorId)
-          .where('type', '=', type)
-          .where('id', '=', id)
-          .limit(1)
-          .executeTakeFirst();
+        const r = await runRead(() =>
+          db
+            .selectFrom('entities')
+            .select(['type', 'id', 'attributes', 'updated_at'])
+            .where('connector_id', '=', connectorId)
+            .where('type', '=', type)
+            .where('id', '=', id)
+            .limit(1)
+            .executeTakeFirst(),
+        );
         if (!r) {
           return null;
         }
@@ -485,7 +513,7 @@ export class LibsqlStorage implements ServerStorage {
         if (q.type !== undefined) {
           qb = qb.where('type', '=', q.type);
         }
-        const rows = await qb.execute();
+        const rows = await runRead(() => qb.execute());
         return rows.map(
           (r): Entity => ({
             type: r.type,
@@ -511,7 +539,7 @@ export class LibsqlStorage implements ServerStorage {
         if (q.end !== undefined) {
           qb = qb.where('ts', '<=', q.end);
         }
-        const rows = await qb.execute();
+        const rows = await runRead(() => qb.execute());
         return rows.map(
           (r): MetricSample => ({
             name: r.name,
@@ -551,7 +579,7 @@ export class LibsqlStorage implements ServerStorage {
         if (q.toId !== undefined) {
           qb = qb.where('to_id', '=', q.toId);
         }
-        const rows = await qb.execute();
+        const rows = await runRead(() => qb.execute());
         return rows.map(
           (r): Edge => ({
             from_type: r.from_type,
@@ -580,7 +608,7 @@ export class LibsqlStorage implements ServerStorage {
         if (q.end !== undefined) {
           qb = qb.where('ts', '<=', q.end);
         }
-        const rows = await qb.execute();
+        const rows = await runRead(() => qb.execute());
         return rows.map((r) => {
           const base = {
             name: r.name,
@@ -806,7 +834,7 @@ export class LibsqlStorage implements ServerStorage {
         if (q.end !== undefined) {
           qb = qb.where('bucket_start', '<', q.end);
         }
-        const rows = await qb.execute();
+        const rows = await runRead(() => qb.execute());
         return rows.map(
           (r): RollupBucket => ({
             resource: r.resource,
@@ -831,13 +859,15 @@ export class LibsqlStorage implements ServerStorage {
 
       getRollupWatermark: async (resource: string) => {
         await ready;
-        const r = await db
-          .selectFrom('rollup_watermarks')
-          .select(['watermark'])
-          .where('connector_id', '=', connectorId)
-          .where('resource', '=', resource)
-          .limit(1)
-          .executeTakeFirst();
+        const r = await runRead(() =>
+          db
+            .selectFrom('rollup_watermarks')
+            .select(['watermark'])
+            .where('connector_id', '=', connectorId)
+            .where('resource', '=', resource)
+            .limit(1)
+            .executeTakeFirst(),
+        );
         return r ? Number(r.watermark) : null;
       },
 
