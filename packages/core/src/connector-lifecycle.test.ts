@@ -33,6 +33,7 @@ describe('DEFAULT_CONNECTOR_LIFECYCLE_STATE', () => {
     expect(DEFAULT_CONNECTOR_LIFECYCLE_STATE).toEqual({
       status: 'idle',
       consecutiveFailures: 0,
+      consecutiveInfraFailures: 0,
       lastSyncAt: null,
       lastError: null,
       nextRetryAt: null,
@@ -65,6 +66,7 @@ describe('advanceConnectorLifecycle', () => {
     expect(succeeded).toEqual({
       status: 'idle',
       consecutiveFailures: 0,
+      consecutiveInfraFailures: 0,
       lastSyncAt: AT,
       lastError: null,
       nextRetryAt: null,
@@ -154,22 +156,21 @@ describe('advanceConnectorLifecycle', () => {
     expect(state.status).toBe('paused');
   });
 
-  it('retries a retryable-infra failure without advancing toward pause', () => {
-    let state = DEFAULT_CONNECTOR_LIFECYCLE_STATE;
-    for (
-      let i = 0;
-      i < DEFAULT_CONNECTOR_LIFECYCLE_POLICY.pauseAfterFailures * 2;
-      i++
-    ) {
-      state = advanceConnectorLifecycle(state, {
-        type: 'sync-failed',
-        at: AT,
-        error: 'turso unreachable',
-        kind: 'retryable-infra',
-      });
-    }
+  function infraFail(
+    from: ConnectorLifecycleState = DEFAULT_CONNECTOR_LIFECYCLE_STATE,
+  ): ConnectorLifecycleState {
+    return advanceConnectorLifecycle(from, {
+      type: 'sync-failed',
+      at: AT,
+      error: 'turso unreachable',
+      kind: 'retryable-infra',
+    });
+  }
+
+  it('enters a retryable error on a retryable-infra failure with base backoff', () => {
+    const state = infraFail();
     expect(state.status).toBe('error');
-    expect(state.consecutiveFailures).toBe(0);
+    expect(state.consecutiveInfraFailures).toBe(1);
     expect(state.lastError).toBe('turso unreachable');
     expect(state.nextRetryAt).toBe(
       new Date(
@@ -179,16 +180,48 @@ describe('advanceConnectorLifecycle', () => {
     );
   });
 
+  it('backs off exponentially on repeated retryable-infra failures without pausing', () => {
+    let state = DEFAULT_CONNECTOR_LIFECYCLE_STATE;
+    for (
+      let i = 0;
+      i < DEFAULT_CONNECTOR_LIFECYCLE_POLICY.pauseAfterFailures * 2;
+      i++
+    ) {
+      state = infraFail(state);
+      expect(state.status).toBe('error');
+      expect(state.consecutiveFailures).toBe(0);
+    }
+    expect(state.consecutiveInfraFailures).toBe(
+      DEFAULT_CONNECTOR_LIFECYCLE_POLICY.pauseAfterFailures * 2,
+    );
+
+    const first = infraFail();
+    const second = infraFail(first);
+    const firstDelay =
+      new Date(first.nextRetryAt!).getTime() - new Date(AT).getTime();
+    const secondDelay =
+      new Date(second.nextRetryAt!).getTime() - new Date(AT).getTime();
+    expect(secondDelay).toBe(firstDelay * 2);
+  });
+
   it('does not let a retryable-infra failure raise an existing pause counter', () => {
     const faulted = failN(3);
-    const infra = advanceConnectorLifecycle(faulted, {
-      type: 'sync-failed',
-      at: AT,
-      error: 'turso unreachable',
-      kind: 'retryable-infra',
-    });
+    const infra = infraFail(faulted);
     expect(infra.status).toBe('error');
     expect(infra.consecutiveFailures).toBe(3);
+    expect(infra.consecutiveInfraFailures).toBe(1);
+  });
+
+  it('resets the infra backoff once a real connector fault takes over', () => {
+    const infra = infraFail(infraFail());
+    expect(infra.consecutiveInfraFailures).toBe(2);
+    const faulted = advanceConnectorLifecycle(infra, {
+      type: 'sync-failed',
+      at: AT,
+      error: 'bad payload',
+    });
+    expect(faulted.consecutiveFailures).toBe(1);
+    expect(faulted.consecutiveInfraFailures).toBe(0);
   });
 
   it('recovers to idle once a retryable-infra outage clears', () => {

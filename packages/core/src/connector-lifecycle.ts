@@ -17,6 +17,7 @@ export type SyncFailureKind =
 export interface ConnectorLifecycleState {
   status: ConnectorLifecycleStatus;
   consecutiveFailures: number;
+  consecutiveInfraFailures: number;
   lastSyncAt: string | null;
   lastError: string | null;
   nextRetryAt: string | null;
@@ -26,6 +27,7 @@ export const DEFAULT_CONNECTOR_LIFECYCLE_STATE: ConnectorLifecycleState =
   Object.freeze({
     status: 'idle',
     consecutiveFailures: 0,
+    consecutiveInfraFailures: 0,
     lastSyncAt: null,
     lastError: null,
     nextRetryAt: null,
@@ -85,6 +87,7 @@ export function advanceConnectorLifecycle(
       return {
         status: 'idle',
         consecutiveFailures: 0,
+        consecutiveInfraFailures: 0,
         lastSyncAt: event.at,
         lastError: null,
         nextRetryAt: null,
@@ -97,6 +100,7 @@ export function advanceConnectorLifecycle(
         return {
           status: 'auth_failed',
           consecutiveFailures: state.consecutiveFailures + 1,
+          consecutiveInfraFailures: 0,
           lastSyncAt: state.lastSyncAt,
           lastError: event.error,
           nextRetryAt: null,
@@ -104,10 +108,11 @@ export function advanceConnectorLifecycle(
       }
 
       if (kind === 'retryable-infra') {
+        const consecutiveInfraFailures = state.consecutiveInfraFailures + 1;
         const nextRetryAt = new Date(
           new Date(event.at).getTime() +
             computeRetryBackoffMs(
-              state.consecutiveFailures,
+              consecutiveInfraFailures,
               policy.errorBackoff,
             ),
         ).toISOString();
@@ -115,6 +120,7 @@ export function advanceConnectorLifecycle(
         return {
           status: 'error',
           consecutiveFailures: state.consecutiveFailures,
+          consecutiveInfraFailures,
           lastSyncAt: state.lastSyncAt,
           lastError: event.error,
           nextRetryAt,
@@ -133,6 +139,7 @@ export function advanceConnectorLifecycle(
       return {
         status: paused ? 'paused' : 'error',
         consecutiveFailures,
+        consecutiveInfraFailures: 0,
         lastSyncAt: state.lastSyncAt,
         lastError: event.error,
         nextRetryAt,
