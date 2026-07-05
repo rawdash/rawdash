@@ -381,8 +381,19 @@ export class GcpMonitoringConnector extends BaseConnector<
     storage: StorageHandle,
     signal?: AbortSignal,
   ): Promise<SyncResult> {
-    const queries = this.settings.metricQueries;
+    const allQueries = this.settings.metricQueries;
+    if (allQueries.length === 0) {
+      return { done: true };
+    }
+
+    const queries =
+      options.resources && options.resources.size > 0
+        ? allQueries.filter((q) => options.resources!.has(q.metricType))
+        : allQueries;
     if (queries.length === 0) {
+      this.logger.info('resource skipped', {
+        reason: 'no configured metric query matches requested resources',
+      });
       return { done: true };
     }
 
@@ -464,7 +475,10 @@ export class GcpMonitoringConnector extends BaseConnector<
       });
     }
 
-    await storage.metrics(samples, { names: [...names] });
+    await storage.metrics(samples, {
+      names: [...names],
+      replaceWindow: { start: startMs, end: endMs },
+    });
     return { done: true };
   }
 }
