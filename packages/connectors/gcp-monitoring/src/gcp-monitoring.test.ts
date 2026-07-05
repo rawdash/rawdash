@@ -312,6 +312,155 @@ describe('GcpMonitoringConnector sync', () => {
     );
     expect(metricsFor(storage).map((m) => m.value)).toEqual([42, 1]);
   });
+
+  it('preserves history outside the fetched window on a later narrow sync', async () => {
+    const backfillTs = '2024-01-01T00:00:00Z';
+    const backfillMs = Date.parse(backfillTs);
+    installFetch((url) => {
+      if (url.startsWith('https://oauth2.googleapis.com/token')) {
+        return { body: { access_token: 'tok', expires_in: 3600 } };
+      }
+      const parsed = new URL(url);
+      const startMs = Date.parse(
+        parsed.searchParams.get('interval.startTime')!,
+      );
+      const point =
+        startMs <= backfillMs
+          ? { interval: { endTime: backfillTs }, value: { doubleValue: 7 } }
+          : {
+              interval: { endTime: new Date(startMs).toISOString() },
+              value: { doubleValue: 9 },
+            };
+      return {
+        body: {
+          timeSeries: [
+            {
+              metric: {
+                type: 'compute.googleapis.com/instance/cpu/utilization',
+              },
+              points: [point],
+            },
+          ],
+        },
+      };
+    });
+
+    const storage = new InMemoryStorage();
+    await makeConnector().sync(
+      { mode: 'full', since: backfillTs },
+      storage.getStorageHandle(CONNECTOR_ID),
+    );
+    expect(metricsFor(storage).map((m) => m.value)).toEqual([7]);
+
+    await makeConnector().sync(
+      { mode: 'latest' },
+      storage.getStorageHandle(CONNECTOR_ID),
+    );
+
+    const values = metricsFor(storage).map((m) => m.value);
+    expect(values).toContain(7);
+    expect(values).toContain(9);
+  });
+
+  it('skips metric queries not named in options.resources', async () => {
+    const spy = installFetch((url) => {
+      if (url.startsWith('https://oauth2.googleapis.com/token')) {
+        return { body: { access_token: 'tok', expires_in: 3600 } };
+      }
+      return {
+        body: {
+          timeSeries: [
+            {
+              metric: {
+                type: 'compute.googleapis.com/instance/cpu/utilization',
+              },
+              points: [
+                {
+                  interval: { endTime: '2024-01-01T00:05:00Z' },
+                  value: { doubleValue: 1 },
+                },
+              ],
+            },
+          ],
+        },
+      };
+    });
+
+    const storage = new InMemoryStorage();
+    await makeConnector().sync(
+      { mode: 'full', resources: new Set(['some.other.metric/type']) },
+      storage.getStorageHandle(CONNECTOR_ID),
+    );
+
+    expect(metricsFor(storage)).toEqual([]);
+    const monitoringCalls = spy.mock.calls
+      .map(([u]) => String(u))
+      .filter((u) => u.startsWith('https://monitoring.'));
+    expect(monitoringCalls).toEqual([]);
+  });
+
+  it('syncs only the metric query named in options.resources', async () => {
+    const spy = installFetch((url) => {
+      if (url.startsWith('https://oauth2.googleapis.com/token')) {
+        return { body: { access_token: 'tok', expires_in: 3600 } };
+      }
+      const parsed = new URL(url);
+      const type = /metric\.type = "([^"]+)"/.exec(
+        parsed.searchParams.get('filter') ?? '',
+      )?.[1];
+      return {
+        body: {
+          timeSeries: [
+            {
+              metric: { type },
+              points: [
+                {
+                  interval: { endTime: '2024-01-01T00:05:00Z' },
+                  value: { doubleValue: type === 'a.googleapis.com/x' ? 1 : 2 },
+                },
+              ],
+            },
+          ],
+        },
+      };
+    });
+
+    const connector = new GcpMonitoringConnector(
+      {
+        projectId: 'my-project',
+        metricQueries: [
+          {
+            id: 'a',
+            metricType: 'a.googleapis.com/x',
+            alignmentPeriod: '300s',
+            perSeriesAligner: 'ALIGN_MEAN',
+          },
+          {
+            id: 'b',
+            metricType: 'b.googleapis.com/y',
+            alignmentPeriod: '300s',
+            perSeriesAligner: 'ALIGN_MEAN',
+          },
+        ],
+      },
+      { serviceAccountJson: TEST_SA_JSON },
+    );
+
+    const storage = new InMemoryStorage();
+    await connector.sync(
+      { mode: 'full', resources: new Set(['b.googleapis.com/y']) },
+      storage.getStorageHandle(CONNECTOR_ID),
+    );
+
+    expect(metricsFor(storage).map((m) => m.name)).toEqual([
+      'b.googleapis.com/y',
+    ]);
+    const filters = spy.mock.calls
+      .map(([u]) => String(u))
+      .filter((u) => u.startsWith('https://monitoring.'))
+      .map((u) => new URL(u).searchParams.get('filter'));
+    expect(filters).toEqual(['metric.type = "b.googleapis.com/y"']);
+  });
 });
 
 describe('parseDurationSeconds', () => {
