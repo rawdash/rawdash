@@ -48,6 +48,7 @@
     "@rawdash/connector-bill": "workspace:*",
     "@rawdash/connector-bitbucket": "workspace:*",
     "@rawdash/connector-branch": "workspace:*",
+    "@rawdash/connector-cal-com": "workspace:*",
     "@rawdash/connector-calendly": "workspace:*",
     "@rawdash/connector-circleci": "workspace:*",
     "@rawdash/connector-clerk": "workspace:*",

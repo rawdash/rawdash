@@ -89,6 +89,12 @@ import {
   resources as branchResources,
 } from '@rawdash/connector-branch';
 import {
+  configFields as calComConfigFields,
+  doc as calComDoc,
+  id as calComId,
+  resources as calComResources,
+} from '@rawdash/connector-cal-com';
+import {
   configFields as calendlyConfigFields,
   doc as calendlyDoc,
   id as calendlyId,
@@ -516,6 +522,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: branchDoc,
     configFields: branchConfigFields,
     resources: branchResources,
+  },
+  {
+    id: calComId,
+    packageName: '@rawdash/connector-cal-com',
+    doc: calComDoc,
+    configFields: calComConfigFields,
+    resources: calComResources,
   },
   {
     id: calendlyId,

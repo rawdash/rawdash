@@ -1525,16 +1525,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     requestIssue: 'RAW-237',
   },
   {
-    id: 'cal-com',
-    name: 'Cal.com',
-    category: 'sales',
-    tagline:
-      'Sync bookings, no-shows, and per-event-type performance from Cal.com.',
-    icon: 'caldotcom',
-    domain: 'cal.com',
-    requestIssue: 'RAW-438',
-  },
-  {
     id: 'chorus',
     name: 'Chorus',
     category: 'sales',
