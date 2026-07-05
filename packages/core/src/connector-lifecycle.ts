@@ -46,6 +46,25 @@ export type ConnectorLifecycleEvent =
   | { type: 'sync-succeeded'; at: string }
   | { type: 'sync-failed'; at: string; error: string; kind?: SyncFailureKind };
 
+export type ConnectorLifecycleTransitionType =
+  | 'paused'
+  | 'auth-failed'
+  | 'recovered'
+  | 'still-failing';
+
+export interface ConnectorLifecycleTransition extends ConnectorLifecycleState {
+  type: ConnectorLifecycleTransitionType;
+}
+
+export type ConnectorLifecycleListener = (
+  transition: ConnectorLifecycleTransition,
+) => void;
+
+export interface ConnectorLifecycleReduction {
+  state: ConnectorLifecycleState;
+  transition: ConnectorLifecycleTransition | null;
+}
+
 const RECOVERABLE_LIFECYCLE_STATUSES: ReadonlySet<ConnectorLifecycleStatus> =
   new Set(['idle', 'syncing', 'error', 'paused']);
 
@@ -117,6 +136,49 @@ export function advanceConnectorLifecycle(
       };
     }
   }
+}
+
+function transitionFromState(
+  type: ConnectorLifecycleTransitionType,
+  state: ConnectorLifecycleState,
+): ConnectorLifecycleTransition {
+  return { type, ...state };
+}
+
+export function deriveConnectorLifecycleTransition(
+  previous: ConnectorLifecycleState,
+  next: ConnectorLifecycleState,
+  policy: ConnectorLifecyclePolicy = DEFAULT_CONNECTOR_LIFECYCLE_POLICY,
+): ConnectorLifecycleTransition | null {
+  if (next.status === 'idle' && previous.consecutiveFailures > 0) {
+    return transitionFromState('recovered', next);
+  }
+
+  if (next.status === 'auth_failed' && previous.status !== 'auth_failed') {
+    return transitionFromState('auth-failed', next);
+  }
+
+  if (next.status === 'paused') {
+    const type =
+      previous.consecutiveFailures >= policy.pauseAfterFailures
+        ? 'still-failing'
+        : 'paused';
+    return transitionFromState(type, next);
+  }
+
+  return null;
+}
+
+export function advanceConnectorLifecycleWithTransition(
+  state: ConnectorLifecycleState,
+  event: ConnectorLifecycleEvent,
+  policy: ConnectorLifecyclePolicy = DEFAULT_CONNECTOR_LIFECYCLE_POLICY,
+): ConnectorLifecycleReduction {
+  const next = advanceConnectorLifecycle(state, event, policy);
+  return {
+    state: next,
+    transition: deriveConnectorLifecycleTransition(state, next, policy),
+  };
 }
 
 export function connectorHealthFromLifecycle(

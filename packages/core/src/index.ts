@@ -131,16 +131,22 @@ export {
 
 export type {
   ConnectorLifecycleEvent,
+  ConnectorLifecycleListener,
   ConnectorLifecyclePolicy,
+  ConnectorLifecycleReduction,
   ConnectorLifecycleState,
   ConnectorLifecycleStatus,
+  ConnectorLifecycleTransition,
+  ConnectorLifecycleTransitionType,
   SyncFailureKind,
 } from './connector-lifecycle';
 export {
   advanceConnectorLifecycle,
+  advanceConnectorLifecycleWithTransition,
   connectorHealthFromLifecycle,
   DEFAULT_CONNECTOR_LIFECYCLE_POLICY,
   DEFAULT_CONNECTOR_LIFECYCLE_STATE,
+  deriveConnectorLifecycleTransition,
   isRecoverable,
   isSchedulable,
 } from './connector-lifecycle';
