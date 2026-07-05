@@ -6,7 +6,9 @@ import {
   DEFAULT_CONNECTOR_LIFECYCLE_POLICY,
   DEFAULT_CONNECTOR_LIFECYCLE_STATE,
   advanceConnectorLifecycle,
+  advanceConnectorLifecycleWithTransition,
   connectorHealthFromLifecycle,
+  deriveConnectorLifecycleTransition,
   isRecoverable,
   isSchedulable,
 } from './connector-lifecycle';
@@ -240,5 +242,208 @@ describe('connectorHealthFromLifecycle', () => {
       lastError: 'boom 0',
       syncIntervalSeconds: 300,
     });
+  });
+});
+
+describe('deriveConnectorLifecycleTransition', () => {
+  const threshold = DEFAULT_CONNECTOR_LIFECYCLE_POLICY.pauseAfterFailures;
+
+  it('emits nothing for routine progress', () => {
+    const syncing = advanceConnectorLifecycle(
+      DEFAULT_CONNECTOR_LIFECYCLE_STATE,
+      {
+        type: 'sync-started',
+      },
+    );
+    expect(
+      deriveConnectorLifecycleTransition(
+        DEFAULT_CONNECTOR_LIFECYCLE_STATE,
+        syncing,
+      ),
+    ).toBeNull();
+
+    const idle = advanceConnectorLifecycle(syncing, {
+      type: 'sync-succeeded',
+      at: AT,
+    });
+    expect(deriveConnectorLifecycleTransition(syncing, idle)).toBeNull();
+  });
+
+  it('emits nothing for a transient error below the pause threshold', () => {
+    const prev = DEFAULT_CONNECTOR_LIFECYCLE_STATE;
+    const next = advanceConnectorLifecycle(prev, {
+      type: 'sync-failed',
+      at: AT,
+      error: 'timeout',
+    });
+    expect(next.status).toBe('error');
+    expect(deriveConnectorLifecycleTransition(prev, next)).toBeNull();
+  });
+
+  it('emits paused when the connector first crosses the threshold', () => {
+    const prev = failN(threshold - 1);
+    const next = advanceConnectorLifecycle(prev, {
+      type: 'sync-failed',
+      at: AT,
+      error: 'still down',
+    });
+    expect(next.status).toBe('paused');
+    expect(deriveConnectorLifecycleTransition(prev, next)).toEqual({
+      type: 'paused',
+      status: 'paused',
+      consecutiveFailures: threshold,
+      lastError: 'still down',
+      lastSyncAt: null,
+      nextRetryAt: next.nextRetryAt,
+    });
+  });
+
+  it('emits still-failing when a paused connector keeps failing', () => {
+    const paused = failN(threshold);
+    const next = advanceConnectorLifecycle(paused, {
+      type: 'sync-failed',
+      at: AT,
+      error: 'again',
+    });
+    expect(next.status).toBe('paused');
+    expect(deriveConnectorLifecycleTransition(paused, next)?.type).toBe(
+      'still-failing',
+    );
+  });
+
+  it('treats a re-pause after an interposed sync attempt as still-failing', () => {
+    const paused = failN(threshold);
+    const retrying = advanceConnectorLifecycle(paused, {
+      type: 'sync-started',
+    });
+    const next = advanceConnectorLifecycle(retrying, {
+      type: 'sync-failed',
+      at: AT,
+      error: 'again',
+    });
+    expect(next.status).toBe('paused');
+    expect(deriveConnectorLifecycleTransition(retrying, next)?.type).toBe(
+      'still-failing',
+    );
+  });
+
+  it('emits auth-failed on entry into auth_failed', () => {
+    const prev = DEFAULT_CONNECTOR_LIFECYCLE_STATE;
+    const next = advanceConnectorLifecycle(prev, {
+      type: 'sync-failed',
+      at: AT,
+      error: 'revoked',
+      kind: 'auth',
+    });
+    expect(deriveConnectorLifecycleTransition(prev, next)).toEqual({
+      type: 'auth-failed',
+      status: 'auth_failed',
+      consecutiveFailures: 1,
+      lastError: 'revoked',
+      lastSyncAt: null,
+      nextRetryAt: null,
+    });
+  });
+
+  it('does not re-emit auth-failed while already auth_failed', () => {
+    const authFailed = advanceConnectorLifecycle(
+      DEFAULT_CONNECTOR_LIFECYCLE_STATE,
+      { type: 'sync-failed', at: AT, error: 'revoked', kind: 'auth' },
+    );
+    const next = advanceConnectorLifecycle(authFailed, {
+      type: 'sync-failed',
+      at: AT,
+      error: 'revoked again',
+      kind: 'auth',
+    });
+    expect(deriveConnectorLifecycleTransition(authFailed, next)).toBeNull();
+  });
+
+  it('emits recovered when a failing connector returns to idle', () => {
+    const paused = failN(threshold);
+    const retrying = advanceConnectorLifecycle(paused, {
+      type: 'sync-started',
+    });
+    const next = advanceConnectorLifecycle(retrying, {
+      type: 'sync-succeeded',
+      at: AT,
+    });
+    expect(deriveConnectorLifecycleTransition(retrying, next)).toEqual({
+      type: 'recovered',
+      status: 'idle',
+      consecutiveFailures: 0,
+      lastError: null,
+      lastSyncAt: AT,
+      nextRetryAt: null,
+    });
+  });
+
+  it('emits recovered directly out of auth_failed', () => {
+    const authFailed = advanceConnectorLifecycle(
+      DEFAULT_CONNECTOR_LIFECYCLE_STATE,
+      { type: 'sync-failed', at: AT, error: 'revoked', kind: 'auth' },
+    );
+    const next = advanceConnectorLifecycle(authFailed, {
+      type: 'sync-succeeded',
+      at: AT,
+    });
+    expect(deriveConnectorLifecycleTransition(authFailed, next)?.type).toBe(
+      'recovered',
+    );
+  });
+
+  it('honors a custom pause threshold', () => {
+    const policy = {
+      errorBackoff: { baseMs: 1_000, ceilingMs: 10_000 },
+      pauseAfterFailures: 2,
+      pausedRetryMs: 100_000,
+    };
+    const once = advanceConnectorLifecycle(
+      DEFAULT_CONNECTOR_LIFECYCLE_STATE,
+      { type: 'sync-failed', at: AT, error: 'x' },
+      policy,
+    );
+    const twice = advanceConnectorLifecycle(
+      once,
+      { type: 'sync-failed', at: AT, error: 'x' },
+      policy,
+    );
+    expect(deriveConnectorLifecycleTransition(once, twice, policy)?.type).toBe(
+      'paused',
+    );
+  });
+});
+
+describe('advanceConnectorLifecycleWithTransition', () => {
+  it('returns the advanced state alongside the derived transition', () => {
+    const prev = failN(
+      DEFAULT_CONNECTOR_LIFECYCLE_POLICY.pauseAfterFailures - 1,
+    );
+    const { state, transition } = advanceConnectorLifecycleWithTransition(
+      prev,
+      {
+        type: 'sync-failed',
+        at: AT,
+        error: 'down',
+      },
+    );
+    expect(state.status).toBe('paused');
+    expect(transition).toEqual({
+      type: 'paused',
+      status: 'paused',
+      consecutiveFailures:
+        DEFAULT_CONNECTOR_LIFECYCLE_POLICY.pauseAfterFailures,
+      lastError: 'down',
+      lastSyncAt: null,
+      nextRetryAt: state.nextRetryAt,
+    });
+  });
+
+  it('returns a null transition when nothing noteworthy changes', () => {
+    const { transition } = advanceConnectorLifecycleWithTransition(
+      DEFAULT_CONNECTOR_LIFECYCLE_STATE,
+      { type: 'sync-started' },
+    );
+    expect(transition).toBeNull();
   });
 });
