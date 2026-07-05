@@ -1,6 +1,6 @@
 {
   "name": "@rawdash/connector-bill",
-  "version": "0.29.2",
+  "version": "0.30.0",
   "description": "Rawdash connector for BILL (Bill.com) — accounts payable bills, vendors, and payments",
   "license": "Apache-2.0",
   "type": "module",

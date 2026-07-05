@@ -1,5 +1,25 @@
 # @rawdash/core
 
+## 0.30.0
+
+### Minor Changes
+
+- 5391ee0: Classify sync failures inside the connector lifecycle so transient infrastructure problems no longer push a healthy connector toward `paused`. `SyncFailureKind` now has three categories: `retryable-infra` (transient, our side) retries with its own exponential backoff **without** advancing the pause counter, `connector-fault` (the default when a `sync-failed` event omits `kind`) takes the normal error → `paused` escalation path, and `terminal` (e.g. revoked credentials) moves to `auth_failed`. `advanceConnectorLifecycle` honors each kind accordingly.
+
+  Breaking: the `SyncFailureKind` values changed from `'transient' | 'auth'` to `'retryable-infra' | 'connector-fault' | 'terminal'`, and `ConnectorLifecycleState` gains a `consecutiveInfraFailures` counter that drives the infra backoff independently of the pause-advancing `consecutiveFailures` (it resets on success and on any non-infra failure). Deployments map their own concrete error types onto these kinds (e.g. the cloud maps `TenantDatabaseUnavailableError` → `retryable-infra`).
+
+### Patch Changes
+
+- 88fac2d: Emit connector lifecycle transition events off the reducer's old→new status diff so deployments can react (alerting, product UI) without reimplementing detection. Transport stays out of core — deployments provide the sink.
+
+  New exports: `deriveConnectorLifecycleTransition(previous, next, policy?)` (a pure function returning a `ConnectorLifecycleTransition | null` for a single state change), `advanceConnectorLifecycleWithTransition(state, event, policy?)` (advances the reducer and returns `{ state, transition }`), and the `ConnectorLifecycleTransition` / `ConnectorLifecycleTransitionType` / `ConnectorLifecycleReduction` / `ConnectorLifecycleListener` types.
+
+  Transitions cover the noteworthy state changes: `paused` (first crossing the pause threshold), `still-failing` (a paused connector that keeps failing), `auth-failed` (entering `auth_failed`), and `recovered` (a failing connector returning to `idle`). Routine progress (`idle`↔`syncing`, sub-threshold transient errors) yields no transition. Detection keys off `consecutiveFailures` and the pause threshold rather than the raw status, so the interposed `syncing` state during retries does not produce spurious or duplicated events.
+
+- 351e604: Add a shared connector lifecycle state machine so `paused` is a recoverable, self-healing state rather than a terminal one. New exports: `advanceConnectorLifecycle(state, event, policy?)` (a pure reducer over `sync-started` / `sync-succeeded` / `sync-failed` events), `ConnectorLifecycleState` / `ConnectorLifecycleStatus` / `ConnectorLifecyclePolicy` / `ConnectorLifecycleEvent` / `SyncFailureKind` types, `DEFAULT_CONNECTOR_LIFECYCLE_STATE`, `DEFAULT_CONNECTOR_LIFECYCLE_POLICY`, and the driver-facing helpers `isRecoverable(status)`, `isSchedulable(state, now)`, and `connectorHealthFromLifecycle(state, syncIntervalSeconds)`.
+
+  A persistent run of transient failures escalates through exponential backoff (`error`) into `paused` with a long — but still scheduled — retry window, and the first success returns the connector to normal cadence. Auth failures move to `auth_failed`, which stops and awaits reauth (never auto-retried) instead of hammering revoked credentials forever. `ConnectorHealth.status` is now typed as `ConnectorLifecycleStatus`, so the health contract and the engine agree on the full status set. Drivers (cloud scheduler, self-hoster cron, in-process SDK) consume `isRecoverable` / `isSchedulable` to decide when to trigger a sync. Error classification and lifecycle event hooks are intentionally left as extension points (`SyncFailureKind` and the pure reducer, respectively).
+
 ## 0.29.2
 
 ### Patch Changes

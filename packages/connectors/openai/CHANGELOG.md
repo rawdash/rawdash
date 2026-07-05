@@ -1,5 +1,14 @@
 # @rawdash/connector-openai
 
+## 0.30.0
+
+### Patch Changes
+
+- Updated dependencies [5391ee0]
+- Updated dependencies [88fac2d]
+- Updated dependencies [351e604]
+  - @rawdash/core@0.30.0
+
 ## 0.29.2
 
 ### Patch Changes

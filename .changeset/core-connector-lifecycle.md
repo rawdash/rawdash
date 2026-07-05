@@ -1,7 +1,0 @@
----
-'@rawdash/core': patch
----
-
-Add a shared connector lifecycle state machine so `paused` is a recoverable, self-healing state rather than a terminal one. New exports: `advanceConnectorLifecycle(state, event, policy?)` (a pure reducer over `sync-started` / `sync-succeeded` / `sync-failed` events), `ConnectorLifecycleState` / `ConnectorLifecycleStatus` / `ConnectorLifecyclePolicy` / `ConnectorLifecycleEvent` / `SyncFailureKind` types, `DEFAULT_CONNECTOR_LIFECYCLE_STATE`, `DEFAULT_CONNECTOR_LIFECYCLE_POLICY`, and the driver-facing helpers `isRecoverable(status)`, `isSchedulable(state, now)`, and `connectorHealthFromLifecycle(state, syncIntervalSeconds)`.
-
-A persistent run of transient failures escalates through exponential backoff (`error`) into `paused` with a long — but still scheduled — retry window, and the first success returns the connector to normal cadence. Auth failures move to `auth_failed`, which stops and awaits reauth (never auto-retried) instead of hammering revoked credentials forever. `ConnectorHealth.status` is now typed as `ConnectorLifecycleStatus`, so the health contract and the engine agree on the full status set. Drivers (cloud scheduler, self-hoster cron, in-process SDK) consume `isRecoverable` / `isSchedulable` to decide when to trigger a sync. Error classification and lifecycle event hooks are intentionally left as extension points (`SyncFailureKind` and the pure reducer, respectively).
