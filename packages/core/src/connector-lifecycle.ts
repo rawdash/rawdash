@@ -9,11 +9,15 @@ export type ConnectorLifecycleStatus =
   | 'paused'
   | 'auth_failed';
 
-export type SyncFailureKind = 'transient' | 'auth';
+export type SyncFailureKind =
+  | 'retryable-infra'
+  | 'connector-fault'
+  | 'terminal';
 
 export interface ConnectorLifecycleState {
   status: ConnectorLifecycleStatus;
   consecutiveFailures: number;
+  consecutiveInfraFailures: number;
   lastSyncAt: string | null;
   lastError: string | null;
   nextRetryAt: string | null;
@@ -23,6 +27,7 @@ export const DEFAULT_CONNECTOR_LIFECYCLE_STATE: ConnectorLifecycleState =
   Object.freeze({
     status: 'idle',
     consecutiveFailures: 0,
+    consecutiveInfraFailures: 0,
     lastSyncAt: null,
     lastError: null,
     nextRetryAt: null,
@@ -101,24 +106,47 @@ export function advanceConnectorLifecycle(
       return {
         status: 'idle',
         consecutiveFailures: 0,
+        consecutiveInfraFailures: 0,
         lastSyncAt: event.at,
         lastError: null,
         nextRetryAt: null,
       };
 
     case 'sync-failed': {
-      const consecutiveFailures = state.consecutiveFailures + 1;
+      const kind: SyncFailureKind = event.kind ?? 'connector-fault';
 
-      if (event.kind === 'auth') {
+      if (kind === 'terminal') {
         return {
           status: 'auth_failed',
-          consecutiveFailures,
+          consecutiveFailures: state.consecutiveFailures + 1,
+          consecutiveInfraFailures: 0,
           lastSyncAt: state.lastSyncAt,
           lastError: event.error,
           nextRetryAt: null,
         };
       }
 
+      if (kind === 'retryable-infra') {
+        const consecutiveInfraFailures = state.consecutiveInfraFailures + 1;
+        const nextRetryAt = new Date(
+          new Date(event.at).getTime() +
+            computeRetryBackoffMs(
+              consecutiveInfraFailures,
+              policy.errorBackoff,
+            ),
+        ).toISOString();
+
+        return {
+          status: 'error',
+          consecutiveFailures: state.consecutiveFailures,
+          consecutiveInfraFailures,
+          lastSyncAt: state.lastSyncAt,
+          lastError: event.error,
+          nextRetryAt,
+        };
+      }
+
+      const consecutiveFailures = state.consecutiveFailures + 1;
       const paused = consecutiveFailures >= policy.pauseAfterFailures;
       const delayMs = paused
         ? policy.pausedRetryMs
@@ -130,6 +158,7 @@ export function advanceConnectorLifecycle(
       return {
         status: paused ? 'paused' : 'error',
         consecutiveFailures,
+        consecutiveInfraFailures: 0,
         lastSyncAt: state.lastSyncAt,
         lastError: event.error,
         nextRetryAt,
