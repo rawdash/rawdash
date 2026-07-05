@@ -52,13 +52,8 @@ export type ConnectorLifecycleTransitionType =
   | 'recovered'
   | 'still-failing';
 
-export interface ConnectorLifecycleTransition {
+export interface ConnectorLifecycleTransition extends ConnectorLifecycleState {
   type: ConnectorLifecycleTransitionType;
-  status: ConnectorLifecycleStatus;
-  consecutiveFailures: number;
-  lastError: string | null;
-  lastSyncAt: string | null;
-  nextRetryAt: string | null;
 }
 
 export type ConnectorLifecycleListener = (
@@ -147,14 +142,7 @@ function transitionFromState(
   type: ConnectorLifecycleTransitionType,
   state: ConnectorLifecycleState,
 ): ConnectorLifecycleTransition {
-  return {
-    type,
-    status: state.status,
-    consecutiveFailures: state.consecutiveFailures,
-    lastError: state.lastError,
-    lastSyncAt: state.lastSyncAt,
-    nextRetryAt: state.nextRetryAt,
-  };
+  return { type, ...state };
 }
 
 export function deriveConnectorLifecycleTransition(
