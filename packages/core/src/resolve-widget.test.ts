@@ -148,8 +148,24 @@ describe('resolveWidget', () => {
     expect(w?.meta?.['connectorStatus']).toBe('syncing');
   });
 
-  it('returns "failing" for error/auth_failed/paused and exposes lastError in meta', async () => {
-    for (const status of ['error', 'auth_failed', 'paused'] as const) {
+  it('returns "failing" only for the non-recoverable auth_failed status', async () => {
+    const { storage } = makeStorage(async () => ({
+      status: 'auth_failed',
+      lastSyncAt: new Date().toISOString(),
+      lastError: 'boom',
+      syncIntervalSeconds: 600,
+    }));
+    const w = await resolveWidget('d', 'w', STAT_WIDGET, undefined, storage);
+    expect(w?.syncState).toBe('failing');
+    expect(w?.status).toBe('error');
+    expect(w?.meta).toEqual({
+      connectorStatus: 'auth_failed',
+      lastError: 'boom',
+    });
+  });
+
+  it('returns "reconnecting" for recoverable error/paused statuses without a hard error', async () => {
+    for (const status of ['error', 'paused'] as const) {
       const { storage } = makeStorage(async () => ({
         status,
         lastSyncAt: new Date().toISOString(),
@@ -157,11 +173,10 @@ describe('resolveWidget', () => {
         syncIntervalSeconds: 600,
       }));
       const w = await resolveWidget('d', 'w', STAT_WIDGET, undefined, storage);
-      expect(w?.syncState).toBe('failing');
-      expect(w?.meta).toEqual({
-        connectorStatus: status,
-        lastError: 'boom',
-      });
+      expect(w?.syncState).toBe('reconnecting');
+      expect(w?.status).not.toBe('error');
+      expect(w?.errorMessage).toBe('boom');
+      expect(w?.meta).toEqual({ connectorStatus: status, lastError: 'boom' });
     }
   });
 
@@ -175,10 +190,24 @@ describe('resolveWidget', () => {
     const w = await resolveWidget('d', 'w', STATUS_WIDGET, undefined, storage);
     expect(w?.data).toBeNull();
     expect(w?.syncState).toBe('failing');
+    expect(w?.status).toBe('error');
     expect(w?.meta).toEqual({
       connectorStatus: 'auth_failed',
       lastError: 'token expired',
     });
+  });
+
+  it('a reconnecting connector does not mark the status widget as a hard error', async () => {
+    const { storage } = makeStorage(async () => ({
+      status: 'paused',
+      lastSyncAt: new Date().toISOString(),
+      lastError: 'temporarily unavailable',
+      syncIntervalSeconds: 600,
+    }));
+    const w = await resolveWidget('d', 'w', STATUS_WIDGET, undefined, storage);
+    expect(w?.syncState).toBe('reconnecting');
+    expect(w?.status).toBe('ok');
+    expect(w?.errorMessage).toBe('temporarily unavailable');
   });
 
   it('reports status "ok" with a legitimate aggregated 0 (rows existed)', async () => {
@@ -259,7 +288,7 @@ describe('resolveWidget', () => {
     expect(w?.errorMessage).toBe('partial sync failure');
   });
 
-  it('surfaces a failed sync as widget "error" (InMemoryStorage)', async () => {
+  it('surfaces a recoverable failed sync as "reconnecting", not a hard error (InMemoryStorage)', async () => {
     const storage = new InMemoryStorage();
     const handle = storage.getStorageHandle(CONNECTOR);
     await handle.event({
@@ -270,12 +299,12 @@ describe('resolveWidget', () => {
     });
     await storage.markSyncFailed('connector blew up');
     const w = await resolveWidget('d', 'w', STAT_WIDGET, undefined, storage);
-    expect(w?.status).toBe('error');
+    expect(w?.status).not.toBe('error');
     expect(w?.errorMessage).toBe('connector blew up');
-    expect(w?.syncState).toBe('failing');
+    expect(w?.syncState).toBe('reconnecting');
   });
 
-  it('a connector error takes precedence over a compute error', async () => {
+  it('a recoverable connector failure takes precedence over a compute error (stays reconnecting, not red)', async () => {
     const { storage } = makeStorage(async () => ({
       status: 'error',
       lastSyncAt: new Date().toISOString(),
@@ -299,7 +328,8 @@ describe('resolveWidget', () => {
       undefined,
       storage,
     );
-    expect(w?.status).toBe('error');
+    expect(w?.syncState).toBe('reconnecting');
+    expect(w?.status).not.toBe('error');
     expect(w?.errorMessage).toBe('connector down');
   });
 

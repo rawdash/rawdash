@@ -1,3 +1,4 @@
+import { ReconnectingBadge } from './reconnecting-badge';
 import { StaleBadge } from './stale-badge';
 
 const STATUS_STYLES: Record<string, { dot: string; text: string }> = {
@@ -11,9 +12,15 @@ interface StatusWidgetProps {
   label: string;
   value: string;
   stale?: boolean;
+  reconnecting?: boolean;
 }
 
-export function StatusWidget({ label, value, stale }: StatusWidgetProps) {
+export function StatusWidget({
+  label,
+  value,
+  stale,
+  reconnecting,
+}: StatusWidgetProps) {
   const styles = STATUS_STYLES[value] ?? {
     dot: 'bg-gray-400',
     text: 'text-gray-700',
@@ -23,7 +30,7 @@ export function StatusWidget({ label, value, stale }: StatusWidgetProps) {
     <div className="flex flex-col justify-between gap-3 rounded-xl border border-gray-100 bg-white px-5 py-4 shadow-sm sm:px-6 sm:py-5">
       <span className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-widest text-gray-400">
         {label}
-        {stale && <StaleBadge />}
+        {reconnecting ? <ReconnectingBadge /> : stale && <StaleBadge />}
       </span>
       <div className="flex items-center gap-2.5">
         <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${styles.dot}`} />

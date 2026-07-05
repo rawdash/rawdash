@@ -3,6 +3,9 @@ import { Skeleton } from '@rawdash/sdk-nextjs/skeleton';
 
 import { FailingWidget } from './failing-widget';
 import { NoDataWidget } from './no-data-widget';
+import { ReconnectingBadge } from './reconnecting-badge';
+import { ReconnectingWidget } from './reconnecting-widget';
+import { StaleBadge } from './stale-badge';
 import { StatWidget } from './stat-widget';
 import { StatusWidget } from './status-widget';
 import { TimeseriesWidget } from './timeseries-widget';
@@ -99,6 +102,7 @@ function renderWidget(widget: CachedWidget) {
     );
   }
 
+  const reconnecting = syncState === 'reconnecting';
   const stale = syncState === 'stale' || syncState === 'syncing';
 
   const hasRenderableSeries =
@@ -122,13 +126,31 @@ function renderWidget(widget: CachedWidget) {
       );
     if (timeseries.length > 0) {
       return (
-        <TimeseriesWidget label={label} series={timeseries} stale={stale} />
+        <TimeseriesWidget
+          label={label}
+          series={timeseries}
+          stale={stale}
+          reconnecting={reconnecting}
+        />
       );
     }
-    return <MultiStatWidget label={label} series={series!} stale={stale} />;
+    return (
+      <MultiStatWidget
+        label={label}
+        series={series!}
+        stale={stale}
+        reconnecting={reconnecting}
+      />
+    );
   }
 
   if (data === null) {
+    if (reconnecting) {
+      const lastError =
+        errorMessage ??
+        (typeof meta?.['lastError'] === 'string' ? meta['lastError'] : null);
+      return <ReconnectingWidget label={label} lastError={lastError} />;
+    }
     return (
       <SkeletonCard
         label={label}
@@ -139,15 +161,31 @@ function renderWidget(widget: CachedWidget) {
   }
 
   if (status === 'no_data') {
-    return <NoDataWidget label={label} stale={stale} />;
+    return (
+      <NoDataWidget label={label} stale={stale} reconnecting={reconnecting} />
+    );
   }
 
   if (typeof data === 'string') {
-    return <StatusWidget label={label} value={data} stale={stale} />;
+    return (
+      <StatusWidget
+        label={label}
+        value={data}
+        stale={stale}
+        reconnecting={reconnecting}
+      />
+    );
   }
 
   if (typeof data === 'number') {
-    return <StatWidget label={label} value={data} stale={stale} />;
+    return (
+      <StatWidget
+        label={label}
+        value={data}
+        stale={stale}
+        reconnecting={reconnecting}
+      />
+    );
   }
 
   if (isStatWithDelta(data)) {
@@ -157,6 +195,7 @@ function renderWidget(widget: CachedWidget) {
         value={data.value}
         trend={data.delta}
         stale={stale}
+        reconnecting={reconnecting}
       />
     );
   }
@@ -164,7 +203,12 @@ function renderWidget(widget: CachedWidget) {
   const timeseries = toTimeseriesEntries(data);
   if (timeseries) {
     return (
-      <TimeseriesWidget label={label} entries={timeseries} stale={stale} />
+      <TimeseriesWidget
+        label={label}
+        entries={timeseries}
+        stale={stale}
+        reconnecting={reconnecting}
+      />
     );
   }
 
@@ -175,15 +219,18 @@ function MultiStatWidget({
   label,
   series,
   stale,
+  reconnecting,
 }: {
   label: string;
   series: WidgetSeries[];
   stale?: boolean;
+  reconnecting?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-gray-100 bg-white px-5 py-4 shadow-sm sm:px-6 sm:py-5">
       <span className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-widest text-gray-400">
         {label}
+        {reconnecting ? <ReconnectingBadge /> : stale && <StaleBadge />}
       </span>
       <div className="flex flex-col gap-2">
         {series.map((s) => (
@@ -197,7 +244,6 @@ function MultiStatWidget({
           </div>
         ))}
       </div>
-      {stale && <span className="text-[10px] text-amber-500">stale</span>}
     </div>
   );
 }

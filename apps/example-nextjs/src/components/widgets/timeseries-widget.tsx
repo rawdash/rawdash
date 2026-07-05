@@ -11,6 +11,7 @@ import {
   YAxis,
 } from 'recharts';
 
+import { ReconnectingBadge } from './reconnecting-badge';
 import { StaleBadge } from './stale-badge';
 
 const SERIES_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
@@ -62,6 +63,7 @@ interface TimeseriesWidgetProps {
   entries?: TimeseriesEntry[];
   series?: TimeseriesSeries[];
   stale?: boolean;
+  reconnecting?: boolean;
 }
 
 function formatDate(date: string): string {
@@ -76,6 +78,7 @@ export function TimeseriesWidget({
   entries,
   series,
   stale,
+  reconnecting,
 }: TimeseriesWidgetProps) {
   const seriesList: TimeseriesSeries[] = series ?? [
     { key: 'value', label: 'value', entries: entries ?? [] },
@@ -99,7 +102,7 @@ export function TimeseriesWidget({
     <div className="col-span-full rounded-xl border border-gray-100 bg-white px-6 py-5 shadow-sm">
       <p className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-gray-400">
         {label}
-        {stale && <StaleBadge />}
+        {reconnecting ? <ReconnectingBadge /> : stale && <StaleBadge />}
       </p>
       <ResponsiveContainer width="100%" height={140}>
         <AreaChart

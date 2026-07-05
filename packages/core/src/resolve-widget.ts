@@ -2,6 +2,7 @@ import { computeMetricWithStatus } from './compute';
 import type { ComputedMetric, Widget } from './config';
 import { statusSources, widgetMetrics } from './config';
 import type { ConnectorHealth } from './connector';
+import { isRecoverable } from './connector-lifecycle';
 import { resolveWidgetFormat } from './format';
 import { mergeSeries, mergeSeriesScalar } from './series-merge';
 import type { ServerStorage } from './server-storage';
@@ -16,8 +17,9 @@ import type {
 const FAILING_CONNECTOR_STATUSES: ReadonlySet<ConnectorHealth['status']> =
   new Set(['error', 'auth_failed', 'paused']);
 
-const ERROR_CONNECTOR_STATUSES: ReadonlySet<ConnectorHealth['status']> =
-  new Set(['error', 'auth_failed']);
+function isFailingStatus(status: ConnectorHealth['status']): boolean {
+  return FAILING_CONNECTOR_STATUSES.has(status);
+}
 
 const SYNCED_SYNC_STATES: ReadonlySet<WidgetSyncState> = new Set([
   'fresh',
@@ -25,7 +27,8 @@ const SYNCED_SYNC_STATES: ReadonlySet<WidgetSyncState> = new Set([
 ]);
 
 const SYNC_STATE_SEVERITY: Record<WidgetSyncState, number> = {
-  failing: 5,
+  failing: 6,
+  reconnecting: 5,
   syncing: 4,
   unsynced: 3,
   stale: 2,
@@ -53,7 +56,7 @@ function connectorErrorMessage(
   if (!health) {
     return undefined;
   }
-  if (ERROR_CONNECTOR_STATUSES.has(health.status) || health.lastError != null) {
+  if (isFailingStatus(health.status) || health.lastError != null) {
     return health.lastError ?? `connector status: ${health.status}`;
   }
   return undefined;
@@ -63,8 +66,8 @@ function deriveSyncStateFromHealth(health: ConnectorHealth): WidgetSyncState {
   if (health.status === 'syncing') {
     return 'syncing';
   }
-  if (FAILING_CONNECTOR_STATUSES.has(health.status)) {
-    return 'failing';
+  if (isFailingStatus(health.status)) {
+    return isRecoverable(health.status) ? 'reconnecting' : 'failing';
   }
   if (!health.lastSyncAt) {
     return 'unsynced';
@@ -135,17 +138,15 @@ async function resolveSeries(
   let status: WidgetStatus = 'ok';
   let errorMessage: string | undefined;
   const connectorError = connectorErrorMessage(health);
-  if (connectorError !== undefined) {
+  if (syncState === 'reconnecting') {
+    errorMessage = connectorError;
+  } else if (connectorError !== undefined) {
     status = 'error';
     errorMessage = connectorError;
   } else if (computeError !== undefined) {
     status = 'error';
     errorMessage = computeError;
-  } else if (
-    matchedRows === 0 &&
-    syncState !== undefined &&
-    SYNCED_SYNC_STATES.has(syncState)
-  ) {
+  } else if (matchedRows === 0 && SYNCED_SYNC_STATES.has(syncState)) {
     status = 'no_data';
   }
 
@@ -218,6 +219,7 @@ async function resolveStatusWidget(
         .filter((s): s is WidgetSyncState => s !== undefined),
     ) ?? 'unsynced';
   const firstError = series.find((s) => s.errorMessage)?.errorMessage;
+  const hasHardFailure = series.some((s) => s.syncState === 'failing');
   const isMulti = Array.isArray(widget.source);
   const primaryHealth = healths[0] ?? null;
 
@@ -230,7 +232,7 @@ async function resolveStatusWidget(
     syncState,
     syncIntervalSeconds: primaryHealth?.syncIntervalSeconds,
     meta: primaryHealth ? buildMetaFromHealth(primaryHealth) : undefined,
-    status: firstError !== undefined ? 'error' : 'ok',
+    status: hasHardFailure ? 'error' : 'ok',
     errorMessage: firstError,
   };
 }

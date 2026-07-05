@@ -337,6 +337,7 @@ export function handleWidget(
       return opts.syncingPollMs;
     }
     case 'failing':
+    case 'reconnecting':
     case 'stale': {
       t.lastSyncState = state;
       if (!t.failingNotified) {

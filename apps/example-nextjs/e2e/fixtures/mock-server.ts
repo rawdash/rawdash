@@ -110,6 +110,16 @@ const WIDGETS = [
     status: 'error',
     errorMessage: 'connector auth failed: token expired',
   },
+  {
+    id: 'build_duration',
+    widgetId: 'build_duration',
+    connectorId: 'github-actions',
+    data: 128,
+    cachedAt,
+    syncState: 'reconnecting',
+    status: 'ok',
+    errorMessage: 'connector timed out; retrying',
+  },
 ];
 
 const HEALTH = {
