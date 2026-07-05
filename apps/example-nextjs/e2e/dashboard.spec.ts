@@ -52,3 +52,13 @@ test('dashboard renders per-widget status (no_data and error)', async ({
     page.getByText('connector auth failed: token expired'),
   ).toBeVisible();
 });
+
+test('renders a recoverable connector as amber "reconnecting", not a red error', async ({
+  page,
+}) => {
+  await page.goto('/');
+
+  await expect(page.getByText('Build Duration')).toBeVisible();
+  await expect(page.getByText('128', { exact: true })).toBeVisible();
+  await expect(page.getByText('Reconnecting', { exact: true })).toBeVisible();
+});

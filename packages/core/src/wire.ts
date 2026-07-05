@@ -8,6 +8,7 @@ export type WidgetSyncState =
   | 'stale'
   | 'unsynced'
   | 'syncing'
+  | 'reconnecting'
   | 'failing';
 
 export type WidgetStatus = 'ok' | 'no_data' | 'error';

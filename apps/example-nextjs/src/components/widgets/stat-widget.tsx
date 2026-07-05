@@ -1,3 +1,4 @@
+import { ReconnectingBadge } from './reconnecting-badge';
 import { StaleBadge } from './stale-badge';
 
 interface StatWidgetProps {
@@ -6,6 +7,7 @@ interface StatWidgetProps {
   unit?: string;
   trend?: number;
   stale?: boolean;
+  reconnecting?: boolean;
 }
 
 export function StatWidget({
@@ -14,6 +16,7 @@ export function StatWidget({
   unit,
   trend,
   stale,
+  reconnecting,
 }: StatWidgetProps) {
   const trendColor =
     trend === undefined
@@ -32,7 +35,7 @@ export function StatWidget({
       <div className="flex items-start justify-between gap-2">
         <span className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-widest text-gray-400">
           {label}
-          {stale && <StaleBadge />}
+          {reconnecting ? <ReconnectingBadge /> : stale && <StaleBadge />}
         </span>
         {trend !== undefined && trendColor && trendArrow && (
           <span className={`shrink-0 text-xs font-semibold ${trendColor}`}>
