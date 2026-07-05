@@ -9,7 +9,10 @@ export type ConnectorLifecycleStatus =
   | 'paused'
   | 'auth_failed';
 
-export type SyncFailureKind = 'transient' | 'auth';
+export type SyncFailureKind =
+  | 'retryable-infra'
+  | 'connector-fault'
+  | 'terminal';
 
 export interface ConnectorLifecycleState {
   status: ConnectorLifecycleStatus;
@@ -88,18 +91,37 @@ export function advanceConnectorLifecycle(
       };
 
     case 'sync-failed': {
-      const consecutiveFailures = state.consecutiveFailures + 1;
+      const kind: SyncFailureKind = event.kind ?? 'connector-fault';
 
-      if (event.kind === 'auth') {
+      if (kind === 'terminal') {
         return {
           status: 'auth_failed',
-          consecutiveFailures,
+          consecutiveFailures: state.consecutiveFailures + 1,
           lastSyncAt: state.lastSyncAt,
           lastError: event.error,
           nextRetryAt: null,
         };
       }
 
+      if (kind === 'retryable-infra') {
+        const nextRetryAt = new Date(
+          new Date(event.at).getTime() +
+            computeRetryBackoffMs(
+              state.consecutiveFailures,
+              policy.errorBackoff,
+            ),
+        ).toISOString();
+
+        return {
+          status: 'error',
+          consecutiveFailures: state.consecutiveFailures,
+          lastSyncAt: state.lastSyncAt,
+          lastError: event.error,
+          nextRetryAt,
+        };
+      }
+
+      const consecutiveFailures = state.consecutiveFailures + 1;
       const paused = consecutiveFailures >= policy.pauseAfterFailures;
       const delayMs = paused
         ? policy.pausedRetryMs

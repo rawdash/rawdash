@@ -125,12 +125,12 @@ describe('advanceConnectorLifecycle', () => {
     expect(recovered.nextRetryAt).toBeNull();
   });
 
-  it('stops and awaits reauth on an auth failure without scheduling a retry', () => {
+  it('stops and awaits reauth on a terminal failure without scheduling a retry', () => {
     const state = advanceConnectorLifecycle(DEFAULT_CONNECTOR_LIFECYCLE_STATE, {
       type: 'sync-failed',
       at: AT,
       error: 'revoked',
-      kind: 'auth',
+      kind: 'terminal',
     });
     expect(state.status).toBe('auth_failed');
     expect(state.nextRetryAt).toBeNull();
@@ -140,13 +140,70 @@ describe('advanceConnectorLifecycle', () => {
   it('recovers from auth_failed on success', () => {
     const authFailed = advanceConnectorLifecycle(
       DEFAULT_CONNECTOR_LIFECYCLE_STATE,
-      { type: 'sync-failed', at: AT, error: 'revoked', kind: 'auth' },
+      { type: 'sync-failed', at: AT, error: 'revoked', kind: 'terminal' },
     );
     const recovered = advanceConnectorLifecycle(authFailed, {
       type: 'sync-succeeded',
       at: AT,
     });
     expect(recovered.status).toBe('idle');
+  });
+
+  it('treats an omitted kind as a connector fault on the pause path', () => {
+    const state = failN(DEFAULT_CONNECTOR_LIFECYCLE_POLICY.pauseAfterFailures);
+    expect(state.status).toBe('paused');
+  });
+
+  it('retries a retryable-infra failure without advancing toward pause', () => {
+    let state = DEFAULT_CONNECTOR_LIFECYCLE_STATE;
+    for (
+      let i = 0;
+      i < DEFAULT_CONNECTOR_LIFECYCLE_POLICY.pauseAfterFailures * 2;
+      i++
+    ) {
+      state = advanceConnectorLifecycle(state, {
+        type: 'sync-failed',
+        at: AT,
+        error: 'turso unreachable',
+        kind: 'retryable-infra',
+      });
+    }
+    expect(state.status).toBe('error');
+    expect(state.consecutiveFailures).toBe(0);
+    expect(state.lastError).toBe('turso unreachable');
+    expect(state.nextRetryAt).toBe(
+      new Date(
+        new Date(AT).getTime() +
+          DEFAULT_CONNECTOR_LIFECYCLE_POLICY.errorBackoff.baseMs,
+      ).toISOString(),
+    );
+  });
+
+  it('does not let a retryable-infra failure raise an existing pause counter', () => {
+    const faulted = failN(3);
+    const infra = advanceConnectorLifecycle(faulted, {
+      type: 'sync-failed',
+      at: AT,
+      error: 'turso unreachable',
+      kind: 'retryable-infra',
+    });
+    expect(infra.status).toBe('error');
+    expect(infra.consecutiveFailures).toBe(3);
+  });
+
+  it('recovers to idle once a retryable-infra outage clears', () => {
+    const infra = advanceConnectorLifecycle(DEFAULT_CONNECTOR_LIFECYCLE_STATE, {
+      type: 'sync-failed',
+      at: AT,
+      error: 'turso unreachable',
+      kind: 'retryable-infra',
+    });
+    const recovered = advanceConnectorLifecycle(infra, {
+      type: 'sync-succeeded',
+      at: AT,
+    });
+    expect(recovered.status).toBe('idle');
+    expect(recovered.consecutiveFailures).toBe(0);
   });
 
   it('honors a custom policy', () => {
@@ -207,7 +264,7 @@ describe('isSchedulable', () => {
       type: 'sync-failed',
       at: AT,
       error: 'revoked',
-      kind: 'auth',
+      kind: 'terminal',
     });
     expect(isSchedulable(state, now)).toBe(false);
   });
