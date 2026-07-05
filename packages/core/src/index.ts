@@ -130,6 +130,22 @@ export {
 } from './engine';
 
 export type {
+  ConnectorLifecycleEvent,
+  ConnectorLifecyclePolicy,
+  ConnectorLifecycleState,
+  ConnectorLifecycleStatus,
+  SyncFailureKind,
+} from './connector-lifecycle';
+export {
+  advanceConnectorLifecycle,
+  connectorHealthFromLifecycle,
+  DEFAULT_CONNECTOR_LIFECYCLE_POLICY,
+  DEFAULT_CONNECTOR_LIFECYCLE_STATE,
+  isRecoverable,
+  isSchedulable,
+} from './connector-lifecycle';
+
+export type {
   CachedWidget,
   DataSource,
   HealthResponse,

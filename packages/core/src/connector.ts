@@ -8,6 +8,7 @@ import {
 } from '@rawdash/connector-shared';
 
 import type { FetchSpec } from './backfill-window';
+import type { ConnectorLifecycleStatus } from './connector-lifecycle';
 import {
   EnvSecretsResolver,
   type Secret,
@@ -193,7 +194,7 @@ export interface StorageHandle {
 }
 
 export interface ConnectorHealth {
-  status: 'idle' | 'syncing' | 'error' | 'auth_failed' | 'paused';
+  status: ConnectorLifecycleStatus;
   lastSyncAt: string | null;
   lastError: string | null;
   syncIntervalSeconds: number;
