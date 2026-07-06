@@ -136,7 +136,7 @@ describe('VercelConnector.sync', () => {
 
   it('returns done:true when every endpoint returns empty', async () => {
     installRouter((u) =>
-      u.includes('/v9/projects')
+      u.includes('/v10/projects')
         ? emptyProjectsResponse()
         : emptyDeploymentsResponse(),
     );
@@ -146,7 +146,7 @@ describe('VercelConnector.sync', () => {
 
   it('clears entity types and event names on full sync first page', async () => {
     installRouter((u) =>
-      u.includes('/v9/projects')
+      u.includes('/v10/projects')
         ? emptyProjectsResponse()
         : emptyDeploymentsResponse(),
     );
@@ -168,7 +168,7 @@ describe('VercelConnector.sync', () => {
 
   it('does not clear storage in latest (incremental) mode', async () => {
     installRouter((u) =>
-      u.includes('/v9/projects')
+      u.includes('/v10/projects')
         ? emptyProjectsResponse()
         : emptyDeploymentsResponse(),
     );
@@ -191,7 +191,7 @@ describe('VercelConnector.sync', () => {
   it('writes project entities', async () => {
     const connector = makeConnector({ resources: ['projects'] });
     installRouter((u) => {
-      if (u.includes('/v9/projects')) {
+      if (u.includes('/v10/projects')) {
         return {
           body: {
             projects: [
@@ -233,7 +233,7 @@ describe('VercelConnector.sync', () => {
       resources: ['deployments', 'deployment_events'],
     });
     installRouter((u) => {
-      if (u.includes('/v9/projects')) {
+      if (u.includes('/v10/projects')) {
         return emptyProjectsResponse();
       }
       return {
@@ -293,7 +293,7 @@ describe('VercelConnector.sync', () => {
       resources: ['deployment_events'],
     });
     installRouter((u) => {
-      if (u.includes('/v9/projects')) {
+      if (u.includes('/v10/projects')) {
         return emptyProjectsResponse();
       }
       return {
@@ -329,7 +329,7 @@ describe('VercelConnector.sync', () => {
   it('skips deployments with unparseable created timestamp', async () => {
     const connector = makeConnector({ resources: ['deployments'] });
     installRouter((u) => {
-      if (u.includes('/v9/projects')) {
+      if (u.includes('/v10/projects')) {
         return emptyProjectsResponse();
       }
       return {
@@ -376,7 +376,7 @@ describe('VercelConnector.sync', () => {
   it('applies since query param in latest mode for deployments', async () => {
     const connector = makeConnector({ resources: ['deployments'] });
     const { calls } = installRouter((u) =>
-      u.includes('/v9/projects')
+      u.includes('/v10/projects')
         ? emptyProjectsResponse()
         : emptyDeploymentsResponse(),
     );
@@ -412,7 +412,7 @@ describe('VercelConnector.sync', () => {
     const { calls } = installRouter(() => emptyProjectsResponse());
     await connector.sync({ mode: 'full' }, makeStorage());
 
-    const projectsCall = calls.find((c) => c.includes('/v9/projects'));
+    const projectsCall = calls.find((c) => c.includes('/v10/projects'));
     expect(projectsCall).toBeDefined();
     expect(new URL(projectsCall!).searchParams.get('teamId')).toBe('team_abc');
   });
@@ -423,7 +423,7 @@ describe('VercelConnector.sync', () => {
       projects: ['prj_one', 'prj_two'],
     });
     const { calls } = installRouter((u) =>
-      u.includes('/v9/projects')
+      u.includes('/v10/projects')
         ? emptyProjectsResponse()
         : emptyDeploymentsResponse(),
     );
@@ -441,15 +441,15 @@ describe('VercelConnector.sync', () => {
     await connector.sync({ mode: 'full' }, makeStorage());
 
     const paths = calls.map((c) => new URL(c).pathname);
-    expect(paths.some((p) => p === '/v9/projects')).toBe(true);
+    expect(paths.some((p) => p === '/v10/projects')).toBe(true);
     expect(paths.some((p) => p === '/v6/deployments')).toBe(false);
   });
 
-  it('follows pagination.next as an `until` cursor', async () => {
+  it('follows projects pagination.next as a `from` continuation, not `until`', async () => {
     const connector = makeConnector({ resources: ['projects'] });
     let firstCall = true;
     const { calls } = installRouter((u) => {
-      if (u.includes('/v9/projects')) {
+      if (u.includes('/v10/projects')) {
         if (firstCall) {
           firstCall = false;
           return {
@@ -475,11 +475,85 @@ describe('VercelConnector.sync', () => {
     });
     const result = await connector.sync({ mode: 'full' }, makeStorage());
     expect(result.done).toBe(true);
-    const projectsCalls = calls.filter((c) => c.includes('/v9/projects'));
+    const projectsCalls = calls.filter((c) => c.includes('/v10/projects'));
     expect(projectsCalls).toHaveLength(2);
-    expect(new URL(projectsCalls[1]!).searchParams.get('until')).toBe(
-      '1714000000000',
+    const secondPage = new URL(projectsCalls[1]!).searchParams;
+    expect(secondPage.get('from')).toBe('1714000000000');
+    expect(secondPage.get('until')).toBeNull();
+  });
+
+  it('carries a string projects continuation token through the `from` param', async () => {
+    const connector = makeConnector({ resources: ['projects'] });
+    let firstCall = true;
+    const { calls } = installRouter((u) => {
+      if (u.includes('/v10/projects')) {
+        if (firstCall) {
+          firstCall = false;
+          return {
+            body: {
+              projects: [
+                {
+                  id: 'prj_1',
+                  name: 'web',
+                  framework: 'nextjs',
+                  createdAt: 1714521600000,
+                  updatedAt: 1714608000000,
+                },
+              ],
+              pagination: { count: 1, next: 'ctoken_abc123' },
+            },
+          };
+        }
+        return {
+          body: { projects: [], pagination: { count: 0, next: null } },
+        };
+      }
+      return emptyDeploymentsResponse();
+    });
+    const result = await connector.sync({ mode: 'full' }, makeStorage());
+    expect(result.done).toBe(true);
+    const projectsCalls = calls.filter((c) => c.includes('/v10/projects'));
+    expect(projectsCalls).toHaveLength(2);
+    expect(new URL(projectsCalls[1]!).searchParams.get('from')).toBe(
+      'ctoken_abc123',
     );
+  });
+
+  it('keeps `until` for deployments pagination', async () => {
+    const connector = makeConnector({ resources: ['deployments'] });
+    let firstCall = true;
+    const { calls } = installRouter((u) => {
+      if (u.includes('/v6/deployments')) {
+        if (firstCall) {
+          firstCall = false;
+          return {
+            body: {
+              deployments: [
+                {
+                  uid: 'dpl_1',
+                  name: 'web',
+                  url: 'web.vercel.app',
+                  created: 1714521600000,
+                  state: 'READY',
+                  target: 'production',
+                  creator: { uid: 'u_1' },
+                },
+              ],
+              pagination: { count: 1, next: 1714000000000 },
+            },
+          };
+        }
+        return emptyDeploymentsResponse();
+      }
+      return emptyProjectsResponse();
+    });
+    const result = await connector.sync({ mode: 'full' }, makeStorage());
+    expect(result.done).toBe(true);
+    const deploymentsCalls = calls.filter((c) => c.includes('/v6/deployments'));
+    expect(deploymentsCalls).toHaveLength(2);
+    const secondPage = new URL(deploymentsCalls[1]!).searchParams;
+    expect(secondPage.get('until')).toBe('1714000000000');
+    expect(secondPage.get('from')).toBeNull();
   });
 
   it('rejects malicious pagination URLs from a saved cursor', async () => {
@@ -501,7 +575,7 @@ describe('VercelConnector.sync', () => {
   it('resumes from a saved cursor at the right phase', async () => {
     const connector = makeConnector();
     const { calls } = installRouter((u) =>
-      u.includes('/v9/projects')
+      u.includes('/v10/projects')
         ? emptyProjectsResponse()
         : emptyDeploymentsResponse(),
     );
@@ -511,7 +585,7 @@ describe('VercelConnector.sync', () => {
       makeStorage(),
     );
 
-    expect(calls.some((c) => c.includes('/v9/projects'))).toBe(false);
+    expect(calls.some((c) => c.includes('/v10/projects'))).toBe(false);
     expect(calls.some((c) => c.includes('/v6/deployments'))).toBe(true);
   });
 });
