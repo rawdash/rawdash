@@ -122,7 +122,7 @@ describe('VercelConnector property tests', () => {
 
   it('full sync across all resources matches documented shapes', async () => {
     installFetchMock((url) => {
-      if (url.includes('/v9/projects')) {
+      if (url.includes('/v10/projects')) {
         return {
           projects: [
             {

@@ -145,13 +145,18 @@ interface VercelProject {
 
 interface VercelProjectsResponse {
   projects: VercelProject[];
-  pagination: VercelPagination;
+  pagination: VercelProjectsPagination;
 }
 
 interface VercelPagination {
   count: number;
   next: number | null;
   prev?: number | null;
+}
+
+interface VercelProjectsPagination {
+  count: number;
+  next: number | string | null;
 }
 
 interface VercelDeploymentCreator {
@@ -205,6 +210,11 @@ const paginationSchema = z.object({
   next: nonNegInt.nullable(),
 });
 
+const projectsPaginationSchema = z.object({
+  count: nonNegInt,
+  next: z.union([nonNegInt, z.string().min(1)]).nullable(),
+});
+
 const projectSchema = z.object({
   id: idString,
   name: z.string().min(1),
@@ -215,7 +225,7 @@ const projectSchema = z.object({
 
 const projectsResponseSchema = z.object({
   projects: z.array(projectSchema),
-  pagination: paginationSchema,
+  pagination: projectsPaginationSchema,
 });
 
 const deploymentStateSchema = z.enum([
@@ -259,7 +269,7 @@ export const vercelResources = defineResources({
     shape: 'entity',
     description:
       'Vercel projects with name, framework, owning account, and create/update timestamps.',
-    endpoint: 'GET /v9/projects',
+    endpoint: 'GET /v10/projects',
     filterable: [],
     responses: { projects: projectsResponseSchema },
   },
@@ -387,7 +397,7 @@ export class VercelConnector extends BaseConnector<
   private allowedPagePath(phase: VercelPhase): string {
     switch (phase) {
       case 'projects':
-        return '/v9/projects';
+        return '/v10/projects';
       case 'deployments':
         return '/v6/deployments';
     }
@@ -422,7 +432,7 @@ export class VercelConnector extends BaseConnector<
   }
 
   private buildInitialProjectsUrl(): string {
-    const u = new URL(`${VERCEL_API_BASE}/v9/projects`);
+    const u = new URL(`${VERCEL_API_BASE}/v10/projects`);
     u.searchParams.set('limit', String(PROJECTS_PAGE_SIZE));
     this.withTeamId(u);
     return u.toString();
@@ -473,10 +483,11 @@ export class VercelConnector extends BaseConnector<
   private buildNextPageUrl(
     phase: VercelPhase,
     currentUrl: string,
-    until: number,
+    next: number | string,
   ): string {
     const u = new URL(currentUrl);
-    u.searchParams.set('until', String(until));
+    const param = phase === 'projects' ? 'from' : 'until';
+    u.searchParams.set(param, String(next));
     return u.toString();
   }
 

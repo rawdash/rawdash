@@ -35,7 +35,7 @@ A Vercel access token is required. Use a team token (with the team ID) to sync a
 ## Resources
 
 - **`vercel_project`** _(entity)_ - Vercel projects with name, framework, owning account, and create/update timestamps.
-  - Endpoint: `GET /v9/projects`
+  - Endpoint: `GET /v10/projects`
 - **`vercel_deployment`** _(entity)_ - Deployments with build state, target environment, git ref/sha, creator, and build duration.
   - Endpoint: `GET /v6/deployments`
   - buildDurationMs is ready minus buildingAt when both are present, otherwise null. gitRef prefers meta.githubCommitRef, falling back to gitlabCommitRef, bitbucketCommitRef, then meta.branch.
