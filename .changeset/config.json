@@ -75,6 +75,7 @@
       "@rawdash/connector-expensify",
       "@rawdash/connector-calendly",
       "@rawdash/connector-resend",
+      "@rawdash/connector-deel",
       "@rawdash/connectors",
       "@rawdash/adapter-libsql",
       "@rawdash/adapter-sqlite",

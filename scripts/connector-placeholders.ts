@@ -1754,16 +1754,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     requestIssue: 'RAW-440',
   },
   {
-    id: 'deel',
-    name: 'Deel',
-    category: 'hr',
-    tagline:
-      'Sync people, contracts, and payroll spend across countries from Deel.',
-    brandColor: '#15D27C',
-    domain: 'deel.com',
-    requestIssue: 'RAW-439',
-  },
-  {
     id: 'paychex',
     name: 'Paychex',
     category: 'hr',

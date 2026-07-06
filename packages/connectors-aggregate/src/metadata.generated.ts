@@ -119,6 +119,13 @@ import {
   resources as datadogResources,
 } from '@rawdash/connector-datadog';
 import {
+  configFields as deelConfigFields,
+  cost as deelCost,
+  doc as deelDoc,
+  id as deelId,
+  resources as deelResources,
+} from '@rawdash/connector-deel';
+import {
   configFields as drataConfigFields,
   doc as drataDoc,
   id as drataId,
@@ -551,6 +558,14 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: datadogDoc,
     configFields: datadogConfigFields,
     resources: datadogResources,
+  },
+  {
+    id: deelId,
+    packageName: '@rawdash/connector-deel',
+    doc: deelDoc,
+    configFields: deelConfigFields,
+    resources: deelResources,
+    cost: deelCost,
   },
   {
     id: drataId,
