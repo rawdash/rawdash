@@ -154,7 +154,7 @@ export const gcpBillingResources = defineResources({
   [COST_METRIC_NAME]: {
     shape: 'metric',
     description:
-      'Historical GCP cost per day, summed over the dimensions in `groupBy`. One sample per (date, dimension tuple). Pulls from the gcp_billing_export_v1_* tables in BigQuery.',
+      'Historical net GCP cost per day: consumption cost with the credits array (sustained-use, committed-use, free-tier, and promotional credits) netted out, summed over the dimensions in `groupBy`. One sample per (date, dimension tuple). Pulls from the gcp_billing_export_v1_* tables in BigQuery.',
     endpoint: 'POST /bigquery/v2/projects/{bqProject}/queries',
     unit: 'USD',
     granularity: 'daily',
@@ -340,6 +340,11 @@ const DIM_TO_SELECT: Record<Dimension, { select: string; alias: string }> = {
   location: { select: 'location.location', alias: 'location' },
 };
 
+const NET_COST_EXPR =
+  '(SUM(CAST(cost * 1000000 AS INT64)) + ' +
+  'SUM(IFNULL((SELECT SUM(CAST(c.amount * 1000000 AS INT64)) FROM UNNEST(credits) AS c), 0)))' +
+  ' / 1000000';
+
 export function buildBillingSql(args: {
   bqProject: string;
   bqDataset: string;
@@ -350,7 +355,7 @@ export function buildBillingSql(args: {
   const dims = args.groupBy.map((d) => DIM_TO_SELECT[d]);
   const selectCols = ['DATE(usage_start_time) AS date']
     .concat(dims.map((d) => `${d.select} AS ${d.alias}`))
-    .concat(['SUM(cost) AS cost', 'ANY_VALUE(currency) AS currency']);
+    .concat([`${NET_COST_EXPR} AS cost`, 'ANY_VALUE(currency) AS currency']);
   const groupCols = ['date'].concat(dims.map((d) => d.alias));
   const table = `\`${args.bqProject}.${args.bqDataset}.gcp_billing_export_v1_*\``;
   return [

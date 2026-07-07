@@ -340,11 +340,25 @@ describe('buildBillingSql', () => {
     });
     expect(sql).toContain('service.description AS service');
     expect(sql).toContain('project.id AS project');
-    expect(sql).toContain('SUM(cost) AS cost');
     expect(sql).toContain('`p.d.gcp_billing_export_v1_*`');
     expect(sql).toContain("DATE('2024-01-01')");
     expect(sql).toContain("DATE('2024-02-01')");
     expect(sql).toContain('GROUP BY date, service, project');
+  });
+
+  it('nets the credits array out of the cost total', () => {
+    const sql = buildBillingSql({
+      bqProject: 'p',
+      bqDataset: 'd',
+      groupBy: ['service'],
+      startDate: '2024-01-01',
+      endDate: '2024-02-01',
+    });
+    expect(sql).not.toContain('SUM(cost) AS cost');
+    expect(sql).toContain('UNNEST(credits)');
+    expect(sql).toContain('SUM(CAST(cost * 1000000 AS INT64))');
+    expect(sql).toContain('SUM(CAST(c.amount * 1000000 AS INT64))');
+    expect(sql).toMatch(/\/ 1000000 AS cost/);
   });
 });
 
