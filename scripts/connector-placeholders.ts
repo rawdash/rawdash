@@ -1744,16 +1744,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     requestIssue: 'RAW-252',
   },
   {
-    id: 'adp',
-    name: 'ADP',
-    category: 'hr',
-    tagline:
-      'Sync workers, payroll runs, and pay-cycle spend from ADP Workforce Now.',
-    icon: 'adp',
-    domain: 'adp.com',
-    requestIssue: 'RAW-440',
-  },
-  {
     id: 'deel',
     name: 'Deel',
     category: 'hr',

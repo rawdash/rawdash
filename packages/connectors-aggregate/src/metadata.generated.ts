@@ -1,5 +1,12 @@
 // This file is generated from the connector packages by scripts/generate-connectors-package.ts. Do not edit by hand.
 import {
+  configFields as adpConfigFields,
+  cost as adpCost,
+  doc as adpDoc,
+  id as adpId,
+  resources as adpResources,
+} from '@rawdash/connector-adp';
+import {
   configFields as anthropicConfigFields,
   doc as anthropicDoc,
   id as anthropicId,
@@ -414,6 +421,14 @@ import {
 import type { ConnectorMetadata } from './types';
 
 export const connectorMetadata: ConnectorMetadata[] = [
+  {
+    id: adpId,
+    packageName: '@rawdash/connector-adp',
+    doc: adpDoc,
+    configFields: adpConfigFields,
+    resources: adpResources,
+    cost: adpCost,
+  },
   {
     id: anthropicId,
     packageName: '@rawdash/connector-anthropic',
