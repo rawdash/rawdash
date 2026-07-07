@@ -14,6 +14,7 @@ import {
   buildEmbeddingsSamples,
   configFields,
   getUsageWindow,
+  openaiResources,
 } from './openai';
 
 const CONNECTOR_ID = 'openai';
@@ -202,7 +203,6 @@ describe('OpenAIConnector sync', () => {
                   amount: { value: 12.34, currency: 'usd' },
                   line_item: 'Nov 2026 - Chat Completions',
                   project_id: 'proj_A',
-                  organization_id: 'org_X',
                 },
               ],
             },
@@ -398,6 +398,57 @@ describe('OpenAIConnector sync', () => {
     expect(seenUrls[0]).toContain('project_ids=proj_B');
   });
 
+  it('requests group_by=batch on the completions endpoint and writes the batch attribute', async () => {
+    const seenUrls: string[] = [];
+    installFetchMockAdvanced((url) => {
+      seenUrls.push(url);
+      return {
+        body: {
+          object: 'page',
+          data: [
+            {
+              object: 'bucket',
+              start_time: 1700000000,
+              end_time: 1700086400,
+              results: [
+                {
+                  object: 'organization.usage.completions.result',
+                  input_tokens: 100,
+                  output_tokens: 50,
+                  num_model_requests: 1,
+                  project_id: 'proj_A',
+                  model: 'gpt-4o',
+                  batch: true,
+                },
+              ],
+            },
+          ],
+          has_more: false,
+          next_page: null,
+        },
+      };
+    });
+
+    const storage = new InMemoryStorage();
+    await makeConnector({
+      resources: ['openai_completions_requests'],
+    }).sync({ mode: 'full' }, storage.getStorageHandle(CONNECTOR_ID));
+
+    const completionsUrl = seenUrls.find((u) =>
+      u.includes('/usage/completions'),
+    )!;
+    expect(completionsUrl).toContain('group_by=batch');
+
+    const metrics = metricStoreFor<{
+      name: string;
+      attributes: Record<string, unknown>;
+    }>(storage, CONNECTOR_ID);
+    const requests = metrics.find(
+      (m) => m.name === 'openai_completions_requests',
+    )!;
+    expect(requests.attributes['batch']).toBe(true);
+  });
+
   it('does not wipe older history when an incremental sync returns no rows', async () => {
     vi.stubGlobal(
       'fetch',
@@ -521,7 +572,6 @@ describe('buildCostSamples', () => {
             amount: { value: 42.5, currency: 'usd' },
             line_item: 'Foo',
             project_id: 'proj_A',
-            organization_id: 'org_X',
           },
         ],
       },
@@ -530,6 +580,28 @@ describe('buildCostSamples', () => {
     expect(out[0]!.value).toBe(42.5);
     expect(out[0]!.attributes!['currency']).toBe('usd');
     expect(out[0]!.attributes!['line_item']).toBe('Foo');
+  });
+
+  it('does not emit an organization_id attribute or declare it as a dimension', () => {
+    const out = buildCostSamples([
+      {
+        start_time: 1700000000,
+        end_time: 1700086400,
+        results: [
+          {
+            object: 'organization.costs.result',
+            amount: { value: 1, currency: 'usd' },
+            line_item: null,
+            project_id: null,
+          },
+        ],
+      },
+    ]);
+    expect(out[0]!.attributes).not.toHaveProperty('organization_id');
+    const costDimensions = (
+      openaiResources.openai_cost_usd.dimensions ?? []
+    ).map((d) => d.name);
+    expect(costDimensions).not.toContain('organization_id');
   });
 });
 

@@ -102,7 +102,7 @@ Authenticates with an OpenAI organization admin API key (sk-admin-). Admin keys 
   - Endpoint: `GET /v1/organization/costs`
   - Unit: USD
   - Granularity: daily
-  - Dimensions: `line_item`, `project_id`, `organization_id`, `currency`
+  - Dimensions: `line_item`, `project_id`, `currency`
   - The Costs API only supports 1d bucket_width and only reports USD amounts. Costs can be revised for a couple of days after the fact; incremental syncs refetch a short trailing window to pick up adjustments.
 
 ## Example

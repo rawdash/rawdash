@@ -244,7 +244,6 @@ const costsResultSchema = z.object({
   }),
   line_item: z.string().nullish(),
   project_id: z.string().nullish(),
-  organization_id: z.string().nullish(),
 });
 
 function bucketResponseSchema<T extends z.ZodTypeAny>(resultSchema: T) {
@@ -501,11 +500,6 @@ export const openaiResources = defineResources({
       {
         name: 'project_id',
         description: 'OpenAI project id the cost is attributed to (or null).',
-      },
-      {
-        name: 'organization_id',
-        description:
-          'OpenAI organization id the cost is attributed to (or null).',
       },
       {
         name: 'currency',
@@ -819,7 +813,6 @@ export function buildCostSamples(
           attributes: {
             line_item: nullableString(row.line_item),
             project_id: nullableString(row.project_id),
-            organization_id: nullableString(row.organization_id),
             currency: row.amount.currency,
           },
         }),
@@ -893,6 +886,9 @@ export class OpenAIConnector extends BaseConnector<
     if (phase === 'usage_completions' || phase === 'usage_embeddings') {
       url.searchParams.append('group_by', 'api_key_id');
       url.searchParams.append('group_by', 'user_id');
+    }
+    if (phase === 'usage_completions') {
+      url.searchParams.append('group_by', 'batch');
     }
     if (phase === 'costs') {
       url.searchParams.append('group_by', 'line_item');
