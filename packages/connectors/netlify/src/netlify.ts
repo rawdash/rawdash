@@ -25,7 +25,6 @@ import {
   makeChunkedCursorGuard,
   paginateChunked,
   schemasFromResources,
-  selectActivePhases,
 } from '@rawdash/core';
 import { z } from 'zod';
 
@@ -66,6 +65,17 @@ export const configFields = defineConfigFields(
 );
 
 export type NetlifyResource = 'sites' | 'deploys' | 'deploy_events';
+
+type NetlifyResourceType =
+  | 'netlify_site'
+  | 'netlify_deploy'
+  | 'netlify_deploy_event';
+
+const RESOURCE_TYPE_TO_SETTING: Record<NetlifyResourceType, NetlifyResource> = {
+  netlify_site: 'sites',
+  netlify_deploy: 'deploys',
+  netlify_deploy_event: 'deploy_events',
+};
 
 export interface NetlifySettings {
   siteIds?: readonly string[];
@@ -280,7 +290,23 @@ export const netlifyResources = defineResources({
       {
         field: 'state',
         ops: ['eq'],
-        values: ['new', 'building', 'ready', 'error', 'processing', 'enqueued'],
+        values: [
+          'new',
+          'pending_review',
+          'accepted',
+          'rejected',
+          'enqueued',
+          'building',
+          'uploading',
+          'uploaded',
+          'preparing',
+          'prepared',
+          'processing',
+          'processed',
+          'ready',
+          'error',
+          'retrying',
+        ],
       },
     ],
     responses: { deploys: deploysResponseSchema },
@@ -383,12 +409,28 @@ export class NetlifyConnector extends BaseConnector<
   // Resource enablement
   // -------------------------------------------------------------------------
 
-  private activePhases(): NetlifyPhase[] {
-    return selectActivePhases<NetlifyResource, NetlifyPhase>(
-      (r) => (r === 'sites' ? 'sites' : 'deploys'),
-      PHASE_ORDER,
-      this.settings.resources,
-    );
+  private isResourceActive(
+    options: SyncOptions,
+    resourceType: NetlifyResourceType,
+  ): boolean {
+    if (!this.isResourceEnabled(RESOURCE_TYPE_TO_SETTING[resourceType])) {
+      return false;
+    }
+    const scope = options.resources;
+    if (!scope || scope.size === 0) {
+      return true;
+    }
+    return scope.has(resourceType);
+  }
+
+  private activePhases(options: SyncOptions): NetlifyPhase[] {
+    const phaseActive: Record<NetlifyPhase, boolean> = {
+      sites: this.isResourceActive(options, 'netlify_site'),
+      deploys:
+        this.isResourceActive(options, 'netlify_deploy') ||
+        this.isResourceActive(options, 'netlify_deploy_event'),
+    };
+    return PHASE_ORDER.filter((phase) => phaseActive[phase]);
   }
 
   // -------------------------------------------------------------------------
@@ -620,11 +662,12 @@ export class NetlifyConnector extends BaseConnector<
   }
 
   private async writeDeploysBatch(
+    options: SyncOptions,
     storage: StorageHandle,
     items: unknown[],
   ): Promise<void> {
-    const writeEntities = this.isResourceEnabled('deploys');
-    const writeEvents = this.isResourceEnabled('deploy_events');
+    const writeEntities = this.isResourceActive(options, 'netlify_deploy');
+    const writeEvents = this.isResourceActive(options, 'netlify_deploy_event');
     if (!writeEntities && !writeEvents) {
       return;
     }
@@ -704,7 +747,7 @@ export class NetlifyConnector extends BaseConnector<
     this.discoveredSiteIds = null;
     const cursor = this.resolveCursor(options.cursor);
     const isFull = options.mode === 'full';
-    const phases = this.activePhases();
+    const phases = this.activePhases(options);
 
     return paginateChunked<NetlifyPhase, string>({
       phases,
@@ -723,15 +766,15 @@ export class NetlifyConnector extends BaseConnector<
         if (isFull && page === null) {
           switch (phase) {
             case 'sites':
-              if (this.isResourceEnabled('sites')) {
+              if (this.isResourceActive(options, 'netlify_site')) {
                 await storage.entities([], { types: ['netlify_site'] });
               }
               break;
             case 'deploys':
-              if (this.isResourceEnabled('deploys')) {
+              if (this.isResourceActive(options, 'netlify_deploy')) {
                 await storage.entities([], { types: ['netlify_deploy'] });
               }
-              if (this.isResourceEnabled('deploy_events')) {
+              if (this.isResourceActive(options, 'netlify_deploy_event')) {
                 await storage.events([], { names: ['netlify_deploy_event'] });
               }
               break;
@@ -739,12 +782,12 @@ export class NetlifyConnector extends BaseConnector<
         }
         switch (phase) {
           case 'sites':
-            if (!this.isResourceEnabled('sites')) {
+            if (!this.isResourceActive(options, 'netlify_site')) {
               return;
             }
             return this.writeSites(storage, items);
           case 'deploys':
-            return this.writeDeploysBatch(storage, items);
+            return this.writeDeploysBatch(options, storage, items);
         }
       },
     });
