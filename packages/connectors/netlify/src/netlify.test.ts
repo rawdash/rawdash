@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { NetlifyConnector, configFields } from './netlify';
+import { NetlifyConnector, configFields, netlifyResources } from './netlify';
 
 // ---------------------------------------------------------------------------
 // configFields
@@ -550,10 +550,7 @@ describe('NetlifyConnector.sync', () => {
       return { body: [] };
     });
 
-    await connector.sync(
-      { mode: 'latest', since, resources: new Set(['deploy']) },
-      makeStorage(),
-    );
+    await connector.sync({ mode: 'latest', since }, makeStorage());
 
     const deploysCalls = calls.filter((c) => c.includes('/deploys'));
     expect(deploysCalls.some((u) => u === page3Url)).toBe(false);
@@ -606,6 +603,95 @@ describe('NetlifyConnector.sync', () => {
       calls.some((c) => c.includes('/api/v1/sites') && !c.includes('/deploys')),
     ).toBe(false);
     expect(calls.some((c) => c.includes('/deploys'))).toBe(true);
+  });
+
+  it('honors options.resources by resource-type name: sites-only scope skips deploys', async () => {
+    const connector = makeConnector({ siteIds: ['site_1'] });
+    const storage = makeStorage();
+    const { calls } = installRouter(() => ({ body: [] }));
+
+    await connector.sync(
+      { mode: 'full', resources: new Set(['netlify_site']) },
+      storage,
+    );
+
+    expect(calls.some((c) => c.includes('/deploys'))).toBe(false);
+
+    const clearedTypes = storage.entities.mock.calls
+      .filter((c) => Array.isArray(c[0]) && (c[0] as unknown[]).length === 0)
+      .map((c) => (c[1] as { types: string[] }).types[0]);
+    expect(clearedTypes).toContain('netlify_site');
+    expect(clearedTypes).not.toContain('netlify_deploy');
+
+    const clearedEvents = storage.events.mock.calls.filter(
+      (c) => Array.isArray(c[0]) && (c[0] as unknown[]).length === 0,
+    );
+    expect(clearedEvents).toHaveLength(0);
+  });
+
+  it('honors options.resources by resource-type name: deploys-only scope skips sites', async () => {
+    const connector = makeConnector({ siteIds: ['site_1'] });
+    const storage = makeStorage();
+    const { calls } = installRouter((u) =>
+      u.includes('/deploys') ? { body: [deployFixture()] } : { body: [] },
+    );
+
+    await connector.sync(
+      { mode: 'full', resources: new Set(['netlify_deploy']) },
+      storage,
+    );
+
+    expect(
+      calls.some((c) => c.includes('/api/v1/sites') && !c.includes('/deploys')),
+    ).toBe(false);
+
+    const clearedTypes = storage.entities.mock.calls
+      .filter((c) => Array.isArray(c[0]) && (c[0] as unknown[]).length === 0)
+      .map((c) => (c[1] as { types: string[] }).types[0]);
+    expect(clearedTypes).toContain('netlify_deploy');
+    expect(clearedTypes).not.toContain('netlify_site');
+  });
+
+  it('scoping netlify_deploy writes entities but not deploy events', async () => {
+    const connector = makeConnector({ siteIds: ['site_1'] });
+    const storage = makeStorage();
+    installRouter((u) =>
+      u.includes('/deploys') ? { body: [deployFixture()] } : { body: [] },
+    );
+
+    await connector.sync(
+      { mode: 'full', resources: new Set(['netlify_deploy']) },
+      storage,
+    );
+
+    const deployEntities = storage.entity.mock.calls
+      .map((c) => c[0] as { type: string })
+      .filter((e) => e.type === 'netlify_deploy');
+    expect(deployEntities).toHaveLength(1);
+    expect(storage.event.mock.calls).toHaveLength(0);
+  });
+
+  it('scoping netlify_deploy_event writes events but not deploy entities', async () => {
+    const connector = makeConnector({ siteIds: ['site_1'] });
+    const storage = makeStorage();
+    installRouter((u) =>
+      u.includes('/deploys') ? { body: [deployFixture()] } : { body: [] },
+    );
+
+    await connector.sync(
+      { mode: 'full', resources: new Set(['netlify_deploy_event']) },
+      storage,
+    );
+
+    const deployEntities = storage.entity.mock.calls
+      .map((c) => c[0] as { type: string })
+      .filter((e) => e.type === 'netlify_deploy');
+    expect(deployEntities).toHaveLength(0);
+
+    const events = storage.event.mock.calls
+      .map((c) => c[0] as { name: string })
+      .filter((e) => e.name === 'netlify_deploy_event');
+    expect(events).toHaveLength(1);
   });
 });
 
@@ -663,5 +749,39 @@ describe('NetlifyConnector filter pushdown', () => {
       ],
     });
     expect(deploysUrl(calls).searchParams.get('state')).toBeNull();
+  });
+
+  it('pushes an extended-enum state value the API supports', async () => {
+    const calls = await syncWith({
+      netlify_deploy: [
+        { filter: [{ field: 'state', op: 'eq', value: 'retrying' }] },
+      ],
+    });
+    expect(deploysUrl(calls).searchParams.get('state')).toBe('retrying');
+  });
+});
+
+describe('netlify_deploy state filter metadata', () => {
+  it('advertises the full documented deploy state enum', () => {
+    const stateFilter = netlifyResources.netlify_deploy.filterable?.find(
+      (f) => f.field === 'state',
+    );
+    expect(stateFilter?.values).toEqual([
+      'new',
+      'pending_review',
+      'accepted',
+      'rejected',
+      'enqueued',
+      'building',
+      'uploading',
+      'uploaded',
+      'preparing',
+      'prepared',
+      'processing',
+      'processed',
+      'ready',
+      'error',
+      'retrying',
+    ]);
   });
 });
