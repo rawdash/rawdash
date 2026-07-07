@@ -249,8 +249,14 @@ const issueResponseSchema = z.array(
     id: idString,
     shortId: z.string(),
     title: z.string(),
-    level: z.enum(['debug', 'info', 'warning', 'error', 'fatal']),
-    status: z.enum(['resolved', 'unresolved', 'ignored']),
+    level: z.union([
+      z.enum(['debug', 'info', 'warning', 'error', 'fatal']),
+      z.string(),
+    ]),
+    status: z.union([
+      z.enum(['resolved', 'unresolved', 'ignored']),
+      z.string(),
+    ]),
     firstSeen: z.iso.datetime(),
     lastSeen: z.iso.datetime(),
     count: z.union([z.string().regex(/^\d+$/), z.number().int().nonnegative()]),
