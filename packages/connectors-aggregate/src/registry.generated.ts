@@ -2,6 +2,7 @@
 import type { ConnectorClass } from '@rawdash/core';
 
 export const connectorLoaders: Record<string, () => Promise<ConnectorClass>> = {
+  adp: () => import('@rawdash/connector-adp').then((m) => m.default),
   anthropic: () =>
     import('@rawdash/connector-anthropic').then((m) => m.default),
   'app-store-connect': () =>
