@@ -38,9 +38,9 @@ A New Relic User API key plus the numeric account ID are required. The key is st
 
 - **`newrelic_alert_condition`** _(entity)_ - NRQL alert conditions with name, enabled state, policy id, type, and the underlying NRQL query string.
   - Endpoint: `GraphQL query: actor.account.alerts.nrqlConditionsSearch { nrqlConditions { ... } }`
-- **`newrelic_alert_violation`** _(event)_ - AI alert violation events. Each row from the NrAiIncident event type becomes one event with openedAt / closedAt and the underlying condition / policy metadata.
-  - Endpoint: `GraphQL nrql() against SELECT ... FROM NrAiIncident WHERE openedAt > ...`
-  - Append-only across syncs; the connector filters NrAiIncident by `openedAt` against `options.since` (or the configured lookback) to avoid re-emitting old incidents.
+- **`newrelic_alert_violation`** _(event)_ - AI alert violation events. Each row from the NrAiIncident event type becomes one event with openTime / closeTime and the underlying condition / policy metadata.
+  - Endpoint: `GraphQL nrql() against SELECT ... FROM NrAiIncident WHERE openTime > ...`
+  - Append-only across syncs; the connector filters NrAiIncident by `openTime` against `options.since` (or the configured lookback) to avoid re-emitting old incidents.
 - **`newrelic_nrql_metric`** _(metric)_ - User-declared NRQL metric samples, stored as `newrelic_nrql_metric.<query name>`. Each NRQL result row is mapped to a single sample using the first numeric, non-timestamp/facet field as the value.
   - Endpoint: `GraphQL nrql() against the user-declared NRQL query`
   - Dimensions: `queryName`, `query`, `facets`
@@ -85,7 +85,7 @@ export default defineConfig({
             shape: 'event',
             name: 'newrelic_alert_violation',
             fn: 'count',
-            filter: [{ field: 'state', op: 'eq', value: 'CREATED' }],
+            filter: [{ field: 'event', op: 'eq', value: 'Open' }],
           }),
         },
       },

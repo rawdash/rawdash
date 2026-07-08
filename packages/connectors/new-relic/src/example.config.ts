@@ -35,7 +35,7 @@ export default defineConfig({
             shape: 'event',
             name: 'newrelic_alert_violation',
             fn: 'count',
-            filter: [{ field: 'state', op: 'eq', value: 'CREATED' }],
+            filter: [{ field: 'event', op: 'eq', value: 'Open' }],
           }),
         },
       },

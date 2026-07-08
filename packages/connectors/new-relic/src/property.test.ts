@@ -142,11 +142,11 @@ describe('NewRelicConnector property tests', () => {
       const violations: InvariantViolation[] = [];
       const validRows = sample.results.filter((r) => {
         const incidentId = r.incidentId;
-        const openedAt = r.openedAt;
+        const openTime = r.openTime;
         return (
           (typeof incidentId === 'string' || typeof incidentId === 'number') &&
-          typeof openedAt === 'number' &&
-          Number.isFinite(openedAt)
+          typeof openTime === 'number' &&
+          Number.isFinite(openTime)
         );
       });
       const events = eventStoreFor(storage, CONNECTOR_ID).filter(
@@ -155,7 +155,7 @@ describe('NewRelicConnector property tests', () => {
       if (events.length !== validRows.length) {
         violations.push({
           invariant:
-            'one newrelic_alert_violation event per NRQL row with valid id + openedAt',
+            'one newrelic_alert_violation event per NRQL row with valid id + openTime',
           location: 'incidents phase',
           detail: `expected ${validRows.length} events, got ${events.length}`,
         });
