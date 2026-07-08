@@ -280,8 +280,6 @@ describe('NewRelicConnector.sync', () => {
                       enabled: true,
                       policyId: 'pol_1',
                       type: 'STATIC',
-                      createdAt: 1714000000000,
-                      updatedAt: 1714500000000,
                       nrql: { query: 'SELECT average(cpu) FROM Metric' },
                     },
                   ],
@@ -364,6 +362,46 @@ describe('NewRelicConnector.sync', () => {
     expect(alertCalls[1]!.parsed.variables.cursor).toBe('next-1');
   });
 
+  it('does not select createdAt/updatedAt on NRQL conditions (rejected by NerdGraph)', async () => {
+    const spy = vi
+      .fn()
+      .mockImplementation((_url: string | URL, init: RequestInit) => {
+        const parsed = JSON.parse(init.body as string) as GraphQLCall;
+        if (/createdAt|updatedAt/.test(parsed.query)) {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                errors: [
+                  {
+                    message:
+                      "Cannot query field 'createdAt' on type 'AlertsNrqlCondition'",
+                  },
+                ],
+              }),
+              {
+                status: 200,
+                headers: { 'content-type': 'application/json' },
+              },
+            ),
+          );
+        }
+        return Promise.resolve(
+          new Response(JSON.stringify({ data: emptyData() }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          }),
+        );
+      });
+    vi.stubGlobal('fetch', spy);
+
+    const result = await makeConnector({ resources: ['alerts'] }).sync(
+      { mode: 'full' },
+      makeStorage(),
+    );
+    expect(result.done).toBe(true);
+    expect(result.transientError).toBeUndefined();
+  });
+
   it('writes alert violation events from NrAiIncident rows', async () => {
     const connector = makeConnector({ resources: ['alert_violations'] });
     installGraphqlRouter((op) => {
@@ -375,15 +413,16 @@ describe('NewRelicConnector.sync', () => {
                 results: [
                   {
                     incidentId: 'inc_42',
-                    conditionFamilyId: 'cf_7',
+                    conditionId: 'cond_7',
                     conditionName: 'High latency',
                     policyName: 'API SLO',
-                    openedAt: 1714521600000,
-                    closedAt: 1714525200000,
+                    openTime: 1714521600000,
+                    closeTime: 1714525200000,
                     durationSeconds: 3600,
-                    priority: 'CRITICAL',
+                    priority: 'critical',
                     title: 'API latency above threshold',
-                    state: 'CLOSED',
+                    event: 'Close',
+                    'entity.guid': 'ent_abc',
                   },
                 ],
                 metadata: { facets: null, timeWindow: null },
@@ -412,10 +451,13 @@ describe('NewRelicConnector.sync', () => {
     expect(events[0]!.start_ts).toBe(1714521600000);
     expect(events[0]!.end_ts).toBe(1714525200000);
     expect(events[0]!.attributes.incidentId).toBe('inc_42');
-    expect(events[0]!.attributes.priority).toBe('CRITICAL');
+    expect(events[0]!.attributes.priority).toBe('critical');
+    expect(events[0]!.attributes.event).toBe('Close');
+    expect(events[0]!.attributes.conditionId).toBe('cond_7');
+    expect(events[0]!.attributes.entityGuid).toBe('ent_abc');
   });
 
-  it('skips incident rows missing incidentId or openedAt', async () => {
+  it('skips incident rows missing incidentId or openTime', async () => {
     const connector = makeConnector({ resources: ['alert_violations'] });
     installGraphqlRouter((op) => {
       if (op === 'RunNrql') {
@@ -424,12 +466,12 @@ describe('NewRelicConnector.sync', () => {
             account: {
               nrql: {
                 results: [
-                  { openedAt: 1, conditionName: 'no id' },
-                  { incidentId: 'has-id-no-openedAt' },
+                  { openTime: 1, conditionName: 'no id' },
+                  { incidentId: 'has-id-no-openTime' },
                   {
                     incidentId: 'inc_real',
-                    openedAt: 1714521600000,
-                    closedAt: null,
+                    openTime: 1714521600000,
+                    closeTime: null,
                   },
                 ],
                 metadata: { facets: null, timeWindow: null },
@@ -463,7 +505,29 @@ describe('NewRelicConnector.sync', () => {
     expect(nrqlCalls).toHaveLength(1);
     const query = nrqlCalls[0]!.parsed.variables.query as string;
     expect(query).toContain('FROM NrAiIncident');
-    expect(query).toContain('openedAt > 1714521600000');
+    expect(query).toContain('openTime > 1714521600000');
+  });
+
+  it('queries NrAiIncident using only attributes that exist on the event type', async () => {
+    const { calls } = installGraphqlRouter();
+    await makeConnector({ resources: ['alert_violations'] }).sync(
+      { mode: 'full' },
+      makeStorage(),
+    );
+    const query = calls.find(
+      (c) => operationName(c.parsed.query) === 'RunNrql',
+    )!.parsed.variables.query as string;
+    expect(query).toContain('openTime');
+    expect(query).toContain('closeTime');
+    expect(query).toContain('event');
+    expect(query).toContain('entity.guid');
+    expect(query).toContain('conditionId');
+    expect(query).toContain('ORDER BY openTime ASC');
+    expect(query).not.toMatch(/openedAt/);
+    expect(query).not.toMatch(/closedAt/);
+    expect(query).not.toMatch(/\bstate\b/);
+    expect(query).not.toMatch(/entityGuid/);
+    expect(query).not.toMatch(/conditionFamilyId/);
   });
 
   it('keyset-paginates incidents when a page hits the NRQL row limit', async () => {
@@ -472,19 +536,19 @@ describe('NewRelicConnector.sync', () => {
     const since = new Date(sinceMs).toISOString();
     const fullPage = Array.from({ length: INCIDENTS_NRQL_LIMIT }, (_, i) => ({
       incidentId: `inc_${i}`,
-      openedAt: sinceMs + 1 + i,
-      closedAt: null,
+      openTime: sinceMs + 1 + i,
+      closeTime: null,
     }));
-    const lastOpenedAt = fullPage[fullPage.length - 1]!.openedAt;
+    const lastOpenTime = fullPage[fullPage.length - 1]!.openTime;
     const { calls } = installGraphqlRouter((op, call) => {
       if (op === 'RunNrql') {
         const query = call.variables.query as string;
-        const results = query.includes(`openedAt > ${lastOpenedAt}`)
+        const results = query.includes(`openTime > ${lastOpenTime}`)
           ? [
               {
                 incidentId: 'inc_last',
-                openedAt: lastOpenedAt + 1,
-                closedAt: null,
+                openTime: lastOpenTime + 1,
+                closeTime: null,
               },
             ]
           : fullPage;
@@ -509,10 +573,10 @@ describe('NewRelicConnector.sync', () => {
     );
     expect(nrqlCalls).toHaveLength(2);
     expect(nrqlCalls[0]!.parsed.variables.query).toContain(
-      'ORDER BY openedAt ASC',
+      'ORDER BY openTime ASC',
     );
     expect(nrqlCalls[1]!.parsed.variables.query).toContain(
-      `openedAt > ${lastOpenedAt}`,
+      `openTime > ${lastOpenTime}`,
     );
 
     const events = storage.event.mock.calls

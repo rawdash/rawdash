@@ -160,8 +160,6 @@ interface NrqlConditionNode {
   enabled: boolean;
   policyId: string;
   type: string;
-  createdAt: number | null;
-  updatedAt: number | null;
   nrql?: { query: string } | null;
 }
 
@@ -228,8 +226,6 @@ const ALERT_CONDITIONS_QUERY = `
               enabled
               policyId
               type
-              createdAt
-              updatedAt
               nrql { query }
             }
             nextCursor
@@ -275,8 +271,6 @@ const nrqlConditionNodeSchema = z.object({
   enabled: z.boolean(),
   policyId: idString,
   type: z.string(),
-  createdAt: z.number().nullable(),
-  updatedAt: z.number().nullable(),
   nrql: z.object({ query: z.string() }).nullable().optional(),
 });
 
@@ -315,8 +309,8 @@ const TIMESTAMP_FIELDS = new Set([
   'end_time',
   'beginTime',
   'endTime',
-  'openedAt',
-  'closedAt',
+  'openTime',
+  'closeTime',
 ]);
 const FACET_FIELDS = new Set(['facet']);
 
@@ -334,11 +328,11 @@ export const newRelicResources = defineResources({
     shape: 'event',
     filterable: [],
     description:
-      'AI alert violation events. Each row from the NrAiIncident event type becomes one event with openedAt / closedAt and the underlying condition / policy metadata.',
+      'AI alert violation events. Each row from the NrAiIncident event type becomes one event with openTime / closeTime and the underlying condition / policy metadata.',
     endpoint:
-      'GraphQL nrql() against SELECT ... FROM NrAiIncident WHERE openedAt > ...',
+      'GraphQL nrql() against SELECT ... FROM NrAiIncident WHERE openTime > ...',
     notes:
-      'Append-only across syncs; the connector filters NrAiIncident by `openedAt` against `options.since` (or the configured lookback) to avoid re-emitting old incidents.',
+      'Append-only across syncs; the connector filters NrAiIncident by `openTime` against `options.since` (or the configured lookback) to avoid re-emitting old incidents.',
     responses: { incidents: nrqlResultSchema },
   },
   newrelic_nrql_metric: {
@@ -474,7 +468,7 @@ export class NewRelicConnector extends BaseConnector<
       this.settings.incidentsLookbackHours ?? DEFAULT_INCIDENTS_LOOKBACK_HOURS;
     const fromMs = sinceMs ?? Date.now() - lookbackHours * 60 * 60 * 1000;
     const floorMs = page !== null ? Number(page) : fromMs;
-    const nrql = `SELECT incidentId, conditionFamilyId, policyName, conditionName, openedAt, closedAt, durationSeconds, priority, title, state, entityGuid FROM NrAiIncident WHERE openedAt > ${floorMs} ORDER BY openedAt ASC LIMIT ${INCIDENTS_NRQL_LIMIT}`;
+    const nrql = `SELECT incidentId, conditionId, policyName, conditionName, openTime, closeTime, durationSeconds, priority, title, event, entity.guid FROM NrAiIncident WHERE openTime > ${floorMs} ORDER BY openTime ASC LIMIT ${INCIDENTS_NRQL_LIMIT}`;
     const res = await this.graphql<NrqlResponse>(
       NRQL_QUERY,
       { accountId: this.settings.accountId, query: nrql },
@@ -485,12 +479,12 @@ export class NewRelicConnector extends BaseConnector<
     if (results.length < INCIDENTS_NRQL_LIMIT) {
       return { items: results, next: null };
     }
-    const lastOpenedAt = results[results.length - 1]?.openedAt;
+    const lastOpenTime = results[results.length - 1]?.openTime;
     const next =
-      typeof lastOpenedAt === 'number' &&
-      Number.isFinite(lastOpenedAt) &&
-      lastOpenedAt > floorMs
-        ? String(lastOpenedAt)
+      typeof lastOpenTime === 'number' &&
+      Number.isFinite(lastOpenTime) &&
+      lastOpenTime > floorMs
+        ? String(lastOpenTime)
         : null;
     return { items: results, next };
   }
@@ -548,9 +542,6 @@ export class NewRelicConnector extends BaseConnector<
     conditions: NrqlConditionNode[],
   ): Promise<void> {
     for (const c of conditions) {
-      const createdMs = c.createdAt ?? null;
-      const modifiedMs = c.updatedAt ?? null;
-      const updatedAt = modifiedMs ?? createdMs ?? Date.now();
       await storage.entity({
         type: 'newrelic_alert_condition',
         id: c.id,
@@ -561,10 +552,8 @@ export class NewRelicConnector extends BaseConnector<
           policyId: c.policyId,
           conditionType: c.type,
           nrqlQuery: c.nrql?.query ?? null,
-          createdAt: createdMs,
-          modifiedAt: modifiedMs,
         },
-        updated_at: updatedAt,
+        updated_at: Date.now(),
       });
     }
   }
@@ -578,32 +567,32 @@ export class NewRelicConnector extends BaseConnector<
         typeof row.incidentId === 'string' || typeof row.incidentId === 'number'
           ? String(row.incidentId)
           : null;
-      const openedAtRaw = row.openedAt;
-      const openedAtMs =
-        typeof openedAtRaw === 'number' && Number.isFinite(openedAtRaw)
-          ? openedAtRaw
+      const openTimeRaw = row.openTime;
+      const openTimeMs =
+        typeof openTimeRaw === 'number' && Number.isFinite(openTimeRaw)
+          ? openTimeRaw
           : null;
-      if (incidentId === null || openedAtMs === null) {
+      if (incidentId === null || openTimeMs === null) {
         continue;
       }
-      const closedAtRaw = row.closedAt;
-      const closedAtMs =
-        typeof closedAtRaw === 'number' && Number.isFinite(closedAtRaw)
-          ? closedAtRaw
+      const closeTimeRaw = row.closeTime;
+      const closeTimeMs =
+        typeof closeTimeRaw === 'number' && Number.isFinite(closeTimeRaw)
+          ? closeTimeRaw
           : null;
       await storage.event({
         name: 'newrelic_alert_violation',
-        start_ts: openedAtMs,
-        end_ts: closedAtMs,
+        start_ts: openTimeMs,
+        end_ts: closeTimeMs,
         attributes: {
           incidentId,
-          conditionFamilyId: this.coerceScalar(row.conditionFamilyId),
+          conditionId: this.coerceScalar(row.conditionId),
           conditionName: this.coerceScalar(row.conditionName),
           policyName: this.coerceScalar(row.policyName),
           priority: this.coerceScalar(row.priority),
           title: this.coerceScalar(row.title),
-          state: this.coerceScalar(row.state),
-          entityGuid: this.coerceScalar(row.entityGuid),
+          event: this.coerceScalar(row.event),
+          entityGuid: this.coerceScalar(row['entity.guid']),
           durationSeconds: this.coerceScalar(row.durationSeconds),
         },
       });
