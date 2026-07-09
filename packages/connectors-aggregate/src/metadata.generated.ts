@@ -350,6 +350,12 @@ import {
   resources as sentryResources,
 } from '@rawdash/connector-sentry';
 import {
+  configFields as servicenowConfigFields,
+  doc as servicenowDoc,
+  id as servicenowId,
+  resources as servicenowResources,
+} from '@rawdash/connector-servicenow';
+import {
   configFields as shopifyConfigFields,
   doc as shopifyDoc,
   id as shopifyId,
@@ -820,6 +826,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: sentryDoc,
     configFields: sentryConfigFields,
     resources: sentryResources,
+  },
+  {
+    id: servicenowId,
+    packageName: '@rawdash/connector-servicenow',
+    doc: servicenowDoc,
+    configFields: servicenowConfigFields,
+    resources: servicenowResources,
   },
   {
     id: shopifyId,

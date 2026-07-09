@@ -91,6 +91,7 @@
     "@rawdash/connector-salesforce": "workspace:*",
     "@rawdash/connector-sendgrid": "workspace:*",
     "@rawdash/connector-sentry": "workspace:*",
+    "@rawdash/connector-servicenow": "workspace:*",
     "@rawdash/connector-shopify": "workspace:*",
     "@rawdash/connector-statuspage": "workspace:*",
     "@rawdash/connector-stripe": "workspace:*",
