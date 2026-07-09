@@ -138,7 +138,14 @@ function emptyAuditBody() {
   return { body: { items: [], totalCount: 0 } };
 }
 
+function emptyEnvironmentsBody() {
+  return { body: { items: [], totalCount: 0 } };
+}
+
 function routeDefault(url: string): MockResponseSpec {
+  if (url.includes('/environments')) {
+    return emptyEnvironmentsBody();
+  }
   if (url.includes('/api/v2/projects')) {
     return emptyProjectsBody();
   }
@@ -548,6 +555,101 @@ describe('LaunchDarklyConnector.sync', () => {
     expect(calls.some((c) => c.includes('/api/v2/projects'))).toBe(false);
     expect(calls.some((c) => c.includes('/api/v2/flags/'))).toBe(false);
     expect(calls.some((c) => c.includes('/api/v2/auditlog'))).toBe(true);
+  });
+
+  it('sends the LD-API-Version header on every request', async () => {
+    const connector = makeConnector({
+      resources: ['projects', 'feature_flags', 'flag_events'],
+      projects: ['p1'],
+    });
+    const { spy } = installRouter(routeDefault);
+    await connector.sync({ mode: 'full' }, makeStorage());
+
+    expect(spy.mock.calls.length).toBeGreaterThan(0);
+    for (const call of spy.mock.calls) {
+      const headers = call[1].headers as Record<string, string>;
+      expect(headers['ld-api-version']).toBe('20240415');
+    }
+  });
+
+  it('requests the audit log with the documented max page size of 20', async () => {
+    const connector = makeConnector({ resources: ['flag_events'] });
+    const { calls } = installRouter(routeDefault);
+    await connector.sync({ mode: 'full' }, makeStorage());
+
+    const auditCall = calls.find((c) => c.includes('/api/v2/auditlog'));
+    expect(auditCall).toBeDefined();
+    expect(new URL(auditCall!).searchParams.get('limit')).toBe('20');
+  });
+
+  it('enumerates project environments and filters the flags query by each env', async () => {
+    const connector = makeConnector({
+      resources: ['feature_flags'],
+      projects: ['proj-1'],
+    });
+    const { calls } = installRouter((u) => {
+      if (u.includes('/api/v2/projects/proj-1/environments')) {
+        return {
+          body: {
+            items: [{ key: 'production' }, { key: 'staging' }],
+          },
+        };
+      }
+      if (u.includes('/api/v2/flags/proj-1')) {
+        return {
+          body: { items: [{ key: 'f1', name: 'F1', kind: 'boolean' }] },
+        };
+      }
+      return routeDefault(u);
+    });
+    await connector.sync({ mode: 'full' }, makeStorage());
+
+    expect(
+      calls.some((c) => c.includes('/api/v2/projects/proj-1/environments')),
+    ).toBe(true);
+    const flagsUrl = calls.find((c) => c.includes('/api/v2/flags/proj-1'));
+    expect(flagsUrl).toBeDefined();
+    expect(new URL(flagsUrl!).searchParams.getAll('env')).toEqual([
+      'production',
+      'staging',
+    ]);
+  });
+
+  it('resolves environments once per project even across flag pages', async () => {
+    const connector = makeConnector({
+      resources: ['feature_flags'],
+      projects: ['proj-1'],
+    });
+    let flagsPage = 0;
+    const { calls } = installRouter((u) => {
+      if (u.includes('/api/v2/projects/proj-1/environments')) {
+        return { body: { items: [{ key: 'production' }] } };
+      }
+      if (u.includes('/api/v2/flags/proj-1')) {
+        flagsPage += 1;
+        if (flagsPage === 1) {
+          return {
+            body: {
+              items: [{ key: 'f1', name: 'F1', kind: 'boolean' }],
+              _links: {
+                next: { href: '/api/v2/flags/proj-1?limit=100&offset=100' },
+              },
+            },
+          };
+        }
+        return {
+          body: { items: [{ key: 'f2', name: 'F2', kind: 'boolean' }] },
+        };
+      }
+      return routeDefault(u);
+    });
+    await connector.sync({ mode: 'full' }, makeStorage());
+
+    const envCalls = calls.filter((c) =>
+      c.includes('/api/v2/projects/proj-1/environments'),
+    );
+    expect(envCalls).toHaveLength(1);
+    expect(flagsPage).toBe(2);
   });
 });
 

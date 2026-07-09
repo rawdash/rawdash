@@ -143,6 +143,16 @@ interface LDProjectsResponse {
   totalCount?: number;
 }
 
+interface LDEnvironment {
+  key: string;
+}
+
+interface LDEnvironmentsResponse {
+  items: LDEnvironment[];
+  _links?: LDLinks;
+  totalCount?: number;
+}
+
 interface LDFlagEnvironment {
   on?: boolean;
   archived?: boolean;
@@ -378,9 +388,11 @@ export const launchdarklyResources = defineResources({
 
 const LD_API_HOST = 'app.launchdarkly.com';
 const LD_API_BASE = `https://${LD_API_HOST}`;
+const LD_API_VERSION = '20240415';
 const PROJECTS_PAGE_SIZE = 100;
 const FLAGS_PAGE_SIZE = 100;
-const AUDIT_LOG_PAGE_SIZE = 50;
+const ENVIRONMENTS_PAGE_SIZE = 100;
+const AUDIT_LOG_PAGE_SIZE = 20;
 const DEFAULT_AUDIT_LOOKBACK_DAYS = 30;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -439,10 +451,12 @@ export class LaunchDarklyConnector extends BaseConnector<
 
   private discoveredProjectKeys: string[] | null = null;
   private discoveredProjectKeysComplete = false;
+  private readonly environmentKeysByProject = new Map<string, string[]>();
 
   private buildHeaders(): Record<string, string> {
     return {
       Authorization: this.creds.apiToken,
+      'LD-API-Version': LD_API_VERSION,
       'User-Agent': connectorUserAgent('launchdarkly'),
     };
   }
@@ -567,13 +581,80 @@ export class LaunchDarklyConnector extends BaseConnector<
     return u.toString();
   }
 
+  private buildInitialEnvironmentsUrl(projectKey: string): string {
+    const u = new URL(
+      `${LD_API_BASE}/api/v2/projects/${projectKey}/environments`,
+    );
+    u.searchParams.set('limit', String(ENVIRONMENTS_PAGE_SIZE));
+    return u.toString();
+  }
+
+  private resolveEnvironmentsNextHref(
+    projectKey: string,
+    href: string | undefined,
+  ): string | null {
+    if (!href) {
+      return null;
+    }
+    let abs: string;
+    try {
+      abs = new URL(href, LD_API_BASE).toString();
+    } catch {
+      return null;
+    }
+    const pathname = `/api/v2/projects/${projectKey}/environments`;
+    try {
+      if (new URL(abs).pathname !== pathname) {
+        return null;
+      }
+    } catch {
+      return null;
+    }
+    return sanitizeAllowedUrl({ url: abs, host: LD_API_HOST, pathname });
+  }
+
+  private async resolveEnvironmentKeys(
+    projectKey: string,
+    signal: AbortSignal | undefined,
+  ): Promise<string[]> {
+    const cached = this.environmentKeysByProject.get(projectKey);
+    if (cached) {
+      return cached;
+    }
+    const keys: string[] = [];
+    let nextUrl: string | null = this.buildInitialEnvironmentsUrl(projectKey);
+    while (nextUrl) {
+      signal?.throwIfAborted();
+      const res = await this.fetch<LDEnvironmentsResponse>(
+        nextUrl,
+        'environments',
+        signal,
+      );
+      for (const env of res.body.items) {
+        if (env.key) {
+          keys.push(env.key);
+        }
+      }
+      nextUrl = this.resolveEnvironmentsNextHref(
+        projectKey,
+        res.body._links?.next?.href,
+      );
+    }
+    this.environmentKeysByProject.set(projectKey, keys);
+    return keys;
+  }
+
   private buildInitialFlagsUrl(
     projectKey: string,
+    envKeys: readonly string[],
     options?: SyncOptions,
   ): string {
     const u = new URL(`${LD_API_BASE}/api/v2/flags/${projectKey}`);
     u.searchParams.set('limit', String(FLAGS_PAGE_SIZE));
     u.searchParams.set('summary', 'false');
+    for (const envKey of envKeys) {
+      u.searchParams.append('env', envKey);
+    }
     if (options) {
       const tag = pushableEq(
         this.singleSpec(options, 'launchdarkly_feature_flag')?.filter,
@@ -715,7 +796,13 @@ export class LaunchDarklyConnector extends BaseConnector<
     options: SyncOptions,
     signal: AbortSignal | undefined,
   ): Promise<{ items: FlagsPageItem[]; next: string | null }> {
-    const url = page ?? this.buildInitialFlagsUrl(projectKey, options);
+    let url: string;
+    if (page === null) {
+      const envKeys = await this.resolveEnvironmentKeys(projectKey, signal);
+      url = this.buildInitialFlagsUrl(projectKey, envKeys, options);
+    } else {
+      url = page;
+    }
     const res = await this.fetch<LDFlagsResponse>(url, 'feature_flags', signal);
     const nextInProject = this.resolveNextHref(
       'feature_flags',
@@ -729,13 +816,17 @@ export class LaunchDarklyConnector extends BaseConnector<
     }
     const idx = projectKeys.indexOf(projectKey);
     const nextProject = idx >= 0 ? projectKeys[idx + 1] : undefined;
-    const next =
-      nextProject !== undefined
-        ? this.sanitizePageUrl(
-            'feature_flags',
-            this.buildInitialFlagsUrl(nextProject, options),
-          )
-        : null;
+    let next: string | null = null;
+    if (nextProject !== undefined) {
+      const nextEnvKeys = await this.resolveEnvironmentKeys(
+        nextProject,
+        signal,
+      );
+      next = this.sanitizePageUrl(
+        'feature_flags',
+        this.buildInitialFlagsUrl(nextProject, nextEnvKeys, options),
+      );
+    }
     return {
       items: [{ projectKey, flags: res.body.items }],
       next,
@@ -870,6 +961,7 @@ export class LaunchDarklyConnector extends BaseConnector<
   ): Promise<SyncResult> {
     this.discoveredProjectKeys = null;
     this.discoveredProjectKeysComplete = false;
+    this.environmentKeysByProject.clear();
     const cursor = this.resolveCursor(options.cursor);
     const isFull = options.mode === 'full';
     const phases = this.activePhases();
