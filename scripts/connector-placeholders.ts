@@ -727,16 +727,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     brandColor: '#E62828',
     domain: 'kayako.com',
   },
-  {
-    id: 'servicenow',
-    name: 'ServiceNow',
-    category: 'support',
-    tagline:
-      'Sync incidents, change requests, and SLA breach counts from a ServiceNow instance.',
-    brandColor: '#62D84E',
-    domain: 'servicenow.com',
-    requestIssue: 'RAW-445',
-  },
 
   {
     id: 'airtable',

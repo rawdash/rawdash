@@ -87,6 +87,8 @@ export const connectorLoaders: Record<string, () => Promise<ConnectorClass>> = {
     import('@rawdash/connector-salesforce').then((m) => m.default),
   sendgrid: () => import('@rawdash/connector-sendgrid').then((m) => m.default),
   sentry: () => import('@rawdash/connector-sentry').then((m) => m.default),
+  servicenow: () =>
+    import('@rawdash/connector-servicenow').then((m) => m.default),
   shopify: () => import('@rawdash/connector-shopify').then((m) => m.default),
   statuspage: () =>
     import('@rawdash/connector-statuspage').then((m) => m.default),
