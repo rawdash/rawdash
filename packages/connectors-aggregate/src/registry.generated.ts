@@ -59,6 +59,8 @@ export const connectorLoaders: Record<string, () => Promise<ConnectorClass>> = {
   hubspot: () => import('@rawdash/connector-hubspot').then((m) => m.default),
   intercom: () => import('@rawdash/connector-intercom').then((m) => m.default),
   jira: () => import('@rawdash/connector-jira').then((m) => m.default),
+  'jira-service-management': () =>
+    import('@rawdash/connector-jira-service-management').then((m) => m.default),
   klaviyo: () => import('@rawdash/connector-klaviyo').then((m) => m.default),
   langfuse: () => import('@rawdash/connector-langfuse').then((m) => m.default),
   langsmith: () =>
