@@ -710,16 +710,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     requestIssue: 'RAW-243',
   },
   {
-    id: 'jira-service-management',
-    name: 'Jira Service Management',
-    category: 'support',
-    tagline:
-      'Sync service requests, SLA breach counts, and resolution times from Jira Service Management.',
-    icon: 'jira',
-    domain: 'atlassian.com',
-    requestIssue: 'RAW-446',
-  },
-  {
     id: 'kayako',
     name: 'Kayako',
     category: 'support',

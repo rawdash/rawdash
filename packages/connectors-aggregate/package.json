@@ -70,6 +70,7 @@
     "@rawdash/connector-hubspot": "workspace:*",
     "@rawdash/connector-intercom": "workspace:*",
     "@rawdash/connector-jira": "workspace:*",
+    "@rawdash/connector-jira-service-management": "workspace:*",
     "@rawdash/connector-klaviyo": "workspace:*",
     "@rawdash/connector-langfuse": "workspace:*",
     "@rawdash/connector-langsmith": "workspace:*",

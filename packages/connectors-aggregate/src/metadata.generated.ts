@@ -223,6 +223,12 @@ import {
   resources as jiraResources,
 } from '@rawdash/connector-jira';
 import {
+  configFields as jiraServiceManagementConfigFields,
+  doc as jiraServiceManagementDoc,
+  id as jiraServiceManagementId,
+  resources as jiraServiceManagementResources,
+} from '@rawdash/connector-jira-service-management';
+import {
   configFields as klaviyoConfigFields,
   doc as klaviyoDoc,
   id as klaviyoId,
@@ -672,6 +678,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: jiraDoc,
     configFields: jiraConfigFields,
     resources: jiraResources,
+  },
+  {
+    id: jiraServiceManagementId,
+    packageName: '@rawdash/connector-jira-service-management',
+    doc: jiraServiceManagementDoc,
+    configFields: jiraServiceManagementConfigFields,
+    resources: jiraServiceManagementResources,
   },
   {
     id: klaviyoId,
