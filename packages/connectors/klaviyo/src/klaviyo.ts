@@ -125,7 +125,13 @@ const isKlaviyoSyncCursor = makeChunkedCursorGuard(PHASE_ORDER);
 
 const KLAVIYO_API_HOST = 'a.klaviyo.com';
 const KLAVIYO_API_BASE = `https://${KLAVIYO_API_HOST}/api`;
-const PAGE_SIZE = 100;
+
+const PAGE_SIZE_BY_PHASE: Record<KlaviyoPhase, number> = {
+  lists: 10,
+  segments: 10,
+  campaigns: 100,
+  flows: 50,
+};
 
 const LIST_ENTITY = 'klaviyo_list';
 const SEGMENT_ENTITY = 'klaviyo_segment';
@@ -524,7 +530,7 @@ export class KlaviyoConnector extends BaseConnector<
 
   private buildInitialUrl(phase: KlaviyoPhase, options: SyncOptions): string {
     const u = new URL(`${KLAVIYO_API_BASE}${this.allowedPagePath(phase)}`);
-    u.searchParams.set('page[size]', String(PAGE_SIZE));
+    u.searchParams.set('page[size]', String(PAGE_SIZE_BY_PHASE[phase]));
     u.searchParams.set('sort', UPDATED_FIELD_BY_PHASE[phase]);
     const filters: string[] = [];
     if (phase === 'campaigns') {

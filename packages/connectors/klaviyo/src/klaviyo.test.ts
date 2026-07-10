@@ -351,6 +351,25 @@ describe('KlaviyoConnector.sync', () => {
     expect(decodeURIComponent(call!.url)).not.toContain('greater-than');
   });
 
+  it('caps page[size] at each endpoint documented maximum', async () => {
+    const fetchSpy = makeFetch(() => undefined);
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await connector().sync({ mode: 'full' }, makeStorage());
+
+    const urlFor = (path: string) =>
+      recordCalls(fetchSpy).find((c) => c.url.includes(path))!.url;
+
+    expect(decodeURIComponent(urlFor('/api/lists'))).toContain('page[size]=10');
+    expect(decodeURIComponent(urlFor('/api/segments'))).toContain(
+      'page[size]=10',
+    );
+    expect(decodeURIComponent(urlFor('/api/flows'))).toContain('page[size]=50');
+    expect(decodeURIComponent(urlFor('/api/campaigns'))).toContain(
+      'page[size]=100',
+    );
+  });
+
   it('follows the links.next cursor on a second page', async () => {
     let calls = 0;
     const fetchSpy = makeFetch((url) => {
