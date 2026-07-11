@@ -119,6 +119,12 @@ import {
   resources as datadogResources,
 } from '@rawdash/connector-datadog';
 import {
+  configFields as discordConfigFields,
+  doc as discordDoc,
+  id as discordId,
+  resources as discordResources,
+} from '@rawdash/connector-discord';
+import {
   configFields as drataConfigFields,
   doc as drataDoc,
   id as drataId,
@@ -551,6 +557,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: datadogDoc,
     configFields: datadogConfigFields,
     resources: datadogResources,
+  },
+  {
+    id: discordId,
+    packageName: '@rawdash/connector-discord',
+    doc: discordDoc,
+    configFields: discordConfigFields,
+    resources: discordResources,
   },
   {
     id: drataId,

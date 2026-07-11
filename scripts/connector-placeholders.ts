@@ -1096,16 +1096,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     requestIssue: 'RAW-232',
   },
   {
-    id: 'discord',
-    name: 'Discord',
-    category: 'marketing',
-    tagline:
-      'Sync member count, DAU, joins, and message volume across channels in a Discord server.',
-    icon: 'discord',
-    domain: 'discord.com',
-    requestIssue: 'RAW-447',
-  },
-  {
     id: 'discourse',
     name: 'Discourse',
     category: 'marketing',

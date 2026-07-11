@@ -53,6 +53,7 @@
     "@rawdash/connector-clerk": "workspace:*",
     "@rawdash/connector-clickup": "workspace:*",
     "@rawdash/connector-datadog": "workspace:*",
+    "@rawdash/connector-discord": "workspace:*",
     "@rawdash/connector-drata": "workspace:*",
     "@rawdash/connector-entra-id": "workspace:*",
     "@rawdash/connector-expensify": "workspace:*",
