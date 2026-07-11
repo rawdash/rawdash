@@ -256,8 +256,8 @@ describe('MailchimpConnector.sync', () => {
                 member_count: 1200,
                 unsubscribe_count: 30,
                 cleaned_count: 5,
-                open_rate: 0.45,
-                click_rate: 0.12,
+                open_rate: 45,
+                click_rate: 12,
                 campaign_count: 24,
               },
             },
@@ -289,6 +289,46 @@ describe('MailchimpConnector.sync', () => {
     expect(entity.attributes.openRate).toBe(0.45);
     expect(entity.attributes.clickRate).toBe(0.12);
     expect(entity.attributes.campaignCount).toBe(24);
+  });
+
+  it('normalizes list open_rate/click_rate from a 0-100 percentage to a 0-1 fraction', async () => {
+    const fetchSpy = makeFetch((url, method) => {
+      if (method === 'GET' && url.includes('/lists')) {
+        return {
+          lists: [
+            {
+              id: 'l_pct',
+              name: 'Newsletter',
+              stats: { open_rate: 55.04, click_rate: 1.77 },
+            },
+            {
+              id: 'l_uncalculated',
+              name: 'Fresh audience',
+              stats: { member_count: 0 },
+            },
+          ],
+        };
+      }
+      return undefined;
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const storage = makeStorage();
+    await connector({ resources: ['lists'] }).sync({ mode: 'full' }, storage);
+
+    const byId = new Map(
+      storage.entity.mock.calls.map((c) => {
+        const e = c[0] as {
+          id: string;
+          attributes: { openRate: number | null; clickRate: number | null };
+        };
+        return [e.id, e.attributes];
+      }),
+    );
+    expect(byId.get('l_pct')!.openRate).toBeCloseTo(0.5504, 10);
+    expect(byId.get('l_pct')!.clickRate).toBeCloseTo(0.0177, 10);
+    expect(byId.get('l_uncalculated')!.openRate).toBeNull();
+    expect(byId.get('l_uncalculated')!.clickRate).toBeNull();
   });
 
   it('writes an automation entity', async () => {
