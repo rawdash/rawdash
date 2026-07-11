@@ -507,6 +507,11 @@ function counterValue(value: number | null | undefined): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
 
+function percentToFraction(value: number | null | undefined): number | null {
+  const n = nullableNumber(value);
+  return n === null ? null : n / 100;
+}
+
 // Mailchimp API keys end with `-<dc>` (e.g. `xxx-us1`). The data-center prefix
 // selects the API host. We extract it at sync time rather than at config time
 // because the key is a secret and only resolved inside the connector.
@@ -753,8 +758,8 @@ export class MailchimpConnector extends BaseConnector<
         memberCount: nullableNumber(stats.member_count),
         unsubscribeCount: nullableNumber(stats.unsubscribe_count),
         cleanedCount: nullableNumber(stats.cleaned_count),
-        openRate: nullableNumber(stats.open_rate),
-        clickRate: nullableNumber(stats.click_rate),
+        openRate: percentToFraction(stats.open_rate),
+        clickRate: percentToFraction(stats.click_rate),
         campaignCount: nullableNumber(stats.campaign_count),
         listRating: nullableNumber(list.list_rating),
         createdAt: isoToMs(list.date_created),
