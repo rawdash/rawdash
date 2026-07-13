@@ -102,7 +102,8 @@ export const doc: ConnectorDoc = defineConnectorDoc({
   rateLimit:
     'Search Console API quota is 1,200 queries per minute per project (default); 429 responses are retried automatically with exponential backoff.',
   limitations: [
-    'Search Console aggregates data with a 2-3 day lag, so incremental syncs refetch the trailing 3 days.',
+    'Search Console finalizes data with a 2-3 day lag and may still revise recently finalized days, so incremental syncs refetch a trailing window that covers the lag plus a revision buffer.',
+    'All dates are reported in the America/Los_Angeles time zone, so sync windows are anchored on the Pacific calendar date.',
     'Each query is paginated 25,000 rows per page; a phase that yields more than that paginates by startRow.',
   ],
 });
@@ -235,28 +236,46 @@ function gscDateToMs(gscDate: string): number {
 }
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const INCREMENTAL_LOOKBACK_DAYS = 3;
+const REPORTING_TIME_ZONE = 'America/Los_Angeles';
+const FINAL_DATA_LAG_DAYS = 3;
+const REVISION_BUFFER_DAYS = 2;
+const INCREMENTAL_LOOKBACK_DAYS = FINAL_DATA_LAG_DAYS + REVISION_BUFFER_DAYS;
+
+const reportingDateFormat = new Intl.DateTimeFormat('en-CA', {
+  timeZone: REPORTING_TIME_ZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+function reportingToday(now: number): string {
+  const parts = reportingDateFormat.formatToParts(new Date(now));
+  const part = (type: string): string =>
+    parts.find((p) => p.type === type)?.value ?? '';
+  return `${part('year')}-${part('month')}-${part('day')}`;
+}
 
 function getDateRange(
   options: SyncOptions,
   lookbackDays: number,
 ): GSCDateRange {
   const now = Date.now();
-  const endDate = toGSCDate(new Date(now));
+  const endDate = reportingToday(now);
+  const endMs = gscDateToMs(endDate);
   if (options.mode === 'latest') {
-    const startMs = now - (INCREMENTAL_LOOKBACK_DAYS - 1) * MS_PER_DAY;
+    const startMs = endMs - INCREMENTAL_LOOKBACK_DAYS * MS_PER_DAY;
     return { startDate: toGSCDate(new Date(startMs)), endDate };
   }
   if (options.since) {
     const sinceMs = new Date(options.since).getTime();
     if (Number.isFinite(sinceMs)) {
-      const days = Math.max(1, Math.ceil((now - sinceMs) / MS_PER_DAY));
+      const days = Math.max(1, Math.ceil((endMs - sinceMs) / MS_PER_DAY));
       const cappedDays = Math.min(days, lookbackDays);
-      const startMs = now - (cappedDays - 1) * MS_PER_DAY;
+      const startMs = endMs - (cappedDays - 1) * MS_PER_DAY;
       return { startDate: toGSCDate(new Date(startMs)), endDate };
     }
   }
-  const startMs = now - (lookbackDays - 1) * MS_PER_DAY;
+  const startMs = endMs - (lookbackDays - 1) * MS_PER_DAY;
   return { startDate: toGSCDate(new Date(startMs)), endDate };
 }
 
@@ -534,11 +553,19 @@ export class GSCConnector extends BaseConnector<GSCSettings, GSCCredentials> {
       return allRows;
     };
 
+    const enabledResources = options.resources;
+    const isPhaseEnabled = (phase: GSCPhase): boolean =>
+      !enabledResources ||
+      enabledResources.has(PHASE_CONFIGS[phase].metricName);
+
     const resumeIdx = cursor ? PHASE_ORDER.indexOf(cursor.phase) : -1;
     const startIdx = resumeIdx >= 0 ? resumeIdx : 0;
 
     for (let i = startIdx; i < PHASE_ORDER.length; i++) {
       const phase = PHASE_ORDER[i]!;
+      if (!isPhaseEnabled(phase)) {
+        continue;
+      }
       if (signal?.aborted) {
         return { done: false, cursor: { phase, dateRange } };
       }

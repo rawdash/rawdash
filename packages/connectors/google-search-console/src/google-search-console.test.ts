@@ -235,6 +235,7 @@ describe('GSCConnector.sync', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
+    vi.useRealTimers();
   });
 
   it('returns done:true when all phases return empty pages', async () => {
@@ -513,8 +514,120 @@ describe('GSCConnector.sync', () => {
     for (const body of gscBodies) {
       const spanDays =
         (Date.parse(body.endDate) - Date.parse(body.startDate)) / MS_PER_DAY;
-      expect(spanDays).toBe(2);
+      expect(spanDays).toBe(5);
     }
+  });
+
+  it('refetches back past the finalized-data lag on mode:latest', async () => {
+    const connector = new GSCConnector(
+      { siteUrl: 'https://example.com/' },
+      {
+        serviceAccountJson: undefined,
+        refreshToken: 'rtoken' as unknown as { $secret: string },
+        clientId: 'cid',
+        clientSecret: 'csecret' as unknown as { $secret: string },
+      },
+    );
+
+    const fetchSpy = mockFetch({ access_token: 'tok', expires_in: 3600 }, {});
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const storage = makeStorage();
+    await connector.sync({ mode: 'latest' }, storage);
+
+    const body = fetchSpy.mock.calls
+      .filter((c: unknown[]) =>
+        String(c[0]).includes('searchconsole.googleapis.com'),
+      )
+      .map(
+        (c) =>
+          JSON.parse(String((c as [string, { body: string }])[1].body)) as {
+            startDate: string;
+            endDate: string;
+          },
+      )[0]!;
+
+    const MS_PER_DAY = 24 * 60 * 60 * 1000;
+    const lagDays =
+      (Date.parse(body.endDate) - Date.parse(body.startDate)) / MS_PER_DAY;
+    expect(lagDays).toBeGreaterThanOrEqual(4);
+  });
+
+  it('anchors the sync window on the Pacific reporting date', async () => {
+    const connector = new GSCConnector(
+      { siteUrl: 'https://example.com/' },
+      {
+        serviceAccountJson: undefined,
+        refreshToken: 'rtoken' as unknown as { $secret: string },
+        clientId: 'cid',
+        clientSecret: 'csecret' as unknown as { $secret: string },
+      },
+    );
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2025-03-11T05:30:00.000Z'));
+
+    const fetchSpy = mockFetch({ access_token: 'tok', expires_in: 3600 }, {});
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const storage = makeStorage();
+    await connector.sync({ mode: 'latest' }, storage);
+
+    const body = fetchSpy.mock.calls
+      .filter((c: unknown[]) =>
+        String(c[0]).includes('searchconsole.googleapis.com'),
+      )
+      .map(
+        (c) =>
+          JSON.parse(String((c as [string, { body: string }])[1].body)) as {
+            endDate: string;
+          },
+      )[0]!;
+
+    expect(body.endDate).toBe('2025-03-10');
+    vi.useRealTimers();
+  });
+
+  it('honors options.resources by resource name', async () => {
+    const connector = new GSCConnector(
+      { siteUrl: 'https://example.com/' },
+      {
+        serviceAccountJson: undefined,
+        refreshToken: 'rtoken' as unknown as { $secret: string },
+        clientId: 'cid',
+        clientSecret: 'csecret' as unknown as { $secret: string },
+      },
+    );
+
+    const fetchSpy = mockFetch({ access_token: 'tok', expires_in: 3600 }, {});
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const storage = makeStorage();
+    await connector.sync(
+      { mode: 'full', resources: new Set(['gsc_top_queries']) },
+      storage,
+    );
+
+    const requestedDimensions = fetchSpy.mock.calls
+      .filter((c: unknown[]) =>
+        String(c[0]).includes('searchconsole.googleapis.com'),
+      )
+      .map(
+        (c) =>
+          JSON.parse(String((c as [string, { body: string }])[1].body)) as {
+            dimensions: string[];
+          },
+      );
+
+    expect(requestedDimensions.length).toBeGreaterThan(0);
+    for (const body of requestedDimensions) {
+      expect(body.dimensions).toEqual(['date', 'query']);
+    }
+
+    const writtenNames = storage.metrics.mock.calls.map(
+      (c) => (c[1] as { names: string[] }).names[0],
+    );
+    expect(writtenNames).toEqual(['gsc_top_queries']);
   });
 
   it('writes each phase atomically via a single storage.metrics call', async () => {

@@ -103,7 +103,8 @@ Search Console API quota is 1,200 queries per minute per project (default); 429 
 
 ## Limitations
 
-- Search Console aggregates data with a 2-3 day lag, so incremental syncs refetch the trailing 3 days.
+- Search Console finalizes data with a 2-3 day lag and may still revise recently finalized days, so incremental syncs refetch a trailing window that covers the lag plus a revision buffer.
+- All dates are reported in the America/Los_Angeles time zone, so sync windows are anchored on the Pacific calendar date.
 - Each query is paginated 25,000 rows per page; a phase that yields more than that paginates by startRow.
 
 ## Links
