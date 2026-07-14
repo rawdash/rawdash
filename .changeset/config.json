@@ -8,6 +8,7 @@
       "@rawdash/server",
       "@rawdash/hono",
       "@rawdash/sdk-nextjs",
+      "@rawdash/connector-algolia",
       "@rawdash/connector-anthropic",
       "@rawdash/connector-asana",
       "@rawdash/connector-auth0",
