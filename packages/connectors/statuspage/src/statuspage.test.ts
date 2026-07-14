@@ -444,18 +444,22 @@ describe('StatuspageConnector.sync', () => {
     expect(calls).toBe(1);
   });
 
-  it('short-circuits incident pagination once a full page is older than since', async () => {
-    const connector = makeConnector({ resources: ['incidents'] });
-    const since = '2024-05-15T00:00:00.000Z';
-    const sinceMs = new Date(since).getTime();
+  it('short-circuits incident pagination once a full page is older than the created-at floor, ignoring updated_at', async () => {
+    const DAY = 24 * 60 * 60 * 1000;
+    const connector = makeConnector({
+      resources: ['incidents'],
+      incidentLookbackDays: 30,
+    });
+    const floorMs = Date.now() - 30 * DAY;
+    const recentIso = new Date().toISOString();
     let calls = 0;
     const oldPage = Array.from({ length: 100 }, (_, i) => ({
       id: `old${i}`,
       name: `old incident ${i}`,
       status: 'resolved',
       impact: 'minor',
-      created_at: new Date(sinceMs - 10_000 - i * 1000).toISOString(),
-      updated_at: new Date(sinceMs - 10_000 - i * 1000).toISOString(),
+      created_at: new Date(floorMs - 10_000 - i * 1000).toISOString(),
+      updated_at: recentIso,
     }));
     installRouter((u) => {
       if (u.includes('/incidents')) {
@@ -464,8 +468,84 @@ describe('StatuspageConnector.sync', () => {
       }
       return routeDefault(u);
     });
-    await connector.sync({ mode: 'latest', since }, makeStorage());
+    await connector.sync({ mode: 'full' }, makeStorage());
     expect(calls).toBe(1);
+  });
+
+  it('captures an older-created, recently-updated incident on a later page (does not short-circuit on updated_at)', async () => {
+    const DAY = 24 * 60 * 60 * 1000;
+    const connector = makeConnector({
+      resources: ['incidents', 'incident_updates'],
+    });
+    const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const recentUpdateIso = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+
+    const page1 = Array.from({ length: 100 }, (_, i) => {
+      const iso = new Date(Date.now() - (2 + i * 0.3) * DAY).toISOString();
+      return {
+        id: `p1-${i}`,
+        name: `incident ${i}`,
+        status: 'resolved',
+        impact: 'minor',
+        created_at: iso,
+        updated_at: iso,
+      };
+    });
+    const page2 = [
+      {
+        id: 'inc-target',
+        name: 'Long-open incident',
+        status: 'resolved',
+        impact: 'major',
+        created_at: new Date(Date.now() - 45 * DAY).toISOString(),
+        updated_at: recentUpdateIso,
+        resolved_at: recentUpdateIso,
+        incident_updates: [
+          {
+            id: 'u-resolved',
+            incident_id: 'inc-target',
+            status: 'resolved',
+            body: 'Resolved now.',
+            display_at: recentUpdateIso,
+            created_at: recentUpdateIso,
+          },
+        ],
+      },
+    ];
+    installRouter((u) => {
+      if (u.includes('/incidents')) {
+        return u.includes('page=2') ? { body: page2 } : { body: page1 };
+      }
+      return routeDefault(u);
+    });
+    const storage = makeStorage();
+    await connector.sync({ mode: 'latest', since }, storage);
+
+    const incidentIds = storage.entity.mock.calls
+      .map((c) => c[0] as { type: string; id: string })
+      .filter((e) => e.type === 'statuspage_incident')
+      .map((e) => e.id);
+    expect(incidentIds).toContain('inc-target');
+
+    const updateIds = storage.event.mock.calls
+      .map((c) => c[0] as { name: string; attributes: Record<string, unknown> })
+      .filter((e) => e.name === 'statuspage_incident_update')
+      .map((e) => e.attributes.updateId);
+    expect(updateIds).toContain('u-resolved');
+  });
+
+  it('paginates incidents with limit and components with per_page', async () => {
+    const connector = makeConnector();
+    const { calls } = installRouter(routeDefault);
+    await connector.sync({ mode: 'full' }, makeStorage());
+
+    const incidentsCall = calls.find((c) => c.includes('/incidents'));
+    const componentsCall = calls.find((c) => c.includes('/components'));
+    expect(incidentsCall).toBeDefined();
+    expect(componentsCall).toBeDefined();
+    expect(new URL(incidentsCall!).searchParams.get('limit')).toBe('100');
+    expect(new URL(incidentsCall!).searchParams.get('per_page')).toBeNull();
+    expect(new URL(componentsCall!).searchParams.get('per_page')).toBe('100');
   });
 
   it('rejects malicious pagination URLs from a saved cursor', async () => {
