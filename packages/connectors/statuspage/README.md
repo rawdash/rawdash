@@ -24,12 +24,12 @@ A Statuspage REST API key is required. Keys are scoped to the issuing account an
 
 ## Configuration
 
-| Field                  | Type   | Required | Description                                                                                                                                                                                                 |
-| ---------------------- | ------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apiKey`               | secret | Yes      | Statuspage REST API key. Create one at Manage Account -> API Info -> API Key.                                                                                                                               |
-| `pageId`               | string | Yes      | Statuspage page id (the 12-character identifier shown next to your page name in Manage Account -> API Info, also visible in the admin URL).                                                                 |
-| `resources`            | array  | No       | Which Statuspage resources to sync. Omit to sync all of them. 'incident_updates' rides the 'incidents' phase - enabling it without 'incidents' still fetches incidents but skips writing incident entities. |
-| `incidentLookbackDays` | number | No       | How many days back to fetch incidents (and their updates) on a full sync. Defaults to 90. Statuspage returns incidents newest-first; this caps the backfill window.                                         |
+| Field                  | Type   | Required | Description                                                                                                                                                                                                                      |
+| ---------------------- | ------ | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apiKey`               | secret | Yes      | Statuspage REST API key. Create one at Manage Account -> API Info -> API Key.                                                                                                                                                    |
+| `pageId`               | string | Yes      | Statuspage page id (the 12-character identifier shown next to your page name in Manage Account -> API Info, also visible in the admin URL).                                                                                      |
+| `resources`            | array  | No       | Which Statuspage resources to sync. Omit to sync all of them. 'incident_updates' rides the 'incidents' phase - enabling it without 'incidents' still fetches incidents but skips writing incident entities.                      |
+| `incidentLookbackDays` | number | No       | How many days back to fetch incidents (and their updates), by incident creation date. Defaults to 90. Statuspage returns incidents newest-first by creation date; this caps the backfill window and is re-scanned on every sync. |
 
 ## Resources
 
@@ -44,7 +44,7 @@ A Statuspage REST API key is required. Keys are scoped to the issuing account an
   - `position`: Sort position within the page or group.
 - **`statuspage_incident`** _(entity)_ - Statuspage incidents (realtime outages plus maintenance windows) with status, impact, affected components, and the created / monitoring / resolved timestamps.
   - Endpoint: `GET /v1/pages/{page_id}/incidents`
-  - Returned newest-first by updated_at; bounded by the incident lookback window (default 90 days) and tightened to options.since on incremental syncs.
+  - Returned newest-first by created_at and bounded by the created-at lookback window (default 90 days). The full window is re-scanned on every sync and incidents are upserted by id, so post-creation status changes are always recaptured.
   - `name`: Incident title.
   - `status`: Realtime status (investigating | identified | monitoring | resolved | postmortem) or maintenance status (scheduled | in_progress | verifying | completed).
   - `impact`: Reported impact: none | maintenance | minor | major | critical.

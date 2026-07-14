@@ -59,7 +59,7 @@ export const configFields = defineConfigFields(
     incidentLookbackDays: z.number().int().positive().max(365).optional().meta({
       label: 'Incident lookback (days)',
       description:
-        'How many days back to fetch incidents (and their updates) on a full sync. Defaults to 90. Statuspage returns incidents newest-first; this caps the backfill window.',
+        'How many days back to fetch incidents (and their updates), by incident creation date. Defaults to 90. Statuspage returns incidents newest-first by creation date; this caps the backfill window and is re-scanned on every sync.',
       placeholder: '90',
     }),
   }),
@@ -290,7 +290,7 @@ export const statuspageResources = defineResources({
       'Statuspage incidents (realtime outages plus maintenance windows) with status, impact, affected components, and the created / monitoring / resolved timestamps.',
     endpoint: 'GET /v1/pages/{page_id}/incidents',
     notes:
-      'Returned newest-first by updated_at; bounded by the incident lookback window (default 90 days) and tightened to options.since on incremental syncs.',
+      'Returned newest-first by created_at and bounded by the created-at lookback window (default 90 days). The full window is re-scanned on every sync and incidents are upserted by id, so post-creation status changes are always recaptured.',
     fields: [
       { name: 'name', description: 'Incident title.' },
       {
@@ -468,10 +468,14 @@ export class StatuspageConnector extends BaseConnector<
     };
   }
 
+  private pageSizeParam(phase: StatuspagePhase): string {
+    return phase === 'incidents' ? 'limit' : 'per_page';
+  }
+
   private buildInitialUrl(phase: StatuspagePhase): string {
     const u = new URL(`${SP_API_BASE}${this.allowedPagePath(phase)}`);
     u.searchParams.set('page', '1');
-    u.searchParams.set('per_page', String(PAGE_SIZE));
+    u.searchParams.set(this.pageSizeParam(phase), String(PAGE_SIZE));
     return u.toString();
   }
 
@@ -491,20 +495,27 @@ export class StatuspageConnector extends BaseConnector<
       return null;
     }
     u.searchParams.set('page', String(pageNum + 1));
-    u.searchParams.set('per_page', String(PAGE_SIZE));
+    u.searchParams.set(this.pageSizeParam(phase), String(PAGE_SIZE));
     return this.sanitizePageUrl(phase, u.toString());
   }
 
-  private computeIncidentSinceMs(options: SyncOptions): number {
-    if (options.since) {
-      const ms = parseEpoch(options.since, 'iso');
-      if (ms !== null) {
-        return ms;
-      }
-    }
+  private incidentCreatedFloorMs(): number {
     const days =
       this.settings.incidentLookbackDays ?? DEFAULT_INCIDENT_LOOKBACK_DAYS;
     return Date.now() - days * MS_PER_DAY;
+  }
+
+  private incidentEventSinceMs(
+    options: SyncOptions,
+    createdFloorMs: number,
+  ): number {
+    if (options.mode !== 'full' && options.since) {
+      const ms = parseEpoch(options.since, 'iso');
+      if (ms !== null) {
+        return Math.max(ms, createdFloorMs);
+      }
+    }
+    return createdFloorMs;
   }
 
   // -------------------------------------------------------------------------
@@ -527,28 +538,23 @@ export class StatuspageConnector extends BaseConnector<
 
   private async fetchIncidentsPage(
     page: string | null,
-    sinceMs: number,
+    createdFloorMs: number,
     signal: AbortSignal | undefined,
   ): Promise<{ items: IncidentBatchItem[]; next: string | null }> {
     const url = page ?? this.buildInitialUrl('incidents');
     const res = await this.fetch<SPIncident[]>(url, 'incidents', signal);
     const incidents = res.body;
 
-    // Incidents are returned newest-first by updated_at. Short-circuit
-    // pagination once a page is entirely older than the sinceMs floor.
-    const incidentTimestampMs = (inc: SPIncident): number | null => {
-      const stamp = inc.updated_at ?? inc.created_at;
-      const ms = stamp ? Date.parse(stamp) : Number.NaN;
-      return Number.isFinite(ms) ? ms : null;
-    };
+    const incidentCreatedMs = (inc: SPIncident): number | null =>
+      this.parseTimestampMs(inc.created_at);
 
     const last = incidents.at(-1);
-    const lastMs = last ? incidentTimestampMs(last) : null;
-    const cutoffReached = lastMs !== null && lastMs < sinceMs;
+    const lastMs = last ? incidentCreatedMs(last) : null;
+    const cutoffReached = lastMs !== null && lastMs < createdFloorMs;
 
     const filtered = incidents.filter((inc) => {
-      const ms = incidentTimestampMs(inc);
-      return ms === null ? true : ms >= sinceMs;
+      const ms = incidentCreatedMs(inc);
+      return ms === null ? true : ms >= createdFloorMs;
     });
 
     const next =
@@ -682,7 +688,11 @@ export class StatuspageConnector extends BaseConnector<
     const cursor = this.resolveCursor(options.cursor);
     const isFull = options.mode === 'full';
     const phases = this.activePhases();
-    const incidentSinceMs = this.computeIncidentSinceMs(options);
+    const incidentCreatedFloorMs = this.incidentCreatedFloorMs();
+    const incidentEventSinceMs = this.incidentEventSinceMs(
+      options,
+      incidentCreatedFloorMs,
+    );
 
     return paginateChunked<StatuspagePhase, string>({
       phases,
@@ -694,7 +704,7 @@ export class StatuspageConnector extends BaseConnector<
           case 'components':
             return this.fetchComponentsPage(page, sig);
           case 'incidents':
-            return this.fetchIncidentsPage(page, incidentSinceMs, sig);
+            return this.fetchIncidentsPage(page, incidentCreatedFloorMs, sig);
         }
       },
       writeBatch: async (phase, items, page) => {
@@ -733,7 +743,11 @@ export class StatuspageConnector extends BaseConnector<
               await this.writeIncidents(storage, batch);
             }
             if (this.isResourceEnabled('incident_updates')) {
-              await this.writeIncidentUpdates(storage, batch, incidentSinceMs);
+              await this.writeIncidentUpdates(
+                storage,
+                batch,
+                incidentEventSinceMs,
+              );
             }
             return;
           }
