@@ -748,16 +748,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     domain: 'airtable.com',
   },
   {
-    id: 'algolia',
-    name: 'Algolia',
-    category: 'product',
-    tagline:
-      "Sync search query counts, CTR, top queries, and no-result rate from Algolia's analytics.",
-    icon: 'algolia',
-    domain: 'algolia.com',
-    requestIssue: 'RAW-448',
-  },
-  {
     id: 'appcues',
     name: 'Appcues',
     category: 'product',

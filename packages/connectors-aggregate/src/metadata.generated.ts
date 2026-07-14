@@ -1,5 +1,11 @@
 // This file is generated from the connector packages by scripts/generate-connectors-package.ts. Do not edit by hand.
 import {
+  configFields as algoliaConfigFields,
+  doc as algoliaDoc,
+  id as algoliaId,
+  resources as algoliaResources,
+} from '@rawdash/connector-algolia';
+import {
   configFields as anthropicConfigFields,
   doc as anthropicDoc,
   id as anthropicId,
@@ -414,6 +420,13 @@ import {
 import type { ConnectorMetadata } from './types';
 
 export const connectorMetadata: ConnectorMetadata[] = [
+  {
+    id: algoliaId,
+    packageName: '@rawdash/connector-algolia',
+    doc: algoliaDoc,
+    configFields: algoliaConfigFields,
+    resources: algoliaResources,
+  },
   {
     id: anthropicId,
     packageName: '@rawdash/connector-anthropic',

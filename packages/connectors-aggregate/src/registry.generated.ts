@@ -2,6 +2,7 @@
 import type { ConnectorClass } from '@rawdash/core';
 
 export const connectorLoaders: Record<string, () => Promise<ConnectorClass>> = {
+  algolia: () => import('@rawdash/connector-algolia').then((m) => m.default),
   anthropic: () =>
     import('@rawdash/connector-anthropic').then((m) => m.default),
   'app-store-connect': () =>
