@@ -83,6 +83,7 @@
     "@rawdash/connector-netlify": "workspace:*",
     "@rawdash/connector-new-relic": "workspace:*",
     "@rawdash/connector-okta": "workspace:*",
+    "@rawdash/connector-onesignal": "workspace:*",
     "@rawdash/connector-openai": "workspace:*",
     "@rawdash/connector-posthog": "workspace:*",
     "@rawdash/connector-postmark": "workspace:*",

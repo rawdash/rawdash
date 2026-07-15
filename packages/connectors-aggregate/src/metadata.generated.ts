@@ -302,6 +302,12 @@ import {
   resources as oktaResources,
 } from '@rawdash/connector-okta';
 import {
+  configFields as onesignalConfigFields,
+  doc as onesignalDoc,
+  id as onesignalId,
+  resources as onesignalResources,
+} from '@rawdash/connector-onesignal';
+import {
   configFields as openaiConfigFields,
   doc as openaiDoc,
   id as openaiId,
@@ -764,6 +770,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: oktaDoc,
     configFields: oktaConfigFields,
     resources: oktaResources,
+  },
+  {
+    id: onesignalId,
+    packageName: '@rawdash/connector-onesignal',
+    doc: onesignalDoc,
+    configFields: onesignalConfigFields,
+    resources: onesignalResources,
   },
   {
     id: openaiId,
