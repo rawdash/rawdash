@@ -1292,16 +1292,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     domain: 'moengage.com',
   },
   {
-    id: 'onesignal',
-    name: 'OneSignal',
-    category: 'marketing',
-    tagline:
-      'Sync push send volume, delivery rate, opt-ins, and per-notification conversions from OneSignal.',
-    brandColor: '#E54B4D',
-    domain: 'onesignal.com',
-    requestIssue: 'RAW-449',
-  },
-  {
     id: 'opencollective',
     name: 'Open Collective',
     category: 'marketing',
