@@ -660,14 +660,28 @@ export class GreenhouseConnector extends BaseConnector<
     }
   }
 
+  private incrementalParam(phase: GreenhousePhase): string | null {
+    switch (phase) {
+      case 'jobs':
+      case 'candidates':
+      case 'offers':
+        return 'updated_after';
+      case 'applications':
+        return 'last_activity_after';
+      case 'application_events':
+        return null;
+    }
+  }
+
   private buildInitialUrl(
     phase: GreenhousePhase,
     options: SyncOptions,
   ): string {
     const url = new URL(`${API_BASE}${this.allowedPagePath(phase)}`);
     url.searchParams.set('per_page', String(PER_PAGE));
-    if (phase !== 'application_events' && options.since) {
-      url.searchParams.set('updated_after', options.since);
+    const sinceParam = this.incrementalParam(phase);
+    if (sinceParam && options.since) {
+      url.searchParams.set(sinceParam, options.since);
     }
     this.applyPushdown(url, phase, options);
     return url.toString();
