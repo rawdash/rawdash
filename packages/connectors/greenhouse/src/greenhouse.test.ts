@@ -138,26 +138,39 @@ describe('GreenhouseConnector.sync', () => {
     expect(headers['accept']).toBe('application/json');
   });
 
-  it('passes options.since as updated_after on every paginated phase', async () => {
+  it('passes options.since as updated_after on jobs, candidates, and offers', async () => {
     const fetchSpy = makeFetch(() => undefined);
     vi.stubGlobal('fetch', fetchSpy);
 
     const since = '2026-01-01T00:00:00.000Z';
     await connector({
-      resources: ['jobs', 'candidates', 'applications', 'offers'],
+      resources: ['jobs', 'candidates', 'offers'],
     }).sync({ mode: 'full', since }, makeStorage());
 
     const urls = recordCalls(fetchSpy).map((c) => c.url);
-    for (const path of [
-      '/v1/jobs',
-      '/v1/candidates',
-      '/v1/applications',
-      '/v1/offers',
-    ]) {
+    for (const path of ['/v1/jobs', '/v1/candidates', '/v1/offers']) {
       const match = urls.find((u) => u.includes(path));
       expect(match, `expected a call to ${path}`).toBeDefined();
       expect(match).toContain(`updated_after=${encodeURIComponent(since)}`);
     }
+  });
+
+  it('passes options.since as last_activity_after on applications, not updated_after', async () => {
+    const fetchSpy = makeFetch(() => undefined);
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const since = '2026-01-01T00:00:00.000Z';
+    await connector({ resources: ['applications'] }).sync(
+      { mode: 'latest', since },
+      makeStorage(),
+    );
+
+    const match = recordCalls(fetchSpy)
+      .map((c) => c.url)
+      .find((u) => u.includes('/v1/applications'));
+    expect(match, 'expected a call to /v1/applications').toBeDefined();
+    expect(match).toContain(`last_activity_after=${encodeURIComponent(since)}`);
+    expect(match).not.toContain('updated_after=');
   });
 
   it('clears entity scopes only at the start of a full sync', async () => {
