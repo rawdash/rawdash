@@ -11,7 +11,7 @@ const revenuecat = {
   config: {
     apiKey: secret('REVENUECAT_API_KEY'),
     projectId: 'proj1ab2cd3',
-    resources: ['products', 'customers', 'events', 'metrics'],
+    resources: ['products', 'customers', 'metrics'],
   },
 };
 

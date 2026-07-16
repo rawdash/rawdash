@@ -32,11 +32,11 @@ describe('configFields', () => {
     const result = configFields.safeParse({
       apiKey: { $secret: 'REVENUECAT_API_KEY' },
       projectId: 'proj_abc',
-      resources: ['products', 'events'],
+      resources: ['products', 'customers'],
     });
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.resources).toEqual(['products', 'events']);
+      expect(result.data.resources).toEqual(['products', 'customers']);
     }
   });
 
@@ -45,6 +45,15 @@ describe('configFields', () => {
       apiKey: { $secret: 'REVENUECAT_API_KEY' },
       projectId: 'proj_abc',
       resources: ['products', 'unknown'],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects the removed events resource', () => {
+    const result = configFields.safeParse({
+      apiKey: { $secret: 'REVENUECAT_API_KEY' },
+      projectId: 'proj_abc',
+      resources: ['events'],
     });
     expect(result.success).toBe(false);
   });
@@ -146,19 +155,19 @@ describe('RevenueCatConnector.sync', () => {
     expect(clearedTypes).toContain('revenuecat_subscription');
   });
 
-  it('clears event names at start of full-sync events phase', async () => {
+  it('never requests a /events endpoint (no REST events collection exists)', async () => {
     const connector = new RevenueCatConnector(BASE_SETTINGS, {
       apiKey: SECRET,
     });
-    vi.stubGlobal('fetch', mockFetch({}));
+    const fetchSpy = mockFetch({});
+    vi.stubGlobal('fetch', fetchSpy);
     const storage = makeStorage();
     await connector.sync({ mode: 'full' }, storage);
 
-    const clearedEventNames = storage.events.mock.calls
-      .filter((c) => Array.isArray(c[0]) && (c[0] as unknown[]).length === 0)
-      .flatMap((c) => (c[1] as { names: string[] }).names);
-
-    expect(clearedEventNames).toContain('revenuecat_event');
+    const urls: string[] = fetchSpy.mock.calls.map(
+      (c: unknown[]) => c[0] as string,
+    );
+    expect(urls.some((u) => u.includes('/events'))).toBe(false);
   });
 
   it('does not clear storage in incremental (latest) mode', async () => {
@@ -215,13 +224,18 @@ describe('RevenueCatConnector.sync', () => {
     expect(arg.attributes.displayName).toBe('Pro Monthly');
   });
 
-  it('extracts subscription entities embedded in customer responses', async () => {
-    const customer = {
-      id: 'cust_1',
-      first_seen_at: 1700000000,
-      last_seen_at: 1710000000,
-      active_entitlements: { items: [{ entitlement_id: 'entl_pro' }] },
-      subscriptions: {
+  it('fetches subscriptions from the per-customer subscriptions endpoint', async () => {
+    const connector = new RevenueCatConnector(BASE_SETTINGS, {
+      apiKey: SECRET,
+    });
+    const fetchSpy = mockFetch({
+      '/customers/cust_1/active_entitlements': {
+        object: 'list',
+        items: [{ entitlement_id: 'entl_pro', expires_at: 1710000000 }],
+        next_page: null,
+      },
+      '/customers/cust_1/subscriptions': {
+        object: 'list',
         items: [
           {
             id: 'sub_1',
@@ -234,31 +248,29 @@ describe('RevenueCatConnector.sync', () => {
             auto_renewal_status: 'will_renew',
           },
         ],
+        next_page: null,
       },
-    };
-    const connector = new RevenueCatConnector(BASE_SETTINGS, {
-      apiKey: SECRET,
+      '/customers': {
+        object: 'list',
+        items: [
+          { id: 'cust_1', first_seen_at: 1700000000, last_seen_at: 1710000000 },
+        ],
+        next_page: null,
+      },
     });
-    vi.stubGlobal(
-      'fetch',
-      mockFetch({
-        '/customers': {
-          object: 'list',
-          items: [customer],
-          next_page: null,
-        },
-      }),
-    );
+    vi.stubGlobal('fetch', fetchSpy);
     const storage = makeStorage();
-    await connector.sync({ mode: 'full' }, storage);
+    await connector.sync(
+      { mode: 'full', resources: new Set(['customers']) },
+      storage,
+    );
 
-    const customerCall = storage.entity.mock.calls.find(
-      (c) => (c[0] as { id: string }).id === 'cust_1',
+    const urls: string[] = fetchSpy.mock.calls.map(
+      (c: unknown[]) => c[0] as string,
     );
-    expect(customerCall).toBeDefined();
-    expect((customerCall![0] as { type: string }).type).toBe(
-      'revenuecat_customer',
-    );
+    expect(
+      urls.some((u) => u.includes('/customers/cust_1/subscriptions')),
+    ).toBe(true);
 
     const subCall = storage.entity.mock.calls.find(
       (c) => (c[0] as { id: string }).id === 'sub_1',
@@ -274,47 +286,54 @@ describe('RevenueCatConnector.sync', () => {
     expect(arg.attributes.status).toBe('active');
   });
 
-  it('writes subscription events as event rows', async () => {
-    const event = {
-      id: 'evt_1',
-      type: 'INITIAL_PURCHASE',
-      timestamp_ms: 1700000000000,
-      app_user_id: 'user_1',
-      product_id: 'prod_1',
-      store: 'app_store',
-      environment: 'production',
-      price_in_purchased_currency: 9.99,
-      currency: 'USD',
-    };
+  it('populates activeEntitlements from the per-customer active-entitlements endpoint', async () => {
     const connector = new RevenueCatConnector(BASE_SETTINGS, {
       apiKey: SECRET,
     });
-    vi.stubGlobal(
-      'fetch',
-      mockFetch({
-        '/events': {
-          object: 'list',
-          items: [event],
-          next_page: null,
-        },
-      }),
-    );
+    const fetchSpy = mockFetch({
+      '/customers/cust_1/active_entitlements': {
+        object: 'list',
+        items: [
+          { entitlement_id: 'entl_pro', expires_at: 1710000000 },
+          { entitlement_id: 'entl_plus', expires_at: null },
+        ],
+        next_page: null,
+      },
+      '/customers': {
+        object: 'list',
+        items: [
+          { id: 'cust_1', first_seen_at: 1700000000, last_seen_at: 1710000000 },
+        ],
+        next_page: null,
+      },
+    });
+    vi.stubGlobal('fetch', fetchSpy);
     const storage = makeStorage();
-    await connector.sync({ mode: 'full' }, storage);
-
-    const eventCall = storage.event.mock.calls.find(
-      (c) => (c[0] as { attributes: { id: string } }).attributes.id === 'evt_1',
+    await connector.sync(
+      { mode: 'full', resources: new Set(['customers']) },
+      storage,
     );
-    expect(eventCall).toBeDefined();
-    const arg = eventCall![0] as {
-      name: string;
-      start_ts: number;
-      attributes: { type: string; currency: string };
+
+    const urls: string[] = fetchSpy.mock.calls.map(
+      (c: unknown[]) => c[0] as string,
+    );
+    expect(
+      urls.some((u) => u.includes('/customers/cust_1/active_entitlements')),
+    ).toBe(true);
+
+    const customerCall = storage.entity.mock.calls.find(
+      (c) => (c[0] as { id: string }).id === 'cust_1',
+    );
+    expect(customerCall).toBeDefined();
+    const arg = customerCall![0] as {
+      type: string;
+      attributes: { activeEntitlements: string[] };
     };
-    expect(arg.name).toBe('revenuecat_event');
-    expect(arg.start_ts).toBe(1700000000000);
-    expect(arg.attributes.type).toBe('INITIAL_PURCHASE');
-    expect(arg.attributes.currency).toBe('USD');
+    expect(arg.type).toBe('revenuecat_customer');
+    expect(arg.attributes.activeEntitlements).toEqual([
+      'entl_pro',
+      'entl_plus',
+    ]);
   });
 
   it('emits one metric sample per overview metric returned', async () => {
@@ -364,7 +383,7 @@ describe('RevenueCatConnector.sync', () => {
     await connector.sync(
       {
         mode: 'full',
-        cursor: { phase: 'events', page: 'evt_prev' },
+        cursor: { phase: 'customers', page: 'cust_prev' },
       },
       storage,
     );
@@ -373,15 +392,17 @@ describe('RevenueCatConnector.sync', () => {
       (c: unknown[]) => c[0] as string,
     );
     expect(urls.some((u) => u.includes('/products'))).toBe(false);
-    expect(urls.some((u) => u.includes('/customers'))).toBe(false);
-    const resumed = urls.find((u) => u.includes('/events'));
+    expect(urls.some((u) => u.includes('/entitlements'))).toBe(false);
+    const resumed = urls.find(
+      (u) => u.includes('/customers') && u.includes('starting_after'),
+    );
     expect(resumed).toBeDefined();
-    expect(resumed!).toContain('starting_after=evt_prev');
+    expect(resumed!).toContain('starting_after=cust_prev');
   });
 
   it('only fetches resources listed in settings.resources', async () => {
     const connector = new RevenueCatConnector(
-      { ...BASE_SETTINGS, resources: ['products', 'events'] },
+      { ...BASE_SETTINGS, resources: ['products', 'metrics'] },
       { apiKey: SECRET },
     );
     const fetchSpy = mockFetch({});
@@ -394,29 +415,83 @@ describe('RevenueCatConnector.sync', () => {
       (c: unknown[]) => c[0] as string,
     );
     expect(urls.some((u) => u.includes('/products'))).toBe(true);
-    expect(urls.some((u) => u.includes('/events'))).toBe(true);
+    expect(urls.some((u) => u.includes('/metrics/overview'))).toBe(true);
     expect(urls.some((u) => u.includes('/customers'))).toBe(false);
     expect(urls.some((u) => u.includes('/entitlements'))).toBe(false);
-    expect(urls.some((u) => u.includes('/metrics/overview'))).toBe(false);
   });
 
-  it('passes starting_at on the events URL when given options.since', async () => {
+  it('requests a page size of 100', async () => {
     const connector = new RevenueCatConnector(BASE_SETTINGS, {
       apiKey: SECRET,
     });
     const fetchSpy = mockFetch({});
     vi.stubGlobal('fetch', fetchSpy);
 
-    const since = '2024-01-01T00:00:00.000Z';
     const storage = makeStorage();
-    await connector.sync({ mode: 'latest', since }, storage);
+    await connector.sync(
+      { mode: 'full', resources: new Set(['products']) },
+      storage,
+    );
 
     const urls: string[] = fetchSpy.mock.calls.map(
       (c: unknown[]) => c[0] as string,
     );
-    const evUrl = urls.find((u) => u.includes('/events'));
-    expect(evUrl).toBeDefined();
-    expect(evUrl!).toContain(`starting_at=${Date.parse(since)}`);
+    const productsUrl = urls.find((u) => u.includes('/products'));
+    expect(productsUrl).toBeDefined();
+    expect(productsUrl!).toContain('limit=100');
+  });
+
+  it('follows the starting_after cursor from next_page', async () => {
+    const connector = new RevenueCatConnector(BASE_SETTINGS, {
+      apiKey: SECRET,
+    });
+    let productsCall = 0;
+    const fetchSpy = vi.fn().mockImplementation((url: string) => {
+      const urlStr = typeof url === 'string' ? url : String(url);
+      let body: object = { object: 'list', items: [], next_page: null };
+      if (urlStr.includes('/products')) {
+        productsCall += 1;
+        body =
+          productsCall === 1
+            ? {
+                object: 'list',
+                items: [
+                  {
+                    id: 'prod_1',
+                    store_identifier: null,
+                    type: null,
+                    app_id: null,
+                    display_name: null,
+                    created_at: 1700000000,
+                  },
+                ],
+                next_page:
+                  '/v2/projects/proj_abc/products?starting_after=cursor_abc&limit=100',
+              }
+            : { object: 'list', items: [], next_page: null };
+      }
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: new Headers({ 'content-type': 'application/json' }),
+        text: () => Promise.resolve(JSON.stringify(body)),
+      } as Response);
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const storage = makeStorage();
+    await connector.sync(
+      { mode: 'full', resources: new Set(['products']) },
+      storage,
+    );
+
+    const urls: string[] = fetchSpy.mock.calls.map(
+      (c: unknown[]) => c[0] as string,
+    );
+    expect(urls.some((u) => u.includes('starting_after=cursor_abc'))).toBe(
+      true,
+    );
   });
 
   it('sends Authorization: Bearer header', async () => {

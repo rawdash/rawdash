@@ -5,7 +5,7 @@
 [![npm version](https://img.shields.io/npm/v/@rawdash/connector-revenuecat)](https://www.npmjs.com/package/@rawdash/connector-revenuecat)
 [![license](https://img.shields.io/npm/l/@rawdash/connector-revenuecat)](https://github.com/rawdash/rawdash/blob/main/LICENSE)
 
-Sync products, entitlements, customers, and subscription events from RevenueCat alongside overview metrics (MRR, active subscribers, trial conversion).
+Sync products, entitlements, customers, and subscriptions from RevenueCat alongside overview metrics (MRR, active subscribers, trial conversion).
 
 ## Install
 
@@ -24,11 +24,11 @@ Authenticates with a RevenueCat v2 REST API key scoped to a single project. The 
 
 ## Configuration
 
-| Field       | Type   | Required | Description                                                                                                                                                      |
-| ----------- | ------ | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apiKey`    | secret | Yes      | RevenueCat v2 REST API key (read-only). Create one in the RevenueCat dashboard under Project Settings -> API Keys -> Public app-specific or Secret API Key (V2). |
-| `projectId` | string | Yes      | RevenueCat project identifier. Find it in Project Settings -> General.                                                                                           |
-| `resources` | array  | No       | Which RevenueCat resources to sync. Omit to sync all. Customer syncs also emit subscription entities embedded in each customer response.                         |
+| Field       | Type   | Required | Description                                                                                                                                                                 |
+| ----------- | ------ | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apiKey`    | secret | Yes      | RevenueCat v2 REST API key (read-only). Create one in the RevenueCat dashboard under Project Settings -> API Keys -> Public app-specific or Secret API Key (V2).            |
+| `projectId` | string | Yes      | RevenueCat project identifier. Find it in Project Settings -> General.                                                                                                      |
+| `resources` | array  | No       | Which RevenueCat resources to sync. Omit to sync all. Customer syncs also emit each customer’s subscription entities, fetched from the per-customer subscriptions endpoint. |
 
 ## Resources
 
@@ -44,14 +44,14 @@ Authenticates with a RevenueCat v2 REST API key scoped to a single project. The 
   - `lookupKey`: Stable lookup key used by client SDKs.
   - `displayName`: Human-readable entitlement name.
   - `createdAt`: Unix seconds when the entitlement was created.
-- **`revenuecat_customer`** _(entity)_ - RevenueCat customers (app users) with first-seen / last-seen timestamps and a list of currently active entitlement lookup keys.
+- **`revenuecat_customer`** _(entity)_ - RevenueCat customers (app users) with first-seen / last-seen timestamps and a list of currently active entitlement ids.
   - Endpoint: `GET /v2/projects/{project_id}/customers`
-  - Each customer response includes embedded subscription objects; those are written separately as `revenuecat_subscription` entities.
+  - The customers list returns only base fields; each customer’s active entitlements are fetched from GET /v2/projects/{project_id}/customers/{customer_id}/active_entitlements, and its subscriptions are written separately as `revenuecat_subscription` entities.
   - `firstSeenAt`: Unix seconds the customer was first seen.
   - `lastSeenAt`: Unix seconds of the most recent activity.
   - `activeEntitlements`: Array of entitlement_id strings currently granting access.
-- **`revenuecat_subscription`** _(entity)_ - Subscriptions, one row per (customer, product, original transaction). Extracted from the embedded `subscriptions.items` array in each customer response.
-  - Endpoint: `GET /v2/projects/{project_id}/customers`
+- **`revenuecat_subscription`** _(entity)_ - Subscriptions, one row per (customer, subscription). Fetched from each customer’s subscriptions collection.
+  - Endpoint: `GET /v2/projects/{project_id}/customers/{customer_id}/subscriptions`
   - `customerId`: RevenueCat customer (app user) id.
   - `productId`: Product the subscription is for.
   - `store`: Originating store (app_store, play_store, ...).
@@ -60,15 +60,6 @@ Authenticates with a RevenueCat v2 REST API key scoped to a single project. The 
   - `currentPeriodEndsAt`: Unix seconds the current paid period ends.
   - `givesAccess`: Whether the subscription currently grants access.
   - `autoRenewalStatus`: Auto-renew status reported by the store (will_renew, will_not_renew, ...).
-- **`revenuecat_event`** _(event)_ - Subscription lifecycle events (initial purchase, renewal, cancellation, billing issue, refund, trial start, conversion, ...).
-  - Endpoint: `GET /v2/projects/{project_id}/events`
-  - `type`: Event type (INITIAL_PURCHASE, RENEWAL, CANCELLATION, ...).
-  - `appUserId`: App user id at the time of the event.
-  - `productId`: Product involved in the event.
-  - `store`: Originating store.
-  - `environment`: production or sandbox.
-  - `priceInPurchasedCurrency`: Charged amount in the purchase currency, if known.
-  - `currency`: ISO currency code, if known.
 - **`revenuecat_metric_snapshot`** _(metric)_ - Point-in-time snapshot of RevenueCat overview metrics (MRR, active subscriptions, active trials, trial conversion rate, etc.). Each metric is emitted as one sample per sync, tagged with the metric id under the `metric` dimension.
   - Endpoint: `GET /v2/projects/{project_id}/metrics/overview`
   - Granularity: minute
@@ -91,7 +82,7 @@ const revenuecat = {
   config: {
     apiKey: secret('REVENUECAT_API_KEY'),
     projectId: 'proj1ab2cd3',
-    resources: ['products', 'customers', 'events', 'metrics'],
+    resources: ['products', 'customers', 'metrics'],
   },
 };
 
@@ -119,13 +110,14 @@ export default defineConfig({
 
 ## Rate limits
 
-RevenueCat applies per-project rate limits and returns 429 with a Retry-After header on overrun; requests are retried with exponential backoff. List endpoints page via the `starting_after` cursor up to 1000 items per page.
+RevenueCat applies per-domain rate limits and returns 429 with a Retry-After header on overrun; requests are retried with exponential backoff. List endpoints page via the `starting_after` cursor and return up to 100 items per page. Each customer’s active entitlements and subscriptions are fetched with a separate request per customer.
 
 ## Limitations
 
 - Monetary amounts (e.g. MRR) are emitted in the smallest currency unit reported by the upstream API (typically cents).
 - The overview metrics resource emits a point-in-time snapshot per sync rather than a backfilled timeseries; query timeseries widgets group these by `metric` and aggregate over time.
-- Subscription entities are emitted from data embedded in each customer response, not from a separate list endpoint.
+- Subscriptions and active entitlements are not returned by the customers list endpoint; they are fetched per customer, so customer syncs make additional requests proportional to the customer count.
+- RevenueCat does not expose a REST endpoint for listing subscription lifecycle events; those are delivered only via webhooks and are therefore not synced.
 
 ## Links
 
