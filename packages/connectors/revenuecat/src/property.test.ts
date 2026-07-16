@@ -3,7 +3,6 @@ import {
   assertConnectorResourceShapes,
   connectorResourceShapeViolations,
   entityStoreFor,
-  eventStoreFor,
   installFetchMock,
   runPropertySyncTest,
 } from '@rawdash/connector-test-utils';
@@ -32,7 +31,6 @@ type EntitlementsSample = z.infer<
   typeof RevenueCatConnector.schemas.entitlements
 >;
 type CustomersSample = z.infer<typeof RevenueCatConnector.schemas.customers>;
-type EventsSample = z.infer<typeof RevenueCatConnector.schemas.events>;
 
 describe('RevenueCatConnector property tests', () => {
   afterEach(() => {
@@ -151,54 +149,17 @@ describe('RevenueCatConnector property tests', () => {
       runs: 50,
       extraInvariants: [extra, docShapeExtra],
       run: async (sample, storage) => {
-        installFetchMock(() => ({
-          object: 'list',
-          items: sample,
-          next_page: null,
-        }));
+        installFetchMock((url) => {
+          if (
+            url.includes('/active_entitlements') ||
+            url.includes('/subscriptions')
+          ) {
+            return { object: 'list', items: [], next_page: null };
+          }
+          return { object: 'list', items: sample, next_page: null };
+        });
         const c = new RevenueCatConnector(
           { ...BASE_SETTINGS, resources: ['customers'] },
-          { apiKey: SECRET },
-        );
-        await c.sync({ mode: 'full' }, storage.getStorageHandle(CONNECTOR_ID));
-      },
-    });
-  });
-
-  it('events: sync upholds universal invariants for any valid payload', async () => {
-    const extra = (
-      storage: InMemoryStorage,
-      _connectorId: string,
-      sample: EventsSample,
-    ): InvariantViolation[] => {
-      const violations: InvariantViolation[] = [];
-      const written = eventStoreFor(storage, CONNECTOR_ID).filter(
-        (e) => e.name === 'revenuecat_event',
-      ).length;
-      if (written !== sample.length) {
-        violations.push({
-          invariant: 'one revenuecat_event per upstream event',
-          location: 'events phase',
-          detail: `expected ${sample.length} events, got ${written}`,
-        });
-      }
-      return violations;
-    };
-
-    await runPropertySyncTest<EventsSample>({
-      connectorClass: RevenueCatConnector,
-      resource: 'events',
-      connectorId: CONNECTOR_ID,
-      runs: 50,
-      extraInvariants: [extra, docShapeExtra],
-      run: async (sample, storage) => {
-        installFetchMock(() => ({
-          object: 'list',
-          items: sample,
-          next_page: null,
-        }));
-        const c = new RevenueCatConnector(
-          { ...BASE_SETTINGS, resources: ['events'] },
           { apiKey: SECRET },
         );
         await c.sync({ mode: 'full' }, storage.getStorageHandle(CONNECTOR_ID));
@@ -240,38 +201,27 @@ describe('RevenueCatConnector property tests', () => {
           id: 'cust_1',
           first_seen_at: 1700000000,
           last_seen_at: 1710000000,
-          active_entitlements: { items: [{ entitlement_id: 'entl_1' }] },
-          subscriptions: {
-            items: [
-              {
-                id: 'sub_1',
-                product_id: 'prod_1',
-                store: 'app_store',
-                status: 'active',
-                starts_at: 1700000000,
-                current_period_ends_at: 1710000000,
-                gives_access: true,
-                auto_renewal_status: 'will_renew',
-              },
-            ],
-          },
         },
       ],
       next_page: null,
     };
-    const eventsBody = {
+    const activeEntitlementsBody = {
+      object: 'list',
+      items: [{ entitlement_id: 'entl_1', expires_at: 1710000000 }],
+      next_page: null,
+    };
+    const subscriptionsBody = {
       object: 'list',
       items: [
         {
-          id: 'evt_1',
-          type: 'INITIAL_PURCHASE',
-          timestamp_ms: 1700000000000,
-          app_user_id: 'cust_1',
+          id: 'sub_1',
           product_id: 'prod_1',
           store: 'app_store',
-          environment: 'production',
-          price_in_purchased_currency: 9.99,
-          currency: 'USD',
+          status: 'active',
+          starts_at: 1700000000,
+          current_period_ends_at: 1710000000,
+          gives_access: true,
+          auto_renewal_status: 'will_renew',
         },
       ],
       next_page: null,
@@ -282,20 +232,23 @@ describe('RevenueCatConnector property tests', () => {
     };
 
     installFetchMock((url) => {
+      if (url.includes('/active_entitlements')) {
+        return activeEntitlementsBody;
+      }
+      if (url.includes('/subscriptions')) {
+        return subscriptionsBody;
+      }
       if (url.includes('/products')) {
         return productsBody;
       }
       if (url.includes('/entitlements')) {
         return entitlementsBody;
       }
-      if (url.includes('/customers')) {
-        return customersBody;
-      }
-      if (url.includes('/events')) {
-        return eventsBody;
-      }
       if (url.includes('/metrics/overview')) {
         return metricsBody;
+      }
+      if (url.includes('/customers')) {
+        return customersBody;
       }
       return { object: 'list', items: [], next_page: null };
     });

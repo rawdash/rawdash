@@ -37,15 +37,13 @@ export const configFields = defineConfigFields(
       placeholder: 'proj1ab2cd3',
     }),
     resources: z
-      .array(
-        z.enum(['products', 'entitlements', 'customers', 'events', 'metrics']),
-      )
+      .array(z.enum(['products', 'entitlements', 'customers', 'metrics']))
       .nonempty()
       .optional()
       .meta({
         label: 'Resources',
         description:
-          'Which RevenueCat resources to sync. Omit to sync all. Customer syncs also emit subscription entities embedded in each customer response.',
+          'Which RevenueCat resources to sync. Omit to sync all. Customer syncs also emit each customer’s subscription entities, fetched from the per-customer subscriptions endpoint.',
       }),
   }),
 );
@@ -55,7 +53,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
   category: 'finance',
   brandColor: '#F2545B',
   tagline:
-    'Sync products, entitlements, customers, and subscription events from RevenueCat alongside overview metrics (MRR, active subscribers, trial conversion).',
+    'Sync products, entitlements, customers, and subscriptions from RevenueCat alongside overview metrics (MRR, active subscribers, trial conversion).',
   vendor: {
     name: 'RevenueCat',
     domain: 'revenuecat.com',
@@ -73,11 +71,12 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     ],
   },
   rateLimit:
-    'RevenueCat applies per-project rate limits and returns 429 with a Retry-After header on overrun; requests are retried with exponential backoff. List endpoints page via the `starting_after` cursor up to 1000 items per page.',
+    'RevenueCat applies per-domain rate limits and returns 429 with a Retry-After header on overrun; requests are retried with exponential backoff. List endpoints page via the `starting_after` cursor and return up to 100 items per page. Each customer’s active entitlements and subscriptions are fetched with a separate request per customer.',
   limitations: [
     'Monetary amounts (e.g. MRR) are emitted in the smallest currency unit reported by the upstream API (typically cents).',
     'The overview metrics resource emits a point-in-time snapshot per sync rather than a backfilled timeseries; query timeseries widgets group these by `metric` and aggregate over time.',
-    'Subscription entities are emitted from data embedded in each customer response, not from a separate list endpoint.',
+    'Subscriptions and active entitlements are not returned by the customers list endpoint; they are fetched per customer, so customer syncs make additional requests proportional to the customer count.',
+    'RevenueCat does not expose a REST endpoint for listing subscription lifecycle events; those are delivered only via webhooks and are therefore not synced.',
   ],
 });
 
@@ -110,7 +109,7 @@ interface RevenueCatEntitlement {
   project_id?: string;
 }
 
-interface RevenueCatCustomerSubscription {
+interface RevenueCatSubscription {
   id: string;
   product_id: string | null;
   store: string | null;
@@ -121,25 +120,15 @@ interface RevenueCatCustomerSubscription {
   auto_renewal_status: string | null;
 }
 
+interface RevenueCatActiveEntitlement {
+  entitlement_id: string;
+  expires_at?: number | null;
+}
+
 interface RevenueCatCustomer {
   id: string;
   first_seen_at: number | null;
   last_seen_at: number | null;
-  active_entitlements: { items?: Array<{ entitlement_id: string }> } | null;
-  subscriptions: { items?: RevenueCatCustomerSubscription[] } | null;
-  attributes?: Record<string, unknown>;
-}
-
-interface RevenueCatEvent {
-  id: string;
-  type: string;
-  timestamp_ms: number;
-  app_user_id: string | null;
-  product_id: string | null;
-  store: string | null;
-  environment: string | null;
-  price_in_purchased_currency: number | null;
-  currency: string | null;
 }
 
 interface RevenueCatOverviewMetric {
@@ -168,7 +157,6 @@ const PHASE_ORDER = [
   'products',
   'entitlements',
   'customers',
-  'events',
   'metrics',
 ] as const;
 
@@ -212,27 +200,6 @@ const customerSchema = z.object({
   id: idString,
   first_seen_at: z.number().int().nullable(),
   last_seen_at: z.number().int().nullable(),
-  active_entitlements: z
-    .object({
-      items: z.array(z.object({ entitlement_id: z.string() })).optional(),
-    })
-    .nullable(),
-  subscriptions: z
-    .object({ items: z.array(subscriptionSchema).optional() })
-    .nullable(),
-  attributes: z.record(z.string(), z.unknown()).optional(),
-});
-
-const eventSchema = z.object({
-  id: idString,
-  type: z.string(),
-  timestamp_ms: z.number().int().nonnegative(),
-  app_user_id: z.string().nullable(),
-  product_id: z.string().nullable(),
-  store: z.string().nullable(),
-  environment: z.string().nullable(),
-  price_in_purchased_currency: z.number().nullable(),
-  currency: z.string().nullable(),
 });
 
 const overviewMetricSchema = z.object({
@@ -296,10 +263,10 @@ export const revenuecatResources = defineResources({
     shape: 'entity',
     filterable: [],
     description:
-      'RevenueCat customers (app users) with first-seen / last-seen timestamps and a list of currently active entitlement lookup keys.',
+      'RevenueCat customers (app users) with first-seen / last-seen timestamps and a list of currently active entitlement ids.',
     endpoint: 'GET /v2/projects/{project_id}/customers',
     notes:
-      'Each customer response includes embedded subscription objects; those are written separately as `revenuecat_subscription` entities.',
+      'The customers list returns only base fields; each customer’s active entitlements are fetched from GET /v2/projects/{project_id}/customers/{customer_id}/active_entitlements, and its subscriptions are written separately as `revenuecat_subscription` entities.',
     fields: [
       {
         name: 'firstSeenAt',
@@ -321,8 +288,9 @@ export const revenuecatResources = defineResources({
     shape: 'entity',
     filterable: [],
     description:
-      'Subscriptions, one row per (customer, product, original transaction). Extracted from the embedded `subscriptions.items` array in each customer response.',
-    endpoint: 'GET /v2/projects/{project_id}/customers',
+      'Subscriptions, one row per (customer, subscription). Fetched from each customer’s subscriptions collection.',
+    endpoint:
+      'GET /v2/projects/{project_id}/customers/{customer_id}/subscriptions',
     fields: [
       { name: 'customerId', description: 'RevenueCat customer (app user) id.' },
       { name: 'productId', description: 'Product the subscription is for.' },
@@ -352,34 +320,7 @@ export const revenuecatResources = defineResources({
           'Auto-renew status reported by the store (will_renew, will_not_renew, ...).',
       },
     ],
-    responses: {},
-  },
-  revenuecat_event: {
-    shape: 'event',
-    filterable: [],
-    description:
-      'Subscription lifecycle events (initial purchase, renewal, cancellation, billing issue, refund, trial start, conversion, ...).',
-    endpoint: 'GET /v2/projects/{project_id}/events',
-    fields: [
-      {
-        name: 'type',
-        description:
-          'Event type (INITIAL_PURCHASE, RENEWAL, CANCELLATION, ...).',
-      },
-      {
-        name: 'appUserId',
-        description: 'App user id at the time of the event.',
-      },
-      { name: 'productId', description: 'Product involved in the event.' },
-      { name: 'store', description: 'Originating store.' },
-      { name: 'environment', description: 'production or sandbox.' },
-      {
-        name: 'priceInPurchasedCurrency',
-        description: 'Charged amount in the purchase currency, if known.',
-      },
-      { name: 'currency', description: 'ISO currency code, if known.' },
-    ],
-    responses: { events: z.array(eventSchema) },
+    responses: { subscriptions: z.array(subscriptionSchema) },
   },
   revenuecat_metric_snapshot: {
     shape: 'metric',
@@ -407,7 +348,7 @@ export const revenuecatResources = defineResources({
 export const id = 'revenuecat';
 
 const BASE_URL = 'https://api.revenuecat.com';
-const PAGE_LIMIT = 1000;
+const PAGE_LIMIT = 100;
 
 function toMs(epochSecOrMs: number): number {
   return epochSecOrMs > 1_000_000_000_000 ? epochSecOrMs : epochSecOrMs * 1000;
@@ -418,6 +359,17 @@ function nullableSeconds(value: number | null): number | null {
     return null;
   }
   return value;
+}
+
+function nextCursor(nextPage: string | null | undefined): string | null {
+  if (!nextPage) {
+    return null;
+  }
+  const qIndex = nextPage.indexOf('?');
+  if (qIndex === -1) {
+    return null;
+  }
+  return new URLSearchParams(nextPage.slice(qIndex + 1)).get('starting_after');
 }
 
 export class RevenueCatConnector extends BaseConnector<
@@ -480,12 +432,12 @@ export class RevenueCatConnector extends BaseConnector<
     return url.toString();
   }
 
-  private buildPhaseUrl(
-    phase: RevenueCatPhase,
-    page: string | null,
-    options: SyncOptions,
-  ): string {
-    const projectPath = `/v2/projects/${encodeURIComponent(this.settings.projectId)}`;
+  private projectPath(): string {
+    return `/v2/projects/${encodeURIComponent(this.settings.projectId)}`;
+  }
+
+  private buildPhaseUrl(phase: RevenueCatPhase, page: string | null): string {
+    const projectPath = this.projectPath();
     switch (phase) {
       case 'products':
         return this.buildListUrl(`${projectPath}/products`, page);
@@ -493,17 +445,34 @@ export class RevenueCatConnector extends BaseConnector<
         return this.buildListUrl(`${projectPath}/entitlements`, page);
       case 'customers':
         return this.buildListUrl(`${projectPath}/customers`, page);
-      case 'events': {
-        const sinceMs = options.since ? Date.parse(options.since) : NaN;
-        const extra: Record<string, string | undefined> = {};
-        if (Number.isFinite(sinceMs)) {
-          extra['starting_at'] = String(sinceMs);
-        }
-        return this.buildListUrl(`${projectPath}/events`, page, extra);
-      }
       case 'metrics':
         return `${BASE_URL}${projectPath}/metrics/overview`;
     }
+  }
+
+  private async listAll<T>(
+    path: string,
+    resource: string,
+    signal?: AbortSignal,
+  ): Promise<T[]> {
+    const collected: T[] = [];
+    let page: string | null = null;
+    while (true) {
+      const url = this.buildListUrl(path, page);
+      const res = await this.fetchUrl<RevenueCatListResponse<T>>(
+        url,
+        resource,
+        signal,
+      );
+      const items = res.body.items ?? [];
+      collected.push(...items);
+      const next = items.length > 0 ? nextCursor(res.body.next_page) : null;
+      if (next === null) {
+        break;
+      }
+      page = next;
+    }
+    return collected;
   }
 
   private async clearScopeOnFirstPage(
@@ -522,11 +491,59 @@ export class RevenueCatConnector extends BaseConnector<
           types: ['revenuecat_customer', 'revenuecat_subscription'],
         });
         return;
-      case 'events':
-        await storage.events([], { names: ['revenuecat_event'] });
-        return;
       case 'metrics':
         return;
+    }
+  }
+
+  private async writeCustomers(
+    storage: StorageHandle,
+    customers: RevenueCatCustomer[],
+    signal?: AbortSignal,
+  ): Promise<void> {
+    const projectPath = this.projectPath();
+    for (const c of customers) {
+      const customerPath = `${projectPath}/customers/${encodeURIComponent(c.id)}`;
+      const activeEntitlements =
+        await this.listAll<RevenueCatActiveEntitlement>(
+          `${customerPath}/active_entitlements`,
+          'customers',
+          signal,
+        );
+      const lastSeen = c.last_seen_at ?? c.first_seen_at ?? 0;
+      await storage.entity({
+        type: 'revenuecat_customer',
+        id: c.id,
+        attributes: {
+          firstSeenAt: nullableSeconds(c.first_seen_at),
+          lastSeenAt: nullableSeconds(c.last_seen_at),
+          activeEntitlements: activeEntitlements.map((e) => e.entitlement_id),
+        },
+        updated_at: toMs(lastSeen),
+      });
+      const subscriptions = await this.listAll<RevenueCatSubscription>(
+        `${customerPath}/subscriptions`,
+        'customers',
+        signal,
+      );
+      for (const s of subscriptions) {
+        const updatedAt = s.current_period_ends_at ?? s.starts_at ?? lastSeen;
+        await storage.entity({
+          type: 'revenuecat_subscription',
+          id: s.id,
+          attributes: {
+            customerId: c.id,
+            productId: s.product_id ?? null,
+            store: s.store ?? null,
+            status: s.status,
+            startsAt: s.starts_at ?? null,
+            currentPeriodEndsAt: s.current_period_ends_at ?? null,
+            givesAccess: s.gives_access ?? null,
+            autoRenewalStatus: s.auto_renewal_status ?? null,
+          },
+          updated_at: toMs(updatedAt),
+        });
+      }
     }
   }
 
@@ -534,6 +551,7 @@ export class RevenueCatConnector extends BaseConnector<
     storage: StorageHandle,
     phase: RevenueCatPhase,
     items: unknown[],
+    signal?: AbortSignal,
   ): Promise<void> {
     switch (phase) {
       case 'products':
@@ -567,60 +585,11 @@ export class RevenueCatConnector extends BaseConnector<
         }
         return;
       case 'customers':
-        for (const c of items as RevenueCatCustomer[]) {
-          const activeEntitlementIds = (c.active_entitlements?.items ?? []).map(
-            (row) => row.entitlement_id,
-          );
-          const lastSeen = c.last_seen_at ?? c.first_seen_at ?? 0;
-          await storage.entity({
-            type: 'revenuecat_customer',
-            id: c.id,
-            attributes: {
-              firstSeenAt: nullableSeconds(c.first_seen_at),
-              lastSeenAt: nullableSeconds(c.last_seen_at),
-              activeEntitlements: activeEntitlementIds,
-            },
-            updated_at: toMs(lastSeen),
-          });
-          for (const s of c.subscriptions?.items ?? []) {
-            const updatedAt =
-              s.current_period_ends_at ?? s.starts_at ?? lastSeen;
-            await storage.entity({
-              type: 'revenuecat_subscription',
-              id: s.id,
-              attributes: {
-                customerId: c.id,
-                productId: s.product_id ?? null,
-                store: s.store ?? null,
-                status: s.status,
-                startsAt: s.starts_at ?? null,
-                currentPeriodEndsAt: s.current_period_ends_at ?? null,
-                givesAccess: s.gives_access ?? null,
-                autoRenewalStatus: s.auto_renewal_status ?? null,
-              },
-              updated_at: toMs(updatedAt),
-            });
-          }
-        }
-        return;
-      case 'events':
-        for (const ev of items as RevenueCatEvent[]) {
-          await storage.event({
-            name: 'revenuecat_event',
-            start_ts: ev.timestamp_ms,
-            end_ts: null,
-            attributes: {
-              id: ev.id,
-              type: ev.type,
-              appUserId: ev.app_user_id ?? null,
-              productId: ev.product_id ?? null,
-              store: ev.store ?? null,
-              environment: ev.environment ?? null,
-              priceInPurchasedCurrency: ev.price_in_purchased_currency ?? null,
-              currency: ev.currency ?? null,
-            },
-          });
-        }
+        await this.writeCustomers(
+          storage,
+          items as RevenueCatCustomer[],
+          signal,
+        );
         return;
       case 'metrics': {
         const samples: MetricSample[] = [];
@@ -666,7 +635,7 @@ export class RevenueCatConnector extends BaseConnector<
       signal,
       logger: this.logger,
       fetchPage: async (phase, page, sig) => {
-        const url = this.buildPhaseUrl(phase, page, options);
+        const url = this.buildPhaseUrl(phase, page);
         if (phase === 'metrics') {
           const res = await this.fetchUrl<RevenueCatOverviewResponse>(
             url,
@@ -681,15 +650,15 @@ export class RevenueCatConnector extends BaseConnector<
           phase,
           sig,
         );
-        const { items, next_page } = res.body;
-        const next = next_page && items.length > 0 ? items.at(-1)!.id : null;
+        const items = res.body.items ?? [];
+        const next = items.length > 0 ? nextCursor(res.body.next_page) : null;
         return { items, next };
       },
       writeBatch: async (phase, items, page) => {
         if (isFull && page === null) {
           await this.clearScopeOnFirstPage(storage, phase);
         }
-        await this.writePhase(storage, phase, items);
+        await this.writePhase(storage, phase, items, signal);
       },
     });
   }
