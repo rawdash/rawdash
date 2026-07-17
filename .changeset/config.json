@@ -21,6 +21,7 @@
       "@rawdash/connector-datadog",
       "@rawdash/connector-entra-id",
       "@rawdash/connector-firebase-crashlytics",
+      "@rawdash/connector-firebase-cloud-messaging",
       "@rawdash/connector-github",
       "@rawdash/connector-bitbucket",
       "@rawdash/connector-gitlab",

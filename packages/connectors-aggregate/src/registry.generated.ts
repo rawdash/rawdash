@@ -37,6 +37,10 @@ export const connectorLoaders: Record<string, () => Promise<ConnectorClass>> = {
     import('@rawdash/connector-expensify').then((m) => m.default),
   'firebase-analytics': () =>
     import('@rawdash/connector-firebase-analytics').then((m) => m.default),
+  'firebase-cloud-messaging': () =>
+    import('@rawdash/connector-firebase-cloud-messaging').then(
+      (m) => m.default,
+    ),
   'firebase-crashlytics': () =>
     import('@rawdash/connector-firebase-crashlytics').then((m) => m.default),
   'gcp-billing': () =>
