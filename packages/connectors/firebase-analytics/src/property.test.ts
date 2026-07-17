@@ -112,7 +112,13 @@ describe('FirebaseAnalyticsConnector property tests', () => {
           return { rows: [], rowCount: 0 };
         });
         await makeConnector().sync(
-          { mode: 'full' },
+          {
+            mode: 'full',
+            cursor: {
+              phase: 'dau_wau_mau',
+              dateRange: { startDate: '1900-01-01', endDate: '2100-12-31' },
+            },
+          },
           storage.getStorageHandle(CONNECTOR_ID),
         );
       },
@@ -150,7 +156,13 @@ describe('FirebaseAnalyticsConnector property tests', () => {
 
     const storage = new InMemoryStorage();
     await makeConnector().sync(
-      { mode: 'full' },
+      {
+        mode: 'full',
+        cursor: {
+          phase: 'dau_wau_mau',
+          dateRange: { startDate: '1900-01-01', endDate: '2100-12-31' },
+        },
+      },
       storage.getStorageHandle(CONNECTOR_ID),
     );
 

@@ -41,6 +41,7 @@ Firebase Analytics data is exposed through the linked GA4 property. Authenticate
   - Unit: users
   - Granularity: day
   - Dimensions: `date`
+  - active7DayUsers and active28DayUsers are trailing rolling counts ending on each row’s date, so the report is queried with an extra 27-day lead window before the requested start; the lead rows are dropped and only the requested range is stored, keeping the rolling weekly/monthly counts accurate on every day.
 - **`firebase_events_per_day`** _(metric)_ - Daily event counts and the active users that triggered them, bucketed by event name.
   - Endpoint: `POST /v1beta/properties/{propertyId}:runReport`
   - Unit: events
@@ -103,6 +104,7 @@ GA4 Data API quota is 200,000 tokens/day per property (default); 429 responses a
 ## Limitations
 
 - Incremental syncs use a 30-day window because GA4 can attribute events up to 3 days after they occur.
+- The rolling active7DayUsers/active28DayUsers metrics are computed within the requested date range, so the DAU/WAU/MAU report is fetched with a 27-day lead window and the lead days are discarded to keep weekly/monthly counts accurate.
 - Report pagination is 10,000 rows per page.
 - The firebaseAppId is recorded on every sample but does not filter the report; ensure your GA4 property only contains the app you intend to sync.
 

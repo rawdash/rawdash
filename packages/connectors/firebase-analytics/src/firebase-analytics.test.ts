@@ -91,6 +91,50 @@ function mockFetch(
   });
 }
 
+function mockFetchByDims(
+  tokenResponse: object,
+  reportResponsesByDims: Record<string, object>,
+) {
+  return vi.fn().mockImplementation((url: string, init: RequestInit) => {
+    const urlStr = String(url);
+
+    if (urlStr.includes('oauth2.googleapis.com/token')) {
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: new Headers({ 'content-type': 'application/json' }),
+        text: () => Promise.resolve(JSON.stringify(tokenResponse)),
+      } as Response);
+    }
+
+    if (urlStr.includes('analyticsdata.googleapis.com')) {
+      const body = init.body
+        ? (JSON.parse(String(init.body)) as {
+            dimensions: Array<{ name: string }>;
+          })
+        : { dimensions: [] };
+      const key = (body.dimensions ?? []).map((d) => d.name).join(',');
+      const resp = reportResponsesByDims[key] ?? makeEmptyReportResponse();
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: new Headers({ 'content-type': 'application/json' }),
+        text: () => Promise.resolve(JSON.stringify(resp)),
+      } as Response);
+    }
+
+    return Promise.resolve({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: new Headers({ 'content-type': 'application/json' }),
+      text: () => Promise.resolve(JSON.stringify(makeEmptyReportResponse())),
+    } as Response);
+  });
+}
+
 function makeConnector(): FirebaseAnalyticsConnector {
   return new FirebaseAnalyticsConnector(
     {
@@ -283,7 +327,16 @@ describe('FirebaseAnalyticsConnector.sync', () => {
     );
 
     const storage = makeStorage();
-    await connector.sync({ mode: 'full' }, storage);
+    await connector.sync(
+      {
+        mode: 'full',
+        cursor: {
+          phase: 'dau_wau_mau',
+          dateRange: { startDate: '1900-01-01', endDate: '2100-12-31' },
+        },
+      },
+      storage,
+    );
 
     const dauCall = storage.metrics.mock.calls.find(
       (c) => (c[1] as { names: string[] }).names[0] === 'firebase_dau_wau_mau',
@@ -416,6 +469,91 @@ describe('FirebaseAnalyticsConnector.sync', () => {
       ),
     );
     expect(writtenNames).toEqual(new Set(['firebase_dau_wau_mau']));
+  });
+
+  it('fetches dau_wau_mau with a 27-day lead window while other phases use the requested start', async () => {
+    const connector = makeConnector();
+    const fetchSpy = mockFetchByDims(
+      { access_token: 'tok', expires_in: 3600 },
+      {},
+    );
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const storage = makeStorage();
+    await connector.sync(
+      {
+        mode: 'full',
+        cursor: {
+          phase: 'dau_wau_mau',
+          dateRange: { startDate: '2025-02-01', endDate: '2025-02-28' },
+        },
+      },
+      storage,
+    );
+
+    const rangeByDims = new Map<
+      string,
+      { startDate: string; endDate: string }
+    >();
+    for (const call of fetchSpy.mock.calls as Array<[string, RequestInit]>) {
+      if (!String(call[0]).includes('analyticsdata.googleapis.com')) {
+        continue;
+      }
+      const body = JSON.parse(String(call[1].body)) as {
+        dimensions: Array<{ name: string }>;
+        dateRanges: Array<{ startDate: string; endDate: string }>;
+      };
+      rangeByDims.set(
+        body.dimensions.map((d) => d.name).join(','),
+        body.dateRanges[0]!,
+      );
+    }
+
+    expect(rangeByDims.get('date')).toEqual({
+      startDate: '2025-01-05',
+      endDate: '2025-02-28',
+    });
+    expect(rangeByDims.get('date,eventName')!.startDate).toBe('2025-02-01');
+    expect(rangeByDims.get('firstSessionDate,date')!.startDate).toBe(
+      '2025-02-01',
+    );
+  });
+
+  it('drops dau_wau_mau lead rows that fall before the requested start window', async () => {
+    const connector = makeConnector();
+    const dauReport = {
+      rows: [
+        makeReportRow(['20250105'], ['10', '70', '300']),
+        makeReportRow(['20250201'], ['20', '140', '600']),
+      ],
+      rowCount: 2,
+    };
+    const fetchSpy = mockFetchByDims(
+      { access_token: 'tok', expires_in: 3600 },
+      { date: dauReport },
+    );
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const storage = makeStorage();
+    await connector.sync(
+      {
+        mode: 'full',
+        cursor: {
+          phase: 'dau_wau_mau',
+          dateRange: { startDate: '2025-02-01', endDate: '2025-02-28' },
+        },
+      },
+      storage,
+    );
+
+    const dauCall = storage.metrics.mock.calls.find(
+      (c) => (c[1] as { names: string[] }).names[0] === 'firebase_dau_wau_mau',
+    );
+    expect(dauCall).toBeDefined();
+    const samples = dauCall![0] as Array<{ ts: number; value: number }>;
+    expect(samples).toHaveLength(1);
+    expect(samples[0]!.ts).toBe(Date.UTC(2025, 1, 1));
+    expect(samples[0]!.value).toBe(20);
   });
 
   it('does not wipe older history when an incremental sync returns no rows', async () => {
