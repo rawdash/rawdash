@@ -143,6 +143,12 @@ import {
   resources as firebaseAnalyticsResources,
 } from '@rawdash/connector-firebase-analytics';
 import {
+  configFields as firebaseCloudMessagingConfigFields,
+  doc as firebaseCloudMessagingDoc,
+  id as firebaseCloudMessagingId,
+  resources as firebaseCloudMessagingResources,
+} from '@rawdash/connector-firebase-cloud-messaging';
+import {
   configFields as firebaseCrashlyticsConfigFields,
   doc as firebaseCrashlyticsDoc,
   id as firebaseCrashlyticsId,
@@ -579,6 +585,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: firebaseAnalyticsDoc,
     configFields: firebaseAnalyticsConfigFields,
     resources: firebaseAnalyticsResources,
+  },
+  {
+    id: firebaseCloudMessagingId,
+    packageName: '@rawdash/connector-firebase-cloud-messaging',
+    doc: firebaseCloudMessagingDoc,
+    configFields: firebaseCloudMessagingConfigFields,
+    resources: firebaseCloudMessagingResources,
   },
   {
     id: firebaseCrashlyticsId,

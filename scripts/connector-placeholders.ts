@@ -1139,16 +1139,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     domain: 'facebook.com',
   },
   {
-    id: 'firebase-cloud-messaging',
-    name: 'Firebase Cloud Messaging',
-    category: 'marketing',
-    tagline:
-      'Sync push send volume, delivery rate, and opens from Firebase Cloud Messaging.',
-    icon: 'firebase',
-    domain: 'firebase.google.com',
-    requestIssue: 'RAW-450',
-  },
-  {
     id: 'getresponse',
     name: 'GetResponse',
     category: 'marketing',
