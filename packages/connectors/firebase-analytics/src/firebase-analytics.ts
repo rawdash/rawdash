@@ -109,6 +109,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'GA4 Data API quota is 200,000 tokens/day per property (default); 429 responses are retried automatically with exponential backoff.',
   limitations: [
     'Incremental syncs use a 30-day window because GA4 can attribute events up to 3 days after they occur.',
+    'The rolling active7DayUsers/active28DayUsers metrics are computed within the requested date range, so the DAU/WAU/MAU report is fetched with a 27-day lead window and the lead days are discarded to keep weekly/monthly counts accurate.',
     'Report pagination is 10,000 rows per page.',
     'The firebaseAppId is recorded on every sample but does not filter the report; ensure your GA4 property only contains the app you intend to sync.',
   ],
@@ -245,6 +246,31 @@ function ga4DateToMs(ga4Date: string): number {
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const INCREMENTAL_LOOKBACK_DAYS = 30;
+const ROLLING_ACTIVE_USERS_LEAD_DAYS = 27;
+
+const ROLLING_ACTIVE_USER_PHASES = new Set<FirebaseAnalyticsPhase>([
+  'dau_wau_mau',
+]);
+
+function persistStartMs(dateRange: FirebaseAnalyticsDateRange): number {
+  return Date.parse(`${dateRange.startDate}T00:00:00Z`);
+}
+
+function queryStartDateForPhase(
+  phase: FirebaseAnalyticsPhase,
+  dateRange: FirebaseAnalyticsDateRange,
+): string {
+  if (!ROLLING_ACTIVE_USER_PHASES.has(phase)) {
+    return dateRange.startDate;
+  }
+  const startMs = persistStartMs(dateRange);
+  if (!Number.isFinite(startMs)) {
+    return dateRange.startDate;
+  }
+  return toGA4Date(
+    new Date(startMs - ROLLING_ACTIVE_USERS_LEAD_DAYS * MS_PER_DAY),
+  );
+}
 
 function getDateRange(
   options: SyncOptions,
@@ -385,6 +411,8 @@ export const firebaseAnalyticsResources = defineResources({
     dimensions: [
       { name: 'date', description: 'Calendar day of the metric sample.' },
     ],
+    notes:
+      'active7DayUsers and active28DayUsers are trailing rolling counts ending on each row’s date, so the report is queried with an extra 27-day lead window before the requested start; the lead rows are dropped and only the requested range is stored, keeping the rolling weekly/monthly counts accurate on every day.',
     responses: {
       oauth_token: tokenResponseSchema,
       dau_wau_mau: reportSchema(1),
@@ -495,12 +523,12 @@ export class FirebaseAnalyticsConnector extends BaseConnector<
     const { dimensions, metrics } = PHASE_CONFIGS[phase];
     const url = `https://analyticsdata.googleapis.com/v1beta/properties/${this.settings.propertyId}:runReport`;
 
+    const queryStartDate = queryStartDateForPhase(phase, dateRange);
+
     const body: Record<string, unknown> = {
       dimensions: dimensions.map((name) => ({ name })),
       metrics: metrics.map((name) => ({ name })),
-      dateRanges: [
-        { startDate: dateRange.startDate, endDate: dateRange.endDate },
-      ],
+      dateRanges: [{ startDate: queryStartDate, endDate: dateRange.endDate }],
       limit: ROWS_PER_PAGE,
       offset,
     };
@@ -610,7 +638,7 @@ export class FirebaseAnalyticsConnector extends BaseConnector<
         throw err;
       }
       const cfg = PHASE_CONFIGS[phase];
-      const samples = rows.map((row) =>
+      const allSamples = rows.map((row) =>
         rowToMetricSample(
           row,
           cfg.dimensions,
@@ -619,6 +647,11 @@ export class FirebaseAnalyticsConnector extends BaseConnector<
           this.settings.firebaseAppId,
         ),
       );
+      const startMs = persistStartMs(dateRange);
+      const samples =
+        ROLLING_ACTIVE_USER_PHASES.has(phase) && Number.isFinite(startMs)
+          ? allSamples.filter((sample) => sample.ts >= startMs)
+          : allSamples;
       await storage.metrics(samples, {
         names: [cfg.metricName],
         ...(replaceWindow ? { replaceWindow } : {}),
