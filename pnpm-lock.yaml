@@ -2310,6 +2310,9 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
+      '@rawdash/connector-shared':
+        specifier: workspace:*
+        version: link:../../connector-shared
       '@rawdash/connector-test-utils':
         specifier: workspace:*
         version: link:../../connector-test-utils
