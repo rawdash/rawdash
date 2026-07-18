@@ -356,6 +356,12 @@ import {
   resources as shopifyResources,
 } from '@rawdash/connector-shopify';
 import {
+  configFields as sslMonitorConfigFields,
+  doc as sslMonitorDoc,
+  id as sslMonitorId,
+  resources as sslMonitorResources,
+} from '@rawdash/connector-ssl-monitor';
+import {
   configFields as statuspageConfigFields,
   doc as statuspageDoc,
   id as statuspageId,
@@ -827,6 +833,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: shopifyDoc,
     configFields: shopifyConfigFields,
     resources: shopifyResources,
+  },
+  {
+    id: sslMonitorId,
+    packageName: '@rawdash/connector-ssl-monitor',
+    doc: sslMonitorDoc,
+    configFields: sslMonitorConfigFields,
+    resources: sslMonitorResources,
   },
   {
     id: statuspageId,
