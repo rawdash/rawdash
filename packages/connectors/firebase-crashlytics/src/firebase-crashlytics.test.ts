@@ -521,6 +521,39 @@ describe('buildCrashesPerDaySql', () => {
     expect(sql).toContain("DATE('2024-02-01')");
     expect(sql).toContain('GROUP BY date, app_id, platform, version');
   });
+
+  it('reads the real export columns for app id, platform, version, and fatal counts', () => {
+    const sql = buildCrashesPerDaySql({
+      projectId: 'p',
+      bqDataset: 'd',
+      startDate: '2024-01-01',
+      endDate: '2024-02-01',
+    });
+    expect(sql).toContain('bundle_identifier AS app_id');
+    expect(sql).toContain("LOWER(IFNULL(platform, 'unknown')) AS platform");
+    expect(sql).toContain('application.display_version AS version');
+    expect(sql).toContain(
+      "COUNT(DISTINCT IF(error_type = 'FATAL', event_id, NULL)) AS crashes",
+    );
+    expect(sql).toContain(
+      "COUNT(DISTINCT IF(error_type = 'FATAL', user_id, NULL)) AS crashing_users",
+    );
+    expect(sql).toContain("NULLIF(user.id, '') AS user_id");
+  });
+
+  it('does not reference columns absent from the Crashlytics export schema', () => {
+    const sql = buildCrashesPerDaySql({
+      projectId: 'p',
+      bqDataset: 'd',
+      startDate: '2024-01-01',
+      endDate: '2024-02-01',
+    });
+    expect(sql).not.toContain('application.app_display_version');
+    expect(sql).not.toContain('application.bundle_id');
+    expect(sql).not.toContain('application.platform');
+    expect(sql).not.toContain('is_fatal');
+    expect(sql).not.toContain('COUNTIF');
+  });
 });
 
 describe('buildTopIssuesSql', () => {
@@ -539,7 +572,7 @@ describe('buildTopIssuesSql', () => {
     expect(sql).toContain('issue_id IS NOT NULL');
   });
 
-  it('selects the most recent attributes per issue', () => {
+  it('derives title/subtitle and app id from real export columns', () => {
     const sql = buildTopIssuesSql({
       projectId: 'p',
       bqDataset: 'd',
@@ -547,10 +580,31 @@ describe('buildTopIssuesSql', () => {
       endDate: '2024-02-01',
       limit: 25,
     });
-    expect(sql).toContain('ANY_VALUE(issue_title HAVING MAX event_timestamp)');
     expect(sql).toContain(
-      'ANY_VALUE(application.bundle_id HAVING MAX event_timestamp)',
+      'ANY_VALUE(blame_frame.symbol HAVING MAX event_timestamp) AS title',
     );
+    expect(sql).toContain(
+      'ANY_VALUE(blame_frame.file HAVING MAX event_timestamp) AS subtitle',
+    );
+    expect(sql).toContain(
+      'ANY_VALUE(bundle_identifier HAVING MAX event_timestamp) AS app_id',
+    );
+    expect(sql).toContain('COUNT(DISTINCT event_id) AS event_count');
+    expect(sql).toContain("COUNT(DISTINCT NULLIF(user.id, '')) AS user_count");
+  });
+
+  it('does not reference columns absent from the Crashlytics export schema', () => {
+    const sql = buildTopIssuesSql({
+      projectId: 'p',
+      bqDataset: 'd',
+      startDate: '2024-01-01',
+      endDate: '2024-02-01',
+      limit: 25,
+    });
+    expect(sql).not.toContain('issue_title');
+    expect(sql).not.toContain('issue_subtitle');
+    expect(sql).not.toContain('application.bundle_id');
+    expect(sql).not.toContain('application.platform');
   });
 });
 
