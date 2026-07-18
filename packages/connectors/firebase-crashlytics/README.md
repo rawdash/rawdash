@@ -46,8 +46,8 @@ Authenticate against the BigQuery API with a Google service account JSON key. Th
   - Endpoint: `POST /bigquery/v2/projects/{projectId}/queries`
   - topIssuesLimit caps how many issues are retained per sync (default 50). Rows are sorted by descending event count over the backfill window.
   - `issue_id`: Stable Crashlytics issue identifier.
-  - `title`: Issue title (most recent value seen for this issue id within the window).
-  - `subtitle`: Issue subtitle (most recent value seen for this issue id within the window).
+  - `title`: Blamed stack-frame symbol for the issue (the crashing function/method), taken from the most recent event for this issue id within the window.
+  - `subtitle`: Blamed stack-frame source file for the issue, taken from the most recent event for this issue id within the window.
   - `app_id`: Bundle identifier (iOS) or package name (Android) most recently seen for this issue.
   - `platform`: Application platform (ios, android, or unknown).
   - `event_count`: Total crash events attributed to this issue within the backfill window.
