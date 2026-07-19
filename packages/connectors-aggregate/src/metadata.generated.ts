@@ -356,6 +356,12 @@ import {
   resources as shopifyResources,
 } from '@rawdash/connector-shopify';
 import {
+  configFields as statusgatorConfigFields,
+  doc as statusgatorDoc,
+  id as statusgatorId,
+  resources as statusgatorResources,
+} from '@rawdash/connector-statusgator';
+import {
   configFields as statuspageConfigFields,
   doc as statuspageDoc,
   id as statuspageId,
@@ -827,6 +833,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: shopifyDoc,
     configFields: shopifyConfigFields,
     resources: shopifyResources,
+  },
+  {
+    id: statusgatorId,
+    packageName: '@rawdash/connector-statusgator',
+    doc: statusgatorDoc,
+    configFields: statusgatorConfigFields,
+    resources: statusgatorResources,
   },
   {
     id: statuspageId,
