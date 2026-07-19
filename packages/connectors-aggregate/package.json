@@ -92,6 +92,7 @@
     "@rawdash/connector-sendgrid": "workspace:*",
     "@rawdash/connector-sentry": "workspace:*",
     "@rawdash/connector-shopify": "workspace:*",
+    "@rawdash/connector-statusgator": "workspace:*",
     "@rawdash/connector-statuspage": "workspace:*",
     "@rawdash/connector-stripe": "workspace:*",
     "@rawdash/connector-twilio": "workspace:*",

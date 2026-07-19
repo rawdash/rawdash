@@ -535,16 +535,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     requestIssue: 'RAW-225',
   },
   {
-    id: 'statusgator',
-    name: 'StatusGator',
-    category: 'infrastructure',
-    tagline:
-      "Aggregate the public status pages of every SaaS you depend on into a single 'is anything down?' view.",
-    brandColor: '#5C6BC0',
-    domain: 'statusgator.com',
-    requestIssue: 'RAW-452',
-  },
-  {
     id: 'supabase',
     name: 'Supabase',
     category: 'infrastructure',
