@@ -42,30 +42,26 @@ describe('LangfuseConnector', () => {
     vi.unstubAllGlobals();
   });
 
-  it('upserts traces as entities keyed by id', async () => {
+  it('upserts traces from `timestamp`, converting latency seconds to ms', async () => {
     installFetchMock(() => ({
       data: [
         {
           id: 'trace-1',
           name: 'completion',
-          projectId: 'proj_42',
           userId: 'user_a',
           sessionId: 'sess_z',
           release: 'r1',
           version: 'v1',
           totalCost: 0.0123,
-          latency: 1450,
-          createdAt: '2026-05-20T01:02:03Z',
-          updatedAt: '2026-05-20T01:02:04Z',
+          latency: 1.45,
+          timestamp: '2026-05-20T01:02:03Z',
         },
         {
           id: 'trace-2',
           name: null,
-          projectId: 'proj_42',
           totalCost: null,
           latency: null,
-          createdAt: null,
-          updatedAt: null,
+          timestamp: null,
         },
       ],
       meta: { page: 1, limit: 50, totalItems: 2, totalPages: 1 },
@@ -85,13 +81,14 @@ describe('LangfuseConnector', () => {
       | undefined;
     expect(first?.attributes).toMatchObject({
       name: 'completion',
-      projectId: 'proj_42',
       userId: 'user_a',
       sessionId: 'sess_z',
       totalCost: 0.0123,
       latencyMs: 1450,
+      createdAt: '2026-05-20T01:02:03Z',
     });
-    expect(first?.updated_at).toBe(Date.parse('2026-05-20T01:02:04Z'));
+    expect(first?.attributes).not.toHaveProperty('projectId');
+    expect(first?.updated_at).toBe(Date.parse('2026-05-20T01:02:03Z'));
 
     const second = traces?.get('trace-2') as
       | { attributes: Record<string, unknown>; updated_at: number }
@@ -102,6 +99,21 @@ describe('LangfuseConnector', () => {
       createdAt: null,
     });
     expect(second?.updated_at).toBe(0);
+  });
+
+  it('requests traces ordered by timestamp descending', async () => {
+    const spy = installFetchMock(() => ({
+      data: [],
+      meta: { page: 1, limit: 50, totalItems: 0, totalPages: 0 },
+    }));
+    const storage = new InMemoryStorage();
+    await connector({ resources: ['traces'] }).sync(
+      { mode: 'full' },
+      storage.getStorageHandle(CONNECTOR_ID),
+    );
+
+    const url = String(spy.mock.calls[0]?.[0] ?? '');
+    expect(url).toContain('orderBy=timestamp.desc');
   });
 
   it('sends Basic auth using publicKey:secretKey', async () => {
@@ -131,8 +143,7 @@ describe('LangfuseConnector', () => {
         data: [
           {
             id: `trace-${calls}`,
-            createdAt: '2026-05-20T00:00:00Z',
-            updatedAt: '2026-05-20T00:00:00Z',
+            timestamp: '2026-05-20T00:00:00Z',
           },
         ],
         meta: { page: calls, limit: 50, totalItems: 3, totalPages: 3 },
@@ -157,14 +168,14 @@ describe('LangfuseConnector', () => {
       if (calls === 1) {
         return {
           data: [
-            { id: 'fresh', createdAt: '2026-05-21T00:00:00Z' },
-            { id: 'stale', createdAt: '2024-01-01T00:00:00Z' },
+            { id: 'fresh', timestamp: '2026-05-21T00:00:00Z' },
+            { id: 'stale', timestamp: '2024-01-01T00:00:00Z' },
           ],
           meta: { page: 1, limit: 50, totalItems: 100, totalPages: 5 },
         };
       }
       return {
-        data: [{ id: `older-${calls}`, createdAt: '2023-01-01T00:00:00Z' }],
+        data: [{ id: `older-${calls}`, timestamp: '2023-01-01T00:00:00Z' }],
         meta: { page: calls, limit: 50, totalItems: 100, totalPages: 5 },
       };
     });
@@ -312,6 +323,42 @@ describe('LangfuseConnector', () => {
     expect(tone).toMatchObject({
       value: 0,
       attributes: { scoreName: 'tone', count: 1 },
+    });
+  });
+
+  it('excludes categorical scores from the average but still counts them', async () => {
+    installFetchMock(() => ({
+      data: [
+        {
+          id: 's1',
+          name: 'quality',
+          value: 1.0,
+          dataType: 'NUMERIC',
+          timestamp: '2026-05-20T01:00:00Z',
+        },
+        {
+          id: 's2',
+          name: 'quality',
+          value: 5,
+          stringValue: 'excellent',
+          dataType: 'CATEGORICAL',
+          timestamp: '2026-05-20T02:00:00Z',
+        },
+      ],
+      meta: { page: 1, limit: 50, totalItems: 2, totalPages: 1 },
+    }));
+
+    const storage = new InMemoryStorage();
+    await connector({ resources: ['scores'] }).sync(
+      { mode: 'full' },
+      storage.getStorageHandle(CONNECTOR_ID),
+    );
+
+    const metrics = langfuseMetrics(storage, 'langfuse_scores');
+    expect(metrics).toHaveLength(1);
+    expect(metrics[0]).toMatchObject({
+      value: 1,
+      attributes: { scoreName: 'quality', count: 2 },
     });
   });
 
