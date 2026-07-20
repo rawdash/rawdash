@@ -38,14 +38,13 @@ A Langfuse public + secret API key pair scoped to one project is required. The c
   - Endpoint: `GET /api/public/traces`
   - Traces upsert by id on every run. Trace input/output payloads are not stored.
   - `name`: Trace name set by the SDK.
-  - `projectId`: Langfuse project id the trace belongs to.
   - `userId`: Attached userId, if any.
   - `sessionId`: Attached sessionId, if any.
   - `release`: Release identifier from the SDK, if set.
   - `version`: Version identifier from the SDK, if set.
   - `totalCost`: Aggregate trace cost in USD across all observations.
   - `latencyMs`: End-to-end trace latency in milliseconds.
-  - `createdAt`: ISO timestamp of trace creation.
+  - `createdAt`: ISO timestamp of when the trace was created.
 - **`langfuse_observations_per_day`** _(metric)_ - Daily LLM observation volume, total tokens, and total cost rolled up by model from the Langfuse daily metrics endpoint. One sample per (day, model) over the lookback window.
   - Endpoint: `GET /api/public/metrics/daily`
   - Unit: observations
@@ -59,7 +58,7 @@ A Langfuse public + secret API key pair scoped to one project is required. The c
   - Granularity: Daily (UTC)
   - Dimensions: `scoreName`
   - Measures: `count`
-  - Only numeric scores contribute to the average; non-numeric scores still increment the count.
+  - Only numeric and boolean scores contribute to the average; categorical and text scores still increment the count.
 
 ## Example
 

@@ -140,15 +140,13 @@ const SCORES_METRIC = 'langfuse_scores';
 interface TraceRecord {
   id: string;
   name?: string | null;
-  projectId?: string | null;
   userId?: string | null;
   sessionId?: string | null;
   release?: string | null;
   version?: string | null;
   totalCost?: number | null;
   latency?: number | null;
-  createdAt?: string | null;
-  updatedAt?: string | null;
+  timestamp?: string | null;
 }
 
 interface TracesListResponse {
@@ -197,15 +195,13 @@ interface ScoresListResponse {
 const traceSchema = z.object({
   id: z.string().min(1),
   name: z.string().nullish(),
-  projectId: z.string().nullish(),
   userId: z.string().nullish(),
   sessionId: z.string().nullish(),
   release: z.string().nullish(),
   version: z.string().nullish(),
   totalCost: z.number().nullish(),
   latency: z.number().nullish(),
-  createdAt: z.string().nullish(),
-  updatedAt: z.string().nullish(),
+  timestamp: z.string().nullish(),
 });
 
 const tracesResponseSchema = z.object({
@@ -277,10 +273,6 @@ export const langfuseResources = defineResources({
       'Traces upsert by id on every run. Trace input/output payloads are not stored.',
     fields: [
       { name: 'name', description: 'Trace name set by the SDK.' },
-      {
-        name: 'projectId',
-        description: 'Langfuse project id the trace belongs to.',
-      },
       { name: 'userId', description: 'Attached userId, if any.' },
       { name: 'sessionId', description: 'Attached sessionId, if any.' },
       {
@@ -299,7 +291,10 @@ export const langfuseResources = defineResources({
         name: 'latencyMs',
         description: 'End-to-end trace latency in milliseconds.',
       },
-      { name: 'createdAt', description: 'ISO timestamp of trace creation.' },
+      {
+        name: 'createdAt',
+        description: 'ISO timestamp of when the trace was created.',
+      },
     ],
     responses: { traces: tracesResponseSchema },
   },
@@ -345,7 +340,7 @@ export const langfuseResources = defineResources({
     unit: 'scores',
     granularity: 'Daily (UTC)',
     notes:
-      'Only numeric scores contribute to the average; non-numeric scores still increment the count.',
+      'Only numeric and boolean scores contribute to the average; categorical and text scores still increment the count.',
     dimensions: [
       { name: 'scoreName', description: 'Score name as set by the SDK.' },
     ],
@@ -421,6 +416,7 @@ export class LangfuseConnector extends BaseConnector<
     const url = new URL(`${this.baseUrl}/api/public/traces`);
     url.searchParams.set('page', String(pageNum));
     url.searchParams.set('limit', String(TRACES_PAGE_SIZE));
+    url.searchParams.set('orderBy', 'timestamp.desc');
     const start = this.windowStart(options);
     url.searchParams.set('fromTimestamp', start.toISOString());
     const res = await this.get<TracesListResponse>(url.toString(), {
@@ -434,7 +430,7 @@ export class LangfuseConnector extends BaseConnector<
       sinceMs !== null &&
       data.length > 0 &&
       data.every((t) => {
-        const ts = parseEpoch(t.createdAt ?? null, 'iso');
+        const ts = parseEpoch(t.timestamp ?? null, 'iso');
         return ts !== null && ts < sinceMs;
       });
     const totalPages = res.body.meta?.totalPages ?? 0;
@@ -450,23 +446,21 @@ export class LangfuseConnector extends BaseConnector<
     items: TraceRecord[],
   ): Promise<void> {
     for (const trace of items) {
-      const createdAt = parseEpoch(trace.createdAt ?? null, 'iso') ?? 0;
-      const updatedAt = parseEpoch(trace.updatedAt ?? null, 'iso') ?? createdAt;
+      const timestampMs = parseEpoch(trace.timestamp ?? null, 'iso') ?? 0;
       await storage.entity({
         type: TRACE_ENTITY,
         id: trace.id,
         attributes: {
           name: trace.name ?? null,
-          projectId: trace.projectId ?? null,
           userId: trace.userId ?? null,
           sessionId: trace.sessionId ?? null,
           release: trace.release ?? null,
           version: trace.version ?? null,
           totalCost: finiteNumberOrNull(trace.totalCost),
-          latencyMs: finiteNumberOrNull(trace.latency),
-          createdAt: trace.createdAt ?? null,
+          latencyMs: secondsToMs(trace.latency),
+          createdAt: trace.timestamp ?? null,
         },
-        updated_at: updatedAt,
+        updated_at: timestampMs,
       });
     }
   }
@@ -596,7 +590,11 @@ export class LangfuseConnector extends BaseConnector<
       const key = `${day}|${score.name}`;
       const prev = acc.get(key) ?? { count: 0, sum: 0, numericCount: 0 };
       prev.count += 1;
-      if (typeof score.value === 'number' && Number.isFinite(score.value)) {
+      if (
+        isNumericScore(score.dataType) &&
+        typeof score.value === 'number' &&
+        Number.isFinite(score.value)
+      ) {
         prev.sum += score.value;
         prev.numericCount += 1;
       }
@@ -757,6 +755,19 @@ function finiteNumberOrNull(value: unknown): number | null {
   }
   const n = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(n) ? n : null;
+}
+
+function secondsToMs(value: unknown): number | null {
+  const seconds = finiteNumberOrNull(value);
+  return seconds === null ? null : seconds * 1000;
+}
+
+function isNumericScore(dataType: string | null | undefined): boolean {
+  if (dataType === null || dataType === undefined) {
+    return true;
+  }
+  const normalized = dataType.toUpperCase();
+  return normalized === 'NUMERIC' || normalized === 'BOOLEAN';
 }
 
 function dateStringToMs(value: unknown): number | null {

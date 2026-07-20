@@ -143,11 +143,9 @@ describe('LangfuseConnector property tests', () => {
             {
               id: 'trace-1',
               name: 'completion',
-              projectId: 'p',
               totalCost: 0.1,
               latency: 100,
-              createdAt: '2026-05-01T00:00:00Z',
-              updatedAt: '2026-05-01T00:00:00Z',
+              timestamp: '2026-05-01T00:00:00Z',
             },
           ],
           meta: { page: 1, limit: 50, totalItems: 1, totalPages: 1 },
