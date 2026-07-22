@@ -1,0 +1,5 @@
+---
+'@rawdash/connector-langsmith': patch
+---
+
+Ground the LangSmith connector in the vendor's current API: runs/query now paginates via the body `cursor` param and the response `cursors.next` token (previously a fabricated `offset` param the endpoint does not accept caused syncs with >100 runs in the window to refetch the first page forever), feedback requests window server-side via `min_created_at` (the endpoint has no `start_time` param, so full syncs previously scanned the entire feedback history), boolean feedback scores are stored as 1/0 and counted as scored instead of being zeroed, run session (project) names are resolved via `GET /api/v1/sessions` (the runs response carries no `session_name` field, so the attribute and dimensions were always null), runs/query sends an explicit `select` of only the ingested fields, response schemas match the API's decimal-string cost fields and boolean scores, the dead `latency` field read is removed, and the `runType` filterable values include `prompt`.

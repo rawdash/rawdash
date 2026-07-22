@@ -141,11 +141,10 @@ describe('LangSmithConnector property tests', () => {
                   run_type: 'chain',
                   status: 'success',
                   session_id: 'sess-1',
-                  session_name: 'default',
                   start_time: '2026-06-01T00:00:00Z',
                   end_time: '2026-06-01T00:00:01Z',
                   total_tokens: 100,
-                  total_cost: 0.5,
+                  total_cost: '0.5',
                 },
               ],
               cursors: { next: null },
@@ -164,6 +163,11 @@ describe('LangSmithConnector property tests', () => {
                 created_at: '2026-06-01T00:00:02Z',
               },
             ]),
+          );
+        }
+        if (url.includes('/sessions')) {
+          return Promise.resolve(
+            mockJsonResponse([{ id: 'sess-1', name: 'default' }]),
           );
         }
         return Promise.resolve(mockJsonResponse({ runs: [] }));

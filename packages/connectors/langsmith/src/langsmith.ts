@@ -86,7 +86,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
   limitations: [
     'Run input/output payloads are not synced - only the run envelope plus aggregated cost, token, and latency.',
     'Datasets, examples, prompts, and evaluation runs are out of scope for the initial release.',
-    'Feedback non-numeric values (string, boolean, JSON) are still counted but do not contribute to the score sample.',
+    'Boolean feedback scores are stored as 1/0. Non-numeric feedback values (string, JSON) are still counted but do not contribute to the score sample.',
   ],
 });
 
@@ -115,6 +115,7 @@ const isLangSmithSyncCursor = makeChunkedCursorGuard(PHASE_ORDER);
 
 const RUNS_PAGE_SIZE = 100;
 const FEEDBACK_PAGE_SIZE = 100;
+const SESSIONS_PAGE_SIZE = 100;
 const CHUNK_BUDGET_MS = 25_000;
 const DEFAULT_LOOKBACK_DAYS = 30;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -123,13 +124,30 @@ const RUN_ENTITY = 'langsmith_run';
 const RUNS_PER_DAY_METRIC = 'langsmith_runs_per_day';
 const FEEDBACK_METRIC = 'langsmith_feedback';
 
+const RUNS_SELECT = [
+  'id',
+  'name',
+  'run_type',
+  'status',
+  'session_id',
+  'parent_run_id',
+  'start_time',
+  'end_time',
+  'error',
+  'total_tokens',
+  'prompt_tokens',
+  'completion_tokens',
+  'total_cost',
+  'prompt_cost',
+  'completion_cost',
+] as const;
+
 interface RunRecord {
   id: string;
   name?: string | null;
   run_type?: string | null;
   status?: string | null;
   session_id?: string | null;
-  session_name?: string | null;
   parent_run_id?: string | null;
   start_time?: string | null;
   end_time?: string | null;
@@ -137,10 +155,9 @@ interface RunRecord {
   total_tokens?: number | null;
   prompt_tokens?: number | null;
   completion_tokens?: number | null;
-  total_cost?: number | null;
-  prompt_cost?: number | null;
-  completion_cost?: number | null;
-  latency?: number | null;
+  total_cost?: number | string | null;
+  prompt_cost?: number | string | null;
+  completion_cost?: number | string | null;
 }
 
 interface RunsQueryResponse {
@@ -153,7 +170,7 @@ interface FeedbackRecord {
   run_id?: string | null;
   session_id?: string | null;
   key: string;
-  score?: number | null;
+  score?: number | boolean | null;
   value?: unknown;
   comment?: string | null;
   source_info?: Record<string, unknown> | null;
@@ -161,13 +178,19 @@ interface FeedbackRecord {
   modified_at?: string | null;
 }
 
+interface SessionRecord {
+  id: string;
+  name?: string | null;
+}
+
+const costSchema = z.union([z.number(), z.string()]).nullish();
+
 const runSchema = z.object({
   id: z.string().min(1),
   name: z.string().nullish(),
   run_type: z.string().nullish(),
   status: z.string().nullish(),
   session_id: z.string().nullish(),
-  session_name: z.string().nullish(),
   parent_run_id: z.string().nullish(),
   start_time: z.string().nullish(),
   end_time: z.string().nullish(),
@@ -175,10 +198,9 @@ const runSchema = z.object({
   total_tokens: z.number().nullish(),
   prompt_tokens: z.number().nullish(),
   completion_tokens: z.number().nullish(),
-  total_cost: z.number().nullish(),
-  prompt_cost: z.number().nullish(),
-  completion_cost: z.number().nullish(),
-  latency: z.number().nullish(),
+  total_cost: costSchema,
+  prompt_cost: costSchema,
+  completion_cost: costSchema,
 });
 
 const runsQueryResponseSchema = z.object({
@@ -195,13 +217,20 @@ const feedbackSchema = z.object({
   run_id: z.string().nullish(),
   session_id: z.string().nullish(),
   key: z.string().min(1),
-  score: z.number().nullish(),
+  score: z.union([z.number(), z.boolean()]).nullish(),
   comment: z.string().nullish(),
   created_at: z.string().nullish(),
   modified_at: z.string().nullish(),
 });
 
 const feedbackListResponseSchema = z.array(feedbackSchema);
+
+const sessionSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().nullish(),
+});
+
+const sessionsListResponseSchema = z.array(sessionSchema);
 
 export const langsmithResources = defineResources({
   langsmith_run: {
@@ -214,7 +243,15 @@ export const langsmithResources = defineResources({
       {
         field: 'runType',
         ops: ['eq'],
-        values: ['chain', 'tool', 'llm', 'embedding', 'parser', 'retriever'],
+        values: [
+          'chain',
+          'tool',
+          'llm',
+          'embedding',
+          'parser',
+          'prompt',
+          'retriever',
+        ],
       },
       {
         field: 'status',
@@ -226,13 +263,13 @@ export const langsmithResources = defineResources({
       'LangSmith run rows, keyed by id, with name, owning session/project, parent run, run type, status, start/end timestamps, total/prompt/completion tokens, total/prompt/completion cost in USD, and end-to-end latency in milliseconds.',
     endpoint: 'POST /api/v1/runs/query',
     notes:
-      'Runs upsert by id on every run. Trace input/output payloads are not stored.',
+      'Runs upsert by id on every run. Trace input/output payloads are not stored. Session (project) names are resolved via GET /api/v1/sessions.',
     fields: [
       { name: 'name', description: 'Run name set by the SDK.' },
       {
         name: 'runType',
         description:
-          'Run type (chain, tool, llm, embedding, parser, retriever).',
+          'Run type (chain, tool, llm, embedding, parser, prompt, retriever).',
       },
       {
         name: 'status',
@@ -283,7 +320,10 @@ export const langsmithResources = defineResources({
         description: 'Error message if the run failed.',
       },
     ],
-    responses: { runs: runsQueryResponseSchema },
+    responses: {
+      runs: runsQueryResponseSchema,
+      sessions: sessionsListResponseSchema,
+    },
   },
   langsmith_runs_per_day: {
     shape: 'metric',
@@ -339,12 +379,12 @@ export const langsmithResources = defineResources({
   langsmith_feedback: {
     shape: 'metric',
     description:
-      'Feedback rows from LangSmith, one sample per feedback row at its created_at timestamp. The sample value is the numeric score (zero for non-numeric feedback) and the measure `count` is 1 so summing it yields feedback counts per (day, project, key).',
+      'Feedback rows from LangSmith, one sample per feedback row at its created_at timestamp. The sample value is the numeric score (booleans stored as 1/0, zero for non-numeric feedback) and the measure `count` is 1 so summing it yields feedback counts per (day, project, key).',
     endpoint: 'GET /api/v1/feedback',
     unit: 'score',
     granularity: 'Per-feedback (query-time rollup)',
     notes:
-      'Non-numeric feedback (string, boolean, JSON value) is still emitted but with score 0; use `count` to count rows and average the sample `value` for numeric score trends.',
+      'Boolean scores are emitted as 1/0 and count as scored. Non-numeric feedback (string, JSON value) is still emitted but with score 0; use `count` to count rows and average the sample `value` for score trends.',
     dimensions: [
       {
         name: 'key',
@@ -367,7 +407,7 @@ export const langsmithResources = defineResources({
       {
         name: 'hasNumericScore',
         description:
-          '1 if the feedback row had a numeric score, 0 otherwise; sum these to compute strict numeric counts.',
+          '1 if the feedback row had a numeric or boolean score, 0 otherwise; sum these to compute strict scored-row counts.',
       },
     ],
     responses: { feedback: feedbackListResponseSchema },
@@ -440,17 +480,51 @@ export class LangSmithConnector extends BaseConnector<
     return resourceIsActive(this.settings.resources, 'feedback');
   }
 
+  private sessionNames: Map<string, string> | null = null;
+
+  private async ensureSessionNames(
+    signal?: AbortSignal,
+  ): Promise<Map<string, string>> {
+    if (this.sessionNames) {
+      return this.sessionNames;
+    }
+    const names = new Map<string, string>();
+    let offset = 0;
+    for (;;) {
+      const url = new URL(`${this.baseUrl}/api/v1/sessions`);
+      url.searchParams.set('limit', String(SESSIONS_PAGE_SIZE));
+      url.searchParams.set('offset', String(offset));
+      const res = await this.get<SessionRecord[]>(url.toString(), {
+        resource: 'sessions',
+        headers: this.buildHeaders(),
+        signal,
+      });
+      const rows = Array.isArray(res.body) ? res.body : [];
+      for (const row of rows) {
+        if (row.id && typeof row.name === 'string' && row.name.length > 0) {
+          names.set(row.id, row.name);
+        }
+      }
+      if (rows.length < SESSIONS_PAGE_SIZE) {
+        break;
+      }
+      offset += rows.length;
+    }
+    this.sessionNames = names;
+    return names;
+  }
+
   private async fetchRunsPage(
     options: SyncOptions,
     page: string | null,
     signal?: AbortSignal,
   ): Promise<{ items: RunRecord[]; next: string | null }> {
-    const offset = parseOffset(page);
     const body = {
       start_time: this.windowStartIso(options),
       limit: RUNS_PAGE_SIZE,
-      offset,
       order: 'asc',
+      select: RUNS_SELECT,
+      ...(page === null ? {} : { cursor: page }),
     };
     const res = await this.post<RunsQueryResponse>(
       `${this.baseUrl}/api/v1/runs/query`,
@@ -462,41 +536,27 @@ export class LangSmithConnector extends BaseConnector<
       },
     );
     const runs = res.body.runs ?? [];
-    const sinceMs = options.since ? new Date(options.since).getTime() : null;
-    const allBeforeSince =
-      sinceMs !== null &&
-      runs.length > 0 &&
-      runs.every((r) => {
-        const ts = parseEpoch(r.start_time ?? null, 'iso');
-        return ts !== null && ts < sinceMs;
-      });
-    const explicitNext = res.body.cursors?.next ?? null;
-    let next: string | null;
-    if (allBeforeSince) {
-      next = null;
-    } else if (explicitNext) {
-      next = explicitNext;
-    } else if (runs.length === RUNS_PAGE_SIZE) {
-      next = String(offset + runs.length);
-    } else {
-      next = null;
-    }
-    return { items: runs, next };
+    return { items: runs, next: res.body.cursors?.next ?? null };
   }
 
   private async writeRunsBatch(
     storage: StorageHandle,
     runs: RunRecord[],
+    signal?: AbortSignal,
   ): Promise<void> {
     const wantEntity = this.wantsRunEntity();
     const wantMetric = this.wantsRunsPerDay();
     if (!wantEntity && !wantMetric) {
       return;
     }
+    const sessionNames = await this.ensureSessionNames(signal);
     for (const run of runs) {
       const startMs = parseEpoch(run.start_time ?? null, 'iso');
       const endMs = parseEpoch(run.end_time ?? null, 'iso');
-      const latencyMs = computeLatencyMs(run, startMs, endMs);
+      const latencyMs = computeLatencyMs(startMs, endMs);
+      const sessionName = run.session_id
+        ? (sessionNames.get(run.session_id) ?? null)
+        : null;
       if (wantEntity) {
         const updatedAt = endMs ?? startMs ?? 0;
         await storage.entity({
@@ -507,7 +567,7 @@ export class LangSmithConnector extends BaseConnector<
             runType: run.run_type ?? null,
             status: run.status ?? null,
             sessionId: run.session_id ?? null,
-            sessionName: run.session_name ?? null,
+            sessionName,
             parentRunId: run.parent_run_id ?? null,
             startTime: run.start_time ?? null,
             endTime: run.end_time ?? null,
@@ -530,7 +590,7 @@ export class LangSmithConnector extends BaseConnector<
             value: 1,
             attributes: {
               sessionId: run.session_id ?? null,
-              sessionName: run.session_name ?? null,
+              sessionName,
               runType: run.run_type ?? null,
               status: run.status ?? null,
               totalTokens: finiteNumber(run.total_tokens),
@@ -554,25 +614,15 @@ export class LangSmithConnector extends BaseConnector<
     const url = new URL(`${this.baseUrl}/api/v1/feedback`);
     url.searchParams.set('limit', String(FEEDBACK_PAGE_SIZE));
     url.searchParams.set('offset', String(offset));
-    url.searchParams.set('start_time', this.windowStartIso(options));
+    url.searchParams.set('min_created_at', this.windowStartIso(options));
     const res = await this.get<FeedbackRecord[]>(url.toString(), {
       resource: 'feedback',
       headers: this.buildHeaders(),
       signal,
     });
     const rows = Array.isArray(res.body) ? res.body : [];
-    const sinceMs = options.since ? new Date(options.since).getTime() : null;
-    const allBeforeSince =
-      sinceMs !== null &&
-      rows.length > 0 &&
-      rows.every((f) => {
-        const ts = parseEpoch(f.created_at ?? null, 'iso');
-        return ts !== null && ts < sinceMs;
-      });
     const next =
-      !allBeforeSince && rows.length === FEEDBACK_PAGE_SIZE
-        ? String(offset + rows.length)
-        : null;
+      rows.length === FEEDBACK_PAGE_SIZE ? String(offset + rows.length) : null;
     return { items: rows, next };
   }
 
@@ -585,13 +635,12 @@ export class LangSmithConnector extends BaseConnector<
       if (ts === null) {
         continue;
       }
-      const numeric =
-        typeof row.score === 'number' && Number.isFinite(row.score);
-      const score = numeric ? (row.score as number) : 0;
+      const score = scoreValue(row.score);
+      const numeric = score !== null;
       await storage.metric(
         metricSample(langsmithResources, FEEDBACK_METRIC, {
           ts,
-          value: score,
+          value: score ?? 0,
           attributes: {
             key: row.key,
             sessionId: row.session_id ?? null,
@@ -673,7 +722,7 @@ export class LangSmithConnector extends BaseConnector<
         }
         switch (phase) {
           case 'runs':
-            await this.writeRunsBatch(storage, items as RunRecord[]);
+            await this.writeRunsBatch(storage, items as RunRecord[], signal);
             return;
           case 'feedback':
             if (this.wantsFeedback()) {
@@ -711,15 +760,21 @@ function finiteNumberOrNull(value: unknown): number | null {
 }
 
 function computeLatencyMs(
-  run: RunRecord,
   startMs: number | null,
   endMs: number | null,
 ): number | null {
-  if (typeof run.latency === 'number' && Number.isFinite(run.latency)) {
-    return run.latency;
-  }
   if (startMs !== null && endMs !== null && endMs >= startMs) {
     return endMs - startMs;
+  }
+  return null;
+}
+
+function scoreValue(score: number | boolean | null | undefined): number | null {
+  if (typeof score === 'boolean') {
+    return score ? 1 : 0;
+  }
+  if (typeof score === 'number' && Number.isFinite(score)) {
+    return score;
   }
   return null;
 }
