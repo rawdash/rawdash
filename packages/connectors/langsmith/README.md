@@ -35,9 +35,9 @@ A LangSmith API key with read access is required. The key is sent as the `x-api-
 
 - **`langsmith_run`** _(entity)_ - LangSmith run rows, keyed by id, with name, owning session/project, parent run, run type, status, start/end timestamps, total/prompt/completion tokens, total/prompt/completion cost in USD, and end-to-end latency in milliseconds.
   - Endpoint: `POST /api/v1/runs/query`
-  - Runs upsert by id on every run. Trace input/output payloads are not stored.
+  - Runs upsert by id on every run. Trace input/output payloads are not stored. Session (project) names are resolved via GET /api/v1/sessions.
   - `name`: Run name set by the SDK.
-  - `runType`: Run type (chain, tool, llm, embedding, parser, retriever).
+  - `runType`: Run type (chain, tool, llm, embedding, parser, prompt, retriever).
   - `status`: Run status (success, error, pending).
   - `sessionId`: Owning session (project) id, if any.
   - `sessionName`: Owning session (project) name, if any.
@@ -57,13 +57,13 @@ A LangSmith API key with read access is required. The key is sent as the `x-api-
   - Dimensions: `sessionId`, `sessionName`, `runType`, `status`
   - Measures: `totalTokens`, `promptTokens`, `completionTokens`, `costUsd`, `latencyMs`
   - No server-side aggregation - widgets group by day, project, or run type to produce the rollup.
-- **`langsmith_feedback`** _(metric)_ - Feedback rows from LangSmith, one sample per feedback row at its created_at timestamp. The sample value is the numeric score (zero for non-numeric feedback) and the measure `count` is 1 so summing it yields feedback counts per (day, project, key).
+- **`langsmith_feedback`** _(metric)_ - Feedback rows from LangSmith, one sample per feedback row at its created_at timestamp. The sample value is the numeric score (booleans stored as 1/0, zero for non-numeric feedback) and the measure `count` is 1 so summing it yields feedback counts per (day, project, key).
   - Endpoint: `GET /api/v1/feedback`
   - Unit: score
   - Granularity: Per-feedback (query-time rollup)
   - Dimensions: `key`, `sessionId`, `runId`
   - Measures: `count`, `hasNumericScore`
-  - Non-numeric feedback (string, boolean, JSON value) is still emitted but with score 0; use `count` to count rows and average the sample `value` for numeric score trends.
+  - Boolean scores are emitted as 1/0 and count as scored. Non-numeric feedback (string, JSON value) is still emitted but with score 0; use `count` to count rows and average the sample `value` for score trends.
 
 ## Example
 
@@ -126,7 +126,7 @@ LangSmith applies per-tenant rate limits and returns 429 with Retry-After on ove
 
 - Run input/output payloads are not synced - only the run envelope plus aggregated cost, token, and latency.
 - Datasets, examples, prompts, and evaluation runs are out of scope for the initial release.
-- Feedback non-numeric values (string, boolean, JSON) are still counted but do not contribute to the score sample.
+- Boolean feedback scores are stored as 1/0. Non-numeric feedback values (string, JSON) are still counted but do not contribute to the score sample.
 
 ## Links
 

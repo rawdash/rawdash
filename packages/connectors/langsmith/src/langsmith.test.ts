@@ -113,17 +113,21 @@ describe('LangSmithConnector sync', () => {
                   run_type: 'chain',
                   status: 'success',
                   session_id: 'sess-1',
-                  session_name: 'default',
                   start_time: '2026-06-01T00:00:00Z',
                   end_time: '2026-06-01T00:00:01.500Z',
                   total_tokens: 200,
                   prompt_tokens: 150,
                   completion_tokens: 50,
-                  total_cost: 0.004,
+                  total_cost: '0.004',
                 },
               ],
               cursors: { next: null },
             }),
+          );
+        }
+        if (url.includes('/sessions')) {
+          return Promise.resolve(
+            mockJsonResponse([{ id: 'sess-1', name: 'default' }]),
           );
         }
         return Promise.resolve(mockJsonResponse([]));
@@ -136,6 +140,11 @@ describe('LangSmithConnector sync', () => {
     );
     const entities = entityStoreFor(storage, CONNECTOR_ID).get('langsmith_run');
     expect(entities?.size).toBe(1);
+    const entity = entities?.get('run-1') as unknown as {
+      attributes: Record<string, unknown>;
+    };
+    expect(entity.attributes['sessionName']).toBe('default');
+    expect(entity.attributes['totalCost']).toBeCloseTo(0.004);
     const samples = metricStoreFor(storage, CONNECTOR_ID).filter(
       (m) => (m as { name: string }).name === 'langsmith_runs_per_day',
     );
@@ -150,6 +159,7 @@ describe('LangSmithConnector sync', () => {
     expect(sample.attributes['totalTokens']).toBe(200);
     expect(sample.attributes['costUsd']).toBeCloseTo(0.004);
     expect(sample.attributes['latencyMs']).toBe(1500);
+    expect(sample.attributes['sessionName']).toBe('default');
   });
 
   it('skips runs phase entirely when only feedback is selected', async () => {
@@ -252,88 +262,144 @@ describe('LangSmithConnector sync', () => {
     expect(fetchSpy).toHaveBeenCalled();
   });
 
-  it('paginates runs by incrementing offset until a short page returns', async () => {
-    let call = 0;
-    const fetchSpy = vi.fn().mockImplementation((url: string) => {
-      if (url.includes('/runs/query')) {
-        call += 1;
-        if (call === 1) {
-          const runs = Array.from({ length: 100 }, (_, i) => ({
-            id: `run-${i}`,
-            name: 'r',
-            run_type: 'llm',
-            status: 'success',
-            session_id: 'sess-1',
-            start_time: '2026-06-01T00:00:00Z',
-            end_time: '2026-06-01T00:00:01Z',
-            total_tokens: 1,
-            total_cost: 0.001,
-          }));
-          return Promise.resolve(mockJsonResponse({ runs, cursors: null }));
+  it('paginates runs by passing the response next cursor back in the request body', async () => {
+    const runBodies: Record<string, unknown>[] = [];
+    const fetchSpy = vi
+      .fn()
+      .mockImplementation((url: string, init: RequestInit) => {
+        if (url.includes('/runs/query')) {
+          const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+          runBodies.push(body);
+          if (runBodies.length === 1) {
+            const runs = Array.from({ length: 100 }, (_, i) => ({
+              id: `run-${i}`,
+              name: 'r',
+              run_type: 'llm',
+              status: 'success',
+              session_id: 'sess-1',
+              start_time: '2026-06-01T00:00:00Z',
+              end_time: '2026-06-01T00:00:01Z',
+              total_tokens: 1,
+              total_cost: '0.001',
+            }));
+            return Promise.resolve(
+              mockJsonResponse({ runs, cursors: { next: 'tok-page-2' } }),
+            );
+          }
+          return Promise.resolve(
+            mockJsonResponse({
+              runs: [
+                {
+                  id: 'run-tail',
+                  name: 'r',
+                  run_type: 'llm',
+                  status: 'success',
+                  start_time: '2026-06-01T00:00:00Z',
+                  end_time: '2026-06-01T00:00:01Z',
+                },
+              ],
+              cursors: { next: null },
+            }),
+          );
         }
-        return Promise.resolve(
-          mockJsonResponse({
-            runs: [
-              {
-                id: 'run-tail',
-                name: 'r',
-                run_type: 'llm',
-                status: 'success',
-                start_time: '2026-06-01T00:00:00Z',
-                end_time: '2026-06-01T00:00:01Z',
-              },
-            ],
-            cursors: null,
-          }),
-        );
-      }
-      return Promise.resolve(mockJsonResponse([]));
-    });
+        return Promise.resolve(mockJsonResponse([]));
+      });
     vi.stubGlobal('fetch', fetchSpy);
     const storage = new InMemoryStorage();
     await makeConnector({ resources: ['runs'] }).sync(
       { mode: 'full' },
       storage.getStorageHandle(CONNECTOR_ID),
     );
-    expect(call).toBe(2);
+    expect(runBodies).toHaveLength(2);
+    expect(runBodies[0]).not.toHaveProperty('cursor');
+    expect(runBodies[0]).not.toHaveProperty('offset');
+    expect(runBodies[0]?.['select']).toContain('total_cost');
+    expect(runBodies[1]?.['cursor']).toBe('tok-page-2');
     const entities = entityStoreFor(storage, CONNECTOR_ID).get('langsmith_run');
     expect(entities?.size).toBe(101);
   });
 
-  it('stops paginating when a page is entirely older than options.since', async () => {
-    let call = 0;
-    const fetchSpy = vi.fn().mockImplementation((url: string) => {
-      if (url.includes('/runs/query')) {
-        call += 1;
-        if (call === 1) {
-          const runs = Array.from({ length: 100 }, (_, i) => ({
-            id: `run-recent-${i}`,
-            name: 'r',
-            run_type: 'llm',
-            status: 'success',
-            start_time: '2026-06-10T00:00:00Z',
-            end_time: '2026-06-10T00:00:01Z',
-          }));
-          return Promise.resolve(mockJsonResponse({ runs, cursors: null }));
+  it('bounds incremental runs queries server-side via start_time from options.since', async () => {
+    const runBodies: Record<string, unknown>[] = [];
+    const fetchSpy = vi
+      .fn()
+      .mockImplementation((url: string, init: RequestInit) => {
+        if (url.includes('/runs/query')) {
+          runBodies.push(
+            JSON.parse(String(init.body)) as Record<string, unknown>,
+          );
+          return Promise.resolve(
+            mockJsonResponse({ runs: [], cursors: { next: null } }),
+          );
         }
-        const runs = Array.from({ length: 100 }, (_, i) => ({
-          id: `run-old-${i}`,
-          name: 'r',
-          run_type: 'llm',
-          status: 'success',
-          start_time: '2026-04-01T00:00:00Z',
-          end_time: '2026-04-01T00:00:01Z',
-        }));
-        return Promise.resolve(mockJsonResponse({ runs, cursors: null }));
+        return Promise.resolve(mockJsonResponse([]));
+      });
+    vi.stubGlobal('fetch', fetchSpy);
+    const since = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
+    const storage = new InMemoryStorage();
+    await makeConnector({ resources: ['runs'] }).sync(
+      { mode: 'latest', since },
+      storage.getStorageHandle(CONNECTOR_ID),
+    );
+    expect(runBodies).toHaveLength(1);
+    expect(runBodies[0]?.['start_time']).toBe(since);
+  });
+
+  it('stores boolean feedback scores as 1/0 and counts them as scored', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        if (url.includes('/feedback')) {
+          return Promise.resolve(
+            mockJsonResponse([
+              {
+                id: 'fb-bool',
+                run_id: 'run-1',
+                key: 'thumbs',
+                score: true,
+                created_at: '2026-06-01T00:00:02Z',
+              },
+            ]),
+          );
+        }
+        return Promise.resolve(mockJsonResponse({ runs: [] }));
+      }),
+    );
+    const storage = new InMemoryStorage();
+    await makeConnector({ resources: ['feedback'] }).sync(
+      { mode: 'full' },
+      storage.getStorageHandle(CONNECTOR_ID),
+    );
+    const samples = metricStoreFor(storage, CONNECTOR_ID).filter(
+      (m) => (m as { name: string }).name === 'langsmith_feedback',
+    );
+    expect(samples).toHaveLength(1);
+    const sample = samples[0] as unknown as {
+      value: number;
+      attributes: Record<string, unknown>;
+    };
+    expect(sample.value).toBe(1);
+    expect(sample.attributes['hasNumericScore']).toBe(1);
+  });
+
+  it('windows feedback requests with min_created_at', async () => {
+    const feedbackUrls: string[] = [];
+    const fetchSpy = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/feedback')) {
+        feedbackUrls.push(url);
+        return Promise.resolve(mockJsonResponse([]));
       }
-      return Promise.resolve(mockJsonResponse([]));
+      return Promise.resolve(mockJsonResponse({ runs: [] }));
     });
     vi.stubGlobal('fetch', fetchSpy);
     const storage = new InMemoryStorage();
-    await makeConnector({ resources: ['runs'] }).sync(
-      { mode: 'latest', since: '2026-06-01T00:00:00Z' },
+    await makeConnector({ resources: ['feedback'] }).sync(
+      { mode: 'full' },
       storage.getStorageHandle(CONNECTOR_ID),
     );
-    expect(call).toBe(2);
+    expect(feedbackUrls).toHaveLength(1);
+    const parsed = new URL(feedbackUrls[0] as string);
+    expect(parsed.searchParams.get('min_created_at')).toBeTruthy();
+    expect(parsed.searchParams.get('start_time')).toBeNull();
   });
 });
