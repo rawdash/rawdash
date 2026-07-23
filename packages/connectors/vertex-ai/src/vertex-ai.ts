@@ -229,7 +229,7 @@ export const vertexAiResources = defineResources({
     endpoint: 'GET /v3/projects/{projectId}/timeSeries',
     granularity: 'daily',
     notes:
-      'On every sync the trailing `lookbackDays` window is rewritten idempotently. Non-2xx response codes flow to `vertex_ai_errors` instead.',
+      'On every sync the trailing `lookbackDays` window is rewritten idempotently, capped at the 42 days Cloud Monitoring retains; days beyond that are left as previously ingested rather than cleared. Non-2xx response codes flow to `vertex_ai_errors` instead.',
     dimensions: [
       {
         name: 'modelId',
@@ -275,7 +275,7 @@ export const vertexAiResources = defineResources({
     endpoint: 'GET /v3/projects/{projectId}/timeSeries',
     granularity: 'daily',
     notes:
-      'Sum across both tokenType values to get total tokens; slice by tokenType to separate input from output cost drivers.',
+      'Sum across both tokenType values to get total tokens; slice by tokenType to separate input from output cost drivers. Like invocations, the rewritten window is capped at Cloud Monitoring 42-day retention.',
     dimensions: [
       {
         name: 'modelId',
@@ -722,13 +722,6 @@ export class VertexAiConnector extends BaseConnector<
     signal?: AbortSignal,
   ): Promise<SyncResult> {
     const lookbackDays = this.settings.lookbackDays ?? DEFAULT_LOOKBACK_DAYS;
-    const monitoringWindow = getMonitoringWindow(
-      options,
-      lookbackDays,
-      Date.now(),
-      this.logger,
-    );
-    const spendWindow = getSpendWindow(options, lookbackDays);
 
     const cursor = isVertexAiCursor(options.cursor)
       ? options.cursor
@@ -736,17 +729,22 @@ export class VertexAiConnector extends BaseConnector<
     const resumeIdx = cursor ? PHASE_ORDER.indexOf(cursor.phase) : 0;
     const startIdx = resumeIdx >= 0 ? resumeIdx : 0;
 
-    for (let i = startIdx; i < PHASE_ORDER.length; i++) {
-      const phase = PHASE_ORDER[i]!;
+    const plannedPhases = PHASE_ORDER.slice(startIdx).filter((phase) =>
+      isPhaseRequested(phase, options.resources),
+    );
+    const monitoringWindow = getMonitoringWindow(
+      options,
+      lookbackDays,
+      Date.now(),
+      plannedPhases.some((phase) => phase !== 'spend')
+        ? this.logger
+        : undefined,
+    );
+    const spendWindow = getSpendWindow(options, lookbackDays);
+
+    for (const phase of plannedPhases) {
       if (signal?.aborted) {
         return { done: false, cursor: { phase, page: null } };
-      }
-      if (
-        options.resources &&
-        options.resources.size > 0 &&
-        !PHASE_TO_RESOURCES[phase].some((r) => options.resources!.has(r))
-      ) {
-        continue;
       }
       try {
         if (phase === 'invocations') {
@@ -771,6 +769,16 @@ export class VertexAiConnector extends BaseConnector<
 
     return { done: true };
   }
+}
+
+function isPhaseRequested(
+  phase: VertexAiPhase,
+  requested: ReadonlySet<string> | undefined,
+): boolean {
+  if (!requested || requested.size === 0) {
+    return true;
+  }
+  return PHASE_TO_RESOURCES[phase].some((r) => requested.has(r));
 }
 
 function isSuccessCode(code: string): boolean {

@@ -44,7 +44,7 @@ Authenticate against the Cloud Monitoring v3 API (and optionally BigQuery for sp
   - Endpoint: `GET /v3/projects/{projectId}/timeSeries`
   - Granularity: daily
   - Dimensions: `modelId`, `responseCode`
-  - On every sync the trailing `lookbackDays` window is rewritten idempotently. Non-2xx response codes flow to `vertex_ai_errors` instead.
+  - On every sync the trailing `lookbackDays` window is rewritten idempotently, capped at the 42 days Cloud Monitoring retains; days beyond that are left as previously ingested rather than cleared. Non-2xx response codes flow to `vertex_ai_errors` instead.
 - **`vertex_ai_errors`** _(metric)_ - Daily count of failed Vertex AI model invocations (non-2xx) per (date, modelId, errorType). Sourced from the same Cloud Monitoring API call as `vertex_ai_invocations`; rows with response_code outside 200-299 are routed here.
   - Endpoint: `GET /v3/projects/{projectId}/timeSeries (shared with vertex_ai_invocations)`
   - Granularity: daily
@@ -54,7 +54,7 @@ Authenticate against the Cloud Monitoring v3 API (and optionally BigQuery for sp
   - Endpoint: `GET /v3/projects/{projectId}/timeSeries`
   - Granularity: daily
   - Dimensions: `modelId`, `tokenType`
-  - Sum across both tokenType values to get total tokens; slice by tokenType to separate input from output cost drivers.
+  - Sum across both tokenType values to get total tokens; slice by tokenType to separate input from output cost drivers. Like invocations, the rewritten window is capped at Cloud Monitoring 42-day retention.
 - **`vertex_ai_spend`** _(metric)_ - Daily Vertex AI spend per (date, sku) sourced from the Cloud Billing -> BigQuery export, net of credits (free tier, promotions, committed-use and sustained-use discounts). Skipped unless bqProject and bqDataset are configured.
   - Endpoint: `POST /bigquery/v2/projects/{bqProject}/queries`
   - Granularity: daily

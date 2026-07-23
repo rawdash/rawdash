@@ -69,7 +69,9 @@ function makeConnector(
   overrides: Partial<{
     bqProject: string | undefined;
     bqDataset: string | undefined;
+    lookbackDays: number;
   }> = {},
+  ctx?: { logger: ConnectorLogger },
 ): VertexAiConnector {
   return new VertexAiConnector(
     {
@@ -78,9 +80,10 @@ function makeConnector(
       bqDataset:
         'bqDataset' in overrides ? overrides.bqDataset : 'billing_export',
       bqLocation: 'US',
-      lookbackDays: 30,
+      lookbackDays: overrides.lookbackDays ?? 30,
     },
     { serviceAccountJson: TEST_SA_JSON },
+    ctx,
   );
 }
 
@@ -535,6 +538,68 @@ describe('VertexAiConnector sync', () => {
     expect(metricsFor(storage, SPEND_METRIC_NAME).length).toBeGreaterThan(0);
     expect(calls.some((u) => u.includes('monitoring.googleapis.com'))).toBe(
       false,
+    );
+  });
+
+  it('does not warn about monitoring retention on a spend-only sync', async () => {
+    installFetch((url) => {
+      if (url.startsWith('https://oauth2.googleapis.com/token')) {
+        return { body: { access_token: 'tok' } };
+      }
+      if (url.includes('bigquery.googleapis.com')) {
+        return { body: SPEND_BQ_RESPONSE };
+      }
+      throw new Error('unexpected URL: ' + url);
+    });
+
+    const warnings: string[] = [];
+    const logger: ConnectorLogger = {
+      info() {},
+      warn(event) {
+        warnings.push(event);
+      },
+    };
+    const storage = new InMemoryStorage();
+    await makeConnector({ lookbackDays: 90 }, { logger }).sync(
+      { mode: 'full', resources: new Set([SPEND_METRIC_NAME]) },
+      storage.getStorageHandle(CONNECTOR_ID),
+    );
+
+    expect(metricsFor(storage, SPEND_METRIC_NAME).length).toBeGreaterThan(0);
+    expect(warnings).not.toContain(
+      'monitoring window truncated to retention floor',
+    );
+  });
+
+  it('warns about monitoring retention when a monitoring resource is synced', async () => {
+    installFetch((url) => {
+      if (url.startsWith('https://oauth2.googleapis.com/token')) {
+        return { body: { access_token: 'tok' } };
+      }
+      if (url.includes('monitoring.googleapis.com')) {
+        return { body: { timeSeries: [] } };
+      }
+      if (url.includes('bigquery.googleapis.com')) {
+        return { body: SPEND_BQ_RESPONSE };
+      }
+      throw new Error('unexpected URL: ' + url);
+    });
+
+    const warnings: string[] = [];
+    const logger: ConnectorLogger = {
+      info() {},
+      warn(event) {
+        warnings.push(event);
+      },
+    };
+    const storage = new InMemoryStorage();
+    await makeConnector({ lookbackDays: 90 }, { logger }).sync(
+      { mode: 'full', resources: new Set([TOKENS_METRIC_NAME]) },
+      storage.getStorageHandle(CONNECTOR_ID),
+    );
+
+    expect(warnings).toContain(
+      'monitoring window truncated to retention floor',
     );
   });
 
