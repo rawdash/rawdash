@@ -28,15 +28,15 @@ Authenticate against the Cloud Monitoring v3 API (and optionally BigQuery for sp
 
 ## Configuration
 
-| Field                | Type   | Required | Description                                                                                                                                                                                        |
-| -------------------- | ------ | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `projectId`          | string | Yes      | Google Cloud project ID that hosts the Vertex AI workload. Cloud Monitoring metrics are read from this project.                                                                                    |
-| `serviceAccountJson` | secret | Yes      | Contents of the JSON key file for a Google service account with the role required by this connector. Create one at Google Cloud -> IAM & Admin -> Service Accounts and store the JSON as a secret. |
-| `bqProject`          | string | No       | Project that hosts the Cloud Billing -> BigQuery export. Required to sync the spend resource; omit to disable spend syncing.                                                                       |
-| `bqDataset`          | string | No       | BigQuery dataset containing the Cloud Billing export tables (gcp*billing_export_v1*\*). Required to sync the spend resource.                                                                       |
-| `bqLocation`         | string | No       | Region or multi-region of the billing dataset (e.g. US, EU, us-central1). Defaults to US when bqDataset is set.                                                                                    |
-| `spendServiceFilter` | string | No       | BigQuery LIKE pattern matched against service.description to scope spend rows to Vertex AI. Defaults to "Vertex AI%" which covers both "Vertex AI" and "Vertex AI Generative AI" services.         |
-| `lookbackDays`       | number | No       | How many days of history to pull on a full sync. Defaults to 30.                                                                                                                                   |
+| Field                | Type   | Required | Description                                                                                                                                                                                                                           |
+| -------------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `projectId`          | string | Yes      | Google Cloud project ID that hosts the Vertex AI workload. Cloud Monitoring metrics are read from this project.                                                                                                                       |
+| `serviceAccountJson` | secret | Yes      | Contents of the JSON key file for a Google service account with the role required by this connector. Create one at Google Cloud -> IAM & Admin -> Service Accounts and store the JSON as a secret.                                    |
+| `bqProject`          | string | No       | Project that hosts the Cloud Billing -> BigQuery export. Required to sync the spend resource; omit to disable spend syncing.                                                                                                          |
+| `bqDataset`          | string | No       | BigQuery dataset containing the Cloud Billing export tables (gcp*billing_export_v1*\*). Required to sync the spend resource.                                                                                                          |
+| `bqLocation`         | string | No       | Region or multi-region of the billing dataset (e.g. US, EU, us-central1). Defaults to US when bqDataset is set.                                                                                                                       |
+| `spendServiceFilter` | string | No       | BigQuery LIKE pattern matched against service.description to scope spend rows to Vertex AI. Defaults to "Vertex AI%" which covers both "Vertex AI" and "Vertex AI Generative AI" services.                                            |
+| `lookbackDays`       | number | No       | How many days of history to pull on a full sync. Defaults to 30. Cloud Monitoring retains these metrics for 6 weeks, so the invocation/error/token window is capped at 42 days regardless; larger values only widen the spend window. |
 
 ## Resources
 
@@ -55,7 +55,7 @@ Authenticate against the Cloud Monitoring v3 API (and optionally BigQuery for sp
   - Granularity: daily
   - Dimensions: `modelId`, `tokenType`
   - Sum across both tokenType values to get total tokens; slice by tokenType to separate input from output cost drivers.
-- **`vertex_ai_spend`** _(metric)_ - Daily Vertex AI spend per (date, sku) sourced from the Cloud Billing -> BigQuery export. Skipped unless bqProject and bqDataset are configured.
+- **`vertex_ai_spend`** _(metric)_ - Daily Vertex AI spend per (date, sku) sourced from the Cloud Billing -> BigQuery export, net of credits (free tier, promotions, committed-use and sustained-use discounts). Skipped unless bqProject and bqDataset are configured.
   - Endpoint: `POST /bigquery/v2/projects/{bqProject}/queries`
   - Granularity: daily
   - Dimensions: `sku`, `service`, `currency`
@@ -123,6 +123,7 @@ Cloud Monitoring projects.timeSeries.list and BigQuery jobs.query are rate-limit
 ## Limitations
 
 - Only the publisher (Gemini and partner online-serving) metric family is synced. Custom model deployments under aiplatform.googleapis.com/prediction/\* are out of scope; query Cloud Monitoring directly via the gcp-monitoring connector if you need them.
+- Cloud Monitoring retains these metrics for 6 weeks, so invocations, errors and tokens can only be backfilled 42 days; days beyond that are left untouched rather than cleared. Spend has no such limit because it is read from BigQuery.
 - Spend rows come from the Cloud Billing -> BigQuery export; the export must be configured manually in the GCP console and only days after the configuration date are present.
 - BigQuery cost rows are back-revised by GCP for several days; an incremental sync refetches a short trailing window to pick up corrections.
 - Each BigQuery query is billed against the bqProject; keep lookbackDays reasonable.

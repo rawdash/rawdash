@@ -23,6 +23,7 @@ import {
   type ConnectorContext,
   type ConnectorCost,
   type ConnectorDoc,
+  type ConnectorLogger,
   type CredentialsSchema,
   type JSONValue,
   type MetricSample,
@@ -88,7 +89,7 @@ export const configFields = defineConfigFields(
       lookbackDays: z.number().int().positive().max(365).optional().meta({
         label: 'Backfill window (days)',
         description:
-          'How many days of history to pull on a full sync. Defaults to 30.',
+          'How many days of history to pull on a full sync. Defaults to 30. Cloud Monitoring retains these metrics for 6 weeks, so the invocation/error/token window is capped at 42 days regardless; larger values only widen the spend window.',
         placeholder: '30',
       }),
     })
@@ -132,6 +133,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Cloud Monitoring projects.timeSeries.list and BigQuery jobs.query are rate-limited per project; 429 / RESOURCE_EXHAUSTED responses are retried with backoff. Each sync issues at most three requests (invocations metric, tokens metric, optional BigQuery query).',
   limitations: [
     'Only the publisher (Gemini and partner online-serving) metric family is synced. Custom model deployments under aiplatform.googleapis.com/prediction/* are out of scope; query Cloud Monitoring directly via the gcp-monitoring connector if you need them.',
+    'Cloud Monitoring retains these metrics for 6 weeks, so invocations, errors and tokens can only be backfilled 42 days; days beyond that are left untouched rather than cleared. Spend has no such limit because it is read from BigQuery.',
     'Spend rows come from the Cloud Billing -> BigQuery export; the export must be configured manually in the GCP console and only days after the configuration date are present.',
     'BigQuery cost rows are back-revised by GCP for several days; an incremental sync refetches a short trailing window to pick up corrections.',
     'Each BigQuery query is billed against the bqProject; keep lookbackDays reasonable.',
@@ -232,7 +234,7 @@ export const vertexAiResources = defineResources({
       {
         name: 'modelId',
         description:
-          'Vertex AI publisher model identifier, e.g. gemini-1.5-pro or text-bison.',
+          'Vertex AI publisher model identifier, e.g. gemini-1.5-pro or text-bison. Read from the model_user_id label of the aiplatform.googleapis.com/PublisherModel monitored resource.',
       },
       {
         name: 'responseCode',
@@ -292,7 +294,7 @@ export const vertexAiResources = defineResources({
   [SPEND_METRIC_NAME]: {
     shape: 'metric',
     description:
-      'Daily Vertex AI spend per (date, sku) sourced from the Cloud Billing -> BigQuery export. Skipped unless bqProject and bqDataset are configured.',
+      'Daily Vertex AI spend per (date, sku) sourced from the Cloud Billing -> BigQuery export, net of credits (free tier, promotions, committed-use and sustained-use discounts). Skipped unless bqProject and bqDataset are configured.',
     endpoint: 'POST /bigquery/v2/projects/{bqProject}/queries',
     granularity: 'daily',
     notes:
@@ -338,6 +340,9 @@ const DAILY_ALIGNMENT_SECONDS = 86_400;
 const DAILY_ALIGNMENT = `${DAILY_ALIGNMENT_SECONDS}s`;
 const DEFAULT_LOOKBACK_DAYS = 30;
 const INCREMENTAL_LOOKBACK_DAYS = 5;
+const MONITORING_RETENTION_DAYS = 42;
+const MODEL_ID_GROUP_BY_FIELD = 'resource.labels.model_user_id';
+const MODEL_ID_LABEL = 'model_user_id';
 const DEFAULT_SPEND_SERVICE_FILTER = 'Vertex AI%';
 
 export const id = 'vertex-ai';
@@ -508,7 +513,7 @@ export class VertexAiConnector extends BaseConnector<
       try {
         response = await this.listTimeSeries(
           INVOCATION_COUNT_TYPE,
-          ['metric.labels.model_user_id', 'metric.labels.response_code'],
+          [MODEL_ID_GROUP_BY_FIELD, 'metric.labels.response_code'],
           window.startMs,
           window.endMs,
           pageToken,
@@ -526,7 +531,7 @@ export class VertexAiConnector extends BaseConnector<
       const series = response.timeSeries ?? [];
       let pageItems = 0;
       for (const ts of series) {
-        const modelId = ts.metric.labels?.['model_user_id'] ?? null;
+        const modelId = ts.resource?.labels?.[MODEL_ID_LABEL] ?? null;
         const responseCode = ts.metric.labels?.['response_code'] ?? '';
         const isError = !isSuccessCode(responseCode);
         for (const point of ts.points ?? []) {
@@ -603,7 +608,7 @@ export class VertexAiConnector extends BaseConnector<
       try {
         response = await this.listTimeSeries(
           TOKEN_COUNT_TYPE,
-          ['metric.labels.model_user_id', 'metric.labels.type'],
+          [MODEL_ID_GROUP_BY_FIELD, 'metric.labels.type'],
           window.startMs,
           window.endMs,
           pageToken,
@@ -621,9 +626,8 @@ export class VertexAiConnector extends BaseConnector<
       const series = response.timeSeries ?? [];
       let pageItems = 0;
       for (const ts of series) {
-        const modelId = ts.metric.labels?.['model_user_id'] ?? null;
-        const tokenType =
-          ts.metric.labels?.['type'] ?? ts.metric.labels?.['token_type'] ?? '';
+        const modelId = ts.resource?.labels?.[MODEL_ID_LABEL] ?? null;
+        const tokenType = ts.metric.labels?.['type'] ?? '';
         for (const point of ts.points ?? []) {
           const sample = pointToTokenSample(modelId, tokenType, point);
           if (sample === null) {
@@ -718,7 +722,12 @@ export class VertexAiConnector extends BaseConnector<
     signal?: AbortSignal,
   ): Promise<SyncResult> {
     const lookbackDays = this.settings.lookbackDays ?? DEFAULT_LOOKBACK_DAYS;
-    const monitoringWindow = getMonitoringWindow(options, lookbackDays);
+    const monitoringWindow = getMonitoringWindow(
+      options,
+      lookbackDays,
+      Date.now(),
+      this.logger,
+    );
     const spendWindow = getSpendWindow(options, lookbackDays);
 
     const cursor = isVertexAiCursor(options.cursor)
@@ -853,6 +862,7 @@ export function getMonitoringWindow(
   options: SyncOptions,
   lookbackDays: number,
   now: number = Date.now(),
+  logger?: ConnectorLogger,
 ): { startMs: number; endMs: number } {
   const endMs = startOfUtcDay(now) + MS_PER_DAY;
   let days = lookbackDays;
@@ -867,6 +877,13 @@ export function getMonitoringWindow(
         lookbackDays,
       );
     }
+  }
+  if (days > MONITORING_RETENTION_DAYS) {
+    logger?.warn('monitoring window truncated to retention floor', {
+      retentionDays: MONITORING_RETENTION_DAYS,
+      requestedDays: days,
+    });
+    days = MONITORING_RETENTION_DAYS;
   }
   return { startMs: endMs - days * MS_PER_DAY, endMs };
 }
@@ -922,7 +939,7 @@ export function buildVertexSpendSql(args: {
     `SELECT DATE(usage_start_time) AS date,`,
     `  service.description AS service,`,
     `  sku.description AS sku,`,
-    `  SUM(cost) AS cost,`,
+    `  SUM(cost + IFNULL((SELECT SUM(c.amount) FROM UNNEST(credits) c), 0)) AS cost,`,
     `  ANY_VALUE(currency) AS currency`,
     `FROM ${table}`,
     `WHERE DATE(usage_start_time) >= DATE('${args.startDate}')`,
