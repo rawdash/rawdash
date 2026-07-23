@@ -1,5 +1,5 @@
 import { mockResponse } from '@rawdash/connector-test-utils';
-import { InMemoryStorage } from '@rawdash/core';
+import { type ConnectorLogger, InMemoryStorage } from '@rawdash/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -69,7 +69,9 @@ function makeConnector(
   overrides: Partial<{
     bqProject: string | undefined;
     bqDataset: string | undefined;
+    lookbackDays: number;
   }> = {},
+  ctx?: { logger: ConnectorLogger },
 ): VertexAiConnector {
   return new VertexAiConnector(
     {
@@ -78,9 +80,10 @@ function makeConnector(
       bqDataset:
         'bqDataset' in overrides ? overrides.bqDataset : 'billing_export',
       bqLocation: 'US',
-      lookbackDays: 30,
+      lookbackDays: overrides.lookbackDays ?? 30,
     },
     { serviceAccountJson: TEST_SA_JSON },
+    ctx,
   );
 }
 
@@ -115,7 +118,11 @@ const INVOCATIONS_TIMESERIES = {
     {
       metric: {
         type: 'aiplatform.googleapis.com/publisher/online_serving/model_invocation_count',
-        labels: { model_user_id: 'gemini-pro', response_code: '200' },
+        labels: { response_code: '200' },
+      },
+      resource: {
+        type: 'aiplatform.googleapis.com/PublisherModel',
+        labels: { model_user_id: 'gemini-pro' },
       },
       points: [
         {
@@ -137,7 +144,11 @@ const INVOCATIONS_TIMESERIES = {
     {
       metric: {
         type: 'aiplatform.googleapis.com/publisher/online_serving/model_invocation_count',
-        labels: { model_user_id: 'gemini-pro', response_code: '429' },
+        labels: { response_code: '429' },
+      },
+      resource: {
+        type: 'aiplatform.googleapis.com/PublisherModel',
+        labels: { model_user_id: 'gemini-pro' },
       },
       points: [
         {
@@ -157,7 +168,11 @@ const TOKENS_TIMESERIES = {
     {
       metric: {
         type: 'aiplatform.googleapis.com/publisher/online_serving/token_count',
-        labels: { model_user_id: 'gemini-pro', type: 'input' },
+        labels: { type: 'input' },
+      },
+      resource: {
+        type: 'aiplatform.googleapis.com/PublisherModel',
+        labels: { model_user_id: 'gemini-pro' },
       },
       points: [
         {
@@ -172,7 +187,11 @@ const TOKENS_TIMESERIES = {
     {
       metric: {
         type: 'aiplatform.googleapis.com/publisher/online_serving/token_count',
-        labels: { model_user_id: 'gemini-pro', type: 'output' },
+        labels: { type: 'output' },
+      },
+      resource: {
+        type: 'aiplatform.googleapis.com/PublisherModel',
+        labels: { model_user_id: 'gemini-pro' },
       },
       points: [
         {
@@ -304,7 +323,13 @@ describe('VertexAiConnector sync', () => {
     );
     expect(
       monitoringUrl.searchParams.getAll('aggregation.groupByFields'),
-    ).toEqual(['metric.labels.model_user_id', 'metric.labels.response_code']);
+    ).toEqual(['resource.labels.model_user_id', 'metric.labels.response_code']);
+
+    const tokensUrl = new URL(monitoringCalls[1]!);
+    expect(tokensUrl.searchParams.getAll('aggregation.groupByFields')).toEqual([
+      'resource.labels.model_user_id',
+      'metric.labels.type',
+    ]);
   });
 
   it('preserves history outside the incremental window on a latest sync', async () => {
@@ -516,6 +541,68 @@ describe('VertexAiConnector sync', () => {
     );
   });
 
+  it('does not warn about monitoring retention on a spend-only sync', async () => {
+    installFetch((url) => {
+      if (url.startsWith('https://oauth2.googleapis.com/token')) {
+        return { body: { access_token: 'tok' } };
+      }
+      if (url.includes('bigquery.googleapis.com')) {
+        return { body: SPEND_BQ_RESPONSE };
+      }
+      throw new Error('unexpected URL: ' + url);
+    });
+
+    const warnings: string[] = [];
+    const logger: ConnectorLogger = {
+      info() {},
+      warn(event) {
+        warnings.push(event);
+      },
+    };
+    const storage = new InMemoryStorage();
+    await makeConnector({ lookbackDays: 90 }, { logger }).sync(
+      { mode: 'full', resources: new Set([SPEND_METRIC_NAME]) },
+      storage.getStorageHandle(CONNECTOR_ID),
+    );
+
+    expect(metricsFor(storage, SPEND_METRIC_NAME).length).toBeGreaterThan(0);
+    expect(warnings).not.toContain(
+      'monitoring window truncated to retention floor',
+    );
+  });
+
+  it('warns about monitoring retention when a monitoring resource is synced', async () => {
+    installFetch((url) => {
+      if (url.startsWith('https://oauth2.googleapis.com/token')) {
+        return { body: { access_token: 'tok' } };
+      }
+      if (url.includes('monitoring.googleapis.com')) {
+        return { body: { timeSeries: [] } };
+      }
+      if (url.includes('bigquery.googleapis.com')) {
+        return { body: SPEND_BQ_RESPONSE };
+      }
+      throw new Error('unexpected URL: ' + url);
+    });
+
+    const warnings: string[] = [];
+    const logger: ConnectorLogger = {
+      info() {},
+      warn(event) {
+        warnings.push(event);
+      },
+    };
+    const storage = new InMemoryStorage();
+    await makeConnector({ lookbackDays: 90 }, { logger }).sync(
+      { mode: 'full', resources: new Set([TOKENS_METRIC_NAME]) },
+      storage.getStorageHandle(CONNECTOR_ID),
+    );
+
+    expect(warnings).toContain(
+      'monitoring window truncated to retention floor',
+    );
+  });
+
   it('honors options.resources by skipping phases whose resources are not requested', async () => {
     const calls: string[] = [];
     installFetch((url) => {
@@ -557,10 +644,11 @@ describe('VertexAiConnector sync', () => {
                 {
                   metric: {
                     type: 'aiplatform.googleapis.com/publisher/online_serving/model_invocation_count',
-                    labels: {
-                      model_user_id: 'gemini-pro',
-                      response_code: '200',
-                    },
+                    labels: { response_code: '200' },
+                  },
+                  resource: {
+                    type: 'aiplatform.googleapis.com/PublisherModel',
+                    labels: { model_user_id: 'gemini-pro' },
                   },
                   points: [
                     {
@@ -580,7 +668,11 @@ describe('VertexAiConnector sync', () => {
               {
                 metric: {
                   type: 'aiplatform.googleapis.com/publisher/online_serving/model_invocation_count',
-                  labels: { model_user_id: 'gemini-pro', response_code: '200' },
+                  labels: { response_code: '200' },
+                },
+                resource: {
+                  type: 'aiplatform.googleapis.com/PublisherModel',
+                  labels: { model_user_id: 'gemini-pro' },
                 },
                 points: [
                   {
@@ -627,12 +719,25 @@ describe('buildVertexSpendSql', () => {
     });
     expect(sql).toContain('sku.description AS sku');
     expect(sql).toContain('service.description AS service');
-    expect(sql).toContain('SUM(cost) AS cost');
     expect(sql).toContain('`p.d.gcp_billing_export_v1_*`');
     expect(sql).toContain("DATE('2024-01-01')");
     expect(sql).toContain("DATE('2024-02-01')");
     expect(sql).toContain("service.description LIKE 'Vertex AI%'");
     expect(sql).toContain('GROUP BY date, service, sku');
+  });
+
+  it('nets credits out of the summed cost', () => {
+    const sql = buildVertexSpendSql({
+      bqProject: 'billing-proj',
+      bqDataset: 'billing_export',
+      startDate: '2024-01-01',
+      endDate: '2024-02-01',
+      serviceFilter: 'Vertex AI%',
+    });
+    expect(sql).toContain(
+      'SUM(cost + IFNULL((SELECT SUM(c.amount) FROM UNNEST(credits) c), 0)) AS cost',
+    );
+    expect(sql).not.toMatch(/SUM\(cost\) AS cost/);
   });
 
   it('escapes single quotes in the service filter', () => {
@@ -663,6 +768,46 @@ describe('getMonitoringWindow', () => {
       endMs: Date.UTC(2024, 1, 1),
     });
   });
+
+  it('never reaches past the 42-day Cloud Monitoring retention floor', () => {
+    expect(getMonitoringWindow({ mode: 'full' }, 365, now)).toEqual({
+      startMs: Date.UTC(2024, 1, 1) - 42 * 86_400_000,
+      endMs: Date.UTC(2024, 1, 1),
+    });
+  });
+
+  it('clamps a long since-derived window to the retention floor', () => {
+    expect(
+      getMonitoringWindow(
+        { mode: 'full', since: '2023-06-01T00:00:00Z' },
+        365,
+        now,
+      ),
+    ).toEqual({
+      startMs: Date.UTC(2024, 1, 1) - 42 * 86_400_000,
+      endMs: Date.UTC(2024, 1, 1),
+    });
+  });
+
+  it('warns when the requested window is truncated', () => {
+    const warn = vi.fn();
+    const logger: ConnectorLogger = { info() {}, warn };
+    getMonitoringWindow({ mode: 'full' }, 90, now, logger);
+    expect(warn).toHaveBeenCalledWith(
+      'monitoring window truncated to retention floor',
+      { retentionDays: 42, requestedDays: 90 },
+    );
+  });
+
+  it('leaves a within-retention window untouched', () => {
+    const warn = vi.fn();
+    const logger: ConnectorLogger = { info() {}, warn };
+    expect(getMonitoringWindow({ mode: 'full' }, 30, now, logger)).toEqual({
+      startMs: Date.UTC(2024, 0, 2),
+      endMs: Date.UTC(2024, 1, 1),
+    });
+    expect(warn).not.toHaveBeenCalled();
+  });
 });
 
 describe('getSpendWindow', () => {
@@ -673,6 +818,15 @@ describe('getSpendWindow', () => {
       startDate: '2024-01-02',
       endDate: '2024-02-01',
       startMs: Date.UTC(2024, 0, 2),
+      endMs: Date.UTC(2024, 1, 1),
+    });
+  });
+
+  it('keeps the full lookback beyond the monitoring retention floor', () => {
+    expect(getSpendWindow({ mode: 'full' }, 365, now)).toEqual({
+      startDate: '2023-02-01',
+      endDate: '2024-02-01',
+      startMs: Date.UTC(2024, 1, 1) - 365 * 86_400_000,
       endMs: Date.UTC(2024, 1, 1),
     });
   });
