@@ -320,6 +320,12 @@ import {
   resources as postmarkResources,
 } from '@rawdash/connector-postmark';
 import {
+  configFields as productHuntConfigFields,
+  doc as productHuntDoc,
+  id as productHuntId,
+  resources as productHuntResources,
+} from '@rawdash/connector-product-hunt';
+import {
   configFields as resendConfigFields,
   doc as resendDoc,
   id as resendId,
@@ -785,6 +791,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: postmarkDoc,
     configFields: postmarkConfigFields,
     resources: postmarkResources,
+  },
+  {
+    id: productHuntId,
+    packageName: '@rawdash/connector-product-hunt',
+    doc: productHuntDoc,
+    configFields: productHuntConfigFields,
+    resources: productHuntResources,
   },
   {
     id: resendId,

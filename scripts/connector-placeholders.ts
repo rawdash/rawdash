@@ -1357,16 +1357,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     domain: 'polar.sh',
   },
   {
-    id: 'product-hunt',
-    name: 'Product Hunt',
-    category: 'marketing',
-    tagline:
-      'Sync upvote velocity, rank trajectory, and comments on Product Hunt launches.',
-    icon: 'producthunt',
-    domain: 'producthunt.com',
-    requestIssue: 'RAW-454',
-  },
-  {
     id: 'reddit',
     name: 'Reddit',
     category: 'marketing',
