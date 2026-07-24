@@ -382,6 +382,7 @@ describe('deriveConnectorLifecycleTransition', () => {
       type: 'paused',
       status: 'paused',
       consecutiveFailures: threshold,
+      consecutiveInfraFailures: 0,
       lastError: 'still down',
       lastSyncAt: null,
       nextRetryAt: next.nextRetryAt,
@@ -423,12 +424,13 @@ describe('deriveConnectorLifecycleTransition', () => {
       type: 'sync-failed',
       at: AT,
       error: 'revoked',
-      kind: 'auth',
+      kind: 'terminal',
     });
     expect(deriveConnectorLifecycleTransition(prev, next)).toEqual({
       type: 'auth-failed',
       status: 'auth_failed',
       consecutiveFailures: 1,
+      consecutiveInfraFailures: 0,
       lastError: 'revoked',
       lastSyncAt: null,
       nextRetryAt: null,
@@ -438,13 +440,13 @@ describe('deriveConnectorLifecycleTransition', () => {
   it('does not re-emit auth-failed while already auth_failed', () => {
     const authFailed = advanceConnectorLifecycle(
       DEFAULT_CONNECTOR_LIFECYCLE_STATE,
-      { type: 'sync-failed', at: AT, error: 'revoked', kind: 'auth' },
+      { type: 'sync-failed', at: AT, error: 'revoked', kind: 'terminal' },
     );
     const next = advanceConnectorLifecycle(authFailed, {
       type: 'sync-failed',
       at: AT,
       error: 'revoked again',
-      kind: 'auth',
+      kind: 'terminal',
     });
     expect(deriveConnectorLifecycleTransition(authFailed, next)).toBeNull();
   });
@@ -462,6 +464,7 @@ describe('deriveConnectorLifecycleTransition', () => {
       type: 'recovered',
       status: 'idle',
       consecutiveFailures: 0,
+      consecutiveInfraFailures: 0,
       lastError: null,
       lastSyncAt: AT,
       nextRetryAt: null,
@@ -471,7 +474,7 @@ describe('deriveConnectorLifecycleTransition', () => {
   it('emits recovered directly out of auth_failed', () => {
     const authFailed = advanceConnectorLifecycle(
       DEFAULT_CONNECTOR_LIFECYCLE_STATE,
-      { type: 'sync-failed', at: AT, error: 'revoked', kind: 'auth' },
+      { type: 'sync-failed', at: AT, error: 'revoked', kind: 'terminal' },
     );
     const next = advanceConnectorLifecycle(authFailed, {
       type: 'sync-succeeded',
@@ -523,6 +526,7 @@ describe('advanceConnectorLifecycleWithTransition', () => {
       status: 'paused',
       consecutiveFailures:
         DEFAULT_CONNECTOR_LIFECYCLE_POLICY.pauseAfterFailures,
+      consecutiveInfraFailures: 0,
       lastError: 'down',
       lastSyncAt: null,
       nextRetryAt: state.nextRetryAt,
