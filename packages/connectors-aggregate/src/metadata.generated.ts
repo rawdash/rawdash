@@ -205,6 +205,12 @@ import {
   resources as greenhouseResources,
 } from '@rawdash/connector-greenhouse';
 import {
+  configFields as hackerNewsConfigFields,
+  doc as hackerNewsDoc,
+  id as hackerNewsId,
+  resources as hackerNewsResources,
+} from '@rawdash/connector-hacker-news';
+import {
   configFields as hubspotConfigFields,
   doc as hubspotDoc,
   id as hubspotId,
@@ -651,6 +657,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     configFields: greenhouseConfigFields,
     resources: greenhouseResources,
     cost: greenhouseCost,
+  },
+  {
+    id: hackerNewsId,
+    packageName: '@rawdash/connector-hacker-news',
+    doc: hackerNewsDoc,
+    configFields: hackerNewsConfigFields,
+    resources: hackerNewsResources,
   },
   {
     id: hubspotId,

@@ -1175,16 +1175,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     domain: 'glassdoor.com',
   },
   {
-    id: 'hacker-news',
-    name: 'Hacker News',
-    category: 'marketing',
-    tagline:
-      'Watch HN for submissions of your domain and mentions in comments - points, comments, rank.',
-    brandColor: '#FF6600',
-    domain: 'ycombinator.com',
-    requestIssue: 'RAW-455',
-  },
-  {
     id: 'hootsuite',
     name: 'Hootsuite',
     category: 'marketing',
