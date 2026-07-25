@@ -56,6 +56,8 @@ export const connectorLoaders: Record<string, () => Promise<ConnectorClass>> = {
     import('@rawdash/connector-google-search-console').then((m) => m.default),
   greenhouse: () =>
     import('@rawdash/connector-greenhouse').then((m) => m.default),
+  'hacker-news': () =>
+    import('@rawdash/connector-hacker-news').then((m) => m.default),
   hubspot: () => import('@rawdash/connector-hubspot').then((m) => m.default),
   intercom: () => import('@rawdash/connector-intercom').then((m) => m.default),
   jira: () => import('@rawdash/connector-jira').then((m) => m.default),

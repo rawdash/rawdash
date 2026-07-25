@@ -67,6 +67,7 @@
     "@rawdash/connector-google-play-console": "workspace:*",
     "@rawdash/connector-google-search-console": "workspace:*",
     "@rawdash/connector-greenhouse": "workspace:*",
+    "@rawdash/connector-hacker-news": "workspace:*",
     "@rawdash/connector-hubspot": "workspace:*",
     "@rawdash/connector-intercom": "workspace:*",
     "@rawdash/connector-jira": "workspace:*",
