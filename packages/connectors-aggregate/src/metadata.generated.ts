@@ -308,6 +308,12 @@ import {
   resources as openaiResources,
 } from '@rawdash/connector-openai';
 import {
+  configFields as pipedriveConfigFields,
+  doc as pipedriveDoc,
+  id as pipedriveId,
+  resources as pipedriveResources,
+} from '@rawdash/connector-pipedrive';
+import {
   configFields as posthogConfigFields,
   doc as posthogDoc,
   id as posthogId,
@@ -771,6 +777,13 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: openaiDoc,
     configFields: openaiConfigFields,
     resources: openaiResources,
+  },
+  {
+    id: pipedriveId,
+    packageName: '@rawdash/connector-pipedrive',
+    doc: pipedriveDoc,
+    configFields: pipedriveConfigFields,
+    resources: pipedriveResources,
   },
   {
     id: posthogId,
