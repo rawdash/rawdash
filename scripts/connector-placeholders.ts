@@ -1574,16 +1574,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     requestIssue: 'RAW-236',
   },
   {
-    id: 'pipedrive',
-    name: 'Pipedrive',
-    category: 'sales',
-    tagline:
-      'Sync deals, pipeline stages, and activities - including win rate and stage age - from Pipedrive.',
-    brandColor: '#2A8C3C',
-    domain: 'pipedrive.com',
-    requestIssue: 'RAW-207',
-  },
-  {
     id: 'zoominfo',
     name: 'ZoomInfo',
     category: 'sales',
