@@ -1,0 +1,5 @@
+---
+'@rawdash/connector-shopify': patch
+---
+
+Ground the Shopify connector in the current Admin GraphQL API. Requests targeted API version `2025-01`, which is no longer accessible, so Shopify served them from whatever the oldest accessible stable version happened to be — a target that shifts every quarter; the connector now targets `2026-07`. The incremental cursor sent a precise-second `updated_at:>` bound to the `customers` query, whose `updated_at` filter matches a whole day, risking permanent loss of customer updates made later on the cursor's day; the customers phase now bounds on the start of the cursor's UTC day inclusively, while products and orders keep timestamp precision. Throttled responses arrive as HTTP 200 with a `THROTTLED` error in the body rather than HTTP 429 and were surfaced as generic errors; they are now raised as rate-limit errors. `options.resources` is now honored by resource name for phase selection, full-sync clears, and writes. The 60-day order ceiling that applies without the `read_all_orders` scope is now documented in the auth setup, the access-token field, and the connector's limitations.

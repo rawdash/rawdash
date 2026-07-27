@@ -1,5 +1,6 @@
 import {
   type HttpResponse,
+  RateLimitError,
   connectorUserAgent,
 } from '@rawdash/connector-shared';
 import {
@@ -20,7 +21,7 @@ import {
 } from '@rawdash/core';
 import { z } from 'zod';
 
-const API_VERSION = '2025-01';
+const API_VERSION = '2026-07';
 
 export const configFields = defineConfigFields(
   z.object({
@@ -40,7 +41,7 @@ export const configFields = defineConfigFields(
     accessToken: z.object({ $secret: z.string() }).meta({
       label: 'Admin API access token',
       description:
-        'Custom App Admin API access token with read_orders, read_customers, and read_products scopes.',
+        'Custom App Admin API access token with read_orders, read_customers, and read_products scopes. Shopify exposes only the last 60 days of orders unless the app is also granted read_all_orders.',
       placeholder: 'shpat_...',
       secret: true,
     }),
@@ -75,15 +76,18 @@ export const doc: ConnectorDoc = defineConnectorDoc({
       'In the Shopify admin, open Settings -> Apps and sales channels -> Develop apps.',
       'Create a new app (or open an existing custom app) and open the Configuration tab.',
       'Under Admin API integration, grant the read_orders, read_customers, and read_products scopes and save.',
+      'To sync orders older than 60 days, request the read_all_orders scope from Shopify and grant it alongside read_orders. Without it Shopify only returns the last 60 days of orders, and a full sync will drop any older order history it had already ingested.',
       'Open the API credentials tab and install the app to reveal the Admin API access token (starts with shpat_).',
       'Store the token as a secret and reference it from the connector config as `accessToken: secret("SHOPIFY_ACCESS_TOKEN")`, and set `shopDomain` to your yourshop.myshopify.com domain.',
     ],
   },
   rateLimit:
-    'The Admin GraphQL API uses a cost-based leaky-bucket limit per access token; this connector pages 250 records at a time and relies on standard HTTP 429 retry/backoff.',
+    'The Admin GraphQL API uses a cost-based leaky-bucket limit per access token. Throttled requests come back as HTTP 200 with a THROTTLED error in the response body rather than HTTP 429; this connector pages 250 records at a time and surfaces those responses as retryable rate-limit errors.',
   limitations: [
     'Custom App access token auth only (OAuth app distribution not supported).',
     'Order status-transition history and inventory-level resources are out of scope; refund events are derived from each order.',
+    'Shopify exposes only the last 60 days of orders unless the app is granted the read_all_orders scope. Without that scope the orders and refund resources are limited to that window, and a full sync replaces previously ingested older orders with nothing.',
+    'The customers query matches updated_at at whole-day granularity, so incremental customer syncs re-read from the start of the cursor day.',
   ],
 });
 
@@ -108,6 +112,22 @@ type ShopifyPhase = (typeof PHASE_ORDER)[number];
 export type ShopifyResource = ShopifyPhase;
 
 const isShopifySyncCursor = makeChunkedCursorGuard(PHASE_ORDER);
+
+const PHASE_RESOURCE_TYPES: Record<ShopifyPhase, readonly string[]> = {
+  products: ['shopify_product'],
+  customers: ['shopify_customer'],
+  orders: ['shopify_order', 'shopify_refund'],
+};
+
+function isResourceAllowed(
+  options: SyncOptions,
+  resourceType: string,
+): boolean {
+  if (!options.resources || options.resources.size === 0) {
+    return true;
+  }
+  return options.resources.has(resourceType);
+}
 
 interface PageInfo {
   hasNextPage: boolean;
@@ -230,6 +250,17 @@ function clampPageSize(requested: number | undefined): number {
     return 1;
   }
   return Math.min(Math.floor(n), MAX_PAGE_SIZE);
+}
+
+function startOfUtcDay(iso: string): string | null {
+  const ms = Date.parse(iso);
+  if (!Number.isFinite(ms)) {
+    return null;
+  }
+  const d = new Date(ms);
+  return new Date(
+    Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()),
+  ).toISOString();
 }
 
 function parseMoney(amount: string | null | undefined): number | null {
@@ -418,6 +449,9 @@ export class ShopifyConnector extends BaseConnector<
     });
     if (res.body.errors && res.body.errors.length > 0) {
       const messages = res.body.errors.map((e) => e.message).join('; ');
+      if (res.body.errors.some((e) => e.extensions?.code === 'THROTTLED')) {
+        throw new RateLimitError(`Shopify GraphQL throttled: ${messages}`, res);
+      }
       throw new Error(`Shopify GraphQL error: ${messages}`);
     }
     if (!res.body.data) {
@@ -433,6 +467,17 @@ export class ShopifyConnector extends BaseConnector<
       return undefined;
     }
     return `updated_at:>'${options.since}'`;
+  }
+
+  private customersSinceQuery(options: SyncOptions): string | undefined {
+    if (!options.since) {
+      return undefined;
+    }
+    const dayStart = startOfUtcDay(options.since);
+    if (dayStart === null) {
+      return undefined;
+    }
+    return `updated_at:>='${dayStart}'`;
   }
 
   private async fetchProductsPage(
@@ -467,7 +512,7 @@ export class ShopifyConnector extends BaseConnector<
       {
         cursor: page ?? null,
         first: clampPageSize(options.pageSize),
-        query: this.sinceQuery(options) ?? null,
+        query: this.customersSinceQuery(options) ?? null,
       },
       'customers',
       signal,
@@ -544,27 +589,36 @@ export class ShopifyConnector extends BaseConnector<
   private async writeOrders(
     storage: StorageHandle,
     orders: ShopifyOrder[],
-    since?: string,
+    since: string | undefined,
+    write: { orders: boolean; refunds: boolean },
   ): Promise<void> {
     const sinceMs = since ? Date.parse(since) : null;
     for (const o of orders) {
       const money = o.currentTotalPriceSet.shopMoney;
-      await storage.entity({
-        type: 'shopify_order',
-        id: o.id,
-        attributes: {
-          name: o.name,
-          totalPrice: parseMoney(money.amount),
-          currency: money.currencyCode,
-          financialStatus: o.displayFinancialStatus,
-          fulfillmentStatus: o.displayFulfillmentStatus,
-          customerId: o.customer?.id ?? null,
-          createdAt: new Date(o.createdAt).getTime(),
-          processedAt: new Date(o.processedAt).getTime(),
-          cancelledAt: o.cancelledAt ? new Date(o.cancelledAt).getTime() : null,
-        },
-        updated_at: new Date(o.updatedAt).getTime(),
-      });
+      if (write.orders) {
+        await storage.entity({
+          type: 'shopify_order',
+          id: o.id,
+          attributes: {
+            name: o.name,
+            totalPrice: parseMoney(money.amount),
+            currency: money.currencyCode,
+            financialStatus: o.displayFinancialStatus,
+            fulfillmentStatus: o.displayFulfillmentStatus,
+            customerId: o.customer?.id ?? null,
+            createdAt: new Date(o.createdAt).getTime(),
+            processedAt: new Date(o.processedAt).getTime(),
+            cancelledAt: o.cancelledAt
+              ? new Date(o.cancelledAt).getTime()
+              : null,
+          },
+          updated_at: new Date(o.updatedAt).getTime(),
+        });
+      }
+
+      if (!write.refunds) {
+        continue;
+      }
 
       for (const r of o.refunds) {
         const createdMs = r.createdAt ? Date.parse(r.createdAt) : NaN;
@@ -610,6 +664,10 @@ export class ShopifyConnector extends BaseConnector<
       (r) => r,
       PHASE_ORDER,
       this.settings.resources,
+    ).filter((phase) =>
+      PHASE_RESOURCE_TYPES[phase].some((type) =>
+        isResourceAllowed(options, type),
+      ),
     );
 
     return paginateChunked<ShopifyPhase, string>({
@@ -630,6 +688,8 @@ export class ShopifyConnector extends BaseConnector<
         }
       },
       writeBatch: async (phase, items, page) => {
+        const orders = isResourceAllowed(options, 'shopify_order');
+        const refunds = isResourceAllowed(options, 'shopify_refund');
         if (isFull && page === null) {
           switch (phase) {
             case 'products':
@@ -639,8 +699,12 @@ export class ShopifyConnector extends BaseConnector<
               await storage.entities([], { types: ['shopify_customer'] });
               break;
             case 'orders':
-              await storage.entities([], { types: ['shopify_order'] });
-              await storage.events([], { names: ['shopify_refund'] });
+              if (orders) {
+                await storage.entities([], { types: ['shopify_order'] });
+              }
+              if (refunds) {
+                await storage.events([], { names: ['shopify_refund'] });
+              }
               break;
           }
         }
@@ -654,6 +718,7 @@ export class ShopifyConnector extends BaseConnector<
               storage,
               items as ShopifyOrder[],
               options.since,
+              { orders, refunds },
             );
         }
       },
