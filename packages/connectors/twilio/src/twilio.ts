@@ -101,6 +101,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Monetary amounts (message/call price, usage price) are reported by Twilio as negative-signed decimal strings; the connector stores their absolute value as a positive number.',
     'Message and call events are bounded by the backfill window; very high-volume accounts should sync the usage metrics rather than per-message events for spend and volume trends.',
     'Usage is read from the daily Usage Records report (1-day granularity); sub-daily usage is not exposed.',
+    'Twilio populates a message or call price, and the terminal delivery status, after the record is created. Incremental syncs filter on DateSent / StartTime, which never change, so a record read before it settled keeps the status and price it had at the time; a full sync refreshes it.',
   ],
 });
 
@@ -165,7 +166,7 @@ const usageRecordSchema = z.object({
   count_unit: z.string().nullish(),
   usage: z.string().nullish(),
   usage_unit: z.string().nullish(),
-  price: z.string().nullish(),
+  price: z.union([z.string(), z.number()]).nullish(),
   price_unit: z.string().nullish(),
   start_date: z.string().nullish(),
   end_date: z.string().nullish(),
@@ -338,8 +339,14 @@ type TwilioCredentials = typeof twilioCredentials;
 
 export const id = 'twilio';
 
-function absNumber(value: string | null | undefined): number | null {
-  if (value === null || value === undefined || value.trim() === '') {
+function absNumber(value: string | number | null | undefined): number | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? Math.abs(value) : null;
+  }
+  if (value.trim() === '') {
     return null;
   }
   const n = Number.parseFloat(value);
@@ -471,6 +478,33 @@ function toDate(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10);
 }
 
+function startOfUtcDay(ms: number): number {
+  return Date.parse(`${toDate(ms)}T00:00:00.000Z`);
+}
+
+export interface TwilioUsageWindow {
+  startMs: number;
+  endMs: number;
+}
+
+export function usageWindowFor(
+  options: SyncOptions,
+  lookbackDays: number,
+  now: number,
+): TwilioUsageWindow {
+  const days =
+    options.mode === 'latest' ? INCREMENTAL_LOOKBACK_DAYS : lookbackDays;
+  const sinceMs = options.since ? parseEpoch(options.since, 'iso') : null;
+  const startMs =
+    sinceMs !== null
+      ? Math.min(sinceMs, now - INCREMENTAL_LOOKBACK_DAYS * MS_PER_DAY)
+      : now - days * MS_PER_DAY;
+  return {
+    startMs: startOfUtcDay(startMs),
+    endMs: startOfUtcDay(now) + MS_PER_DAY - 1,
+  };
+}
+
 export class TwilioConnector extends BaseConnector<
   TwilioSettings,
   TwilioCredentials
@@ -529,19 +563,13 @@ export class TwilioConnector extends BaseConnector<
     options: SyncOptions,
     lookbackDays: number,
     now: number,
+    usageWindow: TwilioUsageWindow,
   ): string {
     const url = new URL(`${TWILIO_API_BASE}${this.phasePath(phase)}`);
     url.searchParams.set('PageSize', String(PAGE_SIZE));
     if (phase === 'usage') {
-      const days =
-        options.mode === 'latest' ? INCREMENTAL_LOOKBACK_DAYS : lookbackDays;
-      const sinceMs = options.since ? parseEpoch(options.since, 'iso') : null;
-      const startMs =
-        sinceMs !== null
-          ? Math.min(sinceMs, now - INCREMENTAL_LOOKBACK_DAYS * MS_PER_DAY)
-          : now - days * MS_PER_DAY;
-      url.searchParams.set('StartDate', toDate(startMs));
-      url.searchParams.set('EndDate', toDate(now));
+      url.searchParams.set('StartDate', toDate(usageWindow.startMs));
+      url.searchParams.set('EndDate', toDate(usageWindow.endMs));
       return url.toString();
     }
     const sinceMs = options.since
@@ -568,28 +596,109 @@ export class TwilioConnector extends BaseConnector<
     });
   }
 
+  private activePhases(
+    optionsResources: ReadonlySet<string> | undefined,
+  ): TwilioPhase[] {
+    const fromSettings = selectActivePhases<TwilioResource, TwilioPhase>(
+      resourceToPhase,
+      PHASE_ORDER,
+      this.settings.resources,
+    );
+    if (optionsResources === undefined) {
+      return fromSettings;
+    }
+    return fromSettings.filter((phase) =>
+      RESOURCES_BY_PHASE[phase].some((r) => optionsResources.has(r)),
+    );
+  }
+
+  private isResourceAllowed(
+    resource: TwilioResource,
+    optionsResources: ReadonlySet<string> | undefined,
+  ): boolean {
+    const fromSettings = this.settings.resources;
+    if (
+      fromSettings &&
+      fromSettings.length > 0 &&
+      !fromSettings.includes(resource)
+    ) {
+      return false;
+    }
+    if (optionsResources !== undefined && !optionsResources.has(resource)) {
+      return false;
+    }
+    return true;
+  }
+
   private async writePhase(
     storage: StorageHandle,
     phase: TwilioPhase,
     items: unknown[],
+    page: string | null,
+    options: SyncOptions,
+    usageWindow: TwilioUsageWindow,
   ): Promise<void> {
+    const isBackfillStart = page === null && !options.since;
     switch (phase) {
-      case 'messages':
-        await storage.events(buildMessageEvents(items as TwilioMessage[]), {
-          names: ['twilio_message'],
-        });
+      case 'messages': {
+        if (isBackfillStart) {
+          await storage.events([], { names: ['twilio_message'] });
+        }
+        for (const event of buildMessageEvents(items as TwilioMessage[])) {
+          await storage.event(event);
+        }
         return;
-      case 'calls':
-        await storage.events(buildCallEvents(items as TwilioCall[]), {
-          names: ['twilio_call'],
-        });
+      }
+      case 'calls': {
+        if (isBackfillStart) {
+          await storage.events([], { names: ['twilio_call'] });
+        }
+        for (const event of buildCallEvents(items as TwilioCall[])) {
+          await storage.event(event);
+        }
         return;
+      }
       case 'usage': {
         const { counts, prices } = buildUsageSamples(
           items as TwilioUsageRecord[],
         );
-        await storage.metrics(counts, { names: ['twilio_usage_count'] });
-        await storage.metrics(prices, { names: ['twilio_usage_price'] });
+        const writeCounts = this.isResourceAllowed(
+          'twilio_usage_count',
+          options.resources,
+        );
+        const writePrices = this.isResourceAllowed(
+          'twilio_usage_price',
+          options.resources,
+        );
+        if (page === null) {
+          const replaceWindow = {
+            start: usageWindow.startMs,
+            end: usageWindow.endMs,
+          };
+          if (writeCounts) {
+            await storage.metrics(counts, {
+              names: ['twilio_usage_count'],
+              replaceWindow,
+            });
+          }
+          if (writePrices) {
+            await storage.metrics(prices, {
+              names: ['twilio_usage_price'],
+              replaceWindow,
+            });
+          }
+          return;
+        }
+        if (writeCounts) {
+          for (const sample of counts) {
+            await storage.metric(sample);
+          }
+        }
+        if (writePrices) {
+          for (const sample of prices) {
+            await storage.metric(sample);
+          }
+        }
         return;
       }
     }
@@ -634,12 +743,8 @@ export class TwilioConnector extends BaseConnector<
       : undefined;
     const lookbackDays = this.settings.lookbackDays ?? DEFAULT_LOOKBACK_DAYS;
     const now = Date.now();
-
-    const phases = selectActivePhases<TwilioResource, TwilioPhase>(
-      resourceToPhase,
-      PHASE_ORDER,
-      this.settings.resources,
-    );
+    const usageWindow = usageWindowFor(options, lookbackDays, now);
+    const phases = this.activePhases(options.resources);
 
     return paginateChunked<TwilioPhase, string>({
       phases,
@@ -648,13 +753,21 @@ export class TwilioConnector extends BaseConnector<
       logger: this.logger,
       fetchPage: async (phase, page, sig) => {
         const url =
-          page ?? this.buildInitialUrl(phase, options, lookbackDays, now);
+          page ??
+          this.buildInitialUrl(phase, options, lookbackDays, now, usageWindow);
         const res = await this.fetch<unknown>(url, phase, sig);
         const { items, nextPageUri } = this.parsePage(phase, res.body);
         return { items, next: this.nextUrl(phase, nextPageUri) };
       },
-      writeBatch: async (phase, items) => {
-        await this.writePhase(storage, phase, items);
+      writeBatch: async (phase, items, page) => {
+        await this.writePhase(
+          storage,
+          phase,
+          items,
+          page,
+          options,
+          usageWindow,
+        );
       },
     });
   }
