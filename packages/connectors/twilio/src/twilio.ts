@@ -101,7 +101,7 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     'Monetary amounts (message/call price, usage price) are reported by Twilio as negative-signed decimal strings; the connector stores their absolute value as a positive number.',
     'Message and call events are bounded by the backfill window; very high-volume accounts should sync the usage metrics rather than per-message events for spend and volume trends.',
     'Usage is read from the daily Usage Records report (1-day granularity); sub-daily usage is not exposed.',
-    'Twilio populates a message or call price, and the terminal delivery status, after the record is created. Incremental syncs filter on DateSent / StartTime, which never change, so a record read before it settled keeps the status and price it had at the time; a full sync refreshes it.',
+    'Twilio populates a message or call price, and its terminal status, after the record is created. Incremental syncs filter on DateSent / StartTime, which never change, so a record read before it settled keeps the status and price it had at the time; a full sync refreshes it.',
   ],
 });
 
