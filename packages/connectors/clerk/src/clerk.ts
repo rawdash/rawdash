@@ -53,12 +53,6 @@ export const configFields = defineConfigFields(
         description:
           'Which Clerk resources to sync. Omit to sync all of them. The secret key has read access to every resource by default; the allowlist exists to skip phases your dashboards do not query.',
       }),
-    dauLookbackDays: z.number().int().positive().max(90).optional().meta({
-      label: 'DAU lookback (days)',
-      description:
-        'How many days back to bucket users by last_active_at when computing the daily_active_users metric. Defaults to 30; the cap is 90.',
-      placeholder: '30',
-    }),
   }),
 );
 
@@ -85,10 +79,11 @@ export const doc: ConnectorDoc = defineConnectorDoc({
     ],
   },
   rateLimit:
-    'Clerk Backend API throttles per instance (~20 req/s for production, lower for dev). Responses publish X-RateLimit-Remaining / X-RateLimit-Reset (Unix seconds) headers and the shared HTTP client backs off on 429 using the standard rate-limit policy.',
+    'Clerk Backend API throttles per instance: 1000 requests per 10 seconds for production instances and 100 requests per 10 seconds for development instances. Responses publish X-RateLimit-Remaining / X-RateLimit-Reset headers, 429s carry Retry-After (seconds), and the shared HTTP client backs off using the standard rate-limit policy.',
   limitations: [
     'Each phase paginates via limit / offset and is capped at 50 pages per sync (~25,000 rows). Instances larger than that should run more frequent incremental syncs so each window fits under the cap.',
-    'The daily_active_users metric is derived by bucketing users by the day of their last_active_at timestamp - it counts users whose most recent activity fell on each day, not unique users active across overlapping days.',
+    "The daily_active_users metric records one sample for the current UTC day per sync. Clerk exposes only each user's most recent activity timestamp, so earlier days cannot be recomputed after the fact - the series accumulates from the first sync onwards, and a day's final value is whatever the last sync before midnight UTC observed.",
+    'GET /v1/sessions does not return sessions that Clerk has already cleaned up, so the session event stream is a recent-sessions view rather than a complete history.',
     'Webhooks, JWT templates, instance settings, and impersonation tokens are out of scope.',
   ],
 });
@@ -102,7 +97,6 @@ export type ClerkResource =
 export interface ClerkSettings {
   apiUrl?: string;
   resources?: readonly ClerkResource[];
-  dauLookbackDays?: number;
 }
 
 const clerkCredentials = {
@@ -138,9 +132,15 @@ const ORG_ENTITY = 'clerk_organization';
 const SESSION_EVENT = 'clerk_session';
 const DAU_METRIC = 'clerk_daily_active_users';
 
+const RESOURCE_NAME_BY_PHASE: Record<ClerkPhase, string> = {
+  users: USER_ENTITY,
+  organizations: ORG_ENTITY,
+  sessions: SESSION_EVENT,
+  daily_active_users: DAU_METRIC,
+};
+
 const PAGE_SIZE = 500;
 const MAX_PAGES = 50;
-const DEFAULT_DAU_LOOKBACK_DAYS = 30;
 const DEFAULT_API_URL = 'https://api.clerk.com';
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -149,11 +149,11 @@ const SESSION_STATUSES = [
   'active',
   'ended',
   'expired',
+  'pending',
   'removed',
   'replaced',
   'revoked',
 ] as const;
-type SessionStatus = (typeof SESSION_STATUSES)[number];
 
 const idString = z.string().min(1);
 
@@ -222,7 +222,7 @@ export const clerkResources = defineResources({
       'Clerk users keyed by user id, with primary email, sign-in / activity timestamps, and banned / locked flags.',
     endpoint: 'GET /v1/users',
     notes:
-      'Uses offset pagination (limit / offset) capped at 50 pages (~25,000 users) per sync. Incremental syncs pass options.since through as the last_active_at_since filter.',
+      'Uses offset pagination (limit / offset) capped at 50 pages (~25,000 users) per sync, ordered by -created_at so pages stay stable while the sync runs. Incremental syncs pass options.since through as the last_active_at_after filter.',
     fields: [
       { name: 'email', description: 'Primary email address (when present).' },
       {
@@ -261,7 +261,7 @@ export const clerkResources = defineResources({
       'Clerk organizations keyed by organization id, with display name, slug, and members count.',
     endpoint: 'GET /v1/organizations',
     notes:
-      'Uses offset pagination (limit / offset) capped at 50 pages. Clerk has no created_at / updated_at filter for organizations, so each sync re-scans the full list and short-circuits once a page is entirely older than options.since.',
+      'Uses offset pagination (limit / offset) capped at 50 pages, and requests include_members_count=true because Clerk omits members_count otherwise. Clerk has no created_at / updated_at filter for organizations, so each sync re-scans the newest-first list and short-circuits once a page is entirely older than options.since.',
     fields: [
       { name: 'name', description: 'Organization display name.' },
       { name: 'slug', description: 'Organization URL slug.' },
@@ -296,7 +296,7 @@ export const clerkResources = defineResources({
       {
         name: 'status',
         description:
-          'Session status (active | ended | expired | abandoned | removed | replaced | revoked).',
+          'Session status as returned by Clerk (active | ended | expired | abandoned | pending | removed | replaced | revoked).',
       },
       {
         name: 'lastActiveAt',
@@ -308,7 +308,7 @@ export const clerkResources = defineResources({
   [DAU_METRIC]: {
     shape: 'metric',
     description:
-      'Daily active users derived from the Clerk users endpoint: one sample per UTC day in the configured lookback window, counting users whose last_active_at fell on that day.',
+      "Daily active users derived from the Clerk users endpoint: one sample for the current UTC day, counting the users whose last_active_at falls on it. Clerk keeps only each user's most recent activity timestamp, so past days are never recomputed - each sync refreshes the current day and leaves earlier samples untouched.",
     endpoint: 'GET /v1/users',
     unit: 'count',
     granularity: '1d',
@@ -345,11 +345,7 @@ function primaryEmail(user: ClerkUser): {
   return { email: primary.email_address ?? null, verified };
 }
 
-function isSessionStatus(value: string): value is SessionStatus {
-  return (SESSION_STATUSES as readonly string[]).includes(value);
-}
-
-function dayBucket(tsMs: number): number {
+function startOfUtcDay(tsMs: number): number {
   return Math.floor(tsMs / DAY_MS) * DAY_MS;
 }
 
@@ -379,7 +375,6 @@ export class ClerkConnector extends BaseConnector<
       {
         apiUrl: parsed.apiUrl,
         resources: parsed.resources,
-        dauLookbackDays: parsed.dauLookbackDays,
       },
       {
         secretKey: parsed.secretKey,
@@ -391,19 +386,15 @@ export class ClerkConnector extends BaseConnector<
   readonly id = id;
   override readonly credentials = clerkCredentials;
 
-  private dauBuckets = new Map<number, Set<string>>();
+  private dauUserIds = new Set<string>();
 
   private baseUrl(): string {
     const raw = this.settings.apiUrl ?? DEFAULT_API_URL;
     return raw.replace(/\/+$/, '');
   }
 
-  private dauLookbackDays(): number {
-    return this.settings.dauLookbackDays ?? DEFAULT_DAU_LOOKBACK_DAYS;
-  }
-
-  private dauCutoffMs(): number {
-    return Date.now() - this.dauLookbackDays() * DAY_MS;
+  private currentDayStartMs(): number {
+    return startOfUtcDay(Date.now());
   }
 
   private parsePageCursor(page: string | null): number {
@@ -438,11 +429,11 @@ export class ClerkConnector extends BaseConnector<
     const u = new URL(`${this.baseUrl()}/v1/users`);
     u.searchParams.set('limit', String(PAGE_SIZE));
     u.searchParams.set('offset', String(offset));
-    u.searchParams.set('order_by', '-last_active_at');
+    u.searchParams.set('order_by', '-created_at');
     if (options.since) {
       const sinceMs = Date.parse(options.since);
       if (Number.isFinite(sinceMs)) {
-        u.searchParams.set('last_active_at_since', String(sinceMs));
+        u.searchParams.set('last_active_at_after', String(sinceMs));
       }
     }
     return u.toString();
@@ -453,6 +444,7 @@ export class ClerkConnector extends BaseConnector<
     u.searchParams.set('limit', String(PAGE_SIZE));
     u.searchParams.set('offset', String(offset));
     u.searchParams.set('order_by', '-created_at');
+    u.searchParams.set('include_members_count', 'true');
     return u.toString();
   }
 
@@ -467,8 +459,11 @@ export class ClerkConnector extends BaseConnector<
     const u = new URL(`${this.baseUrl()}/v1/users`);
     u.searchParams.set('limit', String(PAGE_SIZE));
     u.searchParams.set('offset', String(offset));
-    u.searchParams.set('order_by', '-last_active_at');
-    u.searchParams.set('last_active_at_since', String(this.dauCutoffMs()));
+    u.searchParams.set('order_by', '-created_at');
+    u.searchParams.set(
+      'last_active_at_after',
+      String(this.currentDayStartMs()),
+    );
     return u.toString();
   }
 
@@ -604,7 +599,6 @@ export class ClerkConnector extends BaseConnector<
       if (startTs === null) {
         continue;
       }
-      const status = isSessionStatus(s.status) ? s.status : 'active';
       const lastActive = parseEpoch(s.last_active_at ?? null, 'ms');
       await storage.event({
         name: SESSION_EVENT,
@@ -613,7 +607,7 @@ export class ClerkConnector extends BaseConnector<
         attributes: {
           sessionId: s.id,
           userId: s.user_id ?? null,
-          status,
+          status: s.status,
           lastActiveAt: lastActive,
         },
       });
@@ -621,29 +615,32 @@ export class ClerkConnector extends BaseConnector<
   }
 
   private accumulateDau(items: ClerkUser[]): void {
-    const cutoff = this.dauCutoffMs();
+    const dayStart = this.currentDayStartMs();
     for (const u of items) {
       const ts = u.last_active_at;
-      if (typeof ts !== 'number' || !Number.isFinite(ts) || ts < cutoff) {
+      if (typeof ts !== 'number' || !Number.isFinite(ts) || ts < dayStart) {
         continue;
       }
-      const bucket = dayBucket(ts);
-      const set = this.dauBuckets.get(bucket) ?? new Set<string>();
-      set.add(u.id);
-      this.dauBuckets.set(bucket, set);
+      this.dauUserIds.add(u.id);
     }
   }
 
   private async writeDauSamples(storage: StorageHandle): Promise<void> {
-    const samples = Array.from(this.dauBuckets.entries())
-      .sort(([a], [b]) => a - b)
-      .map(([ts, set]) => ({
-        name: DAU_METRIC,
-        ts,
-        value: set.size,
-        attributes: {},
-      }));
-    await storage.metrics(samples, { names: [DAU_METRIC] });
+    const dayStart = this.currentDayStartMs();
+    await storage.metrics(
+      [
+        {
+          name: DAU_METRIC,
+          ts: dayStart,
+          value: this.dauUserIds.size,
+          attributes: {},
+        },
+      ],
+      {
+        names: [DAU_METRIC],
+        replaceWindow: { start: dayStart, end: dayStart + DAY_MS - 1 },
+      },
+    );
   }
 
   private async clearScopeOnFirstPage(
@@ -652,8 +649,7 @@ export class ClerkConnector extends BaseConnector<
     isFull: boolean,
   ): Promise<void> {
     if (phase === 'daily_active_users') {
-      this.dauBuckets.clear();
-      await storage.metrics([], { names: [DAU_METRIC] });
+      this.dauUserIds.clear();
       return;
     }
     if (!isFull) {
@@ -676,6 +672,22 @@ export class ClerkConnector extends BaseConnector<
     return isClerkSyncCursor(cursor) ? cursor : undefined;
   }
 
+  private activePhases(
+    optionsResources: ReadonlySet<string> | undefined,
+  ): ClerkPhase[] {
+    const fromSettings = selectActivePhases<ClerkResource, ClerkPhase>(
+      (r) => r,
+      PHASE_ORDER,
+      this.settings.resources,
+    );
+    if (optionsResources === undefined) {
+      return fromSettings;
+    }
+    return fromSettings.filter((phase) =>
+      optionsResources.has(RESOURCE_NAME_BY_PHASE[phase]),
+    );
+  }
+
   async sync(
     options: SyncOptions,
     storage: StorageHandle,
@@ -684,11 +696,7 @@ export class ClerkConnector extends BaseConnector<
     const cursor = this.resolveCursor(options.cursor);
     const isFull = options.mode === 'full';
 
-    const phases = selectActivePhases<ClerkResource, ClerkPhase>(
-      (r) => r,
-      PHASE_ORDER,
-      this.settings.resources,
-    );
+    const phases = this.activePhases(options.resources);
 
     return paginateChunked<ClerkPhase, string>({
       phases,
