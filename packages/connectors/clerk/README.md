@@ -24,18 +24,17 @@ A Clerk Backend API secret key (Bearer token). Anyone with the key has read acce
 
 ## Configuration
 
-| Field             | Type   | Required | Description                                                                                                                                                                             |
-| ----------------- | ------ | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `secretKey`       | secret | Yes      | Clerk Backend API secret key (starts with `sk_test_` or `sk_live_`). Create one at Clerk Dashboard -> API Keys.                                                                         |
-| `apiUrl`          | string | No       | Clerk Backend API base URL. Defaults to https://api.clerk.com; override only if you are pinned to the legacy https://api.clerk.dev host.                                                |
-| `resources`       | array  | No       | Which Clerk resources to sync. Omit to sync all of them. The secret key has read access to every resource by default; the allowlist exists to skip phases your dashboards do not query. |
-| `dauLookbackDays` | number | No       | How many days back to bucket users by last_active_at when computing the daily_active_users metric. Defaults to 30; the cap is 90.                                                       |
+| Field       | Type   | Required | Description                                                                                                                                                                             |
+| ----------- | ------ | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `secretKey` | secret | Yes      | Clerk Backend API secret key (starts with `sk_test_` or `sk_live_`). Create one at Clerk Dashboard -> API Keys.                                                                         |
+| `apiUrl`    | string | No       | Clerk Backend API base URL. Defaults to https://api.clerk.com; override only if you are pinned to the legacy https://api.clerk.dev host.                                                |
+| `resources` | array  | No       | Which Clerk resources to sync. Omit to sync all of them. The secret key has read access to every resource by default; the allowlist exists to skip phases your dashboards do not query. |
 
 ## Resources
 
 - **`clerk_user`** _(entity)_ - Clerk users keyed by user id, with primary email, sign-in / activity timestamps, and banned / locked flags.
   - Endpoint: `GET /v1/users`
-  - Uses offset pagination (limit / offset) capped at 50 pages (~25,000 users) per sync. Incremental syncs pass options.since through as the last_active_at_since filter.
+  - Uses offset pagination (limit / offset) capped at 50 pages (~25,000 users) per sync, ordered by -created_at so pages stay stable while the sync runs. Incremental syncs pass options.since through as the last_active_at_after filter.
   - `email`: Primary email address (when present).
   - `emailVerified`: Whether the primary email address is verified (null if no email is set).
   - `lastSignInAt`: Most recent sign-in timestamp (Unix ms).
@@ -45,7 +44,7 @@ A Clerk Backend API secret key (Bearer token). Anyone with the key has read acce
   - `createdAt`: When the user account was created (Unix ms).
 - **`clerk_organization`** _(entity)_ - Clerk organizations keyed by organization id, with display name, slug, and members count.
   - Endpoint: `GET /v1/organizations`
-  - Uses offset pagination (limit / offset) capped at 50 pages. Clerk has no created_at / updated_at filter for organizations, so each sync re-scans the full list and short-circuits once a page is entirely older than options.since.
+  - Uses offset pagination (limit / offset) capped at 50 pages, and requests include_members_count=true because Clerk omits members_count otherwise. Clerk has no created_at / updated_at filter for organizations, so each sync re-scans the newest-first list and short-circuits once a page is entirely older than options.since.
   - `name`: Organization display name.
   - `slug`: Organization URL slug.
   - `membersCount`: Number of users in the organization at sync time.
@@ -55,9 +54,9 @@ A Clerk Backend API secret key (Bearer token). Anyone with the key has read acce
   - Uses offset pagination (limit / offset) capped at 50 pages. Clerk has no since filter on /v1/sessions, so the sync walks newest-first and stops once a page is entirely older than options.since.
   - `sessionId`: Clerk session id.
   - `userId`: User the session belongs to.
-  - `status`: Session status (active | ended | expired | abandoned | removed | replaced | revoked).
+  - `status`: Session status as returned by Clerk (active | ended | expired | abandoned | pending | removed | replaced | revoked).
   - `lastActiveAt`: Most recent activity timestamp on the session (Unix ms).
-- **`clerk_daily_active_users`** _(metric)_ - Daily active users derived from the Clerk users endpoint: one sample per UTC day in the configured lookback window, counting users whose last_active_at fell on that day.
+- **`clerk_daily_active_users`** _(metric)_ - Daily active users derived from the Clerk users endpoint: one sample for the current UTC day, counting the users whose last_active_at falls on it. Clerk keeps only each user's most recent activity timestamp, so past days are never recomputed - each sync refreshes the current day and leaves earlier samples untouched.
   - Endpoint: `GET /v1/users`
   - Unit: count
   - Granularity: 1d
@@ -115,12 +114,13 @@ export default defineConfig({
 
 ## Rate limits
 
-Clerk Backend API throttles per instance (~20 req/s for production, lower for dev). Responses publish X-RateLimit-Remaining / X-RateLimit-Reset (Unix seconds) headers and the shared HTTP client backs off on 429 using the standard rate-limit policy.
+Clerk Backend API throttles per instance: 1000 requests per 10 seconds for production instances and 100 requests per 10 seconds for development instances. Responses publish X-RateLimit-Remaining / X-RateLimit-Reset headers, 429s carry Retry-After (seconds), and the shared HTTP client backs off using the standard rate-limit policy.
 
 ## Limitations
 
 - Each phase paginates via limit / offset and is capped at 50 pages per sync (~25,000 rows). Instances larger than that should run more frequent incremental syncs so each window fits under the cap.
-- The daily_active_users metric is derived by bucketing users by the day of their last_active_at timestamp - it counts users whose most recent activity fell on each day, not unique users active across overlapping days.
+- The daily_active_users metric records one sample for the current UTC day per sync. Clerk exposes only each user's most recent activity timestamp, so earlier days cannot be recomputed after the fact - the series accumulates from the first sync onwards, and a day's final value is whatever the last sync before midnight UTC observed.
+- GET /v1/sessions does not return sessions that Clerk has already cleaned up, so the session event stream is a recent-sessions view rather than a complete history.
 - Webhooks, JWT templates, instance settings, and impersonation tokens are out of scope.
 
 ## Links

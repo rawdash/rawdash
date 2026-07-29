@@ -10,11 +10,10 @@ describe('configFields', () => {
     expect(result.success).toBe(true);
   });
 
-  it('parses a config with a resources allowlist and DAU lookback', () => {
+  it('parses a config with a resources allowlist', () => {
     const result = configFields.safeParse({
       secretKey: { $secret: 'CLERK_SECRET_KEY' },
       resources: ['users', 'sessions'],
-      dauLookbackDays: 14,
     });
     expect(result.success).toBe(true);
   });
@@ -37,14 +36,6 @@ describe('configFields', () => {
     const result = configFields.safeParse({
       secretKey: { $secret: 'CLERK_SECRET_KEY' },
       resources: ['users', 'invitations'],
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it('rejects a dauLookbackDays above 90', () => {
-    const result = configFields.safeParse({
-      secretKey: { $secret: 'CLERK_SECRET_KEY' },
-      dauLookbackDays: 180,
     });
     expect(result.success).toBe(false);
   });
@@ -137,14 +128,10 @@ function makeStorage() {
 
 const SECRET_KEY = 'CLERK_SECRET_KEY' as unknown as { $secret: string };
 
-function connector(
-  resources?: string[],
-  overrides: { apiUrl?: string; dauLookbackDays?: number } = {},
-) {
+function connector(resources?: string[], overrides: { apiUrl?: string } = {}) {
   return new ClerkConnector(
     {
       apiUrl: overrides.apiUrl,
-      dauLookbackDays: overrides.dauLookbackDays,
       ...(resources ? { resources: resources as never } : {}),
     },
     { secretKey: SECRET_KEY },
@@ -384,7 +371,7 @@ describe('ClerkConnector.sync', () => {
     expect(storage.events).not.toHaveBeenCalled();
   });
 
-  it('pushes a since filter into the users last_active_at_since parameter', async () => {
+  it('pushes a since filter into the users last_active_at_after parameter', async () => {
     const fetchSpy = makeFetch(() => undefined);
     vi.stubGlobal('fetch', fetchSpy);
 
@@ -397,10 +384,106 @@ describe('ClerkConnector.sync', () => {
       c.url.includes('/v1/users'),
     );
     expect(queryCall).toBeDefined();
-    const sinceParam = new URL(queryCall!.url).searchParams.get(
-      'last_active_at_since',
+    const params = new URL(queryCall!.url).searchParams;
+    expect(params.get('last_active_at_after')).toBe(
+      String(Date.parse('2024-01-01T00:00:00.000Z')),
     );
-    expect(sinceParam).toBe(String(Date.parse('2024-01-01T00:00:00.000Z')));
+    expect(params.get('last_active_at_since')).toBeNull();
+  });
+
+  it('orders the users and daily_active_users phases by the immutable created_at', async () => {
+    const fetchSpy = makeFetch(() => undefined);
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await connector(['users', 'daily_active_users']).sync(
+      { mode: 'full' },
+      makeStorage(),
+    );
+
+    const userCalls = recordCalls(fetchSpy).filter((c) =>
+      c.url.includes('/v1/users'),
+    );
+    expect(userCalls.length).toBeGreaterThan(0);
+    for (const call of userCalls) {
+      expect(new URL(call.url).searchParams.get('order_by')).toBe(
+        '-created_at',
+      );
+    }
+  });
+
+  it('asks for member counts on the organizations request', async () => {
+    const fetchSpy = makeFetch(() => undefined);
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await connector(['organizations']).sync({ mode: 'full' }, makeStorage());
+
+    const orgCall = recordCalls(fetchSpy).find((c) =>
+      c.url.includes('/v1/organizations'),
+    );
+    expect(orgCall).toBeDefined();
+    expect(
+      new URL(orgCall!.url).searchParams.get('include_members_count'),
+    ).toBe('true');
+  });
+
+  it('stores the session status Clerk returned instead of coercing it to active', async () => {
+    const fetchSpy = makeFetch((u) => {
+      if (u.includes('/v1/sessions')) {
+        return [
+          {
+            id: 'sess_pending',
+            user_id: 'user_1',
+            status: 'pending',
+            last_active_at: 1_700_000_100_000,
+            created_at: 1_700_000_000_000,
+          },
+        ];
+      }
+      return undefined;
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const storage = makeStorage();
+    await connector(['sessions']).sync({ mode: 'full' }, storage);
+
+    const event = storage.event.mock.calls[0]![0] as {
+      attributes: { status: string };
+    };
+    expect(event.attributes.status).toBe('pending');
+  });
+
+  it('skips phases whose resource is absent from options.resources', async () => {
+    const fetchSpy = makeFetch(() => undefined);
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await connector().sync(
+      { mode: 'full', resources: new Set(['clerk_organization']) },
+      makeStorage(),
+    );
+
+    const calls = recordCalls(fetchSpy);
+    expect(calls.some((c) => c.url.includes('/v1/organizations'))).toBe(true);
+    expect(calls.some((c) => c.url.includes('/v1/users'))).toBe(false);
+    expect(calls.some((c) => c.url.includes('/v1/sessions'))).toBe(false);
+  });
+
+  it('does not clear a deselected resource scope when options.resources narrows the sync', async () => {
+    vi.stubGlobal(
+      'fetch',
+      makeFetch(() => undefined),
+    );
+    const storage = makeStorage();
+    await connector().sync(
+      { mode: 'full', resources: new Set(['clerk_organization']) },
+      storage,
+    );
+
+    const clearedTypes = storage.entities.mock.calls.flatMap(
+      (c: unknown[]) => (c[1] as { types: string[] }).types,
+    );
+    expect(clearedTypes).toContain('clerk_organization');
+    expect(clearedTypes).not.toContain('clerk_user');
+    expect(storage.events).not.toHaveBeenCalled();
   });
 
   it('paginates users via offset until items.length < limit', async () => {
@@ -513,42 +596,25 @@ describe('ClerkConnector.sync', () => {
     ).toBe(true);
   });
 
-  it('writes daily_active_users metric samples bucketed by day of last_active_at', async () => {
+  it('counts only users active on the current UTC day for daily_active_users', async () => {
     const day0 = Math.floor(Date.now() / 86_400_000) * 86_400_000;
     const day1 = day0 - 86_400_000;
+    const dauUser = (id: string, lastActiveAt: number) => ({
+      id,
+      primary_email_address_id: null,
+      email_addresses: [],
+      last_sign_in_at: null,
+      last_active_at: lastActiveAt,
+      created_at: 1_690_000_000_000,
+      updated_at: 1_690_000_000_000,
+      banned: false,
+    });
     const fetchSpy = makeFetch((u) => {
       if (u.includes('/v1/users')) {
         return [
-          {
-            id: 'user_a',
-            primary_email_address_id: null,
-            email_addresses: [],
-            last_sign_in_at: null,
-            last_active_at: day0 + 1_000,
-            created_at: 1_690_000_000_000,
-            updated_at: 1_690_000_000_000,
-            banned: false,
-          },
-          {
-            id: 'user_b',
-            primary_email_address_id: null,
-            email_addresses: [],
-            last_sign_in_at: null,
-            last_active_at: day0 + 5_000,
-            created_at: 1_690_000_000_000,
-            updated_at: 1_690_000_000_000,
-            banned: false,
-          },
-          {
-            id: 'user_c',
-            primary_email_address_id: null,
-            email_addresses: [],
-            last_sign_in_at: null,
-            last_active_at: day1 + 5_000,
-            created_at: 1_690_000_000_000,
-            updated_at: 1_690_000_000_000,
-            banned: false,
-          },
+          dauUser('user_a', day0 + 1_000),
+          dauUser('user_b', day0 + 5_000),
+          dauUser('user_c', day1 + 5_000),
         ];
       }
       return undefined;
@@ -566,13 +632,54 @@ describe('ClerkConnector.sync', () => {
       ts: number;
       value: number;
     }>;
-    const scope = lastCall![1] as { names: string[] };
-    expect(scope.names).toEqual(['clerk_daily_active_users']);
-    expect(samples).toHaveLength(2);
-    const byDay = new Map(samples.map((s) => [s.ts, s.value]));
-    expect(byDay.get(day0)).toBe(2);
-    expect(byDay.get(day1)).toBe(1);
-    expect(samples[0]!.name).toBe('clerk_daily_active_users');
+    expect(samples).toEqual([
+      {
+        name: 'clerk_daily_active_users',
+        ts: day0,
+        value: 2,
+        attributes: {},
+      },
+    ]);
+  });
+
+  it('scopes every daily_active_users write to the current UTC day so earlier samples survive', async () => {
+    vi.stubGlobal(
+      'fetch',
+      makeFetch(() => undefined),
+    );
+    const day0 = Math.floor(Date.now() / 86_400_000) * 86_400_000;
+    const storage = makeStorage();
+    await connector(['daily_active_users']).sync({ mode: 'full' }, storage);
+
+    expect(storage.metrics).toHaveBeenCalled();
+    for (const call of storage.metrics.mock.calls) {
+      const scope = call[1] as {
+        names: string[];
+        replaceWindow?: { start: number; end: number };
+      };
+      expect(scope.names).toEqual(['clerk_daily_active_users']);
+      expect(scope.replaceWindow).toEqual({
+        start: day0,
+        end: day0 + 86_400_000 - 1,
+      });
+    }
+  });
+
+  it('requests only users active since the start of the current UTC day for daily_active_users', async () => {
+    const fetchSpy = makeFetch(() => undefined);
+    vi.stubGlobal('fetch', fetchSpy);
+    const day0 = Math.floor(Date.now() / 86_400_000) * 86_400_000;
+
+    await connector(['daily_active_users']).sync(
+      { mode: 'full' },
+      makeStorage(),
+    );
+
+    const call = recordCalls(fetchSpy).find((c) => c.url.includes('/v1/users'));
+    expect(call).toBeDefined();
+    expect(new URL(call!.url).searchParams.get('last_active_at_after')).toBe(
+      String(day0),
+    );
   });
 });
 
