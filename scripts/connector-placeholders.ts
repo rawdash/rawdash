@@ -487,16 +487,6 @@ export const connectorPlaceholders: ConnectorPlaceholder[] = [
     domain: 'planetscale.com',
   },
   {
-    id: 'postgres',
-    name: 'PostgreSQL',
-    category: 'infrastructure',
-    tagline:
-      'Run scheduled SQL against a PostgreSQL database and sync the result rows as a metric or entity series.',
-    icon: 'postgresql',
-    domain: 'postgresql.org',
-    requestIssue: 'RAW-441',
-  },
-  {
     id: 'prefect',
     name: 'Prefect',
     category: 'infrastructure',

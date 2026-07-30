@@ -60,7 +60,12 @@ const LANDING_DATA_FILE = join(
   'generated',
   'connectors.ts',
 );
-const NOT_A_CONNECTOR = new Set(['aws-shared', 'gcp-shared', 'azure-shared']);
+const NOT_A_CONNECTOR = new Set([
+  'aws-shared',
+  'azure-shared',
+  'gcp-shared',
+  'query-runner-shared',
+]);
 
 interface ConnectorModule {
   default: {
