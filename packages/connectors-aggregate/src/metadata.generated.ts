@@ -308,6 +308,13 @@ import {
   resources as openaiResources,
 } from '@rawdash/connector-openai';
 import {
+  configFields as postgresConfigFields,
+  cost as postgresCost,
+  doc as postgresDoc,
+  id as postgresId,
+  resources as postgresResources,
+} from '@rawdash/connector-postgres';
+import {
   configFields as posthogConfigFields,
   doc as posthogDoc,
   id as posthogId,
@@ -771,6 +778,14 @@ export const connectorMetadata: ConnectorMetadata[] = [
     doc: openaiDoc,
     configFields: openaiConfigFields,
     resources: openaiResources,
+  },
+  {
+    id: postgresId,
+    packageName: '@rawdash/connector-postgres',
+    doc: postgresDoc,
+    configFields: postgresConfigFields,
+    resources: postgresResources,
+    cost: postgresCost,
   },
   {
     id: posthogId,

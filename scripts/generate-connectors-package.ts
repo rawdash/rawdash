@@ -9,7 +9,12 @@ const PKG_DIR = join(ROOT, 'packages', 'connectors-aggregate');
 const SRC_DIR = join(PKG_DIR, 'src');
 const PKG_JSON_PATH = join(PKG_DIR, 'package.json');
 
-const NOT_A_CONNECTOR = new Set(['aws-shared', 'gcp-shared', 'azure-shared']);
+const NOT_A_CONNECTOR = new Set([
+  'aws-shared',
+  'azure-shared',
+  'gcp-shared',
+  'query-runner-shared',
+]);
 
 const GENERATED_MESSAGE =
   'This file is generated from the connector packages by scripts/generate-connectors-package.ts. Do not edit by hand.';
